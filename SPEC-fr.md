@@ -182,14 +182,75 @@ tar -czf project.tar.gz src Makefile README-SPEC.md
 
 ## 4. Recommendations Claude AI
 
+**R1 — GUI : SDL2 plutôt que DirectX2D + X11**
+SDL2 est disponible sous MSYS2 (`mingw-w64-x86_64-SDL2`), fonctionne sous Linux sans modification, et son API C pur couvre fenêtres, événements clavier/souris, et rendu 2D matériel. Cela remplace `win_D2D.c` ET `lx_X11.c` par un seul `sdl/sdl_renderer.c`, simplifiant massivement l'architecture. `win_platform.c` et `lx_platform.c` restent pour l'OS (threads, fichiers).
+
+**R2 — Émulateur 68000 : dispatch par table**
+Utiliser une table primaire de 256 entrées `[opcode >> 8]` → groupe d'instructions, puis tables secondaires par groupe de modes d'adressage. Chaque handler modifie la structure `cpu68k_t`. Référence : *MC68000 Programmer's Reference Manual* (Motorola, domaine public). Commencer par le sous-ensemble démo : MOVE/MOVEQ/LEA/CLR, ADD/SUB/CMP, BRA/BSR/Bcc/JMP/JSR/RTS, TRAP.
+
+**R3 — Formats disque : priorité .st → .msa, déprioritiser .stx**
+`.st` = dump brut secteur (737 280 octets fixes, trivial). `.msa` = `.st` compressé RLE, simple. `.stx` (Pasti) = format de copy-protection avec timing secteur non-standard, CRC tricks, weak bits — extrêmement complexe. La quasi-totalité des démos fonctionne en `.st` ou `.msa`. Réserver `.stx` à une UC future optionnelle.
+
+**R4 — Modèle de threading : message queues par vue**
+Chaque vue GUI tourne dans son thread avec une file circulaire bornée (thread-safe via mutex). Le thread console poste des messages aux vues, les vues renvoient des événements (fichier sélectionné, breakpoint atteint...). Implémenter `msg_queue_t` dans `common.h` comme structure portable.
+
+**R5 — Line editor riche : UC dédiée**
+Sous MSYS2 (mintty), utiliser `ReadConsoleInput()` avec `ENABLE_PROCESSED_INPUT` désactivé pour capturer les séquences escape VT100 (flèches = `\033[A/B`, Home/End = `\033[H/F`). Historique = tableau circulaire de `ST_MAX_HISTORY` entrées. Tab-completion = `FindFirstFile()` / `opendir()` sur le préfixe courant. Scope UC4.
+
+**R6 — Format PRG : bien documenté, direct**
+Header 28 octets (magic `0x601A`, tailles .text/.data/.bss, flags). Fixups = bitstream : `0x00`=fin, `0x01`=sauter 254 octets, sinon offset depuis dernier fixup. Implémentable en ~200 lignes propres. Référence : *Atari ST Internals* (Abacus Books, trouvable en PDF).
+
+**R7 — DEVPAC3 : documenter les différences 68000 standard**
+Directives clés : `DC.B/W/L`, `DS.B/W/L`, `EVEN`, `SECTION TEXT/DATA/BSS`, labels locaux `.loop`. VASM (compilateur open-source) implémente la syntaxe Motorola compatible DEVPAC3 — bon code de référence pour l'assembleur et le désassembleur.
+
+**R8 — Assets de test dans use_cases/UC*/**
+Inclure dès UC1 : un binaire 68000 minimal hand-crafté (`MOVEQ #42,D0 + RTS` = 4 octets de .text), un header PRG valide autour, une image `.st` de 737 280 octets avec FAT12 valide, et un `.S` DEVPAC3 minimal. Ces fichiers servent de fixtures stables pour tous les UCs suivants.
+
+**R9 — TOS minimal pour les démos**
+La majorité des démos contourne le TOS et écrit directement dans les registres matériel. Implémenter en priorité : Line-A (`0xA000-0xA0FF` : affichage, fontes), les registres vidéo Shifter (`0xFF8200-0xFF827F` : palette, résolution, adresse écran), YM2149 (`0xFF8800-0xFF8803` : son). GEMDOS peut rester en stub pour les premières démos.
+
+**R10 — Ordre de développement recommandé**
+Phase 1 (UC1-UC5) : Infrastructure console + SDL2 framework. Phase 2 (UC6-UC12) : Fichiers, éditeurs, formats disque. Phase 3 (UC13-UC20) : Désassembleur, assembleur, CPU 68000. Phase 4 (UC21-UC26) : Émulation ST complète, exécution. Phase 5 (UC27+) : Démos.
+
+
 ## 5. Workpackages
 
 Les étapes de développement fonctionnelles sont formalisées en Use Cases, permettant de développer et valider chaque cas d'usage de l'application et d'enrichir le projet avec de plus amples détails, dont les recommendations Claude AI de la section 4, et planifier le reste des Use Cases en TODO/stubs dans le projet. La liste actuelle des Use Cases est:
- - Use Case #1: Prototype complet du projet avec stubs des fonctions non actives et LOG_TODO pour les différentes fonctionnalités de la section 1. Le Use Case #1 génère la console principale avec les commandes `help`, `quit`. Les autres commandes sont stubbées. L'application utilise l'option -t pour lancer la console de Trace au démarrage de la console principale: la console de Trace affiche au moins log de chaque type (LOG_TRACE, LOG_INFO, LOG_ERROR, LOG_TODO).
- - Use Case #2: La commande `trace` sans paramètre toggle les LOG_TRACE de la console de Trace, la commande `trace on` active les LOG_TRACE, la commande 'trace off` désactive les LOG_TRACE. Les autres paramètres sont considérés comme sans effet avec un message utilisateur.
- - Use Case #3: la commande `dir` ouvre une fenêtre GUI de l'arborescence courante.
 
-Il faut raffiner ces Use Cases pour qu'ils couvrent une somme raisonnable d'ajout fonctionnel afin de valider l'ajout, relire le code et tester les fonctions. Les recommendations de la section 4. sont les bienvenues.
+| # | Commande(s) | Description | Valide |
+|---|---|---|---|
+| UC1 | `help`, `quit`, `trace -t` | Prototype complet, stubs, console + trace fonctionnels | trace init/open/close/levels |
+| UC2 | `trace on/off/toggle` | Gestion complète de la trace console | toggle + activation LOG_TRACE |
+| UC3 | `dir` | Vue arbre SDL2, navigation clavier/souris, sélection fichier | ouverture, scroll, sélection |
+| UC4 | console | Line editor riche : historique ↑↓, Home/End, tab-completion | navigation + complétion |
+| UC5 | `where` | Répertoire courant + état sélection, mise à jour depuis `dir` | affichage path sélectionné |
+| UC6 | plateforme | Abstraction fichiers : open/read/write/stat/mkdir, listing répertoire | tests lecture/écriture |
+| UC7 | `load` | Chargement fichier texte/binaire, détection type, buffer mémoire | load .txt, .bin, .PRG stub |
+| UC8 | `edit` texte | Vue éditeur texte SDL2 : scroll, numéros de ligne, sauvegarde | édition + save .S et .TXT |
+| UC9 | `edit` hex | Vue hex/ASCII SDL2 : adresses, scroll, édition octets | navigation + modification |
+| UC10 | `edit` | Vue intégrée hex+ASCII+désasm en colonnes synchronisées | sync curseur entre vues |
+| UC11 | interne | Désassembleur 68000 : MOVE/MOVEQ/LEA/CLR/EXG/SWAP/PEA | désasm binaire de test |
+| UC12 | interne | Désassembleur : ADD/SUB/CMP/MUL/DIV/AND/OR/EOR/NOT/NEG | désasm complet d'un .PRG |
+| UC13 | interne | Désassembleur : shifts, rotations, BTST/BSET/BCLR/BCHG | |
+| UC14 | interne | Désassembleur : BRA/BSR/Bcc/JMP/JSR/RTS/RTR/RTE/TRAP | désasm programme complet |
+| UC15 | interne | Format PRG : parser header + sections + fixups + chargement mémoire ST | load .PRG en mémoire émulée |
+| UC16 | interne | Image `.st` : lecture/écriture raw + FAT12 | mount/browse image .st |
+| UC17 | interne | Image `.msa` : décompression/compression RLE | round-trip .msa |
+| UC18 | `mount` | Vue arbre disquette SDL2, drag & drop depuis `dir` | monter répertoire en A:\ |
+| UC19 | `umount` | Démontage + sauvegarde image si modifiée | dialog save |
+| UC20 | `image` | Création .st / .msa depuis le contenu monté | image valide et montable |
+| UC21 | interne | CPU 68000 : registres + MOVE/MOVEQ/LEA/CLR/SWAP | step 10 instructions |
+| UC22 | interne | CPU 68000 : ADD/SUB/CMP/AND/OR/EOR/shifts | exécution programme arithmétique |
+| UC23 | interne | CPU 68000 : BRA/Bcc/JSR/RTS/TRAP + vecteurs exception | appel/retour de fonction |
+| UC24 | interne | Memory map ST + registres HW stubs (Shifter, MFP, YM2149) | accès registres sans crash |
+| UC25 | `execute` | Moteur pas-à-pas + vues CPU + mémoire | step + breakpoint sur .PRG simple |
+| UC26 | interne | Émulation vidéo ST (Shifter : low/med/high res, palette 16 couleurs) | rendu écran correct |
+| UC27 | `execute` | Vue écran SDL2 + synchronisation VBL | démo statique visible |
+| UC28 | interne | Line-A traps + registres Shifter/YM2149 minimaux | démo 1 plan visible |
+| UC29 | interne | XBIOS/GEMDOS minimaux (palette, écran base, VBL wait) | démo dynamique |
+| UC30 | interne | Assembleur DEVPAC3 : directives + instructions de base | .S → .PRG re-exécutable |
+| UC31 | all | Exécution d'une démo ST complète connue (ex. Enchanted Land intro) | **objectif final** |
+
 
 
 ## 6. Licence & attribution
