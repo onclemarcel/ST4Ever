@@ -183,10 +183,10 @@ SPEC-fr.md : Ce fichier en français
 ## 3. Packaging
 tar -czf project.tar.gz src Makefile README-SPEC.md
 
-## 4. Recommendations Claude AI
+## 4. Recommendations Claude AI / Onclemarcel
 
-**R1 — GUI : SDL2 plutôt que DirectX2D + X11**
-SDL2 est disponible sous MSYS2 (`mingw-w64-x86_64-SDL2`), fonctionne sous Linux sans modification, et son API C pur couvre fenêtres, événements clavier/souris, et rendu 2D matériel. Cela remplace `win_D2D.c` ET `lx_X11.c` par un seul `sdl/sdl_renderer.c`, simplifiant massivement l'architecture. `win_platform.c` et `lx_platform.c` restent pour l'OS (threads, fichiers).
+**R1 — GUI : utilisation de DirectX2D + X11 à but éducatif**
+Bien que des librairies telles que SDL2 soient disponible sous MSYS2 (`mingw-w64-x86_64-SDL2`), et fonctionnent sous Linux sans modification, le développement d'un renderer abstrait adapté au juste besoin de la logique de ST4Ever et d'un backend D2D Windows et X11 Linux permet de mieux comprendre les détails de ce type de code portable, au dépend d'une architecture de l'application plus complexe et d'un temps de développement plus long. 
 
 **R2 — Émulateur 68000 : dispatch par table**
 Utiliser une table primaire de 256 entrées `[opcode >> 8]` → groupe d'instructions, puis tables secondaires par groupe de modes d'adressage. Chaque handler modifie la structure `cpu68k_t`. Référence : *MC68000 Programmer's Reference Manual* (Motorola, domaine public). Commencer par le sous-ensemble démo : MOVE/MOVEQ/LEA/CLR, ADD/SUB/CMP, BRA/BSR/Bcc/JMP/JSR/RTS, TRAP.
