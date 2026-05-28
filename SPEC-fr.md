@@ -125,11 +125,14 @@ L'application ST4Ever est développée pour Windows dans un premier temps, avec 
 
 
 ### 2.2 Arborescence:
+
+***highlighted files are those produced by Claude along with its first response***
+
 src/ 
 - main.c: code d'initialisation des structures et variables globales, capture des options de la ligne de commande, lancement de la console principale, gestion de sortie et fermeture de l'applicatif.
-- common.h: contient les types communs et codes retours des fonctions de l'application, abstraction mutex portable
-- trace.h, trace.c: source de la console de trace et debug de la commande `trace` avec fonction de rotation, filtre (TRACE, INFO, ERROR, TODO), compaction TRACE.
-- line.h, line.c: code portable de la gestion de la console principale (commandes, historique, tab-completion, pre-completion des commandes, messages utilisateurs)
+- ***``common.h``***: contient les types communs et codes retours des fonctions de l'application, abstraction mutex portable
+- ***``trace.h``, ``trace.c``***: source de la console de trace et debug de la commande `trace` avec fonction de rotation, filtre (TRACE, INFO, ERROR, TODO), compaction TRACE.
+- ***``line.h``***, line.c: code portable de la gestion de la console principale (commandes, historique, tab-completion, pre-completion des commandes, messages utilisateurs)
 - gui.h, gui.c: code portable de la gestion abstraite des fenêtres et interactions utilisateurs et événements
 - renderer.h, renderer.c: code portable de la gestion abstraite for 2D rendering in GUI & ATARI ST emulation video screen
 - dir.h, dir.c: code portable de la vue GUI de l'arborescence courante ou indiquée en paramètre de la commande `dir`
