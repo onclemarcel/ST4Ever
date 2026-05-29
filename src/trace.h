@@ -73,7 +73,8 @@ typedef enum
  *
  * Returns:
  *   ST_NO_ERROR on success.
- *   ST_ERROR    if already initialised (idempotent - logs a warning).
+ *   ST_NO_ERROR if already initialised (idempotent - logs a warning to
+ *               stderr, leaves the subsystem unchanged).
  */
 st_error_t trace_init(st_bool_t bOpen);
 

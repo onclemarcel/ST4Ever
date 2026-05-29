@@ -60,6 +60,22 @@
         UC_TEST(desc, _e == ST_NO_ERROR); \
     } while (0)
 
+/* Skip a test with a reason - does not count as failure */
+#define TEST_SKIP(desc) \
+    printf("  [SKIP] %s\n", (desc))
+
+/*
+ * ST_TEST_LEVEL_UCNN is defined by the Makefile (-DST_TEST_LEVEL_UC01,
+ * -DST_TEST_LEVEL_UC03, ...) when compiling each use_case_NN binary.
+ * Use it to guard assertions that depend on stub vs real behaviour:
+ *
+ *   #ifdef ST_TEST_LEVEL_UC01
+ *       UC_CHECK("[N] gui_init stub", gui_init());
+ *   #else
+ *       TEST_SKIP("[N] gui_init - requires display, tested in UC3");
+ *   #endif
+ */
+
 /* Global fail counter - define in each use_case_NN.c */
 extern int g_uc_fails;
 

@@ -50,7 +50,7 @@ endif
 # -----------------------------------------------------------------------------
 BUILD   := build
 RELEASE := release
-TESTS   := tests
+TDIR    := test
 UC_DIR  := use_cases
 
 # -----------------------------------------------------------------------------
@@ -73,16 +73,16 @@ LIB_OBJS   := $(filter-out $(BUILD)/s_main.o, $(ALL_OBJS))
 
 # Final targets
 TARGET     := $(RELEASE)/st4ever$(EXE)
-UC_TARGETS := $(patsubst $(UC_DIR)/%.c, $(TESTS)/%$(EXE), $(UC_FILES))
+UC_TARGETS := $(patsubst $(UC_DIR)/%.c, $(TDIR)/%$(EXE), $(UC_FILES))
 
 # -----------------------------------------------------------------------------
 # Top-level targets
 # -----------------------------------------------------------------------------
 .PHONY: all run tests clean
 
-all: $(BUILD) $(RELEASE) $(TESTS) $(TARGET) $(UC_TARGETS)
+all: $(BUILD) $(RELEASE) $(TDIR) $(TARGET) $(UC_TARGETS)
 
-$(BUILD) $(RELEASE) $(TESTS):
+$(BUILD) $(RELEASE) $(TDIR):
 	mkdir -p $@
 
 # -----------------------------------------------------------------------------
@@ -109,7 +109,7 @@ $(TARGET): $(ALL_OBJS)
 # Each use_case_NN.c linked against the library objects (no main.o)
 # NOTE: run 'make tests' from the project root - test binaries use
 #       relative paths (e.g. use_cases/UC01/hello.prg).
-$(TESTS)/%$(EXE): $(UC_DIR)/%.c $(LIB_OBJS)
+$(TDIR)/%$(EXE): $(UC_DIR)/%.c $(LIB_OBJS)
 	$(CC) $(CFLAGS) $< $(LIB_OBJS) -o $@ $(LDFLAGS)
 	@echo "  --> $@"
 
@@ -142,4 +142,4 @@ tests: all
 
 # -----------------------------------------------------------------------------
 clean:
-	rm -rf $(BUILD) $(RELEASE) $(TESTS)
+	rm -rf $(BUILD) $(RELEASE) $(TDIR)

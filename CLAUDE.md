@@ -930,9 +930,55 @@ La cible `make tests` doit être exécutée depuis la racine du projet (là où 
 Ce fichier est l'interface de projet et doit être mis à jour à chaque UC validé :
 - Section 2 : le header documentaire de chaque fichier `.c` est recopié ici depuis les sources après chaque UC. C'est le contrat documentaire entre les sessions de conversation.
 - Section 5 : toute recommandation nouvelle issue d'une session Claude (ou du développeur) est ajoutée ici avec un numéro de révision et la date.
-- Section 6 : le statut de chaque UC (en cours / validé) et les sous-sections détaillées sont mis à jour après chaque session de travail.
+- Section 6 : le statut de chaque UC (en cours / validé) et les sous-sections détaillées sont mis à jour après chaque session de travail. Chaque sous-section 6.x d'UC validé inclut un paragraphe **"Contrats comportementaux validés"** résumant les invariants clés extraits des `/* INTENT: */` du `use_case_XX.c` correspondant, groupés par module. Ces contrats créent la traçabilité verticale : besoin utilisateur (section 1.1) → contrat technique validé (section 6.x) → preuve exécutable (`use_case_XX.c`). Ils guident les sessions futures lors de l'implémentation réelle des modules concernés.
 - Ne pas modifier les sections déjà validées sans noter la raison du changement.
 
+**R14 — Non-régression des tests use_case_XX : stratégie "intent-stable, assertion-évolutive"**
+Chaque `use_case_XX.c` valide l'**intention fonctionnelle** du UC, pas les détails d'implémentation du stub. Quand un UC ultérieur fait évoluer un comportement, on adapte l'assertion, pas l'intention. Règles :
+
+1. **Documenter l'intention séparément de l'assertion** : chaque bloc de test commence par un commentaire `/* INTENT: ... */` décrivant le comportement attendu de façon immuable. Quand une assertion est mise à jour, ajouter `/* ADAPTED: UCN - raison */` sur la ligne précédente.
+
+2. **Politique lors de l'implémentation d'un UCN** : avant de valider UCN, lancer `make tests`. Si un test antérieur échoue :
+   - Comportement stub → réel (attendu) : mettre à jour l'assertion + commenter `ADAPTED: UCN`
+   - Régression vraie (inattendu) : corriger le bug, pas le test
+
+3. **Macro `TEST_SKIP` pour tests incompatibles headless** : quand un test UC antérieur suppose un stub mais que l'implémentation réelle requiert un display ou une ressource système (ex : `gui_init` ouvre une vraie fenêtre en UC3), protéger via `#ifdef ST_TEST_LEVEL_UCNN` — le Makefile définit `-DST_TEST_LEVEL_UC01` lors de la compilation de `use_case_01`. La variante `TEST_SKIP("raison")` log le skip sans échouer.
+
+4. **Règle absolue** : `make tests` doit passer entièrement (0 = all passed) avant tout commit d'un nouveau UC. Les tests skippés sont acceptables ; les tests en échec bloquent.
+
+5. **Ne jamais supprimer un test** : si un comportement antérieur est définitivement remplacé, remplacer l'assertion par un `TEST_SKIP` avec l'explication, pour conserver la traçabilité de l'intention originale.
+
+**R15 — Couverture de tests : nominal et robustesse**
+Deux axes de couverture, calibrés par couche. Pas de mesure gcov (stubs faussent les métriques, trop lourd pour projet éducatif). Pas de mocks — utiliser des fonctions stub explicites dans `use_cases/` si nécessaire. Validation GUI reste manuelle.
+
+*Critères par couche :*
+
+| Couche | Nominal | Robustesse | Skip headless |
+|---|---|---|---|
+| `trace`, `line` (C pur) | 100 % fonctions publiques | tous les `ST_ERROR` documentés | — |
+| `ST`, `CPU`, `disasm` | 100 % (par instruction 68k) | NULL + bounds + opcode inconnu | — |
+| Fichiers / PRG | 100 % | format KO + fichier vide | — |
+| Platform `win/lx` | nominal | partiel | si besoin display |
+| GUI / renderer | skip | skip | oui (validation manuelle) |
+| Threading | nominal | partiel | oui (UC4+) |
+
+*Cas robustesse prioritaires :*
+- `NULL` sur chaque paramètre pointeur → `ST_ERROR` sans crash
+- Valeurs limites : `0`, taille max, adresse `0xFFFFFF + 1`
+- Formats invalides : PRG magic incorrect, image `.st` tronquée, opcode 68000 inconnu
+- État incohérent : double `init`, appel sans `init` préalable, double `close`
+- Concurrence : accès simultané à `gui_msg_queue_t` (UC4+)
+
+*Flags 68000 (UC11-UC23)* : pour chaque instruction arithmétique, vérifier explicitement les flags SR (N, Z, V, C, X) contre la spec Motorola, pas seulement le résultat du calcul.
+
+*Convention dans les `use_case_XX.c`* : étiqueter chaque `TEST_ASSERT` avec `[N]` (nominal) ou `[R]` (robustesse) dans le libellé. Ajouter en tête de fichier un bloc bilan :
+```c
+/* TEST MATRIX - UCnn:
+ *   [N] Nominal    : X tests  - all public functions in foo.h, bar.h
+ *   [R] Robustness : Y tests  - NULL params, bounds, invalid formats
+ *   [S] Skipped    : Z tests  - require display (validated manually)
+ */
+```
 
 
 ## 6. Use Cases
@@ -973,13 +1019,78 @@ Les étapes de développement fonctionnelles sont formalisées en Use Cases, per
 | UC30 | interne | Assembleur DEVPAC3 : directives + instructions de base | .S → .PRG re-exécutable |
 | UC31 | all | Exécution d'une démo ST complète connue (ex. Enchanted Land intro) | **objectif final** |
 
-### 6.1 Use Case 01 (UC1)
-Le prototype complet est fourni intégralement par Claude.AI et non modifié par Onclemarcel (développeur)
-Le projet est géré sous Github dans le repo public : https://github.com/onclemarcel/ST4Ever
-Il est intégré dans VS Code, avec Claude Code en support, et Terminal Msys2 intégré dans VSCode.
-Le clone Github se trouve sous /home/claude/ST4Ever en local.
+### 6.1 Use Case 01 (UC1) — VALIDÉ (2026-05-30)
 
-*Statut courant du projet*
+*Prototype complet fourni intégralement par Claude.AI. Projet géré sous GitHub (https://github.com/onclemarcel/ST4Ever), intégré dans VS Code + Terminal MSYS2, clone local sous `/home/claude/ST4Ever`.*
+
+**Périmètre fonctionnel implémenté :**
+- Console interactive : `help` (h/CTRL+H), `quit` (q/CTRL+Q), `trace -t` (t/CTRL+T) ; toutes autres commandes → `line_cmd_stub()` + LOG_TODO
+- Trace subsystem complet : `trace_init/open/close/shutdown`, `LOG_TRACE/INFO/ERROR/TODO`, compaction des TRACE consécutifs (`[xN]`), `trace_set/is_trace_enabled`, sortie fichier `st4ever_trace.log` + stderr ANSI
+- Console context : `line_init`, `line_shutdown` (stub `line_run` non appelé — bloquerait sur stdin)
+- ST machine memory : `st_init/shutdown`, `st_read/write_byte/word/long` (big-endian, contrôle alignement)
+- CPU 68000 stub : `cpu_init` (lit vecteurs reset SSP/PC, mode superviseur SR=0x2700), `cpu_step` (avance PC+2, retourne opcode brut — sans décodage réel)
+- Disassembler stub : `disasm_range/disasm_one` → fallback DC.W pour toute instruction
+- Tous autres modules : stubs avec LOG_TODO (gui, renderer, dir, mount, edit, exec, CPU 68k réel, as, ST formats disque)
+
+**Infrastructure et outillage validés :**
+- Makefile multi-platform MSYS2/Windows : détection automatique sources, `-std=gnu99`, `-D_GNU_SOURCE`, objets dans `./build/`, exécutables dans `./release/`, tests dans `./test/`
+- Structure `src/` (portable) + `win/` (Win32) + `linux/` (stubs X11/Posix) + `use_cases/`
+- `win_console.c` : activation ANSI/VT100 non-fatale (mintty n'expose pas de handle Win32)
+- Convention hongrois + macros `LOG_*` avec `##__VA_ARGS__` (`-std=gnu99`)
+- Fixture de test stable : `use_cases/UC01/hello.prg` = header PRG 28 octets + MOVEQ #42,D0 (0x702A) + RTS (0x4E75), 4 octets .text
+
+**Tests R14/R15 appliqués :**
+- `use_cases/use_cases.h` : ajout macro `TEST_SKIP`, documentation mécanisme `ST_TEST_LEVEL_UCNN`
+- `use_cases/use_case_01.c` : TEST MATRIX **45N + 19R + 0S = 64 tests**, tous PASS
+  - Labels `[N]`/`[R]` sur chaque assertion, commentaires `/* INTENT: */` par bloc
+  - Robustesse couverte : NULL params (toutes fonctions publiques), double `trace_init`, double `trace_close`, alignement word/long, borne RAM, buffer vide `disasm_range`
+
+**Anomalies découvertes et résolues :**
+- `trace.h` doc incorrecte : double-init documenté `ST_ERROR` → corrigé `ST_NO_ERROR` (implémentation intentionnellement idempotente, warning stderr uniquement)
+- `st_read_byte(ST_RAM_SIZE)` : retourne `ST_NO_ERROR` + `0xFF` — comportement stub intentionnel (espace cartouche 24-bit valide, non implémenté). Test marqué `ADAPTED: UC24` pour quand la memory map réelle lèvera un bus error.
+- `cpu_step` stub : avance PC+2 sans décoder — marqué `ADAPTED: UC21`
+- `disasm_range` stub : DC.W fallback — marqué `ADAPTED: UC11-UC14`
+
+**Contrats comportementaux validés :**
+
+*Module `trace` (→ UC2 pour l'implémentation complète)*
+- `trace_init(bOpen)` est idempotente : un double appel retourne `ST_NO_ERROR` avec warning stderr uniquement
+- `trace_close()` est idempotente : fermer une console déjà fermée retourne `ST_NO_ERROR`
+- Les quatre niveaux `LOG_TRACE/INFO/ERROR/TODO` doivent émettre sans crash quelle que soit l'état de la console
+- Les `LOG_TRACE` consécutifs depuis la même fonction sont compactés en `[xN]` (flush déclenché par un `LOG_INFO`)
+- `trace_set_trace_enabled(FALSE)` supprime uniquement `LOG_TRACE`, les trois autres niveaux restent actifs
+- `trace_set_trace_enabled(TRUE)` réactive `LOG_TRACE` immédiatement
+
+*Module `line` (→ UC4 pour l'éditeur riche)*
+- `line_init(NULL)` retourne `ST_ERROR` sans toucher à l'état
+- Après `line_init()` : `bRunning == TRUE` et `szCwd` non-vide
+- `line_shutdown(NULL)` retourne `ST_ERROR` sans toucher à l'état
+- Après `line_shutdown()` : `bRunning == FALSE`
+
+*Module `ST` machine (→ UC24 pour la memory map complète)*
+- `st_init(NULL, ...)` retourne `ST_ERROR` ; après init valide : `bPoweredOn == TRUE`, `uiResolution == ST_RES_LOW`
+- Round-trip byte/word/long exact ; word et long en big-endian
+- Accès NULL machine ou NULL pointeur de sortie → `ST_ERROR`
+- Accès word/long non aligné → `ST_ERROR` (bus error 68000)
+- Accès hors-RAM (espace cartouche/ROM 24-bit) : stub retourne `ST_NO_ERROR + 0xFF` — *ADAPTED:UC24* (lèvera `ST_ERROR` pour les zones vraiment non mappées)
+- `st_shutdown(NULL)` → `ST_ERROR` ; après shutdown valide : `bPoweredOn == FALSE`
+
+*Module `CPU` 68000 (→ UC21 pour le décodage réel)*
+- `cpu_init(NULL, ...)` et `cpu_init(..., NULL)` → `ST_ERROR`
+- Après `cpu_init()` valide : `uiPC` = vecteur reset PC, `uiSSP` = vecteur reset SSP, bit S du SR positionné, `eState == CPU_STATE_RUNNING`
+- `cpu_step(NULL, ...)` et `cpu_step(..., NULL, ...)` → `ST_ERROR`
+- Stub UC1 : `cpu_step()` avance PC+2 et retourne l'opcode brut — *ADAPTED:UC21* (décodage et exécution réels)
+
+*Module `disasm` (→ UC11-UC14 pour le décodage complet)*
+- `disasm_range()` avec buffer vide (len=0) : retourne `ST_NO_ERROR` et écrit 0 lignes
+- `disasm_range(NULL buf, ...)` ou `disasm_range(..., NULL results, ...)` → `ST_ERROR`
+- Stub UC1 : toute instruction → fallback `DC.W $XXXX` — *ADAPTED:UC11-UC14*
+
+**Points d'attention pour les UCs suivants :**
+- UC2 : `trace on/off/toggle` — logique déjà en place dans `trace.h`, il manque le parsing de l'argument dans `line.c`
+- UC3 : `gui_init` réel ouvre une fenêtre Win32 → les tests UC1 qui appellent des stubs GUI devront utiliser `#ifdef ST_TEST_LEVEL_UC01` + `TEST_SKIP` (mécanisme R14 en place)
+- UC21 : `cpu_step` réel changera le comportement des tests UC1 step — assertions marquées `ADAPTED`
+- UC24 : `st_read_byte` hors-RAM devra lever ST_ERROR pour les zones vraiment non mappées — test marqué `ADAPTED`
 
 ## 7. Licence & attribution
 Pas de redistribution prévue à ce jour
