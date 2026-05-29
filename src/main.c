@@ -1,0 +1,177 @@
+/*
+ * main.c - ST4Ever application entry point
+ *
+ * Responsibilities:
+ *   1. Parse command-line options (-t, -h).
+ *   2. Initialise platform-specific subsystems (win_console_init).
+ *   3. Initialise the trace subsystem (trace_init).
+ *   4. Initialise the GUI subsystem (gui_init - stubbed UC3).
+ *   5. Initialise and run the interactive console (line_init/run).
+ *   6. Perform orderly shutdown in reverse initialisation order.
+ *
+ * Command-line options:
+ *   -t          Open the trace console at startup.
+ *   -h / --help Print usage text and exit.
+ */
+
+#include "common.h"
+#include "trace.h"
+#include "line.h"
+#include "gui.h"
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+/* ------------------------------------------------------------------
+ * Platform-specific entry points (declared here; defined in win/ or
+ * linux/ source files so no platform header is needed here).
+ * ------------------------------------------------------------------ */
+
+#ifdef ST_PLATFORM_WINDOWS
+extern st_error_t win_console_init(void);
+extern st_error_t win_console_shutdown(void);
+#endif
+
+/* ------------------------------------------------------------------
+ * Internal: usage text
+ * ------------------------------------------------------------------ */
+
+/*
+ * print_usage() - Print command-line usage to stdout.
+ *
+ * Parameters:
+ *   szArgv0 [in] : argv[0] (program name).
+ */
+static void print_usage(const char *szArgv0)
+{
+    const char *szName;
+
+    szName = (szArgv0 != NULL) ? szArgv0 : ST_APP_NAME;
+
+    printf("Usage: %s [options]\n\n", szName);
+    printf("Options:\n");
+    printf("  -t          Open the trace console at startup\n");
+    printf("  -h / --help Show this message and exit\n");
+    printf("\n");
+    printf("Once running, type 'help' for the list of commands.\n");
+}
+
+/* ------------------------------------------------------------------
+ * main()
+ * ------------------------------------------------------------------ */
+
+int main(int argc, char *argv[])
+{
+    st_bool_t       bTraceAtStart;
+    st_error_t      eResult;
+    line_context_t  tLineCtx;
+    int             iArg;
+    int             iExitCode;
+
+    bTraceAtStart = ST_FALSE;
+    iExitCode     = 0;
+
+    /* ---- 1. Parse command-line options --------------------------- */
+    for (iArg = 1; iArg < argc; iArg++)
+    {
+        if (strcmp(argv[iArg], "-t") == 0)
+        {
+            bTraceAtStart = ST_TRUE;
+        }
+        else if (strcmp(argv[iArg], "-h")     == 0
+              || strcmp(argv[iArg], "--help") == 0)
+        {
+            print_usage(argv[0]);
+            return 0;
+        }
+        else
+        {
+            fprintf(stderr,
+                    "%s: unknown option '%s'\n",
+                    ST_APP_NAME, argv[iArg]);
+            print_usage(argv[0]);
+            return 1;
+        }
+    }
+
+    /* ---- 2. Platform-specific console init ----------------------- */
+#ifdef ST_PLATFORM_WINDOWS
+    eResult = win_console_init();
+    if (eResult != ST_NO_ERROR)
+    {
+        fprintf(stderr,
+                "[FATAL] win_console_init() failed\n");
+        return 1;
+    }
+#endif
+
+    /* ---- 3. Trace subsystem -------------------------------------- */
+    eResult = trace_init(bTraceAtStart);
+    if (eResult != ST_NO_ERROR)
+    {
+        fprintf(stderr,
+                "[FATAL] trace_init() failed\n");
+        iExitCode = 1;
+        goto shutdown_console;
+    }
+
+    LOG_INFO("%s %s starting (argc=%d, -t=%s)",
+             ST_APP_NAME, ST_APP_VERSION,
+             argc,
+             bTraceAtStart == ST_TRUE ? "yes" : "no");
+
+    /* ---- 4. GUI subsystem (stubbed until UC3) -------------------- */
+    eResult = gui_init();
+    if (eResult != ST_NO_ERROR)
+    {
+        /* Non-fatal for UC1: GUI is all stubs */
+        LOG_ERROR("gui_init() failed - GUI views will not open");
+    }
+
+    /* ---- 5. Console init & run ----------------------------------- */
+    eResult = line_init(&tLineCtx);
+    if (eResult != ST_NO_ERROR)
+    {
+        LOG_ERROR("line_init() failed");
+        iExitCode = 1;
+        goto shutdown_gui;
+    }
+
+    eResult = line_run(&tLineCtx);
+    if (eResult != ST_NO_ERROR)
+    {
+        LOG_ERROR("line_run() returned ST_ERROR");
+        iExitCode = 1;
+    }
+
+    eResult = line_shutdown(&tLineCtx);
+    if (eResult != ST_NO_ERROR)
+    {
+        LOG_ERROR("line_shutdown() failed");
+    }
+
+    /* ---- 6. Ordered shutdown ------------------------------------- */
+shutdown_gui:
+    eResult = gui_shutdown();
+    if (eResult != ST_NO_ERROR)
+    {
+        LOG_ERROR("gui_shutdown() failed");
+    }
+
+    LOG_INFO("%s shutdown complete (exit code %d)",
+             ST_APP_NAME, iExitCode);
+
+shutdown_console:
+    eResult = trace_shutdown();
+    if (eResult != ST_NO_ERROR)
+    {
+        fprintf(stderr, "[FATAL] trace_shutdown() failed\n");
+    }
+
+#ifdef ST_PLATFORM_WINDOWS
+    win_console_shutdown();
+#endif
+
+    return iExitCode;
+}

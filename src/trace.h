@@ -21,7 +21,8 @@
  *   - st4ever_trace.log  (always, when initialized)
  *   - stderr with ANSI colours (when trace console is open)
  *
- * TODO(UC3): Replace the stderr path with a dedicated SDL2 window.
+ * TODO(UC3): Replace the stderr output with a dedicated Win32 GDI window (Windows)
+ * or X11 window (Linux) opened by gui_create_trace_window().
  */
 
 #ifndef TRACE_H

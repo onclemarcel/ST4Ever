@@ -126,19 +126,281 @@ L'application ST4Ever est développée pour Windows dans un premier temps, avec 
 
 ### 2.2 Arborescence:
 
-***highlighted files are those produced by Claude along with its first response***
+***highlighted files are those produced by Claude along with its 2nd response***<br>
+NOTE: TODO(UC*) fait référence aux Use Cases listés en section 5. de ce document
 
 src/ 
-- main.c: code d'initialisation des structures et variables globales, capture des options de la ligne de commande, lancement de la console principale, gestion de sortie et fermeture de l'applicatif.
-- ***``common.h``***: contient les types communs et codes retours des fonctions de l'application, abstraction mutex portable
-- ***``trace.h``, ``trace.c``***: source de la console de trace et debug de la commande `trace` avec fonction de rotation, filtre (TRACE, INFO, ERROR, TODO), compaction TRACE.
-- ***``line.h``***, line.c: code portable de la gestion de la console principale (commandes, historique, tab-completion, pre-completion des commandes, messages utilisateurs)
-- gui.h, gui.c: code portable de la gestion abstraite des fenêtres et interactions utilisateurs et événements
-- renderer.h, renderer.c: code portable de la gestion abstraite for 2D rendering in GUI & ATARI ST emulation video screen
-- dir.h, dir.c: code portable de la vue GUI de l'arborescence courante ou indiquée en paramètre de la commande `dir`
+- ***``main.c``***: 
+```
+/*
+ * main.c - ST4Ever application entry point
+ *
+ * Responsibilities:
+ *   1. Parse command-line options (-t, -h).
+ *   2. Initialise platform-specific subsystems (win_console_init).
+ *   3. Initialise the trace subsystem (trace_init).
+ *   4. Initialise the GUI subsystem (gui_init - stubbed UC3).
+ *   5. Initialise and run the interactive console (line_init/run).
+ *   6. Perform orderly shutdown in reverse initialisation order.
+ *
+ * Command-line options:
+ *   -t          Open the trace console at startup.
+ *   -h / --help Print usage text and exit.
+ */
+
+- ***``common.h``***: 
+```
+/*
+ * common.h - ST4Ever foundational types, return codes and macros
+ *
+ * Included by all source files. Defines the type conventions,
+ * error propagation model, platform detection, utility macros,
+ * and the portable mutex / thread abstractions used throughout
+ * the project.
+ *
+ * Platform-specific implementations of st_mutex_t and st_thread_t
+ * live in win/win_platform.c (Windows) and linux/lx_platform.c
+ * (Linux).
+ */
+
+- ***``trace.h``***:
+```
+/*
+ * trace.h - ST4Ever trace and debug console
+ *
+ * Provides four log levels for runtime diagnostics:
+ *
+ *   LOG_TRACE  function entry with key parameter values.
+ *              Compacted: consecutive calls from the same function
+ *              are collapsed into a single entry with a repeat count
+ *              to prevent log flooding in tight loops.
+ *
+ *   LOG_INFO   functional state information useful for following
+ *              application progress at a higher level.
+ *
+ *   LOG_ERROR  internal errors: NULL pointers, failed system calls,
+ *              unexpected state. Always identifies the source location.
+ *
+ *   LOG_TODO   marks stub functions or code paths not yet implemented.
+ *              Helps track work remaining across the codebase.
+ *
+ * For UC1 the trace output is written to:
+ *   - st4ever_trace.log  (always, when initialized)
+ *   - stderr with ANSI colours (when trace console is open)
+ *
+ * TODO(UC3): Replace the stderr output with a dedicated Win32 GDI window (Windows)
+ * or X11 window (Linux) opened by gui_create_trace_window().
+ */
+
+- ***``trace.c``***:
+```
+/*
+ * trace.c - ST4Ever trace and debug console implementation
+ */
+
+- ***``line.h``***:
+```
+/*
+ * line.h - ST4Ever console line reader and command dispatcher
+ *
+ * Manages the interactive console loop: displays the prompt,
+ * reads user input, parses the command and its arguments,
+ * and dispatches to the appropriate command handler.
+ *
+ * Command syntax:
+ *   <command> [arg1 [arg2 ...]]
+ *   ^-- first word only, matched against the command table
+ *              ^-- tab-completed against files/dirs (UC4)
+ *
+ * For UC1 the input is a plain fgets() read.
+ * TODO(UC4): replace with the rich line editor (history, tab-complete,
+ *            pre-completion ghost text, arrow-key navigation).
+ */
+
+- ***``line.c``***: 
+```
+/*
+ * line.c - ST4Ever console line reader and command dispatcher
+ *
+ * UC1: basic fgets() input loop with help, quit and trace handlers.
+ *      All other commands dispatch to line_cmd_stub() which logs
+ *      LOG_TODO and prints a "not yet implemented" message.
+ *
+ * TODO(UC2): Implement full trace on/off/toggle logic.
+ * TODO(UC4): Replace fgets() with the rich line editor
+ *            (history, tab-completion, ghost-text pre-completion,
+ *             arrow-key navigation via win_console / lx_console).
+ */
+
+- ***``gui.h``***:
+```
+/*
+ * gui.h - ST4Ever portable GUI window and event abstraction
+ *
+ * Provides a platform-independent interface for creating and managing
+ * GUI windows.  Each view opened by a user command (dir, edit, mount,
+ * execute...) is a gui_window_t running its message/event loop in a
+ * dedicated thread.
+ *
+ * Platform backends:
+ *   win/win_gui.c  - Win32: CreateWindowEx, WndProc, GetMessage pump
+ *   linux/lx_gui.c - X11:   XCreateWindow, XNextEvent loop
+ *
+ * Threading model (R4):
+ *   gui_open_window() spawns a platform_thread_create() thread that
+ *   owns the window and runs its event loop.  The console thread
+ *   communicates with views via msg_queue_t (defined below).
+ *   Views post events back via their registered gui_event_fn callback,
+ *   which is called from the view thread.
+ *
+ * TODO(UC3): Implement gui_open_window() and platform backends.
+ */
+
+- ***``gui.c``***: 
+```
+/*
+ * gui.c - ST4Ever GUI subsystem stub
+ *
+ * Portable logic only.  Platform backends:
+ *   win/win_gui.c  - Win32 window creation and message pump
+ *   linux/lx_gui.c - X11 window creation and event loop
+ *
+ * TODO(UC3): Implement gui_init, gui_open_window, message queues.
+ */
+
+- ***``renderer.h``***:
+```
+/*
+ * renderer.h - ST4Ever portable 2D rendering abstraction
+ *
+ * Provides a minimal, efficient 2D drawing API used by all GUI views
+ * and by the Atari ST screen emulator.  All coordinates are in pixels,
+ * origin top-left of the client area.
+ *
+ * Platform backends:
+ *   win/win_D2D.c  - Direct2D (ID2D1HwndRenderTarget) + DirectWrite
+ *   linux/lx_X11.c - Xlib (XRender extension for compositing)
+ *
+ * Lifecycle per frame:
+ *   renderer_begin_draw()
+ *     renderer_fill_rect() / renderer_draw_line() / draw_text() ...
+ *   renderer_end_draw()     <- swaps / presents the frame
+ *
+ * The renderer_t handle is created once per window and destroyed when
+ * the window closes.  Resize events trigger renderer_resize().
+ *
+ * Font model:
+ *   A fixed-pitch monospace font is the primary font (hex editor,
+ *   disassembler, CPU view, memory view).  A proportional font is
+ *   used for UI chrome.  Font handles are created by the renderer
+ *   and cached internally.
+ *
+ * TODO(UC3): Implement renderer_create() and all draw primitives.
+ */
+
+- ***``renderer.c``***: 
+```
+/*
+ * renderer.c - ST4Ever renderer stub
+ *
+ * TODO(UC3): Implement via win_D2D.c (Direct2D) / lx_X11.c (XRender).
+ */
+
+- ***``dir.h``***:
+```
+/*
+ * dir.h - ST4Ever directory tree view
+ *
+ * Implements the `dir` command: opens a Win32/X11 window showing an
+ * indented, expandable tree of the target directory.  A selected
+ * file/directory is stored in line_context_t.szSelected and becomes
+ * the default argument for load, edit, mount, image.
+ *
+ * TODO(UC3): Implement using gui.h / renderer.h.
+ */
+
+- ***``dir.c``***: 
+```
+/*
+ * dir.c - ST4Ever directory tree view implementation (stub)
+ * TODO(UC3): Implement dir_open with Win32/X11 window + tree rendering.
+ */
+
 - mount.h, mount.c: code portable de la vue d'émulation disquette ATARI ST et arborescence de son contenu
-- ST.h, ST.c: code portable de l'émulation interne de la machine ATARI ST (écriture/lecture mémoire ATARI ST, émulation disquette, composants internes)
-- CPU.h, CPU.c: code portable de l'émulation du CPU 68000 de l'ATARI ST
+
+- ***``ST.h``***:
+```
+/*
+ * ST.h - ST4Ever Atari ST machine emulation core
+ *
+ * Models the Atari ST hardware memory map, hardware registers,
+ * and provides read/write access to the emulated address space.
+ *
+ * Memory map (24-bit address space, 0x000000 - 0xFFFFFF):
+ *
+ *   0x000000 - 0x0007FF   Exception vectors (68000 vector table)
+ *   0x000800 - 0x07FFFF   TOS / RAM  (varies by ST model)
+ *   0x080000 - 0xEFFFFF   Cartridge / expansion (mostly unused)
+ *   0xF00000 - 0xF3FFFF   Cartridge ROM
+ *   0xF40000 - 0xF7FFFF   Reserved
+ *   0xF80000 - 0xFBFFFF   TOS ROM (192KB on STF, 256KB on STE)
+ *   0xFC0000 - 0xFDFFFF   TOS ROM (upper mirror / cartridge)
+ *   0xFE0000 - 0xFEFFFF   Reserved
+ *   0xFF8000 - 0xFF8FFF   Hardware registers:
+ *     0xFF8200 - 0xFF827F    Video (Shifter): palette, resolution,
+ *                             screen base, horizontal/vertical regs
+ *     0xFF8800 - 0xFF8803    YM2149 (PSG) - sound + keyboard + ports
+ *     0xFF8A00 - 0xFF8A3F    Blitter (STE only)
+ *     0xFFFA00 - 0xFFFA3F    MFP 68901 - timers, UART, interrupts
+ *     0xFFFC00 - 0xFFFC07    ACIA 6850 - keyboard + MIDI
+ *   0xFFFF82 - 0xFFFFFF   Reserved / mirrors
+ *
+ * TODO(UC15): Implement PRG loading and fixup relocation.
+ * TODO(UC24): Implement hardware register read/write handlers.
+ */
+
+- ***``ST.c``***: 
+```
+/*
+ * ST.c - Atari ST machine emulation (stub)
+ * TODO(UC15): Load PRG + fixups.
+ * TODO(UC24): Hardware register read/write handlers.
+ */
+
+- ***``CPU.h``***:
+```
+/*
+ * CPU.h - ST4Ever Motorola 68000 CPU emulator
+ *
+ * Models the MC68000 register file and execution state.
+ *
+ * Register file:
+ *   D0-D7   Data registers (32-bit, byte/word/long operations)
+ *   A0-A7   Address registers (32-bit; A7 = USP stack pointer)
+ *   A7'     Supervisor stack pointer (SSP, accessible in supervisor mode)
+ *   PC      Program counter (24-bit effective, stored as 32-bit)
+ *   SR      Status register: T S . . I2 I1 I0 . . . X N Z V C
+ *             T  = trace mode
+ *             S  = supervisor mode (0=user, 1=supervisor)
+ *             I2-I0 = interrupt mask (0-7)
+ *             X  = extend flag
+ *             N  = negative flag
+ *             Z  = zero flag
+ *             V  = overflow flag
+ *             C  = carry flag
+ *
+ * Opcode dispatch strategy (R2):
+ *   Primary table: 256 entries indexed by (opcode >> 8).
+ *   Each entry points to a handler group that decodes the full
+ *   opcode including effective address mode and size field.
+ *   See CPU.c for the table definitions.
+ *
+ * TODO(UC21): Implement MOVE/MOVEQ/LEA/CLR/SWAP.
+ * TODO(UC22): Implement ADD/SUB/CMP/AND/OR/EOR/shifts.
+ * TODO(UC23): Implement BRA/Bcc/JSR/RTS/TRAP + exception vectors.
+ */
+
+- CPU.c: code portable de l'émulation du CPU 68000 de l'ATARI ST
 - disassemble.h, disassemble.c : code portable du désassembleur binaire -> DEVPAC3 assembleur
 - as.h, as.c : code portable de l'assembleur format DEVPAC3 -> binaire .PRG ou .raw
 - edit_txt.h, edit_txt.c : code portable de l'éditeur de texte / source code assembleur
