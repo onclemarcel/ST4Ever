@@ -6,30 +6,41 @@
 # Application executable goes into release/.
 # Use-case test executables go into tests/.
 #
+# Platform detection strategy:
+#   PLATFORM variable selects the source directory (win/ or linux/).
+#   The C compiler symbols _WIN32 / __linux__ are defined automatically
+#   by GCC.  common.h converts them to ST_PLATFORM_WINDOWS/LINUX.
+#   Do NOT pass -DST_PLATFORM_* here: common.h already does it, and
+#   adding it from the command line triggers a redefinition warning.
+#
 # Targets:
 #   make           Build everything (app + tests)
 #   make run       Build and run the application
-#   make tests     Build and execute all use case tests
+#   make tests     Execute all use case tests (run from project root)
 #   make clean     Remove build/, release/, tests/
 # =============================================================================
 
 CC     := gcc
-CFLAGS := -Wall -Wextra -pedantic -std=c99 -g -D_GNU_SOURCE
+# -std=gnu99: enables ##__VA_ARGS__ extension used by the LOG_* macros
+# (standard C99 requires at least one variadic argument; GNU extension
+#  allows zero.  GCC/MinGW-W64 always supports this regardless of target.)
+CFLAGS := -Wall -Wextra -pedantic -std=gnu99 -g -D_GNU_SOURCE
 CFLAGS += -I./src
 
 # -----------------------------------------------------------------------------
 # Platform detection
+# Note: _WIN32 / __linux__ are automatically defined by GCC.
+#       common.h uses them to define ST_PLATFORM_WINDOWS / LINUX.
+#       PLATFORM here only controls which backend source directory to compile.
 # -----------------------------------------------------------------------------
 ifeq ($(OS),Windows_NT)
     PLATFORM := win
     EXE      := .exe
-    CFLAGS   += -DST_PLATFORM_WINDOWS
     LDFLAGS  := -lkernel32 -luser32 -lgdi32
     # TODO(UC3): add -ld2d1 -ldwrite -lole32 -luuid when Direct2D is active
 else
     PLATFORM := linux
     EXE      :=
-    CFLAGS   += -DST_PLATFORM_LINUX
     LDFLAGS  := -lpthread
     # TODO(UC3): add -lX11 -lXft -lfontconfig when X11 is active
 endif
@@ -96,6 +107,8 @@ $(TARGET): $(ALL_OBJS)
 	@echo "  --> $(TARGET)"
 
 # Each use_case_NN.c linked against the library objects (no main.o)
+# NOTE: run 'make tests' from the project root - test binaries use
+#       relative paths (e.g. use_cases/UC01/hello.prg).
 $(TESTS)/%$(EXE): $(UC_DIR)/%.c $(LIB_OBJS)
 	$(CC) $(CFLAGS) $< $(LIB_OBJS) -o $@ $(LDFLAGS)
 	@echo "  --> $@"
@@ -110,6 +123,7 @@ tests: all
 	@echo ""
 	@echo "================================================================"
 	@echo " ST4Ever - Use Case Tests"
+	@echo " (must be run from the project root directory)"
 	@echo "================================================================"
 	@FAILS=0; \
 	for t in $(UC_TARGETS); do \

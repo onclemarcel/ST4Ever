@@ -25,7 +25,7 @@
 #include "common.h"
 
 /* Maximum length of one disassembled line (mnemonic + operands) */
-#define DISASM_LINE_MAX   80
+#define DISASM_LINE_MAX  128
 
 /* ------------------------------------------------------------------
  * Result of disassembling one instruction

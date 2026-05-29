@@ -1,5 +1,7 @@
 # Projet : ST4Ever : The Revival Engine for the Timeless ATARI ST
 
+## 1. Contexte du projet
+
 Ce projet est une application console interactive multi-plateforme développée en C pur à but éducatif permettant de:
 - lire/écrire des fichiers ATARI ST (texte ou binaires .PRG, .TTP, .TOS)
 - créer/lire des images disques ATARI ST de type .st, .msa, .stx à partir de/vers des répertoires PC
@@ -22,18 +24,18 @@ De futures évolutions du projet seront les utilitaires annexes tels qu'une vers
  
 L'objectif ultime est la production de code source en C pur compilé sous Msys2 à partir d'images disque de démos ATARI ST pour les compiler au format PC et les exécuter sous Msys2 en fenêtre graphique Windows ou Linux sans émulation ATARI ST (d'où le 'revival'...)
 
-## 1. Objectifs fonctionnels
+### 1.1 Objectifs fonctionnels
 - Application console interactive avec commandes : `help`, `quit`, `dir`, `load`, `edit`, `image`, `mount`, `umount`, `where`, `trace on/off` (les commandes ont un équivalent monogramme: 'h', 'q', 'd', 'l', 'e', 'i', 'm', 'u', 'w', 't' ainsi que des raccourcis clavier CTRL+H, CTRL+Q ou CTRL+C, CTRL+D, CTRL+L, CTRL+E, CTRL+M, CTRL+U, CTRL+W, CTRL+T)
 - Éditeur de ligne riche avec gestion de l'historique des commandes par flèches haut et bas, home et end, tab-completion pour l'affichage des fichiers et/ou répertoires, et le pré-affichage en gris de la commande en cours d'écriture avec complément par la touche tab (seul le premier mot de la ligne de commande est une commande, les arguments sont en tab-completion sur les noms de répertoire/fichiers).
 
 
-### 1.1 (`h` | `help` | `CTRL+H`) 
+#### 1.1.1 (`h` | `help` | `CTRL+H`) 
 Cette commande ouvre la liste des commandes disponibles ainsi qu'un résumé de ces commandes et de leurs arguments. Elle ne prend pas d'argument et ignore les éventuels arguments fournis en avertissant l'utilisateur.
 
-### 1.2 (`q` | `quit` | `CTRL+Q`) 
+#### 1.1.2 (`q` | `quit` | `CTRL+Q`) 
 Cette commande ferme toutes les vues ouvertes et quitte proprement l'application. Elle ne prend pas d'argument et ignore les éventuels arguments fournis en avertissant l'utilisateur.
  
-### 1.3 (`d` | `dir` | `CTRL+D`) 
+#### 1.1.3 (`d` | `dir` | `CTRL+D`) 
 Cette commande ouvre une vue GUI de type tree view et affiche l'arborescence indentée du contenu du répertoire fourni en argument de la commande. La commande sans paramètre ouvre le répertoire courant. La vue GUI permet :
   - la sélection d'un fichier ou répertoire par clic gauche souris ou par touche 'espace' est surlignée dans la vue GUI et la sélection devient l'argument par défaut des commandes `load`, `edit`, `image`, `mount`, `wf`.
   - l'expansion ou non d'un répertoire par clic gauche souris sur + devant le nom du répertoire
@@ -43,13 +45,13 @@ Cette commande ouvre une vue GUI de type tree view et affiche l'arborescence ind
        - clic droit sur fichier affiche les commandes (`load`, `edit`)
        - clic droit sur répertoire affiche les commandes (`mount`, `image`)
 
-### 1.4 (`l` | `load` | `CTRL+L`) 
+#### 1.1.4 (`l` | `load` | `CTRL+L`) 
 Cette commande prend en argument un nom de fichier (+ path) en entrée ou le fichier sélectionné via la commande `dir`; si aucun fichier n'est sélectionné et aucun paramètre donné, `load` ne fait rien et indique à l'utilisateur de sélectionner un fichier ou entrer un chemin. `load` se comporte de la manière suivante selon les éléments sélectionnés:
    - si l'argument fourni ou par défaut est un fichier : charge ce fichier dans la mémoire émulée de l'ATARI ST à un emplacement libre. Pour une image, un fichier texte, la copie en mémoire est conforme au contenu du fichier. Pour un fichier binaire au format ATARI ST (.PRG, .TTP, .TOS), la montée en mémoire se fait selon les conventions du TOS ATARI ST, en mettant à jour les fixups d'addresse du programme. Ce programme binaire pourra être directement exécuté depuis la mémoire virtuelle ATARI ST par l'émulateur CPU 68000 et/ou par l'émulateur machine ATARI ST.
    - si l'argument fourni ou par défaut est un répertoire: renvoie un message utilisateur pour indiquer que la commande `mount` doit être utilisée pour les répertoires
    - si l'argument fourni ou par défaut est une image disque ATARI ST .st, .msa, .stx: renvoie un message utilisateur pour indiquer que la commande `mount` doit être utilisée pour les images disques.
 
-### 1.5 (`e` | `edit` | `CTRL+E`) 
+#### 1.1.5 (`e` | `edit` | `CTRL+E`) 
 Cette commande prend en argument un nom de fichier (+ path) en entrée ou le fichier sélectionné via la commande `dir`; si aucun fichier n'est sélectionné et aucun paramètre donné, `edit` ne fait rien et indique à l'utilisateur de sélectionner un fichier ou entrer un chemin. `edit` se comporte de la manière suivante selon les éléments sélectionnés:
    - si l'argument fourni ou par défaut est un répertoire: renvoie un message utilisateur pour indiquer que la commande n'a pas d'effet sur les répertoires
    - si l'argument fourni ou par défaut est un fichier : ouvre une vue d'édition en fonction de la typologie du fichier : 
@@ -62,14 +64,14 @@ Cette commande prend en argument un nom de fichier (+ path) en entrée ou le fic
            - la modification ASCII par la vue ASCII change les octets hexadecimaux,
            - la modification de code assembleur 68000 en ligne par recompilation de la section concernée; les impacts binaires sont à déterminer par l'outil d'assemblage et demande de confirmation par utilisateur. La vue assembleur 68000 est cliquable bouton droit pour sauvegarder le fichier texte correspondant au source assembleur.
 
-### 1.6 (`m` | `mount` | `CTRL+M`) 
+#### 1.1.6 (`m` | `mount` | `CTRL+M`) 
 Cette commande prend un chemin de répertoire en entrée ou le répertoire sélectionné via la commande `dir`; si aucun chemin n'est sélectionné et aucun paramètre donné, le chemin courant de l'application est utilisé, mais une demande de confirmation utilisateur est nécessaire. `mount` se comporte de la manière suivante:
    - émule la montée d'un répertoire dans un disque A:\ ATARI ST en affichant une vue arborescence disquette. 
    - permet l'ajout de fichiers dans l'émulation disquette par clic+glissement souris dans la vue à partir de la vue ouverte par la commande `dir`
    - permet la suppression de fichiers dans l'émulation disquette par clic+glissement souris hors vue
    - la vue complète permet la création d'une image disque à partir d'un clic droit sur la première ligne de l'arborescence nommée "A:\", via la commande `image` en popup. La vue intègre également un bandeau vertical de propriétés de la disquette montée : ces propriétés sont celles du header disk ATARI ST.
 
-### 1.7 (`x` | `execute` | `CTRL+X`)
+#### 1.1.7 (`x` | `execute` | `CTRL+X`)
 Cette commande prend en argument le fichier binaire exécutable ATARI ST (.PRG, .TTP ou .TOS) ou celui sélectionné dans la vue `mount` de l'émulation disquette ou dans la vue de la commande `dir`. `execute` comprend les vues suivantes:
     - un moniteur d'exécution des binaires ATARI ST permettant la sélection pas à pas, stop, go, temps d'exécution par instruction
     - un éditeur héxadécimal pour l'édition des binaires (e.g. un .PRG, .TTP) visualisant les instructions en cours d'exécution
@@ -79,54 +81,29 @@ Cette commande prend en argument le fichier binaire exécutable ATARI ST (.PRG, 
 
 La commande `execute` privilégie l'exécution pas à pas avec l'ensemble des vues interactives entre elles, cependant l'exécution en temps ralenti, réel ou accéléré reste possible en tâche de fond avec mise en place de breakpoint pour points de visibilité. La vitesse d'exécution des binaires et la synchronisation complète des différentes vues lors de l'exécution sera limitée par la performance CPU/Video de la machine exécutant l'application ST4Ever; le moniteur d'exécution donne les informations d'exécution et de performance en instructions émulées par secondes.
 
-### 1.8 (`u` | `umount` | `CTRL+U`)
+#### 1.1.8 (`u` | `umount` | `CTRL+U`)
 Cette commande permet de clore la vue ouverte par la commande `mount` tout en démontant l'émulation disquette A:\ ATARI ST. `umount` simule le retrait de la disquette du lecteur ATARI ST. Si le contenu disquette émulé ne correspond à aucune image .st, .stx ou .msa existante, demande à l'utilisateur s'il souhaite créer une nouvelle image de la disquette en cours de retrait pour ne pas perdre les modifications réalisées lors de la commande `mount`.
 
-### 1.9 (`w` | `where` | `CTRL+W`)
+#### 1.1.9 (`w` | `where` | `CTRL+W`)
 Cette commande permet d'afficher le répertoire de travail ou le fichier sélectionné courant via la commande `dir` ou le répertoire par défaut dans lequel l'application est lancée. La réponse à la commande est fournie par texte console.
 
-### 1.10 (`t` | `trace` | `CTRL+T`)
+#### 1.1.10 (`t` | `trace` | `CTRL+T`)
 Cette commande prend on/off en paramètre, ou toggle le statut courant si aucun paramètre est entré. Elle ouvre une fenêtre Trace Console (affichage coloré des logs) permettant d'afficher :
   - les logs de trace permettant d'affichier les fonctions des fichiers *.c de l'application exécutées avec un résumé très court. Les traces ont une gestion de compactation par nombre de passage lorsque les fonctions récurrentes sont tracées consécutivement, pour éviter la production de trop nombreux logs textes. 
   - les logs d'infos développeur permettant d'afficher régulièrement du contenu de progression de l'application, 
   - les logs d'erreurs internes (pointeurs null, fonctions KO, erreurs permettant le debuggage), 
   - les logs 'to-do' permettant d'identifier les fonctions/lignes où du code doit être enrichi.
 
-
-## 2. Architecture & Structure de fichiers
+### 1.2 Contraintes de conception
 Les vues ouvertes par les commandes sont interactives, non-modale et exécutée dans des threads séparés de l'application. Les vues sont capables de communiquer entre elles de manière dynamique selon leur besoin, par exemple la vue arborescence de la commande `dir` permet de glisser des fichiers dans l'arborescence de l'émulation disquette de la commande `mount`.
 Dans les phases d'exécution des binaires, les vues d'émulation CPU 68000, mémoire ATARI ST, vue écran graphique et vue binaire hexadécimale sont mises à jour en cohérence de l'exécution.
 
 L'application ST4Ever est développée pour Windows dans un premier temps, avec des stubs anticipés pour une plateforme Linux. Toutes les logiques qui ne dépendent pas d'une plateforme Windows ou Linux sont en code portable dans ./src de l'arborescence du projet. Le code portable utilise des fonctions d'abstraction appelant des fonctions Windows ou Linux en back-end, développé dans des fichiers ./src/win ou ./src/linux. La contrainte de développement est de maximiser le code portable et minimiser le back-end spécifique au strict nécessaire (Windows calls, DirectX calls pour Windows, Posix/system calls, X11 calls pour Linux)
 
-### 2.1 Conventions:
-- la documentation et le code sont en anglais - seul ce fichier SPEC-fr.md reste en français, il s'agit de notre fichier projet, mis à jour au fur et à mesure des conversations
-- les noms de variables suivent le format hongrois par type en minuscule suivi d'un nom fonctionnel avec première lettre en majuscule, e.g. uiIndex, szMessage, ulBytes, ...
-- les noms de structure se terminent par *_t, ceux qui contiennent plusieurs mots sont séparés par underscore, e.g. renderer_context_t, tree_view_node_t, ...
-- les variables représentant des structures sont au format tRCView, tTVNFile, ...
-- les noms de variables globales commencent par g_* et contiennent un acronyme relatif au source .c auquel il se rattache, e.g. g_edit_uiCount, g_dir_tRCView, ...
-- les noms de fonctions expriment des actions, sont écrits en minuscule et construits en mots entiers séparés par des underscore, e.g. read_file(), open_new_window(), is_dir_expanded(), ...
-- Privilégier la lisibilité du code à un code compact
-- Privilégier les appels de fonctions plutôt que condenser le code dans une seule fonction
-- Ecrire le code sur 80 colonnes
-- Ne pas faire des appels de fonctions dans les paramètres de fonctions
-- Les fonctions C pur portables fonctionnent avec un code retour ST_ERROR / ST_NO_ERROR pour remonter les erreurs dans l'arborescence d'appel des fonctions et sortir de l'application proprement en traçant la remontée des fonctions dans les logs
-- Les retours fonctionnels se font par pointeurs dans les paramètres.
-- Les fonctions contiennent toutes des vérifications de paramètres avant exécution et génère une erreur en cas de paramètre incorrect.
-- Les fonctions spécifiques plateforme respectent le manuel utilisateur de la plateforme spécifique, les codes retours sont traités et loggés.
-- Tous les retours de fonctions sont testés
-- Toutes les fonctions sont documentées dans les includes avec un descriptif fonctionnel, la description des paramètres in/out et des codes de retour.
-- Pour les logs en console Trace:
-    - LOG_TRACE permet la trace d'entrée de chaque fonction avec identification du nom de la fonction et des paramètres d'entrées
-    - LOG_INFO permet l'envoi d'information d'état utiles des fonctions exécutées pour suivre fonctionnellement l'implémentation de l'application
-    - LOG_INTERNAL_ERROR permet l'affichage d'erreurs en identifiant la fonction concernée, la ligne de code concernée, la justification textuelle de l'erreur. Les erreurs des fonctions spécifiques plateforme sont remontées via les fonctions system de ces plateformes (e.g. GetLasterror() pour les fonctions Windows)
-    - LOG_TODO affiche la fonction concernée et la ligne de code à laquelle du code additional ou futur peut être rajouté (=stubs)
 
+## 2. Fichiers clés
 
-
-### 2.2 Arborescence:
-
-***highlighted files are those produced by Claude along with its 2nd response***<br>
+Files marked ***bold*** are generated by Claude and present in the repository.
 NOTE: TODO(UC*) fait référence aux Use Cases listés en section 5. de ce document
 
 src/ 
@@ -353,7 +330,24 @@ src/
  */
 ```
 
-- ***``mount.c``***: Manque un descriptif documentaire du fichier (à rajouter dans mount.c pour le récupérer ici); ce source contient le code portable de la vue d'émulation disquette ATARI ST et arborescence de son contenu
+- ***``mount.c``***: 
+```
+/*
+ * mount.c - ST4Ever floppy disk emulation - portable logic
+ *
+ * Implements the `mount` command: emulates an Atari ST floppy drive
+ * A:\ from a PC host directory or a .st / .msa disk image.
+ *
+ * This file contains portable logic only.  GUI tree view and
+ * drag-and-drop are delegated to the platform backend via gui.h.
+ * Disk image read/write is delegated to ST.c (TODO UC16/UC17).
+ *
+ * TODO(UC18): GUI tree view for the mounted floppy content.
+ * TODO(UC16): .st raw sector image read/write.
+ * TODO(UC17): .msa RLE-compressed image read/write.
+ * TODO(UC19): umount with optional image save dialog.
+ */
+```
 
 - ***``ST.h``***:
 ```
@@ -864,13 +858,37 @@ Makefile : détecte automatiquement les fichiers sources et includes, gère le m
   - make clean : supprime les dossiers de ./build, ./release, ./tests
 
 README.md : Fournit une description du projet synthétique en anglais
-SPEC-fr.md : Ce fichier en français
+CLAUDE.md : Ce fichier en français trace le contexte projet, les décisions techniques, recommandations, découpage projet en Use Cases, Conventions, Fichiers clés. Ce fichier est maintenu au fil des conversations et modifications projet, comme indiqué en recommandation R13
 
 
 ## 3. Packaging
 tar -czf project.tar.gz src Makefile README-SPEC.md
 
-## 4. Recommendations Claude AI / Onclemarcel
+## 4 Conventions:
+- la documentation et le code sont en anglais - seul ce fichier SPEC-fr.md reste en français, il s'agit de notre fichier projet, mis à jour au fur et à mesure des conversations
+- les noms de variables suivent le format hongrois par type en minuscule suivi d'un nom fonctionnel avec première lettre en majuscule, e.g. uiIndex, szMessage, ulBytes, ...
+- les noms de structure se terminent par *_t, ceux qui contiennent plusieurs mots sont séparés par underscore, e.g. renderer_context_t, tree_view_node_t, ...
+- les variables représentant des structures sont au format tRCView, tTVNFile, ...
+- les noms de variables globales commencent par g_* et contiennent un acronyme relatif au source .c auquel il se rattache, e.g. g_edit_uiCount, g_dir_tRCView, ...
+- les noms de fonctions expriment des actions, sont écrits en minuscule et construits en mots entiers séparés par des underscore, e.g. read_file(), open_new_window(), is_dir_expanded(), ...
+- Privilégier la lisibilité du code à un code compact
+- Privilégier les appels de fonctions plutôt que condenser le code dans une seule fonction
+- Ecrire le code sur 80 colonnes
+- Ne pas faire des appels de fonctions dans les paramètres de fonctions
+- Les fonctions C pur portables fonctionnent avec un code retour ST_ERROR / ST_NO_ERROR pour remonter les erreurs dans l'arborescence d'appel des fonctions et sortir de l'application proprement en traçant la remontée des fonctions dans les logs
+- Les retours fonctionnels se font par pointeurs dans les paramètres.
+- Les fonctions contiennent toutes des vérifications de paramètres avant exécution et génère une erreur en cas de paramètre incorrect.
+- Les fonctions spécifiques plateforme respectent le manuel utilisateur de la plateforme spécifique, les codes retours sont traités et loggés.
+- Tous les retours de fonctions sont testés
+- Toutes les fonctions sont documentées dans les includes avec un descriptif fonctionnel, la description des paramètres in/out et des codes de retour.
+- Pour les logs en console Trace:
+    - LOG_TRACE permet la trace d'entrée de chaque fonction avec identification du nom de la fonction et des paramètres d'entrées
+    - LOG_INFO permet l'envoi d'information d'état utiles des fonctions exécutées pour suivre fonctionnellement l'implémentation de l'application
+    - LOG_INTERNAL_ERROR permet l'affichage d'erreurs en identifiant la fonction concernée, la ligne de code concernée, la justification textuelle de l'erreur. Les erreurs des fonctions spécifiques plateforme sont remontées via les fonctions system de ces plateformes (e.g. GetLasterror() pour les fonctions Windows)
+    - LOG_TODO affiche la fonction concernée et la ligne de code à laquelle du code additional ou futur peut être rajouté (=stubs)
+
+
+## 5. Décisions Techniques & Recommandations Claude AI / Onclemarcel
 
 **R1 — GUI : utilisation de DirectX2D + X11 à but éducatif**
 Bien que des librairies telles que SDL2 soient disponible sous MSYS2 (`mingw-w64-x86_64-SDL2`), et fonctionnent sous Linux sans modification, le développement d'un renderer abstrait adapté au juste besoin de la logique de ST4Ever et d'un backend D2D Windows et X11 Linux permet de mieux comprendre les détails de ce type de code portable, au dépend d'une architecture de l'application plus complexe et d'un temps de développement plus long. 
@@ -882,7 +900,7 @@ Utiliser une table primaire de 256 entrées `[opcode >> 8]` → groupe d'instruc
 `.st` = dump brut secteur (737 280 octets fixes, trivial). `.msa` = `.st` compressé RLE, simple. `.stx` (Pasti) = format de copy-protection avec timing secteur non-standard, CRC tricks, weak bits — extrêmement complexe. La quasi-totalité des démos fonctionne en `.st` ou `.msa`. Réserver `.stx` à une UC future optionnelle.
 
 **R4 — Modèle de threading : message queues par vue**
-Chaque vue GUI tourne dans son thread avec une file circulaire bornée (thread-safe via mutex). Le thread console poste des messages aux vues, les vues renvoient des événements (fichier sélectionné, breakpoint atteint...). Implémenter `msg_queue_t` dans `common.h` comme structure portable.
+Chaque vue GUI tourne dans son thread avec une file circulaire bornée (thread-safe via mutex). Le thread console poste des messages aux vues, les vues renvoient des événements (fichier sélectionné, breakpoint atteint...). La file `gui_msg_queue_t` est définie dans `gui.h` (étroitement liée au sous-système GUI). Les primitives mutex/thread (`st_mutex_t`, `st_thread_t`) sont elles dans `common.h`.
 
 **R5 — Line editor riche : UC dédiée**
 Sous MSYS2 (mintty), utiliser `ReadConsoleInput()` avec `ENABLE_PROCESSED_INPUT` désactivé pour capturer les séquences escape VT100 (flèches = `\033[A/B`, Home/End = `\033[H/F`). Historique = tableau circulaire de `ST_MAX_HISTORY` entrées. Tab-completion = `FindFirstFile()` / `opendir()` sur le préfixe courant. Scope UC4.
@@ -900,10 +918,24 @@ Inclure dès UC1 : un binaire 68000 minimal hand-crafté (`MOVEQ #42,D0 + RTS` =
 La majorité des démos contourne le TOS et écrit directement dans les registres matériel. Implémenter en priorité : Line-A (`0xA000-0xA0FF` : affichage, fontes), les registres vidéo Shifter (`0xFF8200-0xFF827F` : palette, résolution, adresse écran), YM2149 (`0xFF8800-0xFF8803` : son). GEMDOS peut rester en stub pour les premières démos.
 
 **R10 — Ordre de développement recommandé**
-Phase 1 (UC1-UC5) : Infrastructure console + SDL2 framework. Phase 2 (UC6-UC12) : Fichiers, éditeurs, formats disque. Phase 3 (UC13-UC20) : Désassembleur, assembleur, CPU 68000. Phase 4 (UC21-UC26) : Émulation ST complète, exécution. Phase 5 (UC27+) : Démos.
+Phase 1 (UC1-UC5) : Infrastructure console + Win32/X11 GUI framework. Phase 2 (UC6-UC12) : Fichiers, éditeurs, formats disque. Phase 3 (UC13-UC20) : Désassembleur, assembleur, CPU 68000. Phase 4 (UC21-UC26) : Émulation ST complète, exécution. Phase 5 (UC27+) : Démos.
+
+**R11 — Standard de compilation : `-std=gnu99`**
+Les macros `LOG_TRACE`, `LOG_INFO`, `LOG_ERROR`, `LOG_TODO` utilisent la syntaxe `##__VA_ARGS__` (extension GNU) pour permettre un appel sans argument variadique : `LOG_ERROR("message")`. Cette syntaxe est standard pour tous les compilateurs GCC/MinGW-W64. Le Makefile doit utiliser `-std=gnu99` et non `-std=c99`. Les flags `-DST_PLATFORM_WINDOWS` / `-DST_PLATFORM_LINUX` ne doivent **pas** être passés depuis le Makefile : `common.h` les détecte automatiquement via `_WIN32` et `__linux__` définis par GCC, évitant une redéfinition.
+
+**R12 — Exécution des tests depuis la racine du projet**
+La cible `make tests` doit être exécutée depuis la racine du projet (là où se trouvent `src/`, `use_cases/`, etc.). Les binaires de test `tests/use_case_NN` utilisent des chemins relatifs pour accéder aux fichiers de test (e.g. `"use_cases/UC01/hello.prg"`). Lancer `tests/use_case_01` directement depuis `tests/` échoue au chargement du PRG de test. La cible `make tests` inclut ce rappel dans son en-tête d'exécution.
+
+**R13 — Maintenance de ce fichier SPEC-fr.md**
+Ce fichier est l'interface de projet et doit être mis à jour à chaque UC validé :
+- Section 2 : le header documentaire de chaque fichier `.c` est recopié ici depuis les sources après chaque UC. C'est le contrat documentaire entre les sessions de conversation.
+- Section 5 : toute recommandation nouvelle issue d'une session Claude (ou du développeur) est ajoutée ici avec un numéro de révision et la date.
+- Section 6 : le statut de chaque UC (en cours / validé) et les sous-sections détaillées sont mis à jour après chaque session de travail.
+- Ne pas modifier les sections déjà validées sans noter la raison du changement.
 
 
-## 5. Workpackages
+
+## 6. Use Cases
 
 Les étapes de développement fonctionnelles sont formalisées en Use Cases, permettant de développer et valider chaque cas d'usage de l'application et d'enrichir le projet avec de plus amples détails, dont les recommendations Claude AI de la section 4, et planifier le reste des Use Cases en TODO/stubs dans le projet. La liste actuelle des Use Cases est:
 
@@ -911,13 +943,13 @@ Les étapes de développement fonctionnelles sont formalisées en Use Cases, per
 |---|---|---|---|
 | UC1 | `help`, `quit`, `trace -t` | Prototype complet, stubs, console + trace fonctionnels | trace init/open/close/levels |
 | UC2 | `trace on/off/toggle` | Gestion complète de la trace console | toggle + activation LOG_TRACE |
-| UC3 | `dir` | Vue arbre SDL2, navigation clavier/souris, sélection fichier | ouverture, scroll, sélection |
+| UC3 | `dir` | Vue arbre Win32/GDI + X11, navigation clavier/souris, sélection fichier | ouverture, scroll, sélection |
 | UC4 | console | Line editor riche : historique ↑↓, Home/End, tab-completion | navigation + complétion |
 | UC5 | `where` | Répertoire courant + état sélection, mise à jour depuis `dir` | affichage path sélectionné |
 | UC6 | plateforme | Abstraction fichiers : open/read/write/stat/mkdir, listing répertoire | tests lecture/écriture |
 | UC7 | `load` | Chargement fichier texte/binaire, détection type, buffer mémoire | load .txt, .bin, .PRG stub |
-| UC8 | `edit` texte | Vue éditeur texte SDL2 : scroll, numéros de ligne, sauvegarde | édition + save .S et .TXT |
-| UC9 | `edit` hex | Vue hex/ASCII SDL2 : adresses, scroll, édition octets | navigation + modification |
+| UC8 | `edit` texte | Vue éditeur texte Win32/GDI + X11 : scroll, numéros de ligne, sauvegarde | édition + save .S et .TXT |
+| UC9 | `edit` hex | Vue hex/ASCII Win32/GDI + X11 : adresses, scroll, édition octets | navigation + modification |
 | UC10 | `edit` | Vue intégrée hex+ASCII+désasm en colonnes synchronisées | sync curseur entre vues |
 | UC11 | interne | Désassembleur 68000 : MOVE/MOVEQ/LEA/CLR/EXG/SWAP/PEA | désasm binaire de test |
 | UC12 | interne | Désassembleur : ADD/SUB/CMP/MUL/DIV/AND/OR/EOR/NOT/NEG | désasm complet d'un .PRG |
@@ -926,7 +958,7 @@ Les étapes de développement fonctionnelles sont formalisées en Use Cases, per
 | UC15 | interne | Format PRG : parser header + sections + fixups + chargement mémoire ST | load .PRG en mémoire émulée |
 | UC16 | interne | Image `.st` : lecture/écriture raw + FAT12 | mount/browse image .st |
 | UC17 | interne | Image `.msa` : décompression/compression RLE | round-trip .msa |
-| UC18 | `mount` | Vue arbre disquette SDL2, drag & drop depuis `dir` | monter répertoire en A:\ |
+| UC18 | `mount` | Vue arbre disquette Win32/GDI + X11, drag & drop depuis `dir` | monter répertoire en A:\ |
 | UC19 | `umount` | Démontage + sauvegarde image si modifiée | dialog save |
 | UC20 | `image` | Création .st / .msa depuis le contenu monté | image valide et montable |
 | UC21 | interne | CPU 68000 : registres + MOVE/MOVEQ/LEA/CLR/SWAP | step 10 instructions |
@@ -935,13 +967,19 @@ Les étapes de développement fonctionnelles sont formalisées en Use Cases, per
 | UC24 | interne | Memory map ST + registres HW stubs (Shifter, MFP, YM2149) | accès registres sans crash |
 | UC25 | `execute` | Moteur pas-à-pas + vues CPU + mémoire | step + breakpoint sur .PRG simple |
 | UC26 | interne | Émulation vidéo ST (Shifter : low/med/high res, palette 16 couleurs) | rendu écran correct |
-| UC27 | `execute` | Vue écran SDL2 + synchronisation VBL | démo statique visible |
+| UC27 | `execute` | Vue écran Win32/GDI + X11 + synchronisation VBL | démo statique visible |
 | UC28 | interne | Line-A traps + registres Shifter/YM2149 minimaux | démo 1 plan visible |
 | UC29 | interne | XBIOS/GEMDOS minimaux (palette, écran base, VBL wait) | démo dynamique |
 | UC30 | interne | Assembleur DEVPAC3 : directives + instructions de base | .S → .PRG re-exécutable |
 | UC31 | all | Exécution d'une démo ST complète connue (ex. Enchanted Land intro) | **objectif final** |
 
+### 6.1 Use Case 01 (UC1)
+Le prototype complet est fourni intégralement par Claude.AI et non modifié par Onclemarcel (développeur)
+Le projet est géré sous Github dans le repo public : https://github.com/onclemarcel/ST4Ever
+Il est intégré dans VS Code, avec Claude Code en support, et Terminal Msys2 intégré dans VSCode.
+Le clone Github se trouve sous /home/claude/ST4Ever en local.
 
+*Statut courant du projet*
 
-## 6. Licence & attribution
+## 7. Licence & attribution
 Pas de redistribution prévue à ce jour
