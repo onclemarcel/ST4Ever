@@ -29,6 +29,6 @@ The ultimate goal is to produce pure C source code compiled under Msys2 from ATA
 
 In terms of code production and project follow-up, this repository is assisted by Claude AI for educational purposes and my own understanding of the use of an AI assistant, ATARI ST emulation and demos development from 1990's.
 
-The main project file shared with Claude AI is SPEC-fr.md (in french) - but any AI assistant will translate it for you. Ssuccessive versions of the project file are created from my inputs and Claude's inputs; the change history will indicate which version is last updated by myself or Claude.
+The main project file shared with Claude AI is CLAUDE.md (in french) - but any AI assistant will translate it for you. Ssuccessive versions of the project file are created from my inputs and Claude's inputs; the change history will indicate which version is last updated by myself or Claude.
 
 Note that this file is fully written manually - at least in its first issue ;)
