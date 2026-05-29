@@ -1,7 +1,5 @@
 # Project : ST4Ever : The Revival Engine for the Timeless ATARI ST
 
-*(Current state: Use Case 1 on-going)*
-
 This project is a cross-platform interactive console application developed in pure C for educational purposes allowing to:
 
 - read/write ATARI ST files (text or binary .PRG, .TTP, .TOS)

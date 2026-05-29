@@ -147,6 +147,7 @@ src/
  *   -t          Open the trace console at startup.
  *   -h / --help Print usage text and exit.
  */
+```
 
 - ***``common.h``***: 
 ```
@@ -162,6 +163,7 @@ src/
  * live in win/win_platform.c (Windows) and linux/lx_platform.c
  * (Linux).
  */
+```
 
 - ***``trace.h``***:
 ```
@@ -191,12 +193,14 @@ src/
  * TODO(UC3): Replace the stderr output with a dedicated Win32 GDI window (Windows)
  * or X11 window (Linux) opened by gui_create_trace_window().
  */
+```
 
 - ***``trace.c``***:
 ```
 /*
  * trace.c - ST4Ever trace and debug console implementation
  */
+```
 
 - ***``line.h``***:
 ```
@@ -216,6 +220,7 @@ src/
  * TODO(UC4): replace with the rich line editor (history, tab-complete,
  *            pre-completion ghost text, arrow-key navigation).
  */
+```
 
 - ***``line.c``***: 
 ```
@@ -231,6 +236,7 @@ src/
  *            (history, tab-completion, ghost-text pre-completion,
  *             arrow-key navigation via win_console / lx_console).
  */
+```
 
 - ***``gui.h``***:
 ```
@@ -255,6 +261,7 @@ src/
  *
  * TODO(UC3): Implement gui_open_window() and platform backends.
  */
+```
 
 - ***``gui.c``***: 
 ```
@@ -267,6 +274,7 @@ src/
  *
  * TODO(UC3): Implement gui_init, gui_open_window, message queues.
  */
+```
 
 - ***``renderer.h``***:
 ```
@@ -297,6 +305,7 @@ src/
  *
  * TODO(UC3): Implement renderer_create() and all draw primitives.
  */
+```
 
 - ***``renderer.c``***: 
 ```
@@ -305,6 +314,7 @@ src/
  *
  * TODO(UC3): Implement via win_D2D.c (Direct2D) / lx_X11.c (XRender).
  */
+```
 
 - ***``dir.h``***:
 ```
@@ -318,6 +328,7 @@ src/
  *
  * TODO(UC3): Implement using gui.h / renderer.h.
  */
+```
 
 - ***``dir.c``***: 
 ```
@@ -325,8 +336,24 @@ src/
  * dir.c - ST4Ever directory tree view implementation (stub)
  * TODO(UC3): Implement dir_open with Win32/X11 window + tree rendering.
  */
+```
 
-- mount.h, mount.c: code portable de la vue d'émulation disquette ATARI ST et arborescence de son contenu
+- ***``mount.h``***:
+```
+/*
+ * mount.h - ST4Ever floppy disk emulation view
+ *
+ * Emulates an Atari ST floppy drive A:\ from a PC directory or a
+ * .st / .msa disk image.  Provides a GUI tree view to browse content,
+ * drag files in/out, and trigger `image` creation.
+ *
+ * TODO(UC18): GUI tree view for the mounted floppy.
+ * TODO(UC16): .st image read/write.
+ * TODO(UC17): .msa image read/write.
+ */
+```
+
+- ***``mount.c``***: Manque un descriptif documentaire du fichier (à rajouter dans mount.c pour le récupérer ici); ce source contient le code portable de la vue d'émulation disquette ATARI ST et arborescence de son contenu
 
 - ***``ST.h``***:
 ```
@@ -358,6 +385,7 @@ src/
  * TODO(UC15): Implement PRG loading and fixup relocation.
  * TODO(UC24): Implement hardware register read/write handlers.
  */
+```
 
 - ***``ST.c``***: 
 ```
@@ -366,6 +394,7 @@ src/
  * TODO(UC15): Load PRG + fixups.
  * TODO(UC24): Hardware register read/write handlers.
  */
+```
 
 - ***``CPU.h``***:
 ```
@@ -399,38 +428,434 @@ src/
  * TODO(UC22): Implement ADD/SUB/CMP/AND/OR/EOR/shifts.
  * TODO(UC23): Implement BRA/Bcc/JSR/RTS/TRAP + exception vectors.
  */
+```
 
-- CPU.c: code portable de l'émulation du CPU 68000 de l'ATARI ST
-- disassemble.h, disassemble.c : code portable du désassembleur binaire -> DEVPAC3 assembleur
-- as.h, as.c : code portable de l'assembleur format DEVPAC3 -> binaire .PRG ou .raw
-- edit_txt.h, edit_txt.c : code portable de l'éditeur de texte / source code assembleur
-- edit_hex.h, edit_hex.c : code portable de l'éditeur hexadécimal & ASCII
-- edit.h, edit.c : code portable de la vue intégrée de la commande `edit` d'édition des binaires par la vue hexa ou la vue assembleur.
-- exec.h, exec.c : code portable du moteur d'exécution et synchronisation des vues d'exécution de la commande `execute`
-- exec_mon.h, exec_mon.c : code portable du GUI moniteur de l'exécution (pas-à-pas, breakpoint, vitesse d'exécution, run-until, activation/veille des vues assembvleurmémoire, CPU, écran)
-- exec_mem.h, exec_mem.c : code portable de la vue hexa de la zone mémoire en cours d'exécution
-- exec_cpu.h, exec_cpu.c : code portable de la vue CPU 68000 et de l'état de ses registres en cours d'exécution
-- exec_asm.h, exec_asm.c : code portable de la vue assembleur lors de l'exécution
-- exec_screen.h, exec_screen.c : code portable de la vue écran graphique de l'ATARI ST en cours lors de l'exécution.
+- ***``CPU.c``***:
+```
+/*
+ * CPU.c - MC68000 CPU emulator (stub)
+ *
+ * TODO(UC21): MOVE/MOVEQ/LEA/CLR/SWAP
+ * TODO(UC22): ADD/SUB/CMP/AND/OR/EOR/shifts
+ * TODO(UC23): BRA/Bcc/JSR/RTS/TRAP + exception vectors
+ */
+```
+
+- ***``disassemble.h``***:
+```
+/*
+ * disassemble.h - ST4Ever 68000 → DEVPAC3 disassembler
+ *
+ * Converts raw binary opcodes to Motorola 68000 assembly source
+ * in DEVPAC3 Atari ST format.
+ *
+ * Dispatch strategy: primary table on (opcode >> 12), then per-group
+ * secondary decoding of size field and effective address mode.
+ *
+ * Output format matches DEVPAC3:
+ *   MOVE.L  D0,D1
+ *   LEA     $FF8200,A0
+ *   BRA.S   .loop
+ *   DC.W    $4E75     ; unrecognised opcode
+ *
+ * TODO(UC11): MOVE/MOVEQ/LEA/PEA/CLR/EXG/SWAP
+ * TODO(UC12): ADD/SUB/CMP/MULU/DIVS/AND/OR/EOR/NOT/NEG
+ * TODO(UC13): ASL/ASR/LSL/LSR/ROL/ROR/ROXL/ROXR/BTST/BSET/BCLR/BCHG
+ * TODO(UC14): BRA/BSR/Bcc/JMP/JSR/RTS/RTR/RTE/TRAP/ILLEGAL
+ */
+```
+
+- ***``disassemble.c``*** :
+```
+/*
+ * disassemble.c - 68000 disassembler stub
+ * TODO(UC11-UC14): implement instruction decode tables.
+ */
+```
+
+- ***``as.h``***:
+```
+/*
+ * as.h - ST4Ever DEVPAC3 assembler (text → Atari ST .PRG / .raw)
+ *
+ * Assembles 68000 source in DEVPAC3 Atari ST syntax into a binary.
+ * Output is either a relocatable .PRG (with header + fixup list)
+ * or a raw position-dependent binary (.raw).
+ *
+ * DEVPAC3 directives supported (TODO UC30):
+ *   SECTION TEXT / DATA / BSS
+ *   DC.B / DC.W / DC.L     define byte / word / longword constants
+ *   DS.B / DS.W / DS.L     reserve uninitialized space
+ *   EQU / SET              symbolic constants
+ *   EVEN                   align to word boundary
+ *   ORG                    set assembly origin (raw only)
+ *   INCLUDE                include another source file
+ *   MACRO / ENDM           macro definition
+ *
+ * TODO(UC30): Implement tokeniser, symbol table, first + second pass.
+ */
+```
+
+- ***``as.c``***:
+```
+/*
+ * as.c - DEVPAC3 assembler stub
+ * TODO(UC30): tokeniser, symbol table, two-pass assembly.
+ */
+```
+
+- ***``edit_txt.h``***:
+```
+/*
+ * edit_txt.h - ST4Ever Text / source editor view
+ * TODO(UC8): implement this module.
+ */
+```
+
+- ***``edit_txt.c``***: 
+```
+/*
+ * edit_txt.c - Text / source editor view (stub)
+ * TODO(UC8): implement.
+ */
+```
+
+- ***``edit_hex.h``***:
+```
+/*
+ * edit_hex.h - ST4Ever Hex + ASCII editor view
+ * TODO(UC9): implement this module.
+ */
+```
+
+- ***``edit_hex.c``***: 
+```
+/*
+ * edit_hex.c - Hex + ASCII editor view (stub)
+ * TODO(UC9): implement.
+ */
+```
+
+- ***``edit.h``***:
+```
+/*
+ * edit.h - ST4Ever Integrated editor dispatcher (edit command)
+ * TODO(UC10): implement this module.
+ */
+```
+
+- ***``edit.c``***:
+```
+/*
+ * edit.c - Integrated editor dispatcher (edit command) (stub)
+ * TODO(UC10): implement.
+ */
+```
+
+- ***``exec.h``***:
+```
+/*
+ * exec.h - ST4Ever Execution engine + view synchronisation
+ * TODO(UC25): implement this module.
+ */
+```
+
+- ***``exec.c``***: 
+```
+/*
+ * exec.c - Execution engine + view synchronisation (stub)
+ * TODO(UC25): implement.
+ */
+```
+
+- ***``exec_mon.h``***:
+```
+/*
+ * exec_mon.h - ST4Ever Execution monitor (step/run/breakpoint)
+ * TODO(UC25): implement this module.
+ */
+```
+
+- ***``exec_mon.c``***: 
+```
+/*
+ * exec_mon.c - Execution monitor (step/run/breakpoint) (stub)
+ * TODO(UC25): implement.
+ */
+```
+
+- ***``exec_mem.h``***:
+```
+/*
+ * exec_mem.h - ST4Ever Memory view during execution
+ * TODO(UC25): implement this module.
+ */
+```
+
+- ***``exec_mem.c``***: 
+```
+/*
+ * exec_mem.c - Memory view during execution (stub)
+ * TODO(UC25): implement.
+ */
+```
+
+- ***``exec_cpu.h``***:
+```
+/*
+ * exec_cpu.h - ST4Ever CPU 68000 register view during execution
+ * TODO(UC25): implement this module.
+ */
+```
+
+- ***``exec_cpu.c``***: 
+```
+/*
+ * exec_cpu.c - CPU 68000 register view during execution (stub)
+ * TODO(UC25): implement.
+ */
+```
+
+- ***``exec_asm.h``***:
+```
+/*
+ * exec_asm.h - ST4Ever Disassembly view during execution
+ * TODO(UC25): implement this module.
+ */
+```
+
+- ***``exec_asm.c``***: 
+```
+/*
+ * exec_asm.c - Disassembly view during execution (stub)
+ * TODO(UC25): implement.
+ */
+```
+
+- ***``exec_screen.h``***:
+```
+/*
+ * exec_screen.h - ST4Ever Atari ST screen emulation view
+ * TODO(UC27): implement this module.
+ */
+```
+
+- ***``exec_screen.c``***: 
+```
+/*
+ * exec_screen.c - Atari ST screen emulation view (stub)
+ * TODO(UC27): implement.
+ */
+```
 
 win/
-- win_console.c : Code Windows-specific de la gestion des consoles et lignes de commandes
-- win_gui.c : Code Windows-specific de la gestion des fenêtres et interactions utilisateurs
-- win_D2D.c : Code Windows-specific du backend DirectX 2D du renderer abstrait portable.
-- win_platform.c : Code Windows-specific des system calls de type opérations de fichiers, threads, process, pipes, mutex 
+- ***``win_console.c``***:
+```
+/*
+ * win_console.c - ST4Ever Windows console initialisation
+ *
+ * Enables Virtual Terminal Processing (ANSI / VT100 escape sequences)
+ * on stdout and stderr so that ANSI colour codes produced by trace.c
+ * and line.c render correctly in Windows 10+ cmd.exe and MSYS2/mintty.
+ *
+ * Also sets the console output code page to UTF-8 (65001).
+ *
+ * Note: mintty (the MSYS2 terminal) handles ANSI natively without
+ * SetConsoleMode, so these calls are non-fatal if they fail (mintty
+ * does not expose a real Win32 console handle).
+ */
+```
+
+- ***``win_gui.c``***:
+```
+/*
+ * win_gui.c - Win32 window management backend for gui.h
+ *
+ * Each gui_window_t is backed by a win_wnd_state_t that holds:
+ *   - The Win32 HWND
+ *   - The dedicated thread running the Win32 message pump
+ *   - The event callback and user context from gui_wnd_desc_t
+ *
+ * Win32 window class "ST4EverView" is registered once in gui_init().
+ * All ST4Ever windows share this class; the window type drives
+ * default sizing and the WndProc event routing.
+ *
+ * Message pump architecture:
+ *   The thread spawned by gui_open_window() calls CreateWindowEx(),
+ *   then enters a GetMessage() / TranslateMessage() / DispatchMessage()
+ *   loop.  WM_PAINT, WM_KEYDOWN, WM_LBUTTONDOWN etc. are translated
+ *   into gui_event_t and forwarded to the registered gui_event_fn
+ *   callback.
+ *
+ * TODO(UC3): Implement win_wnd_create(), win_wnd_proc(),
+ *            message pump thread, WM_PAINT → renderer integration.
+ */
+```
+
+- ***``win_D2D.c``***: 
+```
+/*
+ * win_D2D.c - Direct2D + DirectWrite renderer backend for renderer.h
+ *
+ * Each renderer_t is backed by a win_d2d_ctx_t that holds:
+ *
+ *   ID2D1Factory*           - Created once per process in renderer_init_factory()
+ *   ID2D1HwndRenderTarget*  - One per window; created in renderer_create()
+ *   IDWriteFactory*         - One per process
+ *   IDWriteTextFormat*      - One per font id (MONO / UI)
+ *   ID2D1SolidColorBrush*   - Re-created per color change or cached
+ *
+ * Direct2D coordinate system: float pixels, top-left origin,
+ * matches renderer_rect_t exactly.
+ *
+ * DirectWrite font selection:
+ *   RENDERER_FONT_MONO → "Consolas" (fallback: "Courier New")
+ *   RENDERER_FONT_UI   → "Segoe UI" (fallback: "Arial")
+ *
+ * Begin/End draw maps directly to:
+ *   ID2D1HwndRenderTarget::BeginDraw()
+ *   ID2D1HwndRenderTarget::EndDraw()
+ *
+ * TODO(UC3): Include <d2d1.h>, <dwrite.h> and implement all functions.
+ *            Link with: -ld2d1 -ldwrite -lole32 -loleaut32
+ */
+```
+
+- ***``win_platform.c``***:
+```
+/*
+ * win_platform.c - ST4Ever Windows platform abstractions
+ *
+ * Implements portable mutex and thread primitives declared in
+ * common.h using Win32 CRITICAL_SECTION and CreateThread.
+ *
+ * TODO(UC4): Implement platform_thread_create/join/destroy.
+ * TODO(UC3): Mutex used by gui_msg_queue (implement with UC3).
+ */
+```
 
 linux/
-- lx_console.c : Code Linux-specific de la gestion des consoles et lignes de commandes
-- lx_gui.c : Code Linux-specific de la gestion des fenêtres et interactions utilisateurs
-- lx_X11.c : Code Linux-specific du backend X11 du renderer abstrait portable.
-- lx_platform.c : Code Linux-specific des system calls de type opérations de fichiers, threads, process, pipes, mutex
+- ***``lx_console.c``***: 
+```
+/*
+ * lx_console.c - Linux console initialisation stub
+ *
+ * On Linux the terminal (xterm, GNOME Terminal, etc.) supports ANSI
+ * escape sequences natively.  No initialisation is needed for UC1.
+ *
+ * TODO(UC4): Implement raw-mode line editor using termios:
+ *   - tcgetattr / tcsetattr(TCSANOW) to switch to raw mode
+ *   - read() byte-by-byte, parse VT100 escape sequences
+ *     (\033[A = up arrow, \033[B = down, \033[H = home, \033[F = end)
+ *   - Restore canonical mode on shutdown
+ */
+```
+
+- ***``lx_gui.c``***: 
+```
+/*
+ * lx_gui.c - X11 window management backend for gui.h
+ *
+ * Each gui_window_t is backed by an lx_wnd_state_t that holds:
+ *   - Xlib Display* and Window (XID)
+ *   - The dedicated thread running XNextEvent loop
+ *   - The event callback and user context from gui_wnd_desc_t
+ *
+ * X11 window creation per window (UC3):
+ *   Display *pDpy = XOpenDisplay(NULL)
+ *   Window   xWnd = XCreateSimpleWindow(pDpy, ...)
+ *   XSelectInput(pDpy, xWnd, ExposureMask | KeyPressMask |
+ *                ButtonPressMask | StructureNotifyMask)
+ *   XMapWindow(pDpy, xWnd)
+ *
+ * Event loop translates XEvent → gui_event_t → gui_event_fn callback.
+ *
+ * TODO(UC3): Implement lx_wnd_create(), XNextEvent loop thread,
+ *            XDestroyWindow in lx_gui_close_window().
+ */
+```
+
+- ***``lx_X11.c``***: 
+```
+/*
+ * lx_X11.c - X11 / XRender renderer backend for renderer.h
+ *
+ * Each renderer_t is backed by an lx_renderer_ctx_t holding:
+ *   Display*    - shared with lx_gui.c
+ *   Window      - the target XID from lx_gui.c
+ *   GC          - graphics context for basic draw primitives
+ *   XftDraw*    - Xft anti-aliased text rendering (optional, UC3+)
+ *   Pixmap      - double-buffer pixmap for flicker-free rendering
+ *
+ * Double-buffer strategy:
+ *   All drawing goes to the off-screen Pixmap.
+ *   renderer_end_draw() calls XCopyArea(pDpy, pixmap, window, ...)
+ *   then XFlush().
+ *
+ * Colour model:
+ *   renderer_color_t (float RGBA) → XAllocColor (XColor with 16-bit RGB).
+ *   Colours are cached in a small LRU table to avoid exhausting colormaps.
+ *
+ * Text rendering:
+ *   RENDERER_FONT_MONO  → XLoadFont "fixed" or Xft "monospace:size=10"
+ *   RENDERER_FONT_UI    → Xft "sans:size=10"
+ *
+ * TODO(UC3): Include <X11/Xlib.h>, <X11/Xft/Xft.h> and implement.
+ *            Link with: -lX11 -lXft -lfontconfig
+ */
+```
+- ***``lx_platform.c``***: 
+```
+/*
+ * lx_platform.c - Linux platform abstractions
+ *
+ * Implements portable mutex and thread primitives declared in
+ * common.h using POSIX pthread_mutex_t and pthread_create.
+ */
+```
 
 use_cases/
-- use_cases.h : le fichier des includes commun des use_case_*.c
+- ***``use_cases.h``***: 
+```
+/*
+ * use_cases.h - ST4Ever common include for all use case test programs
+ *
+ * Each use_case_NN.c file includes this header so it gets all the
+ * module headers and standard I/O without repeating includes.
+ *
+ * Test programs are stand-alone executables compiled by the Makefile
+ * against the full library objects (excluding main.o).
+ */
+```
+
 - use_case_*.c: fichiers de test par Use Cases permettant de valider l'avancée du projet
 
+- ***``use_case_01.c``***:
+```
+/*
+ * use_case_01.c - UC1 Validation: Console prototype + Trace subsystem
+ *
+ * Tests all components active in UC1:
+ *   1.  Trace init with console open at startup (-t flag behaviour)
+ *   2.  One log entry of each level: TRACE, INFO, ERROR, TODO
+ *   3.  Trace compaction: verify consecutive TRACE from same function
+ *       are counted, not duplicated
+ *   4.  trace_close() / trace_is_open() consistency
+ *   5.  trace_open() / trace_is_open() consistency
+ *   6.  trace_set_trace_enabled(FALSE) suppresses LOG_TRACE
+ *   7.  trace_set_trace_enabled(TRUE) re-enables LOG_TRACE
+ *   8.  line_init() + line_shutdown() without running the loop
+ *   9.  ST machine init / read / write / shutdown
+ *  10.  CPU init from reset vectors written into ST RAM
+ *  11.  cpu_step() on the hand-crafted hello.prg in UC01/
+ *  12.  trace_shutdown() clean close
+ *
+ * Exit code: 0 = all tests passed, 1 = one or more failures.
+ */
+
+```
 use_cases/UC*/
-- *.* : les fichiers ressources ou de tests nécessaires aux use cases (e.g. binaires ATARI ST, dummy images, fichier assembleur 68000 de test, bootsectors, ...)
+-  les fichiers ressources ou de tests nécessaires aux use cases (e.g. binaires ATARI ST, dummy images, fichier assembleur 68000 de test, bootsectors, ...)
 
 Makefile : détecte automatiquement les fichiers sources et includes, gère le multi-platform, la compilation GCC sous MSys2 pour Windows ou terminal pour Linux, place les .o dans un répertoire de build, place les exécutables dans ./release, compile les use cases de tests et place les exécutables de tests dans ./tests
   - make : génère l'ensemble des fichiers ./build, ./release, ./tests
