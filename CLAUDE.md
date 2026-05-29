@@ -864,28 +864,153 @@ CLAUDE.md : Ce fichier en français trace le contexte projet, les décisions tec
 ## 3. Packaging
 tar -czf project.tar.gz src Makefile README-SPEC.md
 
-## 4 Conventions:
-- la documentation et le code sont en anglais - seul ce fichier SPEC-fr.md reste en français, il s'agit de notre fichier projet, mis à jour au fur et à mesure des conversations
-- les noms de variables suivent le format hongrois par type en minuscule suivi d'un nom fonctionnel avec première lettre en majuscule, e.g. uiIndex, szMessage, ulBytes, ...
-- les noms de structure se terminent par *_t, ceux qui contiennent plusieurs mots sont séparés par underscore, e.g. renderer_context_t, tree_view_node_t, ...
-- les variables représentant des structures sont au format tRCView, tTVNFile, ...
-- les noms de variables globales commencent par g_* et contiennent un acronyme relatif au source .c auquel il se rattache, e.g. g_edit_uiCount, g_dir_tRCView, ...
-- les noms de fonctions expriment des actions, sont écrits en minuscule et construits en mots entiers séparés par des underscore, e.g. read_file(), open_new_window(), is_dir_expanded(), ...
-- Privilégier la lisibilité du code à un code compact
-- Privilégier les appels de fonctions plutôt que condenser le code dans une seule fonction
-- Ecrire le code sur 80 colonnes
-- Ne pas faire des appels de fonctions dans les paramètres de fonctions
-- Les fonctions C pur portables fonctionnent avec un code retour ST_ERROR / ST_NO_ERROR pour remonter les erreurs dans l'arborescence d'appel des fonctions et sortir de l'application proprement en traçant la remontée des fonctions dans les logs
-- Les retours fonctionnels se font par pointeurs dans les paramètres.
-- Les fonctions contiennent toutes des vérifications de paramètres avant exécution et génère une erreur en cas de paramètre incorrect.
-- Les fonctions spécifiques plateforme respectent le manuel utilisateur de la plateforme spécifique, les codes retours sont traités et loggés.
-- Tous les retours de fonctions sont testés
-- Toutes les fonctions sont documentées dans les includes avec un descriptif fonctionnel, la description des paramètres in/out et des codes de retour.
-- Pour les logs en console Trace:
-    - LOG_TRACE permet la trace d'entrée de chaque fonction avec identification du nom de la fonction et des paramètres d'entrées
-    - LOG_INFO permet l'envoi d'information d'état utiles des fonctions exécutées pour suivre fonctionnellement l'implémentation de l'application
-    - LOG_INTERNAL_ERROR permet l'affichage d'erreurs en identifiant la fonction concernée, la ligne de code concernée, la justification textuelle de l'erreur. Les erreurs des fonctions spécifiques plateforme sont remontées via les fonctions system de ces plateformes (e.g. GetLasterror() pour les fonctions Windows)
-    - LOG_TODO affiche la fonction concernée et la ligne de code à laquelle du code additional ou futur peut être rajouté (=stubs)
+## 4. Conventions
+
+### 4.1 Langue
+Documentation et code en anglais. Ce fichier CLAUDE.md reste en français.
+
+### 4.2 Nommage — notation hongroise
+
+**Préfixes de variables** (minuscule, collés au nom fonctionnel en PascalCase) :
+
+| Préfixe | Type C                          | Exemples                        |
+|---------|---------------------------------|---------------------------------|
+| `b`     | `st_bool_t`                     | `bRunning`, `bOpen`             |
+| `e`     | `enum *_t`                      | `eCmd`, `eLevel`, `eState`      |
+| `i`     | `int`                           | `iLine`, `iArgc`                |
+| `ui`    | entier non-signé, `size_t`      | `uiLen`, `uiIndex`              |
+| `sz`    | `char *` (chaîne C)             | `szCwd`, `szFmt`, `szFunc`      |
+| `p`     | pointeur brut (non-struct)      | `pStart`, `pHandle`             |
+| `pt`    | pointeur vers `struct *_t`      | `ptCtx`, `ptMutex`              |
+| `ppt`   | pointeur vers `struct **_t`     | `pptMutex`, `pptThread`         |
+| `pfn`   | pointeur de fonction            | `pfnEntry`                      |
+| `a`     | tableau (précède autre préfixe) | `aszArgv`, `aCmds`              |
+
+Pour les variables de type struct allouées sur la pile (non-pointeur) : préfixe `t`
+(e.g. `tCtx`, `tCmd`).
+
+**Variables globales** : `g_<module>_<préfixe><Nom>`, toujours `static` dans leur
+`.c` (e.g. `g_trace_bOpen`, `g_line_aCmds`).
+
+**Types fixes** : utiliser `st_u8_t` / `st_u16_t` / `st_u32_t` / `st_i32_t` etc.
+(définis dans `common.h`) pour toute donnée à largeur fixe (registres 68000, champs
+de structure disque/PRG). Utiliser `int` / `size_t` pour les compteurs et tailles
+locales génériques.
+
+**Structures** : nom en `snake_case` terminé par `_t`
+(e.g. `parsed_cmd_t`, `line_context_t`).
+
+**Fonctions** : verbe(s) + substantif(s) en `snake_case`
+(e.g. `line_init()`, `trace_is_open()`).
+
+**Constantes / macros** : `SCREAMING_SNAKE_CASE` avec préfixe `ST_`
+(e.g. `ST_MAX_PATH`, `ST_NO_ERROR`).
+
+### 4.3 Style de code
+- Largeur de ligne : 80 colonnes.
+- Style d'accolades Allman : `{` sur sa propre ligne pour toutes les structures de
+  contrôle et définitions de fonctions.
+- Déclarations de variables toutes en tête de fonction (style C89), avant tout code.
+  Résultat : l'empreinte mémoire complète de la fonction est visible d'un coup.
+- Paramètres de fonction et déclarations de variables alignés verticalement par groupe.
+- Pas d'appels de fonctions dans les arguments d'autres appels.
+- Préférer des fonctions courtes et bien nommées à du code condensé.
+
+### 4.4 Modèle d'erreur et retours de fonctions
+
+**Code de retour** : toute fonction portable retourne `st_error_t`
+(`ST_NO_ERROR` / `ST_ERROR`). Les valeurs fonctionnelles passent par des paramètres
+pointeurs `[out]`.
+
+**Visibilité** : toute fonction non déclarée dans un `.h` est `static`.
+
+**`const` sur les paramètres** : `const T *` pour tout paramètre `[in]` pointeur
+non modifié.
+
+**Vérification de tous les retours** : chaque appel de fonction — interne, glibc ou
+plateforme — a son code de retour testé selon le contrat documenté de la fonction
+appelée (référence : MSDN pour Win32, man pages pour POSIX/glibc). Ne pas supposer
+qu'une valeur non-nulle signifie succès ; vérifier la valeur exacte attendue
+(ex. `WAIT_OBJECT_0`, pas juste `!= 0`).
+
+**Format `LOG_ERROR` selon la couche** :
+- Appels Win32 :
+  `LOG_ERROR("CreateThread failed: %lu", GetLastError())`
+  Si la fonction retourne aussi un code : inclure les deux —
+  `LOG_ERROR("WaitForSingleObject failed: result=%lu err=%lu", dwResult, GetLastError())`
+- Appels POSIX/glibc :
+  `LOG_ERROR("function_name failed: %s", strerror(errno))`
+- Allocations mémoire :
+  `LOG_ERROR("malloc failed for TypeName")`
+
+**Erreurs non fatales** : si un appel échoue sans bloquer l'application (ex. `fopen`
+du fichier log, `localtime`), utiliser `fprintf(stderr, ...)` ou `LOG_INFO` avec
+description de la dégradation, puis continuer avec le comportement dégradé documenté.
+
+**Libération avant `return ST_ERROR`** : si des allocations ont réussi avant l'échec,
+les libérer dans l'ordre inverse d'allocation et remettre les pointeurs à `NULL`
+avant de retourner `ST_ERROR`.
+
+### 4.5 Structure interne des fonctions
+
+Ordre canonique du corps d'une fonction :
+
+```
+1. Déclarations de variables locales (toutes en tête)
+2. Garde de validation des paramètres  →  LOG_ERROR + return ST_ERROR
+3. LOG_TRACE d'entrée (fonctions publiques et handlers)
+4. Corps fonctionnel
+5. LOG_INFO de sortie (si l'effet est significatif)
+6. return
+```
+
+**Garde de validation** — toujours en premier après les déclarations :
+```c
+if (ptParam == NULL)
+{
+    LOG_ERROR("NULL parameter: ptParam=%p", (void *)ptParam);
+    return ST_ERROR;
+}
+```
+
+**LOG_TRACE** — après la garde, pour les fonctions publiques et les handlers.
+Pas dans les micro-helpers internes (< 5 lignes, aucun effet de bord).
+Cast `(void *)` obligatoire sur tout pointeur passé avec `%p` :
+`LOG_TRACE("ptX=%p uiY=%u", (void *)ptX, uiY)`
+
+**LOG_INFO** — juste avant le `return ST_NO_ERROR` final si la fonction produit
+un effet observable. Décrire l'effet : `LOG_INFO("quit requested")` et non
+`LOG_INFO("line_cmd_quit OK")`.
+
+**Initialisation des structs `[out]`** :
+`memset(ptOut, 0, sizeof(*ptOut))` avant toute affectation de champ.
+
+### 4.6 Documentation des `.h`
+
+Chaque fonction publique est documentée dans son `.h` avec :
+```c
+/*
+ * function_name() - Une ligne de description.
+ *
+ * Parameters:
+ *   param1 [in]     : ...
+ *   param2 [out]    : ...
+ *   param3 [in/out] : ...
+ *
+ * Returns:
+ *   ST_NO_ERROR  ...
+ *   ST_ERROR     ...
+ */
+```
+
+### 4.7 Macros de log (`trace.h`)
+
+| Macro              | Usage                                                                 |
+|--------------------|-----------------------------------------------------------------------|
+| `LOG_TRACE(fmt,…)` | Entrée de fonction + paramètres clés. Compactée si consécutive.      |
+| `LOG_INFO(fmt,…)`  | État fonctionnel significatif (progression, résultat notable).        |
+| `LOG_ERROR(fmt,…)` | Erreur interne : NULL, appel système échoué, état incohérent.        |
+| `LOG_TODO(fmt,…)`  | Stub ou code à compléter (marque les UC futurs).                     |
 
 
 ## 5. Décisions Techniques & Recommandations Claude AI / Onclemarcel
