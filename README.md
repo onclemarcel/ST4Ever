@@ -1,7 +1,6 @@
 # Project : ST4Ever : The Revival Engine for the Timeless ATARI ST
 
-*(Current project state: UC1 complete by Claude - under manual code review, build, run and tests)* <br>
-*(SPEC-fr.md file will be updated after those manual activities to fed back information to Claude)* <br>
+*(Current project state: UC1 validated - see CLAUDE.md for more information)*
 
 This project is a cross-platform interactive console application developed in pure C for educational purposes allowing to:
 
