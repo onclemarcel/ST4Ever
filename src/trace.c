@@ -212,9 +212,10 @@ st_error_t trace_open(void)
 
     g_trace_bOpen = ST_TRUE;
 
-    /* UC1: output to stderr.  TODO(UC3): open SDL2 trace window */
+    /* UC1: output to stderr.
+     * TODO(UC3.3): open Win32/X11 trace window via gui_open_window(). */
     LOG_TODO("GUI trace window not yet implemented "
-             "(UC3) - output to stderr");
+             "(UC3.3) - output to stderr");
 
     LOG_INFO("Trace console opened");
     return ST_NO_ERROR;

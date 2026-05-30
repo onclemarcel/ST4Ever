@@ -1391,7 +1391,43 @@ Les étapes de développement fonctionnelles sont formalisées en Use Cases, per
 
 *Claude et Tonton Marcel déposent ici leurs propositions UX/fonctionnelles au fil des UCs. Avant de clore un UC, les propositions sont passées en revue ensemble : celles agréées sont planifiées dans le tableau section 6 et retirées d'ici. **Un UC est clos quand §7 ne contient plus de propositions non arbitrées pour cet UC.***
 
-*Section vide — toutes les propositions P1–P5 issues de UC1/UC2 ont été agréées et planifiées dans le tableau UC (UC4 et UC5 étendus).*
+*Les propositions P1–P5 issues de UC1/UC2 ont été agréées et planifiées (UC4/UC5). Ci-dessous les propositions issues de UC3.1 — à arbitrer avant clôture.*
+
+---
+
+### Propositions Claude — UC3.1
+
+**P6 — Titre de fenêtre dynamique**
+
+Chaque vue affiche dans sa barre de titre le contexte courant, par exemple :
+- `ST4Ever - Dir: C:\demos\atari\`
+- `ST4Ever - Edit: ENCHANT.PRG [hex]`
+- `ST4Ever - Execute: ENCHANT.PRG — step 42`
+
+*Avis Claude :* très réaliste, coût minimal (1 appel `SetWindowTextA` déclenché par le gestionnaire d'événements). Permet à l'utilisateur de distinguer plusieurs vues ouvertes simultanément d'un coup d'œil. Recommandé dès UC3.3 (dir) et systématisé dans chaque UC de vue suivant.
+
+*Proposition de traitement :* convention à poser en R17 dans §5, implémentée dans chaque UC de vue dès UC3.3.
+
+---
+
+**P7 — Mémorisation de la position et taille des fenêtres**
+
+À la fermeture d'une vue, sauvegarder ses coordonnées et dimensions dans un fichier `~/.st4ever_prefs` (ou `%APPDATA%\ST4Ever\prefs.ini`). À la prochaine ouverture du même type de vue, restaurer ces valeurs au lieu des tailles par défaut.
+
+*Avis Claude :* réaliste mais non trivial — nécessite un module `prefs.c` (lecture/écriture INI ou JSON minimaliste). Valeur UX modérée pour un projet en développement actif. À différer après UC5 quand les vues principales sont stables. Risque : ajoute de l'état persistant externe à gérer dans les tests.
+
+*Proposition de traitement :* UC optionnel "UC5-bis Préférences" après UC5, si arbitrage favorable.
+
+---
+
+**P8 — Indicateur d'état dans la barre de titre de la console**
+
+Le titre de la fenêtre console (mintty/cmd.exe) reflète l'état courant :
+`ST4Ever v0.1 | trace ON | dir: C:\demos | disk: A:\ mounted`
+
+*Avis Claude :* très simple sur Windows (`SetConsoleTitleA`), quasi invisible en termes de code. Utile pendant le développement pour visualiser l'état sans avoir à taper `where`. Complémentaire à UC5 (`info` / `where`).
+
+*Proposition de traitement :* ajouter à UC5 dans la commande `where` / `info` comme effet de bord automatique.
 
 ## 8. Licence & attribution
 Pas de redistribution prévue à ce jour

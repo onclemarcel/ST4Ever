@@ -4,8 +4,8 @@
  * Implements portable mutex and thread primitives declared in
  * common.h using Win32 CRITICAL_SECTION and CreateThread.
  *
- * TODO(UC4): Implement platform_thread_create/join/destroy.
- * TODO(UC3): Mutex used by gui_msg_queue (implement with UC3).
+ * UC3.1: mutex (CRITICAL_SECTION) and thread (CreateThread) fully implemented.
+ *        platform_sleep_ms() added for gui_msg_get() spin-wait.
  */
 
 #include "../src/common.h"

@@ -10,9 +10,11 @@
 
 ## Revision History
 
-| Rev | Date       | UC  | Author     | Changes                                              |
-|-----|------------|-----|------------|------------------------------------------------------|
-| 1.0 | 2026-05-30 | UC1 | Claude/OMC | Initial baseline — UC1 validated, two-layer REQ model|
+| Rev | Date       | UC    | Author     | Changes                                                          |
+|-----|------------|-------|------------|------------------------------------------------------------------|
+| 1.0 | 2026-05-30 | UC1   | Claude/OMC | Initial baseline — UC1 validated, two-layer REQ model            |
+| 1.1 | 2026-05-30 | UC2   | Claude/OMC | UC2 validated — trace on/off/toggle; UFR-CON-030..032 ✓          |
+| 1.2 | 2026-05-30 | UC3.1 | Claude/OMC | UC3.1 validated — GUI msg_queue + Win32 window/thread/WndProc   |
 
 ---
 
@@ -87,16 +89,16 @@ through one or more test cases in Section 5.
 
 | ID          | Requirement                                                                                       | Status   | UC   |
 |-------------|---------------------------------------------------------------------------------------------------|----------|------|
-| UFR-CON-030 | `trace on` shall open the trace console if not already visible.                                  | stub     | UC2  |
-| UFR-CON-031 | `trace off` shall close the trace console if currently visible.                                  | stub     | UC2  |
-| UFR-CON-032 | `trace` with no argument shall toggle the trace console visibility.                               | stub     | UC2  |
+| UFR-CON-030 | `trace on` shall open the trace console if not already visible.                                  | ✓ UC2    | UC2  |
+| UFR-CON-031 | `trace off` shall close the trace console if currently visible.                                  | ✓ UC2    | UC2  |
+| UFR-CON-032 | `trace` with no argument shall toggle the trace console visibility.                               | ✓ UC2    | UC2  |
 | UFR-CON-033 | The `-t` application flag shall open the trace console immediately at startup.                   | ✓ UC1    | UC1  |
 
 #### 1.1.4 Other commands (future UCs)
 
 | ID          | Requirement                                                                                       | Status      | UC   |
 |-------------|---------------------------------------------------------------------------------------------------|-------------|------|
-| UFR-CON-040 | `dir [path]` shall open a file-tree view of the given (or current) directory.                    | TODO UC3    | UC3  |
+| UFR-CON-040 | `dir [path]` shall open a file-tree view of the given (or current) directory.                    | TODO UC3.3  | UC3.3|
 | UFR-CON-050 | `load <file>` shall load a file or binary into emulated ST memory.                               | TODO UC7    | UC7  |
 | UFR-CON-060 | `edit <file>` shall open the appropriate editor view for the file type.                          | TODO UC8-10 | UC8  |
 | UFR-CON-070 | `mount [path]` shall emulate an Atari ST floppy drive A:\ from the given directory.             | TODO UC18   | UC18 |
@@ -115,9 +117,19 @@ through one or more test cases in Section 5.
 | UFR-TRC-004 | All log entries shall be written to `st4ever_trace.log` regardless of console visibility.                    | ✓ UC1    | UC1  |
 | UFR-TRC-005 | LOG_INFO, LOG_ERROR, and LOG_TODO shall always be emitted regardless of the TRACE filter.                    | ✓ UC1    | UC1  |
 | UFR-TRC-006 | LOG_TRACE entries shall be suppressible independently from the other levels.                                  | ✓ UC1    | UC1  |
-| UFR-TRC-007 | The trace console shall appear as a dedicated non-modal GUI window (Win32 / X11).                            | TODO UC3 | UC3  |
+| UFR-TRC-007 | The trace console shall appear as a dedicated non-modal GUI window (Win32 / X11).                            | TODO UC3.3 | UC3.3|
 
-### 1.3 Directory View — `DIR` (TODO UC3)
+### 1.3 GUI Framework — `GUI` (UC3.1 infra ✓, UC3.2 renderer, UC3.3 dir view)
+
+| ID          | Requirement                                                                                                   | Status      | UC     |
+|-------------|---------------------------------------------------------------------------------------------------------------|-------------|--------|
+| UFR-GUI-001 | Each view command shall open a dedicated non-modal window running in its own thread.                          | ✓ UC3.1     | UC3.1  |
+| UFR-GUI-002 | The console thread shall communicate with view threads via a bounded thread-safe message queue.               | ✓ UC3.1     | UC3.1  |
+| UFR-GUI-003 | A view shall notify the console of user actions (file selected, close) via a registered event callback.       | ✓ UC3.1     | UC3.1  |
+| UFR-GUI-004 | The application shall support up to 16 simultaneously open views.                                             | ✓ UC3.1     | UC3.1  |
+| UFR-GUI-005 | All 2D rendering (text, rectangles, lines) shall use Direct2D (Windows) or X11/XRender (Linux).              | TODO UC3.2  | UC3.2  |
+
+### 1.4 Directory View — `DIR` (TODO UC3.3)
 
 | ID          | Requirement                                                                                                   | Status   | UC   |
 |-------------|---------------------------------------------------------------------------------------------------------------|----------|------|
@@ -128,15 +140,15 @@ through one or more test cases in Section 5.
 | UFR-DIR-005 | Right-clicking a file shall display a context menu with `load` and `edit` options.                           | TODO UC3 | UC3  |
 | UFR-DIR-006 | Right-clicking a directory shall display a context menu with `mount` and `image` options.                    | TODO UC3 | UC3  |
 
-### 1.4 Editor Views — `EDT` (TODO UC8–10)
+### 1.5 Editor Views — `EDT` (TODO UC8–10)
 
 *Requirements will be detailed when UC8–UC10 are planned.*
 
-### 1.5 Floppy Emulation — `MNT` (TODO UC16–19)
+### 1.6 Floppy Emulation — `MNT` (TODO UC16–19)
 
 *Requirements will be detailed when UC16–UC19 are planned.*
 
-### 1.6 Execution Engine — `EXE` (TODO UC21–27)
+### 1.7 Execution Engine — `EXE` (TODO UC21–27)
 
 *Requirements will be detailed when UC21–UC27 are planned.*
 
@@ -184,7 +196,7 @@ requirement that will expose it (`UFR-EXE-*`, planned UC21–27).
 | REQ-CON-005  | `line_shutdown(ptCtx)` shall set `ptCtx->bRunning = ST_FALSE`.                                        | UFR-CON-001              | ✓ UC1    | UC1  |
 | REQ-CON-006  | `line_run()` shall dispatch `help` / `h` / CTRL+H to the help handler.                                | UFR-CON-010              | ✓ UC1    | UC1  |
 | REQ-CON-007  | `line_run()` shall dispatch `quit` / `q` / CTRL+Q / CTRL+C to the quit handler and exit the loop.    | UFR-CON-020              | ✓ UC1    | UC1  |
-| REQ-CON-008  | `line_run()` shall dispatch `trace on/off/toggle` to the trace command handler.                       | UFR-CON-030..032         | stub     | UC2  |
+| REQ-CON-008  | `line_run()` shall dispatch `trace on/off/toggle` to the trace command handler.                       | UFR-CON-030..032         | ✓ UC2    | UC2  |
 | REQ-CON-009  | All unimplemented commands shall dispatch to `line_cmd_stub()` and emit `LOG_TODO`.                    | UFR-CON-006              | ✓ UC1    | UC1  |
 | REQ-CON-010  | `line_run()` shall support history (↑/↓), Home/End, and tab-completion via the rich line editor.      | UFR-CON-007..009         | TODO UC4 | UC4  |
 
@@ -229,7 +241,30 @@ requirement that will expose it (`UFR-EXE-*`, planned UC21–27).
 | REQ-CPU-010 | `cpu_step()` shall decode and execute ADD / SUB / CMP / AND / OR / EOR / shifts.                      | — (see UC22)  | TODO UC22     | UC22  |
 | REQ-CPU-011 | `cpu_step()` shall decode and execute BRA / Bcc / JSR / RTS / TRAP + exception vectors.               | — (see UC23)  | TODO UC23     | UC23  |
 
-### 2.5 Disassembler — `disassemble.h` / `disassemble.c`
+### 2.5 GUI Framework — `gui.h` / `gui.c` / `win_gui.c`
+
+> Design ref: CLAUDE.md §5 R4, §6.3; gui_backend.h (internal interface)
+
+| ID           | Software Requirement                                                                                          | Parent UFR   | Status   | UC     |
+|--------------|---------------------------------------------------------------------------------------------------------------|--------------|----------|--------|
+| REQ-GUI-001  | `gui_init()` shall register the Win32 WNDCLASS "ST4EverView" (or open X11 display on Linux).                 | UFR-GUI-001  | ✓ UC3.1  | UC3.1  |
+| REQ-GUI-002  | `gui_init()` called when already initialised shall return `ST_NO_ERROR` (idempotent).                         | UFR-GUI-001  | ✓ UC3.1  | UC3.1  |
+| REQ-GUI-003  | `gui_open_window(NULL, *)` and `gui_open_window(*, NULL)` shall return `ST_ERROR`.                            | UFR-GUI-001  | ✓ UC3.1  | UC3.1  |
+| REQ-GUI-004  | `gui_open_window()` shall spawn a dedicated thread and return only after the HWND is live.                    | UFR-GUI-001  | ✓ UC3.1  | UC3.1  |
+| REQ-GUI-005  | `gui_close_window(NULL)` shall return `ST_ERROR`.                                                             | UFR-GUI-001  | ✓ UC3.1  | UC3.1  |
+| REQ-GUI-006  | `gui_close_window()` shall post WM_CLOSE and join the window thread before returning.                         | UFR-GUI-001  | ✓ UC3.1  | UC3.1  |
+| REQ-GUI-007  | `gui_shutdown()` without prior `gui_init()` shall return `ST_NO_ERROR` (safe no-op).                         | UFR-GUI-001  | ✓ UC3.1  | UC3.1  |
+| REQ-GUI-008  | `gui_shutdown()` shall close all open windows before releasing platform resources.                            | UFR-GUI-001  | ✓ UC3.1  | UC3.1  |
+| REQ-GUI-009  | `gui_msg_create(NULL, *)` shall return `ST_ERROR`.                                                            | UFR-GUI-002  | ✓ UC3.1  | UC3.1  |
+| REQ-GUI-010  | `gui_msg_create(*, 0)` shall return `ST_ERROR` (zero capacity rejected).                                      | UFR-GUI-002  | ✓ UC3.1  | UC3.1  |
+| REQ-GUI-011  | `gui_msg_post()` shall preserve events in strict FIFO order.                                                  | UFR-GUI-002  | ✓ UC3.1  | UC3.1  |
+| REQ-GUI-012  | `gui_msg_post()` to a full queue shall return `ST_ERROR` without blocking.                                    | UFR-GUI-002  | ✓ UC3.1  | UC3.1  |
+| REQ-GUI-013  | `gui_msg_get(bBlock=ST_FALSE)` on an empty queue shall return `ST_ERROR` immediately.                         | UFR-GUI-002  | ✓ UC3.1  | UC3.1  |
+| REQ-GUI-014  | `gui_msg_destroy()` shall free all resources and set the handle to NULL.                                      | UFR-GUI-002  | ✓ UC3.1  | UC3.1  |
+| REQ-GUI-015  | The WndProc shall translate WM_PAINT / WM_KEYDOWN / WM_CHAR / WM_MOUSE* / WM_MOUSEWHEEL / WM_SIZE → gui_event_t. | UFR-GUI-003 | ✓ UC3.1 | UC3.1 |
+| REQ-GUI-016  | The renderer shall use Direct2D / DirectWrite (Windows) or X11/XRender (Linux).                              | UFR-GUI-005  | TODO UC3.2| UC3.2 |
+
+### 2.6 Disassembler — `disassemble.h` / `disassemble.c`
 
 > Design ref: CLAUDE.md §5 R7; DEVPAC3 syntax reference
 > Parent UFR: none at UC1 level — will link to `UFR-EDT-*` (UC10) and `UFR-EXE-*` (UC25).
@@ -293,13 +328,13 @@ requirement that will expose it (`UFR-EXE-*`, planned UC21–27).
 | From subsystem       | To subsystem          | Interface / data exchanged                            | Status   |
 |----------------------|-----------------------|-------------------------------------------------------|----------|
 | Console Interface    | Trace Subsystem       | `trace_open/close()`, `LOG_*` macros                  | ✓ UC1    |
-| Console Interface    | GUI Framework         | `gui_open_window(desc)` per view command              | TODO UC3 |
-| GUI Framework        | ST Machine Emulator   | `st_read/write_byte/word/long()`                      | TODO UC3 |
-| GUI Framework        | Disassembler          | `disasm_range()` for hex+asm view sync                | TODO UC10|
-| ST Machine Emulator  | CPU 68000             | `cpu_init()`, `cpu_step()`, shared `st_machine_t*`    | TODO UC21|
-| Console Interface    | Platform Layer        | `win_console_init()` at startup                       | ✓ UC1    |
-| GUI Framework        | Platform Layer        | `gui_open_window()` → Win32/X11 backend               | TODO UC3 |
-| GUI Framework        | Renderer              | `renderer_begin/end_draw()`, draw primitives          | TODO UC3 |
+| Console Interface    | GUI Framework         | `gui_open_window(desc)` per view command              | TODO UC3.3|
+| GUI Framework        | ST Machine Emulator   | `st_read/write_byte/word/long()`                      | TODO UC25 |
+| GUI Framework        | Disassembler          | `disasm_range()` for hex+asm view sync                | TODO UC10 |
+| ST Machine Emulator  | CPU 68000             | `cpu_init()`, `cpu_step()`, shared `st_machine_t*`    | TODO UC21 |
+| Console Interface    | Platform Layer        | `win_console_init()` at startup                       | ✓ UC1     |
+| GUI Framework        | Platform Layer        | `gui_open_window()` → `gui_platform_window_create()`  | ✓ UC3.1   |
+| GUI Framework        | Renderer              | `renderer_begin/end_draw()`, draw primitives          | TODO UC3.2|
 
 ### 3.3 Threading model (CLAUDE.md R4)
 
@@ -576,18 +611,18 @@ page UTF-8.  Failures are non-fatal (mintty has no real Win32 HANDLE).
 
 ### 4.8 Placeholder Components (stubs)
 
-| Component                    | File(s)                                                             | Planned UC |
-|------------------------------|---------------------------------------------------------------------|------------|
-| GUI Framework                | `gui.c`, `win_gui.c`, `lx_gui.c`                                   | UC3        |
-| 2D Renderer                  | `renderer.c`, `win_D2D.c`, `lx_X11.c`                             | UC3        |
-| Directory View               | `dir.c`                                                             | UC3        |
+| Component                    | File(s)                                                             | Planned UC | Status   |
+|------------------------------|---------------------------------------------------------------------|------------|----------|
+| GUI Framework                | `gui.c`, `win_gui.c`, `lx_gui.c`, `gui_backend.h`                 | UC3.1      | ✓ UC3.1  |
+| 2D Renderer                  | `renderer.c`, `win_D2D.c`, `lx_X11.c`                             | UC3.2      | stub     |
+| Directory View               | `dir.c`                                                             | UC3.3      | stub     |
 | Text Editor View             | `edit_txt.c`                                                        | UC8        |
 | Hex/ASCII Editor View        | `edit_hex.c`                                                        | UC9        |
 | Integrated Editor Dispatcher | `edit.c`                                                            | UC10       |
 | Floppy Mount                 | `mount.c`                                                           | UC18       |
 | Execution Engine             | `exec.c`, `exec_mon.c`, `exec_cpu.c`, `exec_mem.c`, `exec_screen.c`| UC25       |
 | DEVPAC3 Assembler            | `as.c`                                                              | UC30       |
-| Platform Thread/Mutex        | `win_platform.c`, `lx_platform.c`                                  | UC4        |
+| Platform Thread/Mutex        | `win_platform.c`, `lx_platform.c`                                  | UC3.1      | ✓ UC3.1  |
 
 ---
 
@@ -831,18 +866,129 @@ Input: `{ 0x70, 0x2A, 0x4E, 0x75 }` at base `0x1000`
 | DIS    | 2   | 3   | 0   | 5     | ALL PASS  |
 | **Total** | **22** | **15** | **0** | **37** | **ALL PASS** |
 
-> Note: `use_case_01.c` reports 45N + 19R = 64 individual `UC_TEST` /
-> `UC_CHECK` assertions.  The SRTD groups related assertions into logical
-> test cases (e.g. a write + read-back pair is one TC; two NULL-pointer
-> checks sharing one INTENT are two TCs).  Coverage is equivalent.
+---
 
-#### Open items carried forward
+### 5.8 INTENT Catalog — UC2
 
-| Item              | TC / REQ            | Target | Nature                                              |
-|-------------------|---------------------|--------|-----------------------------------------------------|
-| STM bus error     | TC-STM-010, REQ-STM-011 | UC24 | Stub: `ST_NO_ERROR+0xFF`; real map raises `ST_ERROR`|
-| CPU decode        | TC-CPU-006, REQ-CPU-008 | UC21 | Stub: PC+2; real decode/execute to come             |
-| Disasm DC.W       | TC-DIS-001, REQ-DIS-005 | UC11 | All opcodes → DC.W; full decode in UC11–UC14        |
-| Trace GUI window  | UFR-TRC-007, REQ-TRC-014 | UC3 | stderr → dedicated Win32/X11 window                |
-| trace on/off      | UFR-CON-030/031, REQ-CON-008 | UC2 | Argument parsing not yet dispatched             |
-| Line editor       | UFR-CON-007..009, REQ-CON-010 | UC4 | History, tab-completion, arrow navigation       |
+Source: `use_cases/use_case_02.c`
+
+| ID          | INTENT text                                                              |
+|-------------|--------------------------------------------------------------------------|
+| INT-TRC-010 | trace toggle (no arg) opens if closed, closes if open; enabled unchanged |
+| INT-TRC-011 | trace on: open console + enable LOG_TRACE (idempotent)                   |
+| INT-TRC-012 | trace off: disable LOG_TRACE + close console (idempotent)                |
+| INT-CON-010 | LOG_INFO/ERROR/TODO remain active when trace_enabled is FALSE            |
+
+### 5.9 Test Cases — UC2 (trace command)
+
+Source: `use_cases/use_case_02.c`
+
+| ID          | Functional description                          | Type | UFR          | REQ         | INTENT      | Expected outcome                                          | Status   |
+|-------------|-------------------------------------------------|------|--------------|-------------|-------------|-----------------------------------------------------------|----------|
+| TC-TRC-010  | toggle closed→open (no arg)                     | [N]  | UFR-CON-032  | REQ-CON-008 | INT-TRC-010 | `trace_open()` called; `trace_is_open()==TRUE`            | PASS UC2 |
+| TC-TRC-011  | toggle open→closed (no arg)                     | [N]  | UFR-CON-032  | REQ-CON-008 | INT-TRC-010 | `trace_close()` called; `trace_is_open()==FALSE`          | PASS UC2 |
+| TC-TRC-012  | toggle preserves trace_enabled state            | [N]  | UFR-CON-032  | REQ-CON-008 | INT-TRC-010 | `trace_is_trace_enabled()` unchanged after toggle         | PASS UC2 |
+| TC-TRC-013  | `trace on`: open + enable (idempotent)          | [N]  | UFR-CON-030  | REQ-CON-008 | INT-TRC-011 | `trace_is_open()==TRUE`; `trace_is_trace_enabled()==TRUE` | PASS UC2 |
+| TC-TRC-014  | `trace on` when already open: harmless          | [R]  | UFR-CON-030  | REQ-TRC-002 | INT-TRC-011 | second `trace_open()` → `ST_NO_ERROR`; state unchanged    | PASS UC2 |
+| TC-TRC-015  | `trace off`: disable + close (idempotent)       | [N]  | UFR-CON-031  | REQ-CON-008 | INT-TRC-012 | `trace_is_open()==FALSE`; `trace_is_trace_enabled()==FALSE`| PASS UC2|
+| TC-TRC-016  | `trace off` when already closed: harmless       | [R]  | UFR-CON-031  | REQ-TRC-007 | INT-TRC-012 | second `trace_close()` → `ST_NO_ERROR`; state unchanged   | PASS UC2 |
+| TC-TRC-017  | INFO/ERROR/TODO active when TRACE disabled      | [R]  | UFR-TRC-005  | REQ-TRC-009 | INT-CON-010 | `trace_set_trace_enabled(FALSE)` → other levels emit OK   | PASS UC2 |
+
+#### Test Summary — UC2
+
+| Module | [N] | [R] | [S] | Total | Result   |
+|--------|-----|-----|-----|-------|----------|
+| TRC/CON| 5   | 2   | 0   | 7     | ALL PASS |
+| (stdin dispatch) | — | — | 4 | 4 | SKIP (make manual) |
+
+---
+
+### 5.10 INTENT Catalog — UC3.1
+
+Source: `use_cases/use_case_03_1.c`
+
+| ID          | INTENT text                                                                      |
+|-------------|----------------------------------------------------------------------------------|
+| INT-GUI-001 | create queue of capacity N: handle non-NULL, events preserved in FIFO order      |
+| INT-GUI-002 | post beyond capacity: ST_ERROR without blocking or data loss                     |
+| INT-GUI-003 | get on empty queue (non-blocking): ST_ERROR immediately                          |
+| INT-GUI-004 | gui_init registers WNDCLASS; idempotent; gui_shutdown safe no-op if not init'd   |
+| INT-GUI-005 | gui_open_window / gui_close_window: NULL params rejected before any side effect  |
+
+### 5.11 Test Cases — UC3.1 (GUI infrastructure)
+
+Source: `use_cases/use_case_03_1.c`
+
+| ID          | Functional description                           | Type | UFR         | REQ          | INTENT      | Expected outcome                                        | Status     |
+|-------------|--------------------------------------------------|------|-------------|--------------|-------------|----------------------------------------------------------|------------|
+| TC-GUI-001  | msg_queue create capacity 4                      | [N]  | UFR-GUI-002 | REQ-GUI-009  | INT-GUI-001 | `ST_NO_ERROR`; handle ≠ NULL                            | PASS UC3.1 |
+| TC-GUI-002  | post + get single event, FIFO                    | [N]  | UFR-GUI-002 | REQ-GUI-011  | INT-GUI-001 | get returns event with same type as posted              | PASS UC3.1 |
+| TC-GUI-003  | two events: FIFO order preserved                 | [N]  | UFR-GUI-002 | REQ-GUI-011  | INT-GUI-001 | first get = RESIZE, second get = CLOSE                  | PASS UC3.1 |
+| TC-GUI-004  | fill queue to capacity (4 posts)                 | [N]  | UFR-GUI-002 | REQ-GUI-012  | INT-GUI-001 | all 4 posts succeed                                     | PASS UC3.1 |
+| TC-GUI-005  | drain full queue (4 gets)                        | [N]  | UFR-GUI-002 | REQ-GUI-011  | INT-GUI-001 | all 4 gets succeed                                      | PASS UC3.1 |
+| TC-GUI-006  | destroy sets handle to NULL                      | [N]  | UFR-GUI-002 | REQ-GUI-014  | INT-GUI-001 | handle == NULL after destroy                            | PASS UC3.1 |
+| TC-GUI-007  | post beyond capacity → ST_ERROR                  | [R]  | UFR-GUI-002 | REQ-GUI-012  | INT-GUI-002 | 5th post on capacity-4 queue → ST_ERROR                 | PASS UC3.1 |
+| TC-GUI-008  | get on empty (non-blocking) → ST_ERROR           | [R]  | UFR-GUI-002 | REQ-GUI-013  | INT-GUI-003 | `gui_msg_get(bBlock=FALSE)` empty → ST_ERROR            | PASS UC3.1 |
+| TC-GUI-009  | msg_create NULL out, capacity 0                  | [R]  | UFR-GUI-002 | REQ-GUI-009..010 | INT-GUI-001 | both → ST_ERROR; handle stays NULL                  | PASS UC3.1 |
+| TC-GUI-010  | post/get/destroy NULL params                     | [R]  | UFR-GUI-002 | REQ-GUI-011..014 | INT-GUI-001 | all → ST_ERROR                                      | PASS UC3.1 |
+| TC-GUI-011  | gui_init idempotent                              | [N]  | UFR-GUI-001 | REQ-GUI-001..002 | INT-GUI-004 | two calls → ST_NO_ERROR both                        | PASS UC3.1 |
+| TC-GUI-012  | gui_shutdown after init                          | [N]  | UFR-GUI-001 | REQ-GUI-007  | INT-GUI-004 | ST_NO_ERROR                                             | PASS UC3.1 |
+| TC-GUI-013  | gui_shutdown without prior init (no-op)          | [N]  | UFR-GUI-001 | REQ-GUI-007  | INT-GUI-004 | ST_NO_ERROR                                             | PASS UC3.1 |
+| TC-GUI-014  | gui_open_window NULL desc or NULL phWnd          | [R]  | UFR-GUI-001 | REQ-GUI-003  | INT-GUI-005 | ST_ERROR; hWnd stays NULL                               | PASS UC3.1 |
+| TC-GUI-015  | gui_close/invalidate/get_size NULL               | [R]  | UFR-GUI-001 | REQ-GUI-005..006 | INT-GUI-005 | all → ST_ERROR                                      | PASS UC3.1 |
+| TC-GUI-016  | window open + visible (manual)                   | [S]  | UFR-GUI-001 | REQ-GUI-004  | INT-GUI-004 | dark background, title bar (make manual)                | SKIP       |
+| TC-GUI-017  | window close via gui_close_window (manual)       | [S]  | UFR-GUI-001 | REQ-GUI-006  | INT-GUI-004 | thread exits, handle freed (make manual)                | SKIP       |
+| TC-GUI-018  | window responds to OS close button (manual)      | [S]  | UFR-GUI-001 | REQ-GUI-015  | INT-GUI-005 | WM_DESTROY fires GUI_EVT_CLOSE (make manual)            | SKIP       |
+
+#### Test Summary — UC3.1
+
+| Module | [N] | [R] | [S] | Total | Result    |
+|--------|-----|-----|-----|-------|-----------|
+| GUI    | 11  | 4   | 3   | 18    | ALL PASS  |
+
+#### REQ → TC coverage (UC3.1)
+
+| REQ          | TC(s)                           | Status     |
+|--------------|---------------------------------|------------|
+| REQ-GUI-001  | TC-GUI-011                      | ✓ PASS     |
+| REQ-GUI-002  | TC-GUI-011                      | ✓ PASS     |
+| REQ-GUI-003  | TC-GUI-014                      | ✓ PASS     |
+| REQ-GUI-004  | TC-GUI-016                      | SKIP       |
+| REQ-GUI-005  | TC-GUI-015                      | ✓ PASS     |
+| REQ-GUI-006  | TC-GUI-017                      | SKIP       |
+| REQ-GUI-007  | TC-GUI-012, TC-GUI-013          | ✓ PASS     |
+| REQ-GUI-008  | (gui_shutdown in TC-GUI-012)    | ✓ PASS     |
+| REQ-GUI-009  | TC-GUI-009                      | ✓ PASS     |
+| REQ-GUI-010  | TC-GUI-009                      | ✓ PASS     |
+| REQ-GUI-011  | TC-GUI-002, TC-GUI-003, TC-GUI-005 | ✓ PASS  |
+| REQ-GUI-012  | TC-GUI-007                      | ✓ PASS     |
+| REQ-GUI-013  | TC-GUI-008                      | ✓ PASS     |
+| REQ-GUI-014  | TC-GUI-006, TC-GUI-010          | ✓ PASS     |
+| REQ-GUI-015  | TC-GUI-018                      | SKIP       |
+| REQ-GUI-016  | —                               | TODO UC3.2 |
+
+#### UFR traceability update (UC2 + UC3.1)
+
+| UFR              | REQ(s)           | TC(s)                              | Status     |
+|------------------|------------------|------------------------------------|------------|
+| UFR-CON-030      | REQ-CON-008      | TC-TRC-013, TC-TRC-014             | ✓ UC2      |
+| UFR-CON-031      | REQ-CON-008      | TC-TRC-015, TC-TRC-016             | ✓ UC2      |
+| UFR-CON-032      | REQ-CON-008      | TC-TRC-010..012                    | ✓ UC2      |
+| UFR-GUI-001      | REQ-GUI-001..008 | TC-GUI-011..018                    | ✓ UC3.1    |
+| UFR-GUI-002      | REQ-GUI-009..014 | TC-GUI-001..010                    | ✓ UC3.1    |
+| UFR-GUI-003      | REQ-GUI-015      | TC-GUI-018 (manual)                | ✓ UC3.1    |
+| UFR-GUI-004      | REQ-GUI-004..006 | TC-GUI-016..017 (manual)           | ✓ UC3.1    |
+| UFR-GUI-005      | REQ-GUI-016      | —                                  | TODO UC3.2 |
+
+#### Open items — cumulative
+
+| Item              | TC / REQ                       | Target  | Nature                                              |
+|-------------------|--------------------------------|---------|-----------------------------------------------------|
+| STM bus error     | TC-STM-010, REQ-STM-011        | UC24    | Stub returns ST_NO_ERROR+0xFF; real map → ST_ERROR  |
+| CPU decode        | TC-CPU-006, REQ-CPU-008        | UC21    | Stub: PC+2; real decode/execute to come             |
+| Disasm DC.W       | TC-DIS-001, REQ-DIS-005        | UC11    | All opcodes → DC.W; full decode in UC11–UC14        |
+| Trace GUI window  | UFR-TRC-007, REQ-TRC-014       | UC3.3   | stderr → dedicated Win32/X11 window                 |
+| Line editor       | UFR-CON-007..009, REQ-CON-010  | UC4     | History, tab-completion, arrow navigation            |
+| D2D renderer      | UFR-GUI-005, REQ-GUI-016       | UC3.2   | win_D2D.c (COM pure C) + renderer.c portable layer  |
+| dir view          | UFR-DIR-001..004, UFR-CON-040  | UC3.3   | Tree scan + D2D rendering + navigation + selection   |
+| Window manual TC  | TC-GUI-016..018                | UC4     | Will become TEST_MANUAL when make manual is ready   |

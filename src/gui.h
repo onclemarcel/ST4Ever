@@ -17,7 +17,9 @@
  *   Views post events back via their registered gui_event_fn callback,
  *   which is called from the view thread.
  *
- * TODO(UC3): Implement gui_open_window() and platform backends.
+ * UC3.1: gui_open_window(), message queues and window lifecycle implemented.
+ * TODO(UC3.2): renderer integration (D2D).
+ * TODO(UC3.3): dir view event handling.
  */
 
 #ifndef GUI_H

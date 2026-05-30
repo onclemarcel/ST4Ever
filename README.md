@@ -1,6 +1,6 @@
 # Project : ST4Ever : The Revival Engine for the Timeless ATARI ST
 
-*(Current project state: UC1 validated - see CLAUDE.md for more information)*
+*(Current project state: UC3.1 validated — GUI window infrastructure live. See CLAUDE.md for details.)*
 
 This project is a cross-platform interactive console application developed in pure C for educational purposes allowing to:
 
@@ -26,6 +26,23 @@ Note that the ST4Ever ATARI ST emulation is completely developed from scratch fo
 Future evolutions of the project will include ancillary utilities such as a GEN.TTP version of Devpac3 ported to PC for generating binaries on PC without using an emulator like Hatari or STeem (Vincent Rivière's m68k-atari-mint cross-tools also exist and is excellent, but once again, educational purpose is the goal of this project, not the use of existing programs). Also, the development of a 68000 assembler to pure C decompiler to recompile the program under msys2 on PC.
 
 The ultimate goal is to produce pure C source code compiled under Msys2 from ATARI ST demo disk images, to compile them in PC format and run them under Msys2 in a graphical Windows or Linux window without ATARI ST emulation (hence the "revival"...).
+
+## Current development progress
+
+The project is developed Use Case by Use Case, with a rigorous test-driven approach
+and full traceability (SRTD.md). Each UC is validated by an automated test suite
+before being committed.
+
+| UC    | Scope                                   | Status              |
+|-------|-----------------------------------------|---------------------|
+| UC1   | Console + trace subsystem + ST/CPU stubs | ✅ Validated         |
+| UC2   | `trace on/off/toggle` command            | ✅ Validated         |
+| UC3.1 | GUI infrastructure: Win32 window thread, msg_queue, WndProc | ✅ Validated |
+| UC3.2 | Direct2D renderer (win_D2D.c + renderer.c) | 🔄 In progress   |
+| UC3.3 | `dir` command: file tree view, navigation, selection | 📋 Planned |
+| UC4+  | Rich line editor, more commands, emulation | 📋 Planned        |
+
+## Co-development with Claude AI
 
 In terms of code production and project follow-up, this repository is assisted by Claude AI for educational purposes and my own understanding of the use of an AI assistant, ATARI ST emulation and demos development from 1990's.
 
