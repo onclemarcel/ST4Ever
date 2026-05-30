@@ -1,5 +1,8 @@
 # Projet : ST4Ever : The Revival Engine for the Timeless ATARI ST
 
+## 0. Historique et Raisons de changement
+2026-05-30: UC1 validé & pratiques de développement validées au travers de ce document CLAUDE.md
+
 ## 1. Contexte du projet
 
 Ce projet est une application console interactive multi-plateforme développée en C pur à but éducatif permettant de:
@@ -99,6 +102,19 @@ Les vues ouvertes par les commandes sont interactives, non-modale et exécutée 
 Dans les phases d'exécution des binaires, les vues d'émulation CPU 68000, mémoire ATARI ST, vue écran graphique et vue binaire hexadécimale sont mises à jour en cohérence de l'exécution.
 
 L'application ST4Ever est développée pour Windows dans un premier temps, avec des stubs anticipés pour une plateforme Linux. Toutes les logiques qui ne dépendent pas d'une plateforme Windows ou Linux sont en code portable dans ./src de l'arborescence du projet. Le code portable utilise des fonctions d'abstraction appelant des fonctions Windows ou Linux en back-end, développé dans des fichiers ./src/win ou ./src/linux. La contrainte de développement est de maximiser le code portable et minimiser le back-end spécifique au strict nécessaire (Windows calls, DirectX calls pour Windows, Posix/system calls, X11 calls pour Linux)
+
+### 1.3 Phases de développement
+
+Le développement s'effectue par Use Cases (voir section 6), permettant à Claude de progresser phase par phase avec une validation régulière des implémentations fonctionnelles. L'objectif reste la lisibilité du code et de l'avancement pour un aspect didactique et éducatif : plus on prend notre temps, mieux on apprend.
+
+**À chaque Use Case, Claude :**
+- Effectue les modifications des sources/includes/Makefile/ressources selon le périmètre fonctionnel du UC, en cohérence avec les objectifs fonctionnels (section 1.1) et les recommandations (section 5).
+- Met à jour ce fichier CLAUDE.md selon la recommandation R13 (toutes les sections concernées, en cours et en fin de UC).
+- Signale si le UC s'avère trop complexe pour être traité d'un bloc, et propose un découpage en sous-UCs numérotés et insérés dans le tableau de la section 6.
+
+**En fin de Use Case validé (`make tests` : 0 failure), Claude :**
+- Met à jour README.md si la progression est visible pour un lecteur extérieur : ce fichier sert de *teaser* public sur l'aspect didactique, le revival ATARI ST des années 90 et les pratiques de co-développement avec Claude, acteur principal du projet guidé par Tonton Marcel.
+- Met à jour SRTD.md pour la traçabilité User/System & Software Reqs/Tests.
 
 
 ## 2. Fichiers clés
@@ -1051,12 +1067,20 @@ Les macros `LOG_TRACE`, `LOG_INFO`, `LOG_ERROR`, `LOG_TODO` utilisent la syntaxe
 **R12 — Exécution des tests depuis la racine du projet**
 La cible `make tests` doit être exécutée depuis la racine du projet (là où se trouvent `src/`, `use_cases/`, etc.). Les binaires de test `tests/use_case_NN` utilisent des chemins relatifs pour accéder aux fichiers de test (e.g. `"use_cases/UC01/hello.prg"`). Lancer `tests/use_case_01` directement depuis `tests/` échoue au chargement du PRG de test. La cible `make tests` inclut ce rappel dans son en-tête d'exécution.
 
-**R13 — Maintenance de ce fichier SPEC-fr.md**
-Ce fichier est l'interface de projet et doit être mis à jour à chaque UC validé :
-- Section 2 : le header documentaire de chaque fichier `.c` est recopié ici depuis les sources après chaque UC. C'est le contrat documentaire entre les sessions de conversation.
-- Section 5 : toute recommandation nouvelle issue d'une session Claude (ou du développeur) est ajoutée ici avec un numéro de révision et la date.
-- Section 6 : le statut de chaque UC (en cours / validé) et les sous-sections détaillées sont mis à jour après chaque session de travail. Chaque sous-section 6.x d'UC validé inclut un paragraphe **"Contrats comportementaux validés"** résumant les invariants clés extraits des `/* INTENT: */` du `use_case_XX.c` correspondant, groupés par module. Ces contrats créent la traçabilité verticale : besoin utilisateur (section 1.1) → contrat technique validé (section 6.x) → preuve exécutable (`use_case_XX.c`). Ils guident les sessions futures lors de l'implémentation réelle des modules concernés.
-- Ne pas modifier les sections déjà validées sans noter la raison du changement.
+**R13 — Maintenance de ce fichier CLAUDE.md**
+
+CLAUDE.md est l'interface de projet entre sessions de conversation. Sa mise à jour relève de Claude à chaque UC, **en cours et en fin**. Sections concernées et règles :
+
+- **Section 2** : recopier ici le header documentaire de tout fichier `.c` nouveau ou modifié, directement depuis les sources. Ce contrat documentaire est la mémoire entre sessions.
+- **Section 4** : ajouter toute nouvelle pratique d'implémentation devant s'appliquer uniformément aux UCs suivants (nommage, style, modèle d'erreur…).
+- **Section 5** : ajouter toute nouvelle recommandation technique avec numéro séquentiel (R_N_) et date. Ne jamais renuméroter les recommandations existantes.
+- **Section 6 (tableau)** : mettre à jour le statut du UC courant ; réviser le tableau après décision d'arbitrage (amélioration/découpage).
+- **Section 6.x (sous-section UC validé)** : créer ou compléter selon le modèle de la section 6.1. Elle doit inclure : périmètre implémenté, infrastructure validée, matrice de tests (N/R/S), anomalies résolues, et un paragraphe **"Contrats comportementaux validés"** par module — ces contrats assurent la traçabilité verticale : besoin utilisateur (1.1) → invariant technique (6.x) → preuve exécutable (`use_case_XX.c`). Ils guident les sessions futures lors de l'implémentation réelle.
+- **Section 7** : créer si des améliorations fonctionnelles/UX émergent pendant le UC. Les soumettre à validation pour planification parmi les UCs existants ou en tant que nouveau UC.
+
+**Règles absolues :**
+- Ne pas modifier une section déjà validée sans noter la raison et le numéro du UC qui impose le changement.
+- Ne jamais supprimer de contenu historique : utiliser les marquages `ADAPTED: UCN` ou des notes de changement inline.
 
 **R14 — Non-régression des tests use_case_XX : stratégie "intent-stable, assertion-évolutive"**
 Chaque `use_case_XX.c` valide l'**intention fonctionnelle** du UC, pas les détails d'implémentation du stub. Quand un UC ultérieur fait évoluer un comportement, on adapte l'assertion, pas l'intention. Règles :
@@ -1217,5 +1241,8 @@ Les étapes de développement fonctionnelles sont formalisées en Use Cases, per
 - UC21 : `cpu_step` réel changera le comportement des tests UC1 step — assertions marquées `ADAPTED`
 - UC24 : `st_read_byte` hors-RAM devra lever ST_ERROR pour les zones vraiment non mappées — test marqué `ADAPTED`
 
-## 7. Licence & attribution
+## 7. Propositions d'améliorations
+**UC Tests**: Concernant la partie tests des Use Cases, certains tests sont manuels et demandent une action utilisateur, ou tout simplement une validation visuelle (e.g. GUI) qui serait trop complexe à implémenter en tests automatiques : ces tests manuels peuvent être exécutés à part des tests auto, et demander des checks visuels validés par l'utilisateur pour obtenir le critère PASS de ces tests.
+
+## 8. Licence & attribution
 Pas de redistribution prévue à ce jour

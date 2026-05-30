@@ -21,10 +21,13 @@ gcc -Wall -Wextra -pedantic -std=gnu99 -g -D_GNU_SOURCE -I./src -c src/gui.c -o 
 gcc -Wall -Wextra -pedantic -std=gnu99 -g -D_GNU_SOURCE -I./src -c src/line.c -o build/s_line.o
 gcc -Wall -Wextra -pedantic -std=gnu99 -g -D_GNU_SOURCE -I./src -c src/main.c -o build/s_main.o
 gcc -Wall -Wextra -pedantic -std=gnu99 -g -D_GNU_SOURCE -I./src -c src/mount.c -o build/s_mount.o
+ 
 gcc -Wall -Wextra -pedantic -std=gnu99 -g -D_GNU_SOURCE -I./src -c src/renderer.c -o build/s_renderer.o
 gcc -Wall -Wextra -pedantic -std=gnu99 -g -D_GNU_SOURCE -I./src -c src/trace.c -o build/s_trace.o
+ 
 gcc -Wall -Wextra -pedantic -std=gnu99 -g -D_GNU_SOURCE -I./src -c win/win_D2D.c -o build/p_win_D2D.o
 gcc -Wall -Wextra -pedantic -std=gnu99 -g -D_GNU_SOURCE -I./src -c win/win_console.c -o build/p_win_console.o
+ 
 gcc -Wall -Wextra -pedantic -std=gnu99 -g -D_GNU_SOURCE -I./src -c win/win_gui.c -o build/p_win_gui.o
 gcc -Wall -Wextra -pedantic -std=gnu99 -g -D_GNU_SOURCE -I./src -c win/win_platform.c -o build/p_win_platform.o
 gcc           build/s_CPU.o           build/s_ST.o           build/s_as.o           build/s_dir.o           build/s_disassemble.o           build/s_edit.o           build/s_edit_hex.o           build/s_edit_txt.o           build/s_exec.o           build/s_exec_asm.o           build/s_exec_cpu.o           build/s_exec_mem.o           build/s_exec_mon.o           build/s_exec_screen.o           build/s_gui.o           build/s_line.o           build/s_main.o           build/s_mount.o           build/s_renderer.o           build/s_trace.o   build/p_win_D2D.o   build/p_win_console.o   build/p_win_gui.o   build/p_win_platform.o -o release/st4ever.exe -lkernel32 -luser32 -lgdi32
