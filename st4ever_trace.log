@@ -1,135 +1,135 @@
-00:45:47 [TODO] trace_open:216  GUI trace window not yet implemented (UC3) - output to stderr
-00:45:47 [INF ] trace_open:219  Trace console opened
-00:45:47 [TRC ] test_trace:135  UC1 test: LOG_TRACE entry (param=42)
-00:45:47 [INF ] test_trace:136  UC1 test: LOG_INFO  entry
-00:45:47 [ERR ] test_trace:137  UC1 test: LOG_ERROR entry (not a real error)
-00:45:47 [TODO] test_trace:138  UC1 test: LOG_TODO  entry - this function is a stub
-00:45:47 [TRC ] test_trace:144  compaction pass 1
-00:45:47 [TRC ] test_trace [x5]
-00:45:47 [INF ] test_trace:149  compaction flush trigger - above 5 should appear as [x5]
-00:45:47 [INF ] trace_close:232  Trace console closed
-00:45:47 [INF ] trace_close:232  Trace console closed
-00:45:47 [TODO] trace_open:216  GUI trace window not yet implemented (UC3) - output to stderr
-00:45:47 [INF ] trace_open:219  Trace console opened
-00:45:47 [INF ] trace_set_trace_enabled:245  LOG_TRACE disabled
-00:45:47 [INF ] trace_set_trace_enabled:245  LOG_TRACE enabled
-00:45:47 [TRC ] test_trace:181  This line SHOULD appear in trace log after re-enable
-00:45:47 [TRC ] line_init:600  ptCtx=0000000000000000
-00:45:47 [ERR ] line_init:604  ptCtx is NULL
-00:45:47 [TRC ] line_init:600  ptCtx=000000c9e31ff790
-00:45:47 [INF ] line_init:619  console initialised, cwd='C:\msys\home\claude\ST4Ever'
-00:45:47 [TRC ] line_shutdown:705  ptCtx=0000000000000000
-00:45:47 [ERR ] line_shutdown:709  ptCtx is NULL
-00:45:47 [TRC ] line_shutdown:705  ptCtx=000000c9e31ff790
-00:45:47 [INF ] line_shutdown:714  console shutdown complete
-00:45:47 [TRC ] st_init:12  ptMachine=0000000000000000 szRomPath='(none)'
-00:45:47 [ERR ] st_init:14  NULL ptMachine
-00:45:47 [TRC ] st_init:12  ptMachine=000000c9e314fb40 szRomPath='(none)'
-00:45:47 [TODO] st_init:19  st_init: ROM loading and HW register reset not yet implemented (UC24)
-00:45:47 [INF ] st_init:21  ST machine initialised (RAM=512KB, stub mode)
-00:45:47 [TRC ] st_write_byte:96  addr=0x001000 val=0xAB
-00:45:47 [TRC ] st_read_byte:29  addr=0x001000
-00:45:47 [TRC ] st_write_byte:96  addr=0x001000 val=0xAB
-00:45:47 [ERR ] st_write_byte:97  NULL ptMachine
-00:45:47 [TRC ] st_read_byte:29  addr=0x001000
-00:45:47 [ERR ] st_read_byte:32  NULL parameter
-00:45:47 [TRC ] st_read_byte:29  addr=0x001000
-00:45:47 [ERR ] st_read_byte:32  NULL parameter
-00:45:47 [TRC ] st_write_word:112  addr=0x002000 val=0x1234
-00:45:47 [TRC ] st_write_byte:96  addr=0x002000 val=0x12
-00:45:47 [TRC ] st_write_byte [x2]
-00:45:47 [TRC ] st_read_word:53  addr=0x002000
-00:45:47 [TRC ] st_read_byte:29  addr=0x002000
-00:45:47 [TRC ] st_read_byte [x2]
-00:45:47 [TRC ] st_write_long:125  addr=0x003000 val=0xDEADBEEF
-00:45:47 [TRC ] st_write_word:112  addr=0x003000 val=0xDEAD
-00:45:47 [TRC ] st_write_byte:96  addr=0x003000 val=0xDE
-00:45:47 [TRC ] st_write_byte [x2]
-00:45:47 [TRC ] st_write_word:112  addr=0x003002 val=0xBEEF
-00:45:47 [TRC ] st_write_byte:96  addr=0x003002 val=0xBE
-00:45:47 [TRC ] st_write_byte [x2]
-00:45:47 [TRC ] st_read_long:79  addr=0x003000
-00:45:47 [TRC ] st_read_word:53  addr=0x003000
-00:45:47 [TRC ] st_read_byte:29  addr=0x003000
-00:45:47 [TRC ] st_read_byte [x2]
-00:45:47 [TRC ] st_read_word:53  addr=0x003002
-00:45:47 [TRC ] st_read_byte:29  addr=0x003002
-00:45:47 [TRC ] st_read_byte [x2]
-00:45:47 [TRC ] st_write_word:112  addr=0x001001 val=0x0000
-00:45:47 [ERR ] st_write_word:114  unaligned word write at 0x001001
-00:45:47 [TRC ] st_write_long:125  addr=0x001003 val=0x00000000
-00:45:47 [TRC ] st_write_word:112  addr=0x001003 val=0x0000
-00:45:47 [ERR ] st_write_word:114  unaligned word write at 0x001003
-00:45:47 [TRC ] st_read_byte:29  addr=0x080000
-00:45:47 [TODO] st_read_byte:40  st_read_byte: hw register and ROM reads not yet implemented (UC24) - addr=0x080000
-00:45:47 [TRC ] st_shutdown:135  ptMachine=0000000000000000
-00:45:47 [ERR ] st_shutdown:136  NULL ptMachine
-00:45:47 [TRC ] st_shutdown:135  ptMachine=000000c9e314fb40
-00:45:47 [INF ] st_shutdown:138  ST machine shut down
-00:45:47 [TRC ] st_init:12  ptMachine=000000c9e314fb40 szRomPath='(none)'
-00:45:47 [TODO] st_init:19  st_init: ROM loading and HW register reset not yet implemented (UC24)
-00:45:47 [INF ] st_init:21  ST machine initialised (RAM=512KB, stub mode)
-00:45:47 [TRC ] cpu_init:18  ptCpu=0000000000000000 ptMachine=000000c9e314fb40
-00:45:47 [ERR ] cpu_init:22  NULL parameter
-00:45:47 [TRC ] cpu_init:18  ptCpu=000000c9e314fae0 ptMachine=0000000000000000
-00:45:47 [ERR ] cpu_init:22  NULL parameter
-00:45:47 [TRC ] st_write_long:125  addr=0x000000 val=0x00000800
-00:45:47 [TRC ] st_write_word:112  addr=0x000000 val=0x0000
-00:45:47 [TRC ] st_write_byte:96  addr=0x000000 val=0x00
-00:45:47 [TRC ] st_write_byte [x2]
-00:45:47 [TRC ] st_write_word:112  addr=0x000002 val=0x0800
-00:45:47 [TRC ] st_write_byte:96  addr=0x000002 val=0x08
-00:45:47 [TRC ] st_write_byte [x2]
-00:45:47 [TRC ] st_write_long:125  addr=0x000004 val=0x00001000
-00:45:47 [TRC ] st_write_word:112  addr=0x000004 val=0x0000
-00:45:47 [TRC ] st_write_byte:96  addr=0x000004 val=0x00
-00:45:47 [TRC ] st_write_byte [x2]
-00:45:47 [TRC ] st_write_word:112  addr=0x000006 val=0x1000
-00:45:47 [TRC ] st_write_byte:96  addr=0x000006 val=0x10
-00:45:47 [TRC ] st_write_byte [x2]
-00:45:47 [TRC ] cpu_init:18  ptCpu=000000c9e314fae0 ptMachine=000000c9e314fb40
-00:45:47 [TRC ] st_read_long:79  addr=0x000000
-00:45:47 [TRC ] st_read_word:53  addr=0x000000
-00:45:47 [TRC ] st_read_byte:29  addr=0x000000
-00:45:47 [TRC ] st_read_byte [x2]
-00:45:47 [TRC ] st_read_word:53  addr=0x000002
-00:45:47 [TRC ] st_read_byte:29  addr=0x000002
-00:45:47 [TRC ] st_read_byte [x2]
-00:45:47 [TRC ] st_read_long:79  addr=0x000004
-00:45:47 [TRC ] st_read_word:53  addr=0x000004
-00:45:47 [TRC ] st_read_byte:29  addr=0x000004
-00:45:47 [TRC ] st_read_byte [x2]
-00:45:47 [TRC ] st_read_word:53  addr=0x000006
-00:45:47 [TRC ] st_read_byte:29  addr=0x000006
-00:45:47 [TRC ] st_read_byte [x2]
-00:45:47 [INF ] cpu_init:49  cpu_init: SSP=0x00000800 PC=0x00001000 SR=0x2700
-00:45:47 [TRC ] cpu_step:72  PC=0x00000000
-00:45:47 [ERR ] cpu_step:75  NULL parameter
-00:45:47 [TRC ] cpu_step:72  PC=0x00001000
-00:45:47 [ERR ] cpu_step:75  NULL parameter
-00:45:47 [TRC ] cpu_step:72  PC=0x00001000
-00:45:47 [TRC ] st_read_word:53  addr=0x001000
-00:45:47 [TRC ] st_read_byte:29  addr=0x001000
-00:45:47 [TRC ] st_read_byte [x2]
-00:45:47 [TODO] cpu_step:100  cpu_step: opcode dispatch table not yet implemented (UC21) - opcode=0x702A at PC=0x00001000
-00:45:47 [TRC ] cpu_step:72  PC=0x00001002
-00:45:47 [TRC ] st_read_word:53  addr=0x001002
-00:45:47 [TRC ] st_read_byte:29  addr=0x001002
-00:45:47 [TRC ] st_read_byte [x2]
-00:45:47 [TODO] cpu_step:100  cpu_step: opcode dispatch table not yet implemented (UC21) - opcode=0x4E75 at PC=0x00001002
-00:45:47 [TRC ] st_shutdown:135  ptMachine=000000c9e314fb40
-00:45:47 [INF ] st_shutdown:138  ST machine shut down
-00:45:47 [TRC ] disasm_range:67  pBuf=000000c9e31ffb98 len=4 addr=0x001000 max=4
-00:45:47 [TRC ] disasm_one:17  pBuf=000000c9e31ffb98 len=4 addr=0x001000
-00:45:47 [TODO] disasm_one:51  disasm_one: opcode 0x702A not decoded (UC11)
-00:45:47 [TRC ] disasm_one:17  pBuf=000000c9e31ffb9a len=2 addr=0x001002
-00:45:47 [TODO] disasm_one:51  disasm_one: opcode 0x4E75 not decoded (UC11)
-00:45:47 [TRC ] disasm_range:67  pBuf=000000c9e31ffb98 len=0 addr=0x001000 max=4
-00:45:47 [TRC ] disasm_range [x2]
-00:45:47 [ERR ] disasm_range:71  NULL parameter
-00:45:48 [TRC ] disasm_range:67  pBuf=000000c9e31ffb98 len=4 addr=0x001000 max=4
-00:45:48 [ERR ] disasm_range:71  NULL parameter
-00:45:48 [TRC ] disasm_range:67  pBuf=000000c9e31ffb98 len=4 addr=0x001000 max=4
-00:45:48 [ERR ] disasm_range:71  NULL parameter
-00:45:48 [INF ] trace_close:232  Trace console closed
-00:45:48 [INF ] trace_shutdown:370  ST4Ever 0.1.0-UC1 shutting down - trace closing
+10:50:55 [TODO] trace_open:216  GUI trace window not yet implemented (UC3) - output to stderr
+10:50:55 [INF ] trace_open:219  Trace console opened
+10:50:55 [TRC ] test_trace:143  UC1 test: LOG_TRACE entry (param=42)
+10:50:55 [INF ] test_trace:144  UC1 test: LOG_INFO  entry
+10:50:55 [ERR ] test_trace:145  UC1 test: LOG_ERROR entry (not a real error)
+10:50:55 [TODO] test_trace:146  UC1 test: LOG_TODO  entry - this function is a stub
+10:50:55 [TRC ] test_trace:153  compaction pass 1
+10:50:55 [TRC ] test_trace [x5]
+10:50:55 [INF ] test_trace:158  compaction flush trigger - above 5 should appear as [x5]
+10:50:55 [INF ] trace_close:232  Trace console closed
+10:50:55 [INF ] trace_close:232  Trace console closed
+10:50:55 [TODO] trace_open:216  GUI trace window not yet implemented (UC3) - output to stderr
+10:50:55 [INF ] trace_open:219  Trace console opened
+10:50:55 [INF ] trace_set_trace_enabled:245  LOG_TRACE disabled
+10:50:55 [INF ] trace_set_trace_enabled:245  LOG_TRACE enabled
+10:50:55 [TRC ] test_trace:195  This line SHOULD appear in trace log after re-enable
+10:50:55 [TRC ] line_init:600  ptCtx=0000000000000000
+10:50:55 [ERR ] line_init:604  ptCtx is NULL
+10:50:55 [TRC ] line_init:600  ptCtx=00000064dd9ff3d0
+10:50:55 [INF ] line_init:619  console initialised, cwd='c:\msys\home\claude\ST4Ever'
+10:50:55 [TRC ] line_shutdown:705  ptCtx=0000000000000000
+10:50:55 [ERR ] line_shutdown:709  ptCtx is NULL
+10:50:55 [TRC ] line_shutdown:705  ptCtx=00000064dd9ff3d0
+10:50:55 [INF ] line_shutdown:714  console shutdown complete
+10:50:55 [TRC ] st_init:12  ptMachine=0000000000000000 szRomPath='(none)'
+10:50:55 [ERR ] st_init:14  NULL ptMachine
+10:50:55 [TRC ] st_init:12  ptMachine=00000064dd94f780 szRomPath='(none)'
+10:50:55 [TODO] st_init:19  st_init: ROM loading and HW register reset not yet implemented (UC24)
+10:50:55 [INF ] st_init:21  ST machine initialised (RAM=512KB, stub mode)
+10:50:55 [TRC ] st_write_byte:96  addr=0x001000 val=0xAB
+10:50:55 [TRC ] st_read_byte:29  addr=0x001000
+10:50:55 [TRC ] st_write_byte:96  addr=0x001000 val=0xAB
+10:50:55 [ERR ] st_write_byte:97  NULL ptMachine
+10:50:55 [TRC ] st_read_byte:29  addr=0x001000
+10:50:55 [ERR ] st_read_byte:32  NULL parameter
+10:50:55 [TRC ] st_read_byte:29  addr=0x001000
+10:50:55 [ERR ] st_read_byte:32  NULL parameter
+10:50:55 [TRC ] st_write_word:112  addr=0x002000 val=0x1234
+10:50:55 [TRC ] st_write_byte:96  addr=0x002000 val=0x12
+10:50:55 [TRC ] st_write_byte [x2]
+10:50:55 [TRC ] st_read_word:53  addr=0x002000
+10:50:55 [TRC ] st_read_byte:29  addr=0x002000
+10:50:55 [TRC ] st_read_byte [x2]
+10:50:55 [TRC ] st_write_long:125  addr=0x003000 val=0xDEADBEEF
+10:50:55 [TRC ] st_write_word:112  addr=0x003000 val=0xDEAD
+10:50:55 [TRC ] st_write_byte:96  addr=0x003000 val=0xDE
+10:50:55 [TRC ] st_write_byte [x2]
+10:50:55 [TRC ] st_write_word:112  addr=0x003002 val=0xBEEF
+10:50:55 [TRC ] st_write_byte:96  addr=0x003002 val=0xBE
+10:50:55 [TRC ] st_write_byte [x2]
+10:50:55 [TRC ] st_read_long:79  addr=0x003000
+10:50:55 [TRC ] st_read_word:53  addr=0x003000
+10:50:55 [TRC ] st_read_byte:29  addr=0x003000
+10:50:55 [TRC ] st_read_byte [x2]
+10:50:55 [TRC ] st_read_word:53  addr=0x003002
+10:50:55 [TRC ] st_read_byte:29  addr=0x003002
+10:50:55 [TRC ] st_read_byte [x2]
+10:50:55 [TRC ] st_write_word:112  addr=0x001001 val=0x0000
+10:50:55 [ERR ] st_write_word:114  unaligned word write at 0x001001
+10:50:55 [TRC ] st_write_long:125  addr=0x001003 val=0x00000000
+10:50:55 [TRC ] st_write_word:112  addr=0x001003 val=0x0000
+10:50:55 [ERR ] st_write_word:114  unaligned word write at 0x001003
+10:50:55 [TRC ] st_read_byte:29  addr=0x080000
+10:50:55 [TODO] st_read_byte:40  st_read_byte: hw register and ROM reads not yet implemented (UC24) - addr=0x080000
+10:50:55 [TRC ] st_shutdown:135  ptMachine=0000000000000000
+10:50:55 [ERR ] st_shutdown:136  NULL ptMachine
+10:50:55 [TRC ] st_shutdown:135  ptMachine=00000064dd94f780
+10:50:55 [INF ] st_shutdown:138  ST machine shut down
+10:50:55 [TRC ] st_init:12  ptMachine=00000064dd94f780 szRomPath='(none)'
+10:50:55 [TODO] st_init:19  st_init: ROM loading and HW register reset not yet implemented (UC24)
+10:50:55 [INF ] st_init:21  ST machine initialised (RAM=512KB, stub mode)
+10:50:55 [TRC ] cpu_init:18  ptCpu=0000000000000000 ptMachine=00000064dd94f780
+10:50:55 [ERR ] cpu_init:22  NULL parameter
+10:50:55 [TRC ] cpu_init:18  ptCpu=00000064dd94f720 ptMachine=0000000000000000
+10:50:55 [ERR ] cpu_init:22  NULL parameter
+10:50:55 [TRC ] st_write_long:125  addr=0x000000 val=0x00000800
+10:50:55 [TRC ] st_write_word:112  addr=0x000000 val=0x0000
+10:50:55 [TRC ] st_write_byte:96  addr=0x000000 val=0x00
+10:50:55 [TRC ] st_write_byte [x2]
+10:50:55 [TRC ] st_write_word:112  addr=0x000002 val=0x0800
+10:50:55 [TRC ] st_write_byte:96  addr=0x000002 val=0x08
+10:50:55 [TRC ] st_write_byte [x2]
+10:50:55 [TRC ] st_write_long:125  addr=0x000004 val=0x00001000
+10:50:55 [TRC ] st_write_word:112  addr=0x000004 val=0x0000
+10:50:55 [TRC ] st_write_byte:96  addr=0x000004 val=0x00
+10:50:55 [TRC ] st_write_byte [x2]
+10:50:55 [TRC ] st_write_word:112  addr=0x000006 val=0x1000
+10:50:55 [TRC ] st_write_byte:96  addr=0x000006 val=0x10
+10:50:55 [TRC ] st_write_byte [x2]
+10:50:55 [TRC ] cpu_init:18  ptCpu=00000064dd94f720 ptMachine=00000064dd94f780
+10:50:55 [TRC ] st_read_long:79  addr=0x000000
+10:50:55 [TRC ] st_read_word:53  addr=0x000000
+10:50:55 [TRC ] st_read_byte:29  addr=0x000000
+10:50:55 [TRC ] st_read_byte [x2]
+10:50:55 [TRC ] st_read_word:53  addr=0x000002
+10:50:55 [TRC ] st_read_byte:29  addr=0x000002
+10:50:55 [TRC ] st_read_byte [x2]
+10:50:55 [TRC ] st_read_long:79  addr=0x000004
+10:50:55 [TRC ] st_read_word:53  addr=0x000004
+10:50:55 [TRC ] st_read_byte:29  addr=0x000004
+10:50:55 [TRC ] st_read_byte [x2]
+10:50:55 [TRC ] st_read_word:53  addr=0x000006
+10:50:55 [TRC ] st_read_byte:29  addr=0x000006
+10:50:55 [TRC ] st_read_byte [x2]
+10:50:55 [INF ] cpu_init:49  cpu_init: SSP=0x00000800 PC=0x00001000 SR=0x2700
+10:50:55 [TRC ] cpu_step:72  PC=0x00000000
+10:50:55 [ERR ] cpu_step:75  NULL parameter
+10:50:55 [TRC ] cpu_step:72  PC=0x00001000
+10:50:55 [ERR ] cpu_step:75  NULL parameter
+10:50:55 [TRC ] cpu_step:72  PC=0x00001000
+10:50:55 [TRC ] st_read_word:53  addr=0x001000
+10:50:55 [TRC ] st_read_byte:29  addr=0x001000
+10:50:55 [TRC ] st_read_byte [x2]
+10:50:55 [TODO] cpu_step:100  cpu_step: opcode dispatch table not yet implemented (UC21) - opcode=0x702A at PC=0x00001000
+10:50:55 [TRC ] cpu_step:72  PC=0x00001002
+10:50:55 [TRC ] st_read_word:53  addr=0x001002
+10:50:55 [TRC ] st_read_byte:29  addr=0x001002
+10:50:55 [TRC ] st_read_byte [x2]
+10:50:55 [TODO] cpu_step:100  cpu_step: opcode dispatch table not yet implemented (UC21) - opcode=0x4E75 at PC=0x00001002
+10:50:55 [TRC ] st_shutdown:135  ptMachine=00000064dd94f780
+10:50:55 [INF ] st_shutdown:138  ST machine shut down
+10:50:55 [TRC ] disasm_range:67  pBuf=00000064dd9ff7d8 len=4 addr=0x001000 max=4
+10:50:55 [TRC ] disasm_one:17  pBuf=00000064dd9ff7d8 len=4 addr=0x001000
+10:50:55 [TODO] disasm_one:51  disasm_one: opcode 0x702A not decoded (UC11)
+10:50:55 [TRC ] disasm_one:17  pBuf=00000064dd9ff7da len=2 addr=0x001002
+10:50:55 [TODO] disasm_one:51  disasm_one: opcode 0x4E75 not decoded (UC11)
+10:50:55 [TRC ] disasm_range:67  pBuf=00000064dd9ff7d8 len=0 addr=0x001000 max=4
+10:50:55 [TRC ] disasm_range [x2]
+10:50:55 [ERR ] disasm_range:71  NULL parameter
+10:50:55 [TRC ] disasm_range:67  pBuf=00000064dd9ff7d8 len=4 addr=0x001000 max=4
+10:50:55 [ERR ] disasm_range:71  NULL parameter
+10:50:55 [TRC ] disasm_range:67  pBuf=00000064dd9ff7d8 len=4 addr=0x001000 max=4
+10:50:55 [ERR ] disasm_range:71  NULL parameter
+10:50:55 [INF ] trace_close:232  Trace console closed
+10:50:55 [INF ] trace_shutdown:370  ST4Ever 0.1.0-UC1 shutting down - trace closing

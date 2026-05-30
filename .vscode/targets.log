@@ -1,0 +1,602 @@
+make.exe all --print-data-base --no-builtin-variables --no-builtin-rules --question
+# GNU Make 4.4.1
+# Built for x86_64-w64-mingw32
+# Copyright (C) 1988-2023 Free Software Foundation, Inc.
+# License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+# This is free software: you are free to change and redistribute it.
+# There is NO WARRANTY, to the extent permitted by law.
+
+# Make data base, printed on Sat May 30 10:01:31 2026
+
+# Variables
+
+# environment
+FPS_BROWSER_APP_PROFILE_STRING = Internet Explorer
+# environment
+SYSTEMDRIVE = C:
+# environment
+LC_ALL = C
+# environme 
+nt
+USERPROFILE = C:\Users\march
+# environment
+VBOX_MSI_INSTALL_PATH = C:\Program Files\Oracle\VirtualBox\
+# environment
+LOCALAPPDATA = C:\Users\march\AppData\Local
+# environment
+VSCODE_CRASH_REPORTER_PROCESS_TYPE = extensionHost
+# environment
+VSCODE_CWD = C:\Users\march\AppData\Local\Programs\Microsoft VS Code
+# environment
+SYSTEMROOT = C:\WINDOWS
+# environment
+PROCESSOR_LEVEL = 6
+# environment
+PSMODULEPATH = C:\Program Files\WindowsPowerShell\Modules;C:\WINDOWS\system32\WindowsPowerShell\v1.0\Modules
+# env 
+ironment
+NODEFAULTCURRENTDIRECTORYINEXEPATH = 1
+# default
+MAKE_COMMAND := make.exe
+# environment
+GIT_CONFIG_VALUE_0 = explicit
+# environment
+OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT = true
+# automatic
+@D = $(patsubst %/,%,$(patsubst %\,%,$(dir $@)))
+# environment
+CHROME_CRASHPAD_PIPE_NAME = \\.\pipe\crashpad_15400_CSDPHUOYQQQHNMHS
+# environment
+COPILOT_OTEL_EXPORTER_TYPE = file
+# environment
+FPS_BROWSER_USER_PROFILE_STRING = Default
+# environment
+VSCODE_HANDLES_UNCAUGHT_ERRORS = true
+# default
+.VARIABLES := 
+# automatic
+%D = $(patsubst %/,%,$(patsubst %\,%,$(dir $%)))
+# automatic
+^D = $(patsubst %/,%,$(patsubst %\,%,$(dir $^)))
+# automatic
+%F = $(notdir $%)
+# environment
+VSCODE_CODE_CACHE_PATH = C:\Users\march\AppData\Roaming\Code\CachedData\8761a5560cfd65fdd19ce7e2bd18dab5c0a4d84e
+# environment
+LANG = C
+# default
+.LOADED := 
+# environment
+TMP = C:\Users\march\AppData\Local\Temp
+# default
+.INCLUDE_DIRS := 
+# makefile
+MAKEFLAGS = pqrR
+# environment
+ONEDRIVE = C:\Users\march\OneDrive
+# environment
+EFC_2204_2283032206 = 1
+# makefile
+CURDIR := c:/msys/home/claude/ST4Ever
+# makefile (from 'Makefile', line 54)
+UC_DIR := use_cases
+# makefile (from 'Makefile', line 67)
+SRC_OBJS :=           build/s_CPU.o           build/s_ST.o           build/s_as.o           build/s_dir.o           build/s_disassemble.o           build/s_edit.o           build/s_edit_hex.o           build/s_edit_txt.o           build/s_exec.o           build/s_exec_asm.o           build/s_exec_cpu.o           build/s_exec_mem.o           build/s_exec_mon.o           build/s_exec_screen.o           build/s_gui.o           build/s_line.o           build/s_main.o           build/s_mount.o           build/s_renderer.o           build/s_trace.o
+# environment
+APPLICATION_INSIGHTS_NO_DIAGNOSTIC_CHANNEL = true
+# environment
+VSCODE_L10N_BUNDLE_LOCATION = 
+# automatic
+*D = $(patsubst %/,%,$(patsubst %\,%,$(dir $*)))
+# environment
+PROGRAMFILES = C:\Program Files
+# environment
+MFLAGS = -pqrR
+# default
+.SHELLFLAGS := -c
+# environment
+COMMONPROGRAMW6432 = C 
+:\Program Files\Common Files
+# environment
+EFC_2204_2775293581 = 1
+# environment
+COPILOT_OTEL_FILE_EXPORTER_PATH = \\.\nul
+# automatic
++D = $(patsubst %/,%,$(patsubst %\,%,$(dir $+)))
+# makefile (from 'Makefile', line 1)
+MAKEFILE_LIST := Makefile
+# automatic
+@F = $(notdir $@)
+# environment
+VSCODE_PID = 15400
+# automatic
+?D = $(patsubst %/,%,$(patsubst %\,%,$(dir $?)))
+# automatic
+*F = $(notdir $*)
+# environment
+GIT_CONFIG_COUNT = 1
+# environment
+EFC_2204_1262719628 = 1
+# automatic
+<D = $(patsubst %/,%,$(pat 
+subst %\,%,$(dir $<)))
+# makefile (from 'Makefile', line 37)
+PLATFORM := win
+# environment
+VSCODE_NLS_CONFIG = {"userLocale":"en-us","osLocale":"fr-fr","resolvedLanguage":"en","defaultMessagesFile":"C:\\Users\\march\\AppData\\Local\\Programs\\Microsoft VS Code\\8761a5560c\\resources\\app\\out\\nls.messages.json","locale":"en-us","availableLanguages":{}}
+# environment
+ONEDRIVECONSUMER = C:\Users\march\OneDrive
+# default
+MAKE_HOST := x86_64-w64-mingw32
+# environment
+PROGRAMDATA = C:\ProgramData
+# default
+SHELL := sh.exe
+# environment
+HOMEPATH = \Users\march
+# default
+MAKECMDGOALS := all
+# environment
+DRIVERDATA = C:\Windows\System32\Drivers\DriverData
+# environment
+COMSPEC = C:\WINDOWS\system32\cmd.exe
+# environment
+WINDIR = C:\WINDOWS
+# makefile (from 'Makefile', line 69)
+ALL_OBJS :=           build/s_CPU.o           build/s_ST.o           build/s_as.o           build/s_dir.o           build/s_disassemble.o           build/s_edit.o           build/s_edit_hex.o           build/s_edit_txt.o           build/s_exe 
+c.o           build/s_exec_asm.o           build/s_exec_cpu.o           build/s_exec_mem.o           build/s_exec_mon.o           build/s_exec_screen.o           build/s_gui.o           build/s_line.o           build/s_main.o           build/s_mount.o           build/s_renderer.o           build/s_trace.o   build/p_win_D2D.o   build/p_win_console.o   build/p_win_gui.o   build/p_win_platform.o
+# environment
+MAKELEVEL := 0
+# default
+MAKE = $(MAKE_COMMAND)
+# environment
+PATH = C:\Program Files\Common Files\Oracle\Java\javapath;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files\NVIDIA Corporation\NVIDIA NvDLISR;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\TDM-GCC-64\bin;C:\WINDOWS\system32;C:\WINDOWS;C:\WINDOWS\System32\Wbem;C:\WINDOWS\System32\WindowsPowerShell\v1.0\;C:\WINDOWS\System32\OpenSSH\;C:\Program Files\Git\cmd;C:\msys;C:\msys\mingw64\bin;C:\Users\march\AppData\Local\Microsoft\WindowsApps;C:\Progr 
+am Files\Notepad++;C:\Users\march\AppData\Local\GitHubDesktop\bin;C:\Users\march\AppData\Local\Programs\Microsoft VS Code\bin
+# environment
+ZES_ENABLE_SYSMAN = 1
+# environment
+COMPUTERNAME = ONCLEMARCEL
+# default
+MAKEFILES := 
+# automatic
+^F = $(notdir $^)
+# makefile (from 'Makefile', line 52)
+RELEASE := release
+# environment
+PROMPT = $P$G
+# environment
+APPLICATION_INSIGHTS_NO_STATSBEAT = true
+# makefile (from 'Makefile', line 65)
+UC_FILES := use_cases/use_case_01.c
+# environment
+LOGONSERVER = \\ONCLEMARCEL 
+
+# makefile (from 'Makefile', line 53)
+TDIR := test
+# environment
+USERNAME = march
+# environment
+COMMONPROGRAMFILES = C:\Program Files\Common Files
+# makefile (from 'Makefile', line 68)
+PLAT_OBJS :=   build/p_win_D2D.o   build/p_win_console.o   build/p_win_gui.o   build/p_win_platform.o
+# automatic
+?F = $(notdir $?)
+# environment
+PROGRAMW6432 = C:\Program Files
+# environment
+PATHEXT = .COM;.EXE;.BAT;.CMD;.VBS;.VBE;.JS;.JSE;.WSF;.WSH;.MSC
+# automatic
++F = $(notdir $+)
+# environment
+GIT_CONFIG_KEY_0 = safe.bareRepository
+# environment
+USERDOMAIN = ONCLEMARCEL
+# 'override' directive
+GNUMAKEFLAGS := 
+# environment
+OS = Windows_NT
+# makefile (from 'Makefile', line 38)
+EXE := .exe
+# environment
+EFC_2204_4126798990 = 1
+# makefile
+.DEFAULT_GOAL := all
+# default
+MAKE_VERSION := 4.4.1
+# makefile (from 'Makefile', line 63)
+SRC_FILES := src/CPU.c src/ST.c src/as.c src/dir.c src/disassemble.c src/edit.c src/edit_hex.c src/edit_txt.c src/exec.c src/exec_asm.c src/exec_cpu.c src/exec_mem.c src/exec_mon.c src/exec_screen.c src/gui.c src/line.c src/main.c src/mount.c src/renderer.c src/trace.c
+# environment
+PROGRAMFILES(X86) = C:\Program Files (x86)
+# makefile (from 'Makefile', line 51)
+BUILD := build
+# makefile (from 'Makefile', line 39)
+LDFLAGS := -lkernel32 -luser32 -lgdi32
+# makefile (from 'Makefile', line 76)
+UC_TARGETS :=  test/use_case_01.exe
+# environment
+USERDOMAIN_ROAMINGPROFILE = ONCLEMARCEL
+# makefile (from 'Makefile', line 64)
+PLAT_FILES := win/win_D2D.c win/win_console.c win/win_gui.c win/win_platform.c
+# environm 
+ent
+NUMBER_OF_PROCESSORS = 12
+# environment
+PUBLIC = C:\Users\Public
+# environment
+DEPOT_TOOLS_WIN_TOOLCHAIN = 0
+# environment
+EFC_2204_1592913036 = 1
+# environment
+APPDATA = C:\Users\march\AppData\Roaming
+# makefile (from 'Makefile', line 28)
+CFLAGS := -Wall -Wextra -pedantic -std=gnu99 -g -D_GNU_SOURCE -I./src
+# environment
+HOMEDRIVE = C:
+# environment
+ELECTRON_USE_REMOTE_CHECKSUMS = 1
+# environment
+COPILOT_OTEL_ENABLED = true
+# environment
+PROCESSOR_ARCHITECTURE = AMD64
+# environment
+COMMONPROGRAMFILES(X86) = C:\Program Files (x86)\Common Files
+# environment
+ELECTRON_RUN_AS_NODE = 1
+# environment
+TEMP = C:\Users\march\AppData\Local\Temp
+# environment
+VSCODE_IPC_HOOK = \\.\pipe\f2a30da9-1.122.1-main-sock
+# default
+.RECIPEPREFIX := 
+# automatic
+<F = $(notdir $<)
+# makefile (from 'Makefile', line 72)
+LIB_OBJS := build/s_CPU.o build/s_ST.o build/s_as.o build/s_dir.o build/s_disassemble.o build/s_edit.o build/s_edit_hex.o build/s_edit_txt.o build/s_exec.o build/s_exec_asm.o build/s_exec_cpu.o build/s_exec_mem.o build/s_exec_mon.o build/s_exec_screen.o build/s_gui.o build/s_line.o build/s_mount.o build/s_renderer.o build/s_trace.o build/p_win_D2D.o build/p_win_console.o build/p_win_gui.o build/p_win_platform.o
+# default
+SUFFIXES := 
+# environment
+ALLUSERSPROFILE = C:\ProgramData
+# makefile (from 'Makefile', line 75)
+TARGET := release/st4ever.exe
+# environment
+SESSIONNAME = Console
+# environment
+EFC_2204_3789132940 = 1
+# default
+.FEATURES := target-specific order-only second-expansion else-if shortest-stem undefine 
+ oneshell nocomment grouped-target extra-prereqs notintermediate shell-export archives jobserver output-sync load dospaths
+# environment
+PROCESSOR_REVISION = 8d01
+# makefile (from 'Makefile', line 23)
+CC := gcc
+# environment
+VSCODE_ESM_ENTRYPOINT = vs/workbench/api/node/extensionHostProcess
+# environment
+PROCESSOR_IDENTIFIER = Intel64 Family 6 Model 141 Stepping 1, GenuineIntel
+# variable set hash-table stats:
+# Load=127/1024=12%, Rehash=0, Collisions=15/193=8%
+
+# Pattern-specific Variable Values
+
+# No pattern-specific variable values.
+
+# Directories
+
+# use_cases (key c:/msys/home/claude/ST4Ever/use_cases, mtime 1780094320): 5 files, no impossibilities.
+# src (key c:/msys/home/claude/ST4Ever/src, mtime 1780094306): 42 files, no impossibilities.
+# win (key c:/msys/home/claude/ST4Ever/win, mtime 1780074840): 6 files, no impossibilities.
+# . (key c:/msys/home/claude/ST4Ever, mtime 1780128086): 14 files, no impossibilities.
+
+# 67 files, no impossibilities in 4 directories.
+
+# Implicit Rules
+
+build/s_%.o: src/%.c
+#  recipe to execute (from 'Makefile', line 94):
+	$(CC) $(CFLAGS) -c $< -o $@
+
+build/p_%.o: win/%.c
+#  recipe to execute (from 'Makefile', line 98):
+	$(CC) $(CFLAGS) -c $< -o $@
+
+test/%.exe: use_cases/%.c build/s_CPU.o build/s_ST.o build/s_as.o build/s_dir.o build/s_disassemble.o build/s_edit.o build/s_edit_hex.o build/s_edit_txt.o build/s_exec.o build/s_exec_asm.o build/s_exec_cpu.o build/s_exec_mem.o build/s_exec_mon.o build/s_exec_screen.o build/s_gui.o build/s_line.o build/s_mount.o build/s_renderer.o build/s_trace.o build/p_win_D2D.o build/p_win_console.o build/p_win_gui.o build/p_win_platform.o
+#  recipe to execute (from 'Makefile', line 113):
+	$(CC) $(CFLAGS) $< $(LIB_OBJS) -o $@ $(LDFLAGS)
+	@echo "  --> $@"
+
+# 3 implicit rules, 0 (0.0%) terminal.
+# Files
+
+# Not a target:
+build/s_renderer.o:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
+
+# Not a target:
+build/s_trace.o:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
+
+# Not a target:
+build/s_dir.o:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
+
+# Not a target:
+build/s_edit_txt.o:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
+
+# Not a target:
+build/s_ST.o:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
+
+# Not a target:
+build/s_disassemble.o:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
+
+# Not a target:
+build/s_CPU.o:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
+
+# Not a target:
+Makefile:
+#  Implicit rule search has been done.
+#  File is secondary (prerequisite of .SECONDARY).
+#  Last modified 2026-05-30 00:08:21
+#  File has been updated.
+#  Successfully updated.
+
+# Not a target:
+build/s_exec_asm.o:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
+
+# Not a target:
+build/p_win_platform.o:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
+
+clean:
+#  Phony target (prerequisite of .PHONY).
+#  Implicit rule search has not been done.
+#  File does not exist.
+#  File has not been updated.
+#  recipe to execute (from 'Makefile', line 145):
+	rm -rf $(BUILD) $(RELEASE) $(TDIR)
+
+# Not a target:
+build/p_win_D2D.o:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
+
+# Not a target:
+build/s_mount.o:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
+
+# Not a target:
+build/s_exec_mon.o:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
+
+# Not a target:
+build/s_exec.o:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
+
+tests: all
+#  Phony target (prerequisite of .PHONY).
+#  Implicit rule search has not been done.
+#  File does not exist.
+#  File has not been updated.
+#  recipe to execute (from 'Makefile', line 123):
+	@echo ""
+	@echo "================================================================"
+	@echo " ST4Ever - Use Case Tests"
+	@echo " (must be run from the project root directory)"
+	@echo "================================================================"
+	@FAILS=0; \
+	for t in $(UC_TARGETS); do \
+	    echo ""; \
+	    echo "  Running: $$t"; \
+	    echo "  --------"; \
+	    $$t; STATUS=$$?; \
+	    if [ $$STATUS -ne 0 ]; then FAILS=$$((FAILS + 1)); fi; \
+	done; \
+	echo ""; \
+	echo "================================================================"; \
+	echo " Results: $$FAILS test program(s) reported failure"; \
+	echo "================================================================"; \
+	echo ""; \
+	exit $$FAILS
+
+# Not a target:
+build/p_win_console.o:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
+
+# Not a target:
+build/s_main.o:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
+
+# Not a target:
+.DEFAULT:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
+
+all: build release test release/st4ever.exe test/use_case_01.exe
+#  Phony target (prerequisite of .PHONY).
+#  Command line target.
+#  Implicit rule search has not been done.
+#  File does not exist.
+#  File has been updated.
+#  Needs to be updated (-q is set).
+# variable set hash-table stats:
+# Load=0/32=0%, Rehash=0, Collisions=0/3=0%
+
+run: all
+#  Phony target (prerequisite of .PHONY).
+#  Implicit rule search has not been done.
+#  File does not exist.
+#  File has not been updated.
+#  recipe to execute (from 'Makefile', line 120):
+	$(TARGET)
+
+# Not a target:
+build/s_gui.o:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
+
+build:
+#  Implicit rule search has not been done.
+#  Implicit/static pattern stem: ''
+#  File does not exist.
+#  File has been updated.
+#  Needs to be updated (-q is set).
+# automatic
+# @ := build
+# automatic
+# * := 
+# automatic
+# < := 
+# automatic
+# + := 
+# automatic
+# % := 
+# automatic
+# ^ := 
+# automatic
+# ? := 
+# automatic
+# | := 
+# variable set hash-table stats:
+# Load=8/32=25%, Rehash=0, Collisions=1/12=8%
+#  recipe to execute (from 'Makefile', line 86):
+	mkdir -p $@
+
+release/st4ever.exe: build/s_CPU.o build/s_ST.o build/s_as.o build/s_dir.o build/s_disassemble.o build/s_edit.o build/s_edit_hex.o build/s_edit_txt.o build/s_exec.o build/s_exec_asm.o build/s_exec_cpu.o build/s_exec_mem.o build/s_exec_mon.o build/s_exec_screen.o build/s_gui.o build/s_line.o build/s_main.o build/s_mount.o build/s_renderer.o build/s_trace.o build/p_win_D2D.o build/p_win_console.o build/p_win_gui.o build/p_win_platform.o
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
+#  recipe to execute (from 'Makefile', line 106):
+	$(CC) $(ALL_OBJS) -o $@ $(LDFLAGS)
+	@echo "  --> $(TARGET)"
+
+# Not a target:
+build/s_exec_screen.o:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
+
+test:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
+#  recipe to execute (from 'Makefile', line 86):
+	mkdir -p $@
+
+# Not a target:
+build/s_exec_mem.o:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
+
+# Not a target:
+build/s_line.o:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
+
+# Not a target:
+build/p_win_gui.o:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
+
+# Not a target:
+build/s_edit_hex.o:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
+
+# Not a target:
+build/s_as.o:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
+
+release:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
+#  recipe to execute (from 'Makefile', line 86):
+	mkdir -p $@
+
+# Not a target:
+.SUFFIXES:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
+
+.PHONY: all run tests clean
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
+
+# Not a target:
+test/use_case_01.exe:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
+
+# Not a target:
+build/s_exec_cpu.o:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
+
+# Not a target:
+build/s_edit.o:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
+
+# files hash-table stats:
+# Load=37/1024=4%, Rehash=0, Collisions=0/92=0%
+# VPATH Search Paths
+
+# No 'vpath' search paths.
+
+# No general ('VPATH' variable) search path.
+
+# strcache buffers: 1 (0) / strings = 103 / storage = 1130 B / avg = 10 B
+# current buf: size = 8162 B / used = 1130 B / count = 103 / avg = 10 B
+
+# strcache performance: lookups = 159 / hit rate = 35%
+# hash-table stats:
+# Load=103/8192=1%, Rehash=0, Collisions=0/159=0%
+# Finished Make data base on Sat May 30 10:01:31 2026
+
+ 

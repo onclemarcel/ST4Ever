@@ -1,6 +1,11 @@
 /*
  * use_case_01.c - UC1 Validation: Console prototype + Trace subsystem
  *
+ * SRTD reference: SRTD.md §5 — test cases TC-TRC-*, TC-CON-*, TC-STM-*,
+ *                              TC-CPU-*, TC-DIS-*
+ * Traceability chain per INTENT block:
+ *   INTENT[INT-xxx-NNN → TC-xxx-NNN → REQ-xxx-NNN]: intent text
+ *
  * TEST MATRIX:
  *   [N] Nominal    : 45 tests  - all public functions in trace.h,
  *                                line.h, ST.h, CPU.h, disassemble.h
@@ -120,17 +125,20 @@ static void test_trace(void)
 {
     printf("\n--- Test group 1: Trace subsystem ---\n");
 
-    /* INTENT: trace_init must succeed and open the console on request */
+    /* INTENT[INT-TRC-001 → TC-TRC-001 → REQ-TRC-001]:
+     * trace_init must succeed and open the console on request */
     UC_CHECK("[N] trace_init(TRUE)",
              trace_init(ST_TRUE));
     UC_TEST("[N] trace_is_open() == TRUE after init(TRUE)",
             trace_is_open() == ST_TRUE);
 
-    /* INTENT: double init must be harmless - logs a warning, no error */
+    /* INTENT[INT-TRC-002 → TC-TRC-002 → REQ-TRC-002]:
+     * double init must be harmless - logs a warning, no error */
     UC_TEST("[R] trace_init() when already initialised returns ST_NO_ERROR",
             trace_init(ST_TRUE) == ST_NO_ERROR);
 
-    /* INTENT: all four log levels must emit without crashing */
+    /* INTENT[INT-TRC-003 → TC-TRC-003 → REQ-TRC-004]:
+     * all four log levels must emit without crashing */
     printf("  [INFO] Emitting one entry per log level:\n");
     LOG_TRACE("UC1 test: LOG_TRACE entry (param=%d)", 42);
     LOG_INFO("UC1 test: LOG_INFO  entry");
@@ -139,7 +147,8 @@ static void test_trace(void)
     printf("  [PASS] [N] all four log levels emitted "
            "(check st4ever_trace.log)\n");
 
-    /* INTENT: consecutive LOG_TRACE from same function collapse to [xN] */
+    /* INTENT[INT-TRC-004 → TC-TRC-004 → REQ-TRC-005]:
+     * consecutive LOG_TRACE from same function collapse to [xN] */
     printf("  [INFO] Compaction test: 5x LOG_TRACE same function...\n");
     LOG_TRACE("compaction pass 1");
     LOG_TRACE("compaction pass 2");
@@ -150,30 +159,35 @@ static void test_trace(void)
     printf("  [PASS] [N] compaction emitted "
            "(verify [x5] in trace log)\n");
 
-    /* INTENT: trace_close must succeed and update the open flag */
+    /* INTENT[INT-TRC-005 → TC-TRC-005 → REQ-TRC-006]:
+     * trace_close must succeed and update the open flag */
     UC_CHECK("[N] trace_close()",
              trace_close());
     UC_TEST("[N] trace_is_open() == FALSE after close",
             trace_is_open() == ST_FALSE);
 
-    /* INTENT: trace_close on an already-closed console must be harmless */
+    /* INTENT[INT-TRC-006 → TC-TRC-006 → REQ-TRC-007]:
+     * trace_close on an already-closed console must be harmless */
     UC_TEST("[R] trace_close() when already closed returns ST_NO_ERROR",
             trace_close() == ST_NO_ERROR);
 
-    /* INTENT: trace_open must reopen and update the open flag */
+    /* INTENT[INT-TRC-007 → TC-TRC-007 → REQ-TRC-008]:
+     * trace_open must reopen and update the open flag */
     UC_CHECK("[N] trace_open()",
              trace_open());
     UC_TEST("[N] trace_is_open() == TRUE after open",
             trace_is_open() == ST_TRUE);
 
-    /* INTENT: LOG_TRACE must be suppressible without affecting other levels */
+    /* INTENT[INT-TRC-008 → TC-TRC-008 → REQ-TRC-009]:
+     * LOG_TRACE must be suppressible without affecting other levels */
     UC_CHECK("[N] trace_set_trace_enabled(FALSE)",
              trace_set_trace_enabled(ST_FALSE));
     UC_TEST("[N] trace_is_trace_enabled() == FALSE",
             trace_is_trace_enabled() == ST_FALSE);
     LOG_TRACE("THIS LINE MUST NOT APPEAR IN TRACE LOG");
 
-    /* INTENT: LOG_TRACE must be re-activatable after suppression */
+    /* INTENT[INT-TRC-009 → TC-TRC-009 → REQ-TRC-010]:
+     * LOG_TRACE must be re-activatable after suppression */
     UC_CHECK("[N] trace_set_trace_enabled(TRUE)",
              trace_set_trace_enabled(ST_TRUE));
     UC_TEST("[N] trace_is_trace_enabled() == TRUE",
@@ -192,11 +206,13 @@ static void test_line(void)
 
     printf("\n--- Test group 2: Console context ---\n");
 
-    /* INTENT: line_init must reject a NULL context pointer */
+    /* INTENT[INT-CON-001 → TC-CON-001 → REQ-CON-001]:
+     * line_init must reject a NULL context pointer */
     eR = line_init(NULL);
     UC_TEST("[R] line_init(NULL) returns ST_ERROR", eR == ST_ERROR);
 
-    /* INTENT: line_init must populate the context and capture the cwd */
+    /* INTENT[INT-CON-002 → TC-CON-002 → REQ-CON-002]:
+     * line_init must populate the context and capture the cwd */
     UC_CHECK("[N] line_init(&tCtx)", line_init(&tCtx));
     UC_TEST("[N] bRunning == TRUE after init",
             tCtx.bRunning == ST_TRUE);
@@ -206,11 +222,13 @@ static void test_line(void)
 
     /* line_run() not called - would block on stdin */
 
-    /* INTENT: line_shutdown must reject a NULL context pointer */
+    /* INTENT[INT-CON-003 → TC-CON-003 → REQ-CON-004]:
+     * line_shutdown must reject a NULL context pointer */
     eR = line_shutdown(NULL);
     UC_TEST("[R] line_shutdown(NULL) returns ST_ERROR", eR == ST_ERROR);
 
-    /* INTENT: line_shutdown must clear the context and set bRunning FALSE */
+    /* INTENT[INT-CON-004 → TC-CON-004 → REQ-CON-005]:
+     * line_shutdown must clear the context and set bRunning FALSE */
     UC_CHECK("[N] line_shutdown(&tCtx)", line_shutdown(&tCtx));
     UC_TEST("[N] bRunning == FALSE after shutdown",
             tCtx.bRunning == ST_FALSE);
@@ -230,24 +248,28 @@ static void test_st_machine(void)
 
     printf("\n--- Test group 3: ST machine memory ---\n");
 
-    /* INTENT: st_init must reject a NULL machine pointer */
+    /* INTENT[INT-STM-001 → TC-STM-001 → REQ-STM-001]:
+     * st_init must reject a NULL machine pointer */
     eR = st_init(NULL, NULL);
     UC_TEST("[R] st_init(NULL, NULL) returns ST_ERROR", eR == ST_ERROR);
 
-    /* INTENT: st_init must succeed and power on the machine */
+    /* INTENT[INT-STM-002 → TC-STM-002 → REQ-STM-002]:
+     * st_init must succeed and power on the machine */
     UC_CHECK("[N] st_init(&tMachine, NULL)", st_init(&tMachine, NULL));
     UC_TEST("[N] bPoweredOn == TRUE", tMachine.bPoweredOn == ST_TRUE);
     UC_TEST("[N] resolution == ST_RES_LOW",
             tMachine.uiResolution == ST_RES_LOW);
 
-    /* INTENT: byte read/write round-trip must be exact */
+    /* INTENT[INT-STM-003 → TC-STM-003 → REQ-STM-006]:
+     * byte read/write round-trip must be exact */
     UC_CHECK("[N] st_write_byte(0x1000, 0xAB)",
              st_write_byte(&tMachine, 0x1000, 0xAB));
     UC_CHECK("[N] st_read_byte(0x1000)",
              st_read_byte(&tMachine, 0x1000, &uiByte));
     UC_TEST("[N] read-back byte == 0xAB", uiByte == 0xAB);
 
-    /* INTENT: NULL machine pointer must be rejected on read and write */
+    /* INTENT[INT-STM-004 → TC-STM-004 → REQ-STM-004]:
+     * NULL machine pointer must be rejected on read and write */
     eR = st_write_byte(NULL, 0x1000, 0xAB);
     UC_TEST("[R] st_write_byte(NULL, ...) returns ST_ERROR",
             eR == ST_ERROR);
@@ -255,37 +277,43 @@ static void test_st_machine(void)
     UC_TEST("[R] st_read_byte(NULL, ...) returns ST_ERROR",
             eR == ST_ERROR);
 
-    /* INTENT: NULL output pointer must be rejected */
+    /* INTENT[INT-STM-005 → TC-STM-005 → REQ-STM-005]:
+     * NULL output pointer must be rejected */
     eR = st_read_byte(&tMachine, 0x1000, NULL);
     UC_TEST("[R] st_read_byte(..., NULL) returns ST_ERROR",
             eR == ST_ERROR);
 
-    /* INTENT: word read/write round-trip must preserve big-endian order */
+    /* INTENT[INT-STM-006 → TC-STM-006 → REQ-STM-007]:
+     * word read/write round-trip must preserve big-endian order */
     UC_CHECK("[N] st_write_word(0x2000, 0x1234)",
              st_write_word(&tMachine, 0x2000, 0x1234));
     UC_CHECK("[N] st_read_word(0x2000)",
              st_read_word(&tMachine, 0x2000, &uiWord));
     UC_TEST("[N] read-back word == 0x1234", uiWord == 0x1234);
 
-    /* INTENT: long read/write round-trip must preserve big-endian order */
+    /* INTENT[INT-STM-007 → TC-STM-007 → REQ-STM-008]:
+     * long read/write round-trip must preserve big-endian order */
     UC_CHECK("[N] st_write_long(0x3000, 0xDEADBEEF)",
              st_write_long(&tMachine, 0x3000, 0xDEADBEEF));
     UC_CHECK("[N] st_read_long(0x3000)",
              st_read_long(&tMachine, 0x3000, &uiLong));
     UC_TEST("[N] read-back long == 0xDEADBEEF", uiLong == 0xDEADBEEF);
 
-    /* INTENT: unaligned word access must raise a bus error */
+    /* INTENT[INT-STM-008 → TC-STM-008 → REQ-STM-009]:
+     * unaligned word access must raise a bus error */
     eR = st_write_word(&tMachine, 0x1001, 0x0000);
     UC_TEST("[R] unaligned word write (0x1001) returns ST_ERROR",
             eR == ST_ERROR);
 
-    /* INTENT: unaligned long access must raise a bus error */
+    /* INTENT[INT-STM-009 → TC-STM-009 → REQ-STM-010]:
+     * unaligned long access must raise a bus error */
     eR = st_write_long(&tMachine, 0x1003, 0x00000000);
     UC_TEST("[R] unaligned long write (0x1003) returns ST_ERROR",
             eR == ST_ERROR);
 
     /*
-     * INTENT: address beyond RAM (cartridge/ROM space) must not crash.
+     * INTENT[INT-STM-010 → TC-STM-010 → REQ-STM-011]:
+     * address beyond RAM (cartridge/ROM space) must not crash.
      * NOTE: UC1 stub returns ST_NO_ERROR + 0xFF for unmapped addresses
      *       (cartridge space is valid 24-bit addressing on the ST).
      * ADAPTED when UC24 implements real bus errors for unmapped regions.
@@ -294,11 +322,13 @@ static void test_st_machine(void)
     UC_TEST("[R] st_read_byte(ST_RAM_SIZE) is safe (stub: ST_NO_ERROR+0xFF)",
             eR == ST_NO_ERROR && uiByte == 0xFF);
 
-    /* INTENT: st_shutdown must reject a NULL pointer */
+    /* INTENT[INT-STM-011 → TC-STM-011 → REQ-STM-013]:
+     * st_shutdown must reject a NULL pointer */
     eR = st_shutdown(NULL);
     UC_TEST("[R] st_shutdown(NULL) returns ST_ERROR", eR == ST_ERROR);
 
-    /* INTENT: st_shutdown must power off the machine cleanly */
+    /* INTENT[INT-STM-012 → TC-STM-012 → REQ-STM-014]:
+     * st_shutdown must power off the machine cleanly */
     UC_CHECK("[N] st_shutdown(&tMachine)", st_shutdown(&tMachine));
     UC_TEST("[N] bPoweredOn == FALSE after shutdown",
             tMachine.bPoweredOn == ST_FALSE);
@@ -323,7 +353,8 @@ static void test_cpu(void)
 
     UC_CHECK("[N] st_init()", st_init(&tMachine, NULL));
 
-    /* INTENT: cpu_init must reject NULL pointers before touching state */
+    /* INTENT[INT-CPU-001 → TC-CPU-001/002 → REQ-CPU-001]:
+     * cpu_init must reject NULL pointers before touching state */
     eR = cpu_init(NULL, &tMachine);
     UC_TEST("[R] cpu_init(NULL, &tMachine) returns ST_ERROR",
             eR == ST_ERROR);
@@ -331,7 +362,8 @@ static void test_cpu(void)
     UC_TEST("[R] cpu_init(&tCpu, NULL) returns ST_ERROR",
             eR == ST_ERROR);
 
-    /* INTENT: hello.prg text section must load cleanly into ST RAM */
+    /* INTENT[INT-CPU-002 → TC-CPU-003 → REQ-STM-006]:
+     * hello.prg text section must load cleanly into ST RAM */
     eR = uc01_load_prg_text("use_cases/UC01/hello.prg",
                               &tMachine,
                               UI_LOAD_ADDR,
@@ -352,7 +384,8 @@ static void test_cpu(void)
     UC_CHECK("[N] write PC reset vector",
              st_write_long(&tMachine, CPU_VEC_RESET_PC,  UI_LOAD_ADDR));
 
-    /* INTENT: cpu_init must read reset vectors and enter supervisor mode */
+    /* INTENT[INT-CPU-003 → TC-CPU-004 → REQ-CPU-002/003/004/005]:
+     * cpu_init must read reset vectors and enter supervisor mode */
     UC_CHECK("[N] cpu_init(&tCpu, &tMachine)",
              cpu_init(&tCpu, &tMachine));
     UC_TEST("[N] CPU PC == 0x1000 after init",
@@ -367,7 +400,8 @@ static void test_cpu(void)
     printf("  [INFO] CPU after init: PC=0x%08X SSP=0x%08X SR=0x%04X\n",
            tCpu.uiPC, tCpu.uiSSP, (unsigned)tCpu.uiSR);
 
-    /* INTENT: cpu_step must reject NULL ptCpu and NULL ptMachine */
+    /* INTENT[INT-CPU-004 → TC-CPU-005 → REQ-CPU-006]:
+     * cpu_step must reject NULL ptCpu and NULL ptMachine */
     eR = cpu_step(NULL, &tMachine, &tResult);
     UC_TEST("[R] cpu_step(NULL, &tMachine, ...) returns ST_ERROR",
             eR == ST_ERROR);
@@ -376,7 +410,8 @@ static void test_cpu(void)
             eR == ST_ERROR);
 
     /*
-     * INTENT: cpu_step must fetch the MOVEQ #42,D0 opcode and advance PC.
+     * INTENT[INT-CPU-005 → TC-CPU-006 → REQ-CPU-007/008]:
+     * cpu_step must fetch the MOVEQ #42,D0 opcode and advance PC.
      * NOTE: UC1 stub behaviour - PC advances by 2 per step.
      * ADAPTED when UC21 implements real 68000 decode and execution.
      */
@@ -387,7 +422,8 @@ static void test_cpu(void)
     UC_TEST("[N] step #1 opcode == 0x702A (MOVEQ #42,D0)",
             tResult.uiOpcode == 0x702A);
 
-    /* INTENT: cpu_step must fetch the RTS opcode on the second step */
+    /* INTENT[INT-CPU-006 → TC-CPU-007 → REQ-CPU-007]:
+     * cpu_step must fetch the RTS opcode on the second step */
     UC_CHECK("[N] cpu_step() #2 (RTS stub)",
              cpu_step(&tCpu, &tMachine, &tResult));
     UC_TEST("[N] step #2 opcode == 0x4E75 (RTS)",
@@ -413,7 +449,8 @@ static void test_disasm(void)
 
     printf("\n--- Test group 5: Disassembler stub ---\n");
 
-    /* INTENT: disasm_range must decode 4 bytes into 2 DC.W stub lines */
+    /* INTENT[INT-DIS-001 → TC-DIS-001 → REQ-DIS-004/005]:
+     * disasm_range must decode 4 bytes into 2 DC.W stub lines */
     eR = disasm_range(aBytes, sizeof(aBytes), 0x1000,
                       aResults, 4, &uiLines);
     UC_TEST("[N] disasm_range() returns ST_NO_ERROR", eR == ST_NO_ERROR);
@@ -423,14 +460,16 @@ static void test_disasm(void)
     if (uiLines > 1) { printf("  [INFO] disasm[1]: %s\n", aResults[1].szLine); }
     printf("  [NOTE] DC.W fallback expected - full decode in UC11-UC14\n");
 
-    /* INTENT: zero-length buffer must produce 0 lines without error */
+    /* INTENT[INT-DIS-002 → TC-DIS-002 → REQ-DIS-004]:
+     * zero-length buffer must produce 0 lines without error */
     uiLines = 99;
     eR = disasm_range(aBytes, 0, 0x1000, aResults, 4, &uiLines);
     UC_TEST("[N] disasm_range(len=0) returns ST_NO_ERROR",
             eR == ST_NO_ERROR);
     UC_TEST("[N] disasm_range(len=0) writes 0 lines", uiLines == 0);
 
-    /* INTENT: NULL params must be rejected with ST_ERROR */
+    /* INTENT[INT-DIS-003 → TC-DIS-003/004/005 → REQ-DIS-001/002/003]:
+     * NULL params must be rejected with ST_ERROR */
     eR = disasm_range(NULL, sizeof(aBytes), 0x1000, aResults, 4, &uiLines);
     UC_TEST("[R] disasm_range(NULL buf) returns ST_ERROR",
             eR == ST_ERROR);
