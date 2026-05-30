@@ -212,4 +212,9 @@ st_error_t platform_thread_destroy(st_thread_t **pptThread)
     return ST_NO_ERROR;
 }
 
+void platform_sleep_ms(unsigned int uiMs)
+{
+    Sleep((DWORD)uiMs);
+}
+
 #endif /* ST_PLATFORM_WINDOWS */

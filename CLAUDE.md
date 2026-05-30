@@ -3,6 +3,8 @@
 ## 0. Historique et Raisons de changement
 2026-05-30: UC1 validé & pratiques de développement validées au travers de ce document CLAUDE.md
 2026-05-30: UC2 validé & nouvelles pratiques agréées dans CLAUDE.md
+2026-05-30: UC3 découpé en UC3.1/UC3.2/UC3.3 (décision co-développeur : D2D dès UC3, menu contextuel différé à UC7/UC18)
+2026-05-30: UC3.1 en cours — msg_queue + Win32 window thread + WndProc validés
 
 ## 1. Contexte du projet
 
@@ -259,16 +261,40 @@ src/
  */
 ```
 
-- ***``gui.c``***: 
+- ***``gui_backend.h``*** (NEW UC3.1):
 ```
 /*
- * gui.c - ST4Ever GUI subsystem stub
+ * gui_backend.h - ST4Ever GUI subsystem internal platform interface
  *
- * Portable logic only.  Platform backends:
- *   win/win_gui.c  - Win32 window creation and message pump
- *   linux/lx_gui.c - X11 window creation and event loop
+ * Private header: included ONLY by gui.c and platform backends
+ * (win/win_gui.c, linux/lx_gui.c).  Not part of the public API.
  *
- * TODO(UC3): Implement gui_init, gui_open_window, message queues.
+ * Provides:
+ *   - Full definition of struct gui_window_s (opaque in gui.h).
+ *   - Declaration of gui_platform_* functions implemented by each
+ *     backend.
+ *
+ * UC3.1: Win32 backend implemented.  Linux backend is stubbed.
+ * TODO(UC3-Linux): Implement gui_platform_* in linux/lx_gui.c.
+ */
+```
+
+- ***``gui.c``***:
+```
+/*
+ * gui.c - ST4Ever GUI subsystem portable layer
+ *
+ * Implements:
+ *   - gui_msg_queue_t : thread-safe circular event buffer (mutex-
+ *                       protected, with spin-wait for blocking get).
+ *   - Window list     : global registry of open gui_window_t handles.
+ *   - Public gui_*    : lifecycle wrappers that delegate window
+ *                       creation / close / size to the platform
+ *                       backend (gui_platform_* in win_gui.c /
+ *                       lx_gui.c).
+ *
+ * UC3.1: msg_queue + window lifecycle (open / close / shutdown).
+ * TODO(UC3.2): renderer integration in GUI_EVT_PAINT handling.
  */
 ```
 
@@ -661,6 +687,8 @@ src/
  */
 ```
 
+- ***``common.h``*** (ADAPTED UC3.1): ajout de `platform_sleep_ms()` — sleep portable utilisé par gui_msg_get() en spin-wait bloquant.
+
 win/
 - ***``win_console.c``***:
 ```
@@ -684,24 +712,27 @@ win/
 /*
  * win_gui.c - Win32 window management backend for gui.h
  *
+ * Implements gui_platform_* functions declared in gui_backend.h.
+ *
  * Each gui_window_t is backed by a win_wnd_state_t that holds:
  *   - The Win32 HWND
- *   - The dedicated thread running the Win32 message pump
- *   - The event callback and user context from gui_wnd_desc_t
+ *   - A Win32 Event used to synchronise window creation with the
+ *     calling thread (signaled once the HWND is live)
+ *   - Back-pointer to the portable gui_window_s
  *
- * Win32 window class "ST4EverView" is registered once in gui_init().
- * All ST4Ever windows share this class; the window type drives
- * default sizing and the WndProc event routing.
+ * Win32 window class "ST4EverView" is registered once in
+ * gui_platform_init() and shared by all ST4Ever windows.
  *
  * Message pump architecture:
- *   The thread spawned by gui_open_window() calls CreateWindowEx(),
- *   then enters a GetMessage() / TranslateMessage() / DispatchMessage()
- *   loop.  WM_PAINT, WM_KEYDOWN, WM_LBUTTONDOWN etc. are translated
- *   into gui_event_t and forwarded to the registered gui_event_fn
- *   callback.
+ *   gui_platform_window_create() spawns a dedicated thread via
+ *   platform_thread_create().  That thread calls CreateWindowEx(),
+ *   signals the ready Event, then enters a GetMessage() loop.
+ *   The WndProc translates Win32 messages to gui_event_t and
+ *   forwards them to the registered gui_event_fn callback.
  *
- * TODO(UC3): Implement win_wnd_create(), win_wnd_proc(),
- *            message pump thread, WM_PAINT → renderer integration.
+ * UC3.1: blank window (dark background), full event translation.
+ *         No renderer attached yet (D2D comes in UC3.2).
+ * TODO(UC3.2): WM_PAINT delegates to renderer_begin/end_draw.
  */
 ```
 
@@ -1167,7 +1198,9 @@ Les étapes de développement fonctionnelles sont formalisées en Use Cases, per
 |---|---|---|---|
 | UC1 | `help`, `quit`, `trace -t` | Prototype complet, stubs, console + trace fonctionnels | ✓ VALIDÉ 2026-05-30 |
 | UC2 | `trace on/off/toggle` | Gestion complète de la trace console | ✓ VALIDÉ 2026-05-30 |
-| UC3 | `dir` | Vue arbre Win32/GDI + X11, navigation clavier/souris, sélection fichier | ouverture, scroll, sélection |
+| UC3.1 | GUI infra | msg_queue (portable) + win_gui.c window/thread/WndProc + gui_platform_* | ✓ VALIDÉ 2026-05-30 |
+| UC3.2 | GUI render | win_D2D.c (Direct2D COM pur C) + renderer.c portable | texte, rect, ligne visibles |
+| UC3.3 | `dir` | dir.c : scan FS + arbre + rendu D2D + clavier/souris/scroll/sélection + line_cmd_dir | ouverture, scroll, sélection |
 | UC4 | console | Line editor riche : historique ↑↓, Home/End, tab-completion, ghost-text ; prompt contextuel toggleable (trace/disk/fichier) ; `colors on/off` ; historique persistant `~/.st4ever_history` ; `--script file` batch mode ; `make manual` + macro `TEST_MANUAL` | navigation + complétion + prompt état |
 | UC5 | `where`, `info` | Répertoire courant + état sélection (where) ; dashboard global état application : cwd, fichier sélectionné, trace, disque monté, binaire chargé (info) | affichage path + dashboard |
 | UC6 | plateforme | Abstraction fichiers : open/read/write/stat/mkdir, listing répertoire | tests lecture/écriture |
@@ -1300,6 +1333,59 @@ Les étapes de développement fonctionnelles sont formalisées en Use Cases, per
 **Points d'attention pour les UCs suivants :**
 - UC3 : `gui_init` réel ouvre une fenêtre Win32 → les tests UC1/UC2 qui appellent des stubs GUI devront utiliser `#ifdef ST_TEST_LEVEL_UCxx` + `TEST_SKIP` (mécanisme R14 en place)
 - UC4 : le dispatch stdin complet permettra d'automatiser les 4 tests [S] actuellement manuels
+
+### 6.3 Use Case 03.1 (UC3.1) — VALIDÉ (2026-05-30)
+
+**Périmètre fonctionnel implémenté :**
+- `src/gui_backend.h` (nouveau) : interface interne entre `gui.c` et les backends plateforme (`gui_platform_*`). Contient la définition complète de `struct gui_window_s` (opaque dans `gui.h`).
+- `src/gui.c` réécrit : implémentation complète de `gui_msg_queue_t` (tampon circulaire protégé par mutex, spin-wait 1ms pour le get bloquant) + registre global de fenêtres (`g_gui_aptWnd[16]`) + lifecycle `gui_init/open/close/shutdown` délégant aux backends.
+- `win/win_gui.c` réécrit : backend Win32 complet — `gui_platform_init` (RegisterClassEx "ST4EverView"), `gui_platform_window_create` (thread dédié + synchronisation via Win32 Event, délai max 5s), WndProc (traduction de 12 types de messages Win32 → `gui_event_t`), fond sombre RGB(24,24,36) dans WM_PAINT jusqu'à D2D (UC3.2).
+- `linux/lx_gui.c` réécrit : stubs `gui_platform_*` complets (compilation propre, TODO UC3-Linux).
+- `src/common.h` + platform files : ajout de `platform_sleep_ms()` (Win32: Sleep, Linux: usleep).
+
+**Architecture GUI établie (valable pour tous les UCs suivants) :**
+- Chaque vue (`dir`, `edit`, `mount`, `execute`...) = un `gui_window_t` dans un thread dédié
+- Thread créateur appelle `gui_open_window()`, attend la signalisation du Win32 Event, puis reprend
+- Thread fenêtre : CreateWindowEx → ShowWindow → GetMessage loop → WM_DESTROY → PostQuitMessage
+- Fermeture : `PostMessageA(WM_CLOSE)` + `platform_thread_join()`
+- Communication console→vue : `gui_msg_queue_t` (UC4+ pour utilisation réelle)
+- Communication vue→console : `pfnEvent` callback appelé depuis le thread fenêtre
+
+**Tests R14/R15 appliqués :**
+- `use_cases/use_case_03_1.c` : TEST MATRIX **18N + 11R + 3S = 32 tests**, tous PASS
+  - [N] msg_queue lifecycle complet : create/post/get/FIFO/fill/drain/destroy
+  - [N] gui_init/shutdown idempotents (RegisterClass/UnregisterClass headless)
+  - [R] tous les paramètres NULL rejetés, capacité 0, queue pleine, queue vide
+  - [S] 3 tests visuels (fenêtre ouverte/fond sombre/fermeture) : `make manual` UC4
+
+**Décisions architecturales validées :**
+- D2D dès UC3 (COM pur C via lpVtbl) — menu contextuel différé à UC7/UC18
+- UC3 découpé en UC3.1 (infra) / UC3.2 (D2D renderer) / UC3.3 (dir view)
+- `gui_backend.h` = interface privée entre la couche portable et les backends
+
+**Contrats comportementaux validés :**
+
+*Module `gui_msg_queue_t`*
+- `gui_msg_create(0)` → `ST_ERROR` (capacité nulle rejetée)
+- Post sur queue pleine → `ST_ERROR` sans bloquer
+- Get non-bloquant sur queue vide → `ST_ERROR` immédiat
+- FIFO strict : les événements sont dépilés dans l'ordre d'insertion
+- `gui_msg_destroy()` libère buffer + mutex, met le handle à NULL
+
+*Module `gui` lifecycle*
+- `gui_init()` est idempotente : double appel → `ST_NO_ERROR`, pas de double-enregistrement WNDCLASS
+- `gui_shutdown()` sans `gui_init()` → `ST_NO_ERROR` (no-op sûr)
+- `gui_open_window(NULL, ...)` ou `(..., NULL)` → `ST_ERROR` sans ouvrir de fenêtre
+- `gui_close_window(NULL)` → `ST_ERROR`
+- `gui_invalidate(NULL)` → `ST_ERROR`
+- `gui_get_size(NULL, ...)` → `ST_ERROR`
+
+**Points d'attention pour les UCs suivants :**
+- UC3.2 : WM_PAINT actuel fait `FillRect` GDI → sera remplacé par `renderer_begin/end_draw` (D2D)
+- UC3.2 : `win_D2D.c` doit implémenter `renderer_create()` prenant un `gui_window_t` et lisant le HWND depuis `ptWnd->pPlatform` (cast `win_wnd_state_t *`)
+- UC3.3 : `dir.c` utilisera `gui_platform_window_invalidate()` pour forcer le repaint après navigation
+- UC4 : le spin-wait 1ms de `gui_msg_get(bBlock=TRUE)` sera remplacé par une variable de condition ou un Win32 Event dans la queue
+- UC4 : les 3 tests [S] (fenêtre visible) seront convertis en `TEST_MANUAL`
 
 ## 7. Propositions d'améliorations
 

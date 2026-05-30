@@ -219,4 +219,15 @@ st_error_t platform_thread_join(st_thread_t *ptThread);
  */
 st_error_t platform_thread_destroy(st_thread_t **pptThread);
 
+/*
+ * platform_sleep_ms() - Sleep for the given number of milliseconds.
+ *
+ * Used by gui.c for spin-wait in blocking gui_msg_get().
+ * TODO(UC4): replace spin-wait with condition variable.
+ *
+ * Parameters:
+ *   uiMs [in] : Duration in milliseconds.
+ */
+void platform_sleep_ms(unsigned int uiMs);
+
 #endif /* COMMON_H */

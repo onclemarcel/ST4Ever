@@ -13,6 +13,7 @@
 #include <pthread.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 /* ------------------------------------------------------------------
  * Mutex (pthread_mutex_t)
@@ -151,6 +152,11 @@ st_error_t platform_thread_destroy(st_thread_t **pptThread)
     if ((*pptThread)->pHandle != NULL) { free((*pptThread)->pHandle); }
     free(*pptThread); *pptThread = NULL;
     return ST_NO_ERROR;
+}
+
+void platform_sleep_ms(unsigned int uiMs)
+{
+    usleep((useconds_t)uiMs * 1000u);
 }
 
 #endif /* ST_PLATFORM_LINUX */
