@@ -2,6 +2,7 @@
 
 ## 0. Historique et Raisons de changement
 2026-05-30: UC1 validé & pratiques de développement validées au travers de ce document CLAUDE.md
+2026-05-30: UC2 validé & nouvelles pratiques agréées dans CLAUDE.md
 
 ## 1. Contexte du projet
 
@@ -115,6 +116,8 @@ Le développement s'effectue par Use Cases (voir section 6), permettant à Claud
 **En fin de Use Case validé (`make tests` : 0 failure), Claude :**
 - Met à jour README.md si la progression est visible pour un lecteur extérieur : ce fichier sert de *teaser* public sur l'aspect didactique, le revival ATARI ST des années 90 et les pratiques de co-développement avec Claude, acteur principal du projet guidé par Tonton Marcel.
 - Met à jour SRTD.md pour la traçabilité User/System & Software Reqs/Tests.
+- Consulte les propositions d'amélioration de la section 7, donne son avis sur l'aspect réaliste ou non de la proposition et propose un traitement dans les UC suivants.
+- Fait des propositions d'amélioration UX en section 7 pour arbitrage avant la clôture de l'UC.
 
 
 ## 2. Fichiers clés
@@ -223,8 +226,8 @@ src/
  * UC1: basic fgets() input loop with help, quit and trace handlers.
  *      All other commands dispatch to line_cmd_stub() which logs
  *      LOG_TODO and prints a "not yet implemented" message.
+ * UC2: full trace on/off/toggle logic in line_cmd_trace().
  *
- * TODO(UC2): Implement full trace on/off/toggle logic.
  * TODO(UC4): Replace fgets() with the rich line editor
  *            (history, tab-completion, ghost-text pre-completion,
  *             arrow-key navigation via win_console / lx_console).
@@ -1129,6 +1132,32 @@ Deux axes de couverture, calibrés par couche. Pas de mesure gcov (stubs faussen
  */
 ```
 
+**R16 — Tests manuels : macro `TEST_MANUAL` et cible `make manual`** *(planifié UC4, 2026-05-30)*
+
+Certains tests exigent une validation visuelle (fenêtres GUI, rendu écran) ou une interaction utilisateur et ne peuvent pas être automatisés headless. Séparation stricte :
+
+- **`make tests`** = automatique, 0 interaction, CI-friendly. Les tests non-automatisables sont marqués `TEST_SKIP`.
+- **`make manual`** = session de validation humaine. Compile les `use_case_NN` avec `-DST_MANUAL_TEST` et les exécute. Les blocs `TEST_MANUAL` affichent une question et attendent `y/n`.
+
+Macro à ajouter dans `use_cases.h` lors de UC4 :
+```c
+#ifdef ST_MANUAL_TEST
+#define TEST_MANUAL(desc, question) \
+    do { \
+        printf("  [MANUAL] %s\n  > %s (y/n): ", (desc), (question)); \
+        fflush(stdout); \
+        { char _c = (char)getchar(); while (getchar() != '\n'); \
+          if (_c == 'y' || _c == 'Y') printf("  [PASS]  %s\n", (desc)); \
+          else { printf("  [FAIL]  %s\n", (desc)); g_uc_fails++; } } \
+    } while (0)
+#else
+#define TEST_MANUAL(desc, question) \
+    printf("  [SKIP] %s (run make manual)\n", (desc))
+#endif
+```
+
+Convention : remplacer les `TEST_SKIP("[S] ...")` existants qui ont une question visuelle claire par `TEST_MANUAL(desc, question)` lors de l'implémentation réelle du module concerné. Le bloc matriciel d'en-tête devient `[S] Z tests - run make manual`.
+
 
 ## 6. Use Cases
 
@@ -1136,11 +1165,11 @@ Les étapes de développement fonctionnelles sont formalisées en Use Cases, per
 
 | # | Commande(s) | Description | Valide |
 |---|---|---|---|
-| UC1 | `help`, `quit`, `trace -t` | Prototype complet, stubs, console + trace fonctionnels | trace init/open/close/levels |
-| UC2 | `trace on/off/toggle` | Gestion complète de la trace console | toggle + activation LOG_TRACE |
+| UC1 | `help`, `quit`, `trace -t` | Prototype complet, stubs, console + trace fonctionnels | ✓ VALIDÉ 2026-05-30 |
+| UC2 | `trace on/off/toggle` | Gestion complète de la trace console | ✓ VALIDÉ 2026-05-30 |
 | UC3 | `dir` | Vue arbre Win32/GDI + X11, navigation clavier/souris, sélection fichier | ouverture, scroll, sélection |
-| UC4 | console | Line editor riche : historique ↑↓, Home/End, tab-completion | navigation + complétion |
-| UC5 | `where` | Répertoire courant + état sélection, mise à jour depuis `dir` | affichage path sélectionné |
+| UC4 | console | Line editor riche : historique ↑↓, Home/End, tab-completion, ghost-text ; prompt contextuel toggleable (trace/disk/fichier) ; `colors on/off` ; historique persistant `~/.st4ever_history` ; `--script file` batch mode ; `make manual` + macro `TEST_MANUAL` | navigation + complétion + prompt état |
+| UC5 | `where`, `info` | Répertoire courant + état sélection (where) ; dashboard global état application : cwd, fichier sélectionné, trace, disque monté, binaire chargé (info) | affichage path + dashboard |
 | UC6 | plateforme | Abstraction fichiers : open/read/write/stat/mkdir, listing répertoire | tests lecture/écriture |
 | UC7 | `load` | Chargement fichier texte/binaire, détection type, buffer mémoire | load .txt, .bin, .PRG stub |
 | UC8 | `edit` texte | Vue éditeur texte Win32/GDI + X11 : scroll, numéros de ligne, sauvegarde | édition + save .S et .TXT |
@@ -1236,13 +1265,47 @@ Les étapes de développement fonctionnelles sont formalisées en Use Cases, per
 - Stub UC1 : toute instruction → fallback `DC.W $XXXX` — *ADAPTED:UC11-UC14*
 
 **Points d'attention pour les UCs suivants :**
-- UC2 : `trace on/off/toggle` — logique déjà en place dans `trace.h`, il manque le parsing de l'argument dans `line.c`
+- UC2 : validé — `line_cmd_trace()` complète : toggle, on, off, unknown arg, extra args warning
 - UC3 : `gui_init` réel ouvre une fenêtre Win32 → les tests UC1 qui appellent des stubs GUI devront utiliser `#ifdef ST_TEST_LEVEL_UC01` + `TEST_SKIP` (mécanisme R14 en place)
 - UC21 : `cpu_step` réel changera le comportement des tests UC1 step — assertions marquées `ADAPTED`
 - UC24 : `st_read_byte` hors-RAM devra lever ST_ERROR pour les zones vraiment non mappées — test marqué `ADAPTED`
 
+### 6.2 Use Case 02 (UC2) — VALIDÉ (2026-05-30)
+
+**Périmètre fonctionnel implémenté :**
+- `line_cmd_trace()` complète dans `line.c` :
+  - `trace` (no arg) : toggle open/close, `trace_enabled` inchangé
+  - `trace on` : `trace_open()` + `trace_set_trace_enabled(TRUE)`
+  - `trace off` : `trace_set_trace_enabled(FALSE)` + `trace_close()`
+  - `trace <inconnu>` : warning utilisateur, aucun effet sur l'état
+  - `trace on|off <extra>` : warning sur les args superflus, premier arg traité normalement (cohérence avec `help`/`quit`)
+- Retrait du `TODO(UC2)` dans le header `line.c` et le commentaire de `line_cmd_trace()`
+
+**Tests R14/R15 appliqués :**
+- `use_cases/use_case_02.c` : TEST MATRIX **22N + 4R + 4S = 30 tests**, tous PASS
+  - Stratégie : `line_cmd_trace()` et `line_dispatch()` étant `static`, les contrats comportementaux sont validés en pilotant l'API publique `trace_*` dans les mêmes séquences que la commande
+  - Labels `[N]`/`[R]`/`[S]` sur chaque assertion, commentaires `/* INTENT: */` par bloc
+  - [S] skipped : 4 tests de dispatch stdin validés manuellement via `make run`
+
+**Contrats comportementaux validés :**
+
+*Module `line_cmd_trace` (→ UC4 pour les tests de dispatch stdin automatisés)*
+- `trace` (no arg) : ouvre si fermé (`trace_open()`), ferme si ouvert (`trace_close()`). Ne touche jamais à `trace_set_trace_enabled()`.
+- `trace on` : séquence `trace_open()` puis `trace_set_trace_enabled(TRUE)`. Idempotent si la console est déjà ouverte (`trace_open()` est idempotent — contrat UC1).
+- `trace off` : séquence `trace_set_trace_enabled(FALSE)` puis `trace_close()`. Idempotent si la console est déjà fermée (`trace_close()` est idempotent — contrat UC1).
+- `trace <inconnu>` : warning consommateur, pas de changement d'état.
+- Args superflus (`trace on foo`) : warning, puis traitement normal du premier arg.
+- Après `trace off`, `LOG_INFO/ERROR/TODO` restent actifs (fichier log seulement) ; `LOG_TRACE` silencieux. `trace_set_trace_enabled(TRUE)` réactive `LOG_TRACE` immédiatement.
+
+**Points d'attention pour les UCs suivants :**
+- UC3 : `gui_init` réel ouvre une fenêtre Win32 → les tests UC1/UC2 qui appellent des stubs GUI devront utiliser `#ifdef ST_TEST_LEVEL_UCxx` + `TEST_SKIP` (mécanisme R14 en place)
+- UC4 : le dispatch stdin complet permettra d'automatiser les 4 tests [S] actuellement manuels
+
 ## 7. Propositions d'améliorations
-**UC Tests**: Concernant la partie tests des Use Cases, certains tests sont manuels et demandent une action utilisateur, ou tout simplement une validation visuelle (e.g. GUI) qui serait trop complexe à implémenter en tests automatiques : ces tests manuels peuvent être exécutés à part des tests auto, et demander des checks visuels validés par l'utilisateur pour obtenir le critère PASS de ces tests.
+
+*Claude et Tonton Marcel déposent ici leurs propositions UX/fonctionnelles au fil des UCs. Avant de clore un UC, les propositions sont passées en revue ensemble : celles agréées sont planifiées dans le tableau section 6 et retirées d'ici. **Un UC est clos quand §7 ne contient plus de propositions non arbitrées pour cet UC.***
+
+*Section vide — toutes les propositions P1–P5 issues de UC1/UC2 ont été agréées et planifiées dans le tableau UC (UC4 et UC5 étendus).*
 
 ## 8. Licence & attribution
 Pas de redistribution prévue à ce jour

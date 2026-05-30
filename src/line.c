@@ -4,8 +4,8 @@
  * UC1: basic fgets() input loop with help, quit and trace handlers.
  *      All other commands dispatch to line_cmd_stub() which logs
  *      LOG_TODO and prints a "not yet implemented" message.
+ * UC2: full trace on/off/toggle logic in line_cmd_trace().
  *
- * TODO(UC2): Implement full trace on/off/toggle logic.
  * TODO(UC4): Replace fgets() with the rich line editor
  *            (history, tab-completion, ghost-text pre-completion,
  *             arrow-key navigation via win_console / lx_console).
@@ -355,12 +355,11 @@ static st_error_t line_cmd_quit(const parsed_cmd_t *ptParsed,
 /*
  * line_cmd_trace() - Open/close/toggle the trace console.
  *
- * trace          -> toggle open/closed
+ * trace          -> toggle open/closed (trace_enabled state unchanged)
  * trace on       -> open + enable LOG_TRACE
  * trace off      -> disable LOG_TRACE + close
  * trace <other>  -> warning, no effect
- *
- * Full implementation in UC2.
+ * Extra args     -> warning, first arg still processed
  *
  * Parameters:
  *   ptParsed [in] : Parsed command.
@@ -411,6 +410,12 @@ static st_error_t line_cmd_trace(const parsed_cmd_t *ptParsed,
 
     /* With argument */
     szArg = ptParsed->aszArgv[1];
+
+    if (ptParsed->iArgc > 2)
+    {
+        line_print_warning(
+            "trace: ignoring extra arguments after '%s'", szArg);
+    }
 
     if (strcmp(szArg, "on") == 0)
     {
