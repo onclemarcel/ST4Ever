@@ -1,6 +1,6 @@
 # Project : ST4Ever : The Revival Engine for the Timeless ATARI ST
 
-*(Current project state: UC3.1 validated — GUI window infrastructure live. See CLAUDE.md for details.)*
+*(Current project state: UC3.3 validated — interactive directory tree view with Direct2D rendering live. See CLAUDE.md for details.)*
 
 This project is a cross-platform interactive console application developed in pure C for educational purposes allowing to:
 
@@ -33,13 +33,22 @@ The project is developed Use Case by Use Case, with a rigorous test-driven appro
 and full traceability (SRTD.md). Each UC is validated by an automated test suite
 before being committed.
 
+UC3 brought the first real GUI to life: a live Win32 window built from scratch
+using Direct2D COM (pure C, no C++ wrapper), a portable renderer abstraction, and
+an interactive directory tree view driven by the `dir` command.  The view renders
+the file hierarchy in ASCII-art style (`+-- ` / `\-- ` connectors built with a
+32-bit bitmask trick for O(1) prefix construction), with lazy directory scanning,
+keyboard navigation (↑↓ PgUp/PgDn Home End Enter), mouse click expand/collapse,
+and mouse-wheel scroll — all running in a dedicated Win32 thread communicating
+with the console via a mutex-protected circular event queue.
+
 | UC    | Scope                                   | Status              |
 |-------|-----------------------------------------|---------------------|
 | UC1   | Console + trace subsystem + ST/CPU stubs | ✅ Validated         |
 | UC2   | `trace on/off/toggle` command            | ✅ Validated         |
 | UC3.1 | GUI infrastructure: Win32 window thread, msg_queue, WndProc | ✅ Validated |
-| UC3.2 | Direct2D renderer (win_D2D.c + renderer.c) | 🔄 In progress   |
-| UC3.3 | `dir` command: file tree view, navigation, selection | 📋 Planned |
+| UC3.2 | Direct2D renderer (win_D2D.c + renderer.c portable) | ✅ Validated |
+| UC3.3 | `dir` command: lazy-load FS tree, D2D render, keyboard/mouse/scroll | ✅ Validated |
 | UC4+  | Rich line editor, more commands, emulation | 📋 Planned        |
 
 ## Co-development with Claude AI

@@ -782,5 +782,71 @@ Architecture conservée : console terminal + vues GUI (voir décision D1 ci-dess
 
 P7 et P8 ont soulevé la question : app console (actuelle) vs app GUI multi-fenêtres où la console serait elle-même une fenêtre. Décision : **conserver l'architecture console + vues GUI satellites**. Raisons : (1) transformer la console en fenêtre GUI exigerait un mini-émulateur de terminal (texte scrollable, curseur, input) — travail disproportionné hors objectif Atari ST ; (2) UC4 (line editor) est déjà la bonne UX dans mintty ; (3) `SetConsoleTitleA` (P8) couvre le besoin de statut global sans refonte. L'option "console GUI" reste ouverte comme UC long terme si nécessaire.
 
+---
+
+### Propositions UC3.3 — *en attente d'arbitrage*
+
+**P9 — Fermeture de la vue dir via touche ESC**
+
+Actuellement, ESC n'est pas géré dans `dir_event_callback` car `gui_close_window()` appelle `platform_thread_join()` — un deadlock si appelé depuis le thread fenêtre lui-même. La solution est d'ajouter `gui_request_close(hWnd)` (non-bloquant : poste WM_CLOSE sans rejoindre le thread). Ce serait utile pour toutes les vues (dir, edit, mount…) : l'utilisateur peut fermer une vue sans quitter la console.
+
+Avis Claude : **utile et peu coûteux** — ~10 lignes dans `gui.c` + `win_gui.c`. Naturellement planifiable en UC4 lors de l'amélioration du threading model (remplacement du spin-wait, mutex sur `line_context_t`).
+
+**P10 — Navigation historique dans la vue dir (pile Précédent/Suivant)**
+
+`dir_navigate_up()` remplace entièrement l'arbre courant. Une pile de navigation (ALT+← / ALT+→ ou boutons B/F dans la fenêtre) permettrait de revenir aux répertoires précédemment visités, comme un explorateur de fichiers. La pile pourrait conserver les positions de sélection et de scroll.
+
+Avis Claude : **intéressant mais coût moyen** — implique une structure `szHistory[N]` + deux indices et la gestion du lifetime des nœuds libérés. Peut être différé après UC5 quand l'UX globale est plus stable, ou intégré dans UC7/UC8 (load/edit) qui ont besoin d'une navigation fichier soignée.
+
+**P11 — Indicateur de sélection active dans la vue dir**
+
+Quand `ptLineCtx->szSelected` est non vide (fichier sélectionné via la vue dir), la ligne correspondante pourrait afficher une icône ou couleur distincte permanente (≠ simple highlight de navigation) pour indiquer "ce fichier est l'argument par défaut des commandes `load`, `edit`…". Actuellement le highlight disparaît dès que la navigation bouge.
+
+Avis Claude : **valeur UX réelle, coût faible** — stocker `szLastSelected` dans `dir_view_t` et l'utiliser dans `dir_render()` pour une couleur de fond secondaire (e.g. vert sombre). Naturellement intégrable dans UC7 (load) qui active vraiment la sélection.
+
+**P12 - Ouverture/Fermeture des dossiers par flèche droite/gauche**
+
+La navigation peut se faire par les flèches haut et bas, une amélioration serait d'attribuer la flèche droite à l'expansion d'un dossier et la flèche gauche à la rétractation d'un dossier.
+
+Avis Claude : à renseigner
+
+**P13 - Sélection par touche Espace ne devrait pas ouvrir un dossier**
+
+La touche Espace sélectionne et ouvre un dossier. Sachant que la touche Entrée ouvre un dossier, Espace n'a pas besoin de l'ouvrir également, cela permet de réserver la touche Espace à la sélection uniquement.
+
+Avis Claude : à renseigner
+
+**P14 - Sélection multiple par touche CTRL+Espace ou SHIFT+Espace**
+
+Comme pour explorateur Windows, un appui CTRL + Espace permet la sélection/désélection d'un élément, mais aussi de sélectionner plusieurs éléments: cela peut-être utile pour l'UC18 afin de réaliser un drag/drop d'un groupe de fichiers de 'dir' vers 'mount' (émulateur disquette) pour ajouter plusieurs fichiers et/ou répertoire dans la disquette. Dans le cas d'une sélection multiple, il faut limiter les fichiers à ceux d'un répertoire unique et éviter le CTRL+Espace sur un fichier de plusieurs répertoires, cette fonctionnalité permet uniquement de sélectionner tout ou partie d'un même répertoire. En cas de sélection multiple, l'indicateur proposé dans P11 deviendrait "multiple files in </path>".
+
+Avis Claude : à renseigner
+
+**P15 - Cacher les fichiers cachés du système hôte**
+
+Dans le cadre de ST4Ever, les fichiers cachés ne seront pas utiles; un filtre sur les fichiers/répertoires de type ".*" peut être mis par défaut.
+
+Avis Claude : à renseigner
+
+**P16 - Donner le focus sur la vue 'dir' à l'ouverture de la fenêtre**
+
+Lorsque l'utilisateur tape 'dir' dans la console et qu'il souhaite sélectionner un fichier au clavier, il ne devrait pas devoir utiliser la souris pour activer la fenêtre avant (ou utiliser ATL+TAB): cela permet de taper la commande 'dir', sélectionner avec les flèches et Espace (ou SHIFT+ESPACE si P14 arbitré) et sortir avec ESC (si P9 arbitré): ce serait plus fluide que 'dir' -> ALT+TAB -> Flèches / Espace -> ESC.
+
+Avis Claude : à renseigner
+
+**P16 - Créer une recommandation pour mettre à jour systématiquement la traçabilité UFR / REQ / TC / use_cases_*.c**
+
+Cette activité n'est pas réalisée automatiquement à chaque nouvelle conversation (le flot 1.3 n'est pas réalisé sauf à ma demande explicite) => il faut peut-être une recommandation pour couvrir l'ensemble du flot 1.3 et peut-être séparer chaque UCx.y en 2 steps distincts : analyse/archi/codage/tests, puis tu me redonnes la main pour analyse, et, avant de passer au Use Case suivant : phase documentaire pure avec SRTD.md et traçabilité dans use_cases_*.c
+
+Avis Claude : à renseigner
+
+**P17 - Mise à jour de la version logicielle à chaque UCx.y**
+
+Il faut une recommandation pour mettre à jour la version dans common.h à chaque UCx.y : tu l'oublies à chaque UC :)
+
+Avis Claude : à renseigner
+
+
+
 ## 8. Licence & attribution
 Pas de redistribution prévue à ce jour

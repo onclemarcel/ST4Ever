@@ -15,6 +15,8 @@
 | 1.0 | 2026-05-30 | UC1   | Claude/OMC | Initial baseline — UC1 validated, two-layer REQ model            |
 | 1.1 | 2026-05-30 | UC2   | Claude/OMC | UC2 validated — trace on/off/toggle; UFR-CON-030..032 ✓          |
 | 1.2 | 2026-05-30 | UC3.1 | Claude/OMC | UC3.1 validated — GUI msg_queue + Win32 window/thread/WndProc   |
+| 1.3 | 2026-05-30 | UC3.2 | Claude/OMC | UC3.2 validated — Direct2D renderer (win_D2D.c COM pure C + renderer.c) |
+| 1.4 | 2026-05-31 | UC3.3 | Claude/OMC | UC3.3 validated — dir view: lazy-load FS tree, flat list, D2D render, kbd/mouse |
 
 ---
 
@@ -98,7 +100,7 @@ through one or more test cases in Section 5.
 
 | ID          | Requirement                                                                                       | Status      | UC   |
 |-------------|---------------------------------------------------------------------------------------------------|-------------|------|
-| UFR-CON-040 | `dir [path]` shall open a file-tree view of the given (or current) directory.                    | TODO UC3.3  | UC3.3|
+| UFR-CON-040 | `dir [path]` shall open a file-tree view of the given (or current) directory.                    | ✓ UC3.3     | UC3.3|
 | UFR-CON-050 | `load <file>` shall load a file or binary into emulated ST memory.                               | TODO UC7    | UC7  |
 | UFR-CON-060 | `edit <file>` shall open the appropriate editor view for the file type.                          | TODO UC8-10 | UC8  |
 | UFR-CON-070 | `mount [path]` shall emulate an Atari ST floppy drive A:\ from the given directory.             | TODO UC18   | UC18 |
@@ -127,18 +129,19 @@ through one or more test cases in Section 5.
 | UFR-GUI-002 | The console thread shall communicate with view threads via a bounded thread-safe message queue.               | ✓ UC3.1     | UC3.1  |
 | UFR-GUI-003 | A view shall notify the console of user actions (file selected, close) via a registered event callback.       | ✓ UC3.1     | UC3.1  |
 | UFR-GUI-004 | The application shall support up to 16 simultaneously open views.                                             | ✓ UC3.1     | UC3.1  |
-| UFR-GUI-005 | All 2D rendering (text, rectangles, lines) shall use Direct2D (Windows) or X11/XRender (Linux).              | TODO UC3.2  | UC3.2  |
+| UFR-GUI-005 | All 2D rendering (text, rectangles, lines) shall use Direct2D (Windows) or X11/XRender (Linux).              | ✓ UC3.2     | UC3.2  |
+| UFR-GUI-006 | Each view's window title bar shall be updated dynamically to reflect the current context (R18).               | ✓ UC3.3     | UC3.3  |
 
 ### 1.4 Directory View — `DIR` (TODO UC3.3)
 
 | ID          | Requirement                                                                                                   | Status   | UC   |
 |-------------|---------------------------------------------------------------------------------------------------------------|----------|------|
-| UFR-DIR-001 | The directory view shall display the file tree of the target path, indented and expandable.                  | TODO UC3 | UC3  |
-| UFR-DIR-002 | Left-clicking a file or pressing Space shall select it as the default argument for load, edit, image, where. | TODO UC3 | UC3  |
-| UFR-DIR-003 | A `+` / `-` control shall expand or collapse a directory node.                                               | TODO UC3 | UC3  |
-| UFR-DIR-004 | A `..` entry at the top shall navigate to the parent directory.                                               | TODO UC3 | UC3  |
-| UFR-DIR-005 | Right-clicking a file shall display a context menu with `load` and `edit` options.                           | TODO UC3 | UC3  |
-| UFR-DIR-006 | Right-clicking a directory shall display a context menu with `mount` and `image` options.                    | TODO UC3 | UC3  |
+| UFR-DIR-001 | The directory view shall display the file tree of the target path, indented and expandable.                  | ✓ UC3.3  | UC3.3|
+| UFR-DIR-002 | Left-clicking a file or pressing Space shall select it as the default argument for load, edit, image, where. | ✓ UC3.3  | UC3.3|
+| UFR-DIR-003 | A `+` / `-` control shall expand or collapse a directory node.                                               | ✓ UC3.3  | UC3.3|
+| UFR-DIR-004 | A `..` entry at the top shall navigate to the parent directory.                                               | ✓ UC3.3  | UC3.3|
+| UFR-DIR-005 | Right-clicking a file shall display a context menu with `load` and `edit` options.                           | TODO UC7 | UC7  |
+| UFR-DIR-006 | Right-clicking a directory shall display a context menu with `mount` and `image` options.                    | TODO UC18| UC18 |
 
 ### 1.5 Editor Views — `EDT` (TODO UC8–10)
 
@@ -263,7 +266,48 @@ requirement that will expose it (`UFR-EXE-*`, planned UC21–27).
 | REQ-GUI-013  | `gui_msg_get(bBlock=ST_FALSE)` on an empty queue shall return `ST_ERROR` immediately.                         | UFR-GUI-002  | ✓ UC3.1  | UC3.1  |
 | REQ-GUI-014  | `gui_msg_destroy()` shall free all resources and set the handle to NULL.                                      | UFR-GUI-002  | ✓ UC3.1  | UC3.1  |
 | REQ-GUI-015  | The WndProc shall translate WM_PAINT / WM_KEYDOWN / WM_CHAR / WM_MOUSE* / WM_MOUSEWHEEL / WM_SIZE → gui_event_t. | UFR-GUI-003 | ✓ UC3.1 | UC3.1 |
-| REQ-GUI-016  | The renderer shall use Direct2D / DirectWrite (Windows) or X11/XRender (Linux).                              | UFR-GUI-005  | TODO UC3.2| UC3.2 |
+| REQ-GUI-016  | The renderer shall use Direct2D / DirectWrite (Windows) or X11/XRender (Linux).                              | UFR-GUI-005  | ✓ UC3.2   | UC3.2 |
+| REQ-GUI-017  | `gui_set_title(NULL, *)` and `gui_set_title(*, NULL)` shall return `ST_ERROR`.                               | UFR-GUI-006  | ✓ UC3.3   | UC3.3 |
+| REQ-GUI-018  | `gui_set_title(hWnd, szTitle)` shall update the OS window title bar via the platform backend.                | UFR-GUI-006  | ✓ UC3.3   | UC3.3 |
+
+### 2.7 2D Renderer — `renderer.h` / `renderer.c` / `win_D2D.c`
+
+> Design ref: CLAUDE.md §5 R1; Direct2D COM pure C (COBJMACROS + INITGUID required)
+
+| ID           | Software Requirement                                                                                           | Parent UFR   | Status   | UC     |
+|--------------|----------------------------------------------------------------------------------------------------------------|--------------|----------|--------|
+| REQ-RND-001  | `renderer_create(NULL, *)` or `renderer_create(*, NULL)` shall return `ST_ERROR`.                             | UFR-GUI-005  | ✓ UC3.2  | UC3.2  |
+| REQ-RND-002  | `renderer_create()` shall allocate a D2D render target bound to the window HWND and return `ST_NO_ERROR`.     | UFR-GUI-005  | ✓ UC3.2  | UC3.2  |
+| REQ-RND-003  | `renderer_begin_draw(NULL)` and `renderer_end_draw(NULL)` shall return `ST_ERROR`.                            | UFR-GUI-005  | ✓ UC3.2  | UC3.2  |
+| REQ-RND-004  | All draw primitives (`fill_rect`, `draw_rect`, `draw_line`, `draw_text`, `draw_bitmap`) shall return `ST_ERROR` when renderer handle is NULL. | UFR-GUI-005 | ✓ UC3.2 | UC3.2 |
+| REQ-RND-005  | `renderer_resize()` shall recreate the HwndRenderTarget to match the new window dimensions.                   | UFR-GUI-005  | ✓ UC3.2  | UC3.2  |
+| REQ-RND-006  | `renderer_destroy(NULL)` shall be a safe no-op; a valid handle shall release all COM resources.               | UFR-GUI-005  | ✓ UC3.2  | UC3.2  |
+| REQ-RND-007  | `renderer_get_font_metrics()` shall return the monospace cell width and height in pixels.                     | UFR-GUI-005  | ✓ UC3.2  | UC3.2  |
+
+---
+
+### 2.8 Directory View — `dir.h` / `dir.c`
+
+> Design ref: CLAUDE.md §1.1.3, §5 R18, §6.5
+
+| ID           | Software Requirement                                                                                           | Parent UFR   | Status   | UC     |
+|--------------|----------------------------------------------------------------------------------------------------------------|--------------|----------|--------|
+| REQ-DIR-001  | `dir_open(path, NULL, *)` or `dir_open(path, *, NULL)` shall return `ST_ERROR`.                               | UFR-DIR-001  | ✓ UC3.3  | UC3.3  |
+| REQ-DIR-002  | `dir_open(NULL path, ptCtx, pptView)` shall resolve to the current working directory (non-fatal fallback).    | UFR-DIR-001  | ✓ UC3.3  | UC3.3  |
+| REQ-DIR-003  | `dir_open(non-existent path, …)` shall return `ST_NO_ERROR` with an empty tree (`iFlatCount == 0`).          | UFR-DIR-001  | ✓ UC3.3  | UC3.3  |
+| REQ-DIR-004  | After `dir_open()`, `ptView->ptRoot != NULL` and `szRootPath` shall be non-empty.                             | UFR-DIR-001  | ✓ UC3.3  | UC3.3  |
+| REQ-DIR-005  | `dir_open()` shall scan only the root's immediate children; sub-directories are loaded lazily at first expand.| UFR-DIR-001  | ✓ UC3.3  | UC3.3  |
+| REQ-DIR-006  | `dir_close(NULL)` shall return `ST_ERROR`; `dir_close(&NULL)` shall return `ST_NO_ERROR` (idempotent).       | UFR-DIR-001  | ✓ UC3.3  | UC3.3  |
+| REQ-DIR-007  | After `dir_close()`, the window thread shall be joined and `*pptView` shall be set to NULL.                   | UFR-DIR-001  | ✓ UC3.3  | UC3.3  |
+| REQ-DIR-008  | ENTER or left-click on a directory node shall toggle expand/collapse, loading children lazily on first expand.| UFR-DIR-003  | ✓ UC3.3  | UC3.3  |
+| REQ-DIR-009  | The `..` row shall navigate to the parent directory when activated.                                           | UFR-DIR-004  | ✓ UC3.3  | UC3.3  |
+| REQ-DIR-010  | Activating a file (ENTER/SPACE) shall write its full path to `ptLineCtx->szSelected`.                        | UFR-DIR-002  | ✓ UC3.3  | UC3.3  |
+| REQ-DIR-011  | The window title shall be updated to `"ST4Ever - Dir: <path>"` at open and on each navigation.               | UFR-GUI-006  | ✓ UC3.3  | UC3.3  |
+| REQ-DIR-012  | Arrow keys (↑↓ PgUp/PgDn Home End) shall move selection and guarantee it remains visible (scroll-to-sel).    | UFR-DIR-001  | ✓ UC3.3  | UC3.3  |
+| REQ-DIR-013  | Mouse wheel scroll shall update `iScrollOffset` clamped to `[0, max(0, iFlatCount+1 − iVisRows)]`.           | UFR-DIR-001  | ✓ UC3.3  | UC3.3  |
+| REQ-CON-011  | `line_run()` shall dispatch `dir` / `d` / CTRL+D to `line_cmd_dir()`.                                        | UFR-CON-040  | ✓ UC3.3  | UC3.3  |
+
+---
 
 ### 2.6 Disassembler — `disassemble.h` / `disassemble.c`
 
@@ -329,13 +373,14 @@ requirement that will expose it (`UFR-EXE-*`, planned UC21–27).
 | From subsystem       | To subsystem          | Interface / data exchanged                            | Status   |
 |----------------------|-----------------------|-------------------------------------------------------|----------|
 | Console Interface    | Trace Subsystem       | `trace_open/close()`, `LOG_*` macros                  | ✓ UC1    |
-| Console Interface    | GUI Framework         | `gui_open_window(desc)` per view command              | TODO UC3.3|
+| Console Interface    | GUI Framework         | `gui_open_window(desc)` per view command              | ✓ UC3.3   |
 | GUI Framework        | ST Machine Emulator   | `st_read/write_byte/word/long()`                      | TODO UC25 |
 | GUI Framework        | Disassembler          | `disasm_range()` for hex+asm view sync                | TODO UC10 |
 | ST Machine Emulator  | CPU 68000             | `cpu_init()`, `cpu_step()`, shared `st_machine_t*`    | TODO UC21 |
 | Console Interface    | Platform Layer        | `win_console_init()` at startup                       | ✓ UC1     |
 | GUI Framework        | Platform Layer        | `gui_open_window()` → `gui_platform_window_create()`  | ✓ UC3.1   |
-| GUI Framework        | Renderer              | `renderer_begin/end_draw()`, draw primitives          | TODO UC3.2|
+| GUI Framework        | Renderer              | `renderer_begin/end_draw()`, draw primitives          | ✓ UC3.2   |
+| Directory View       | GUI Framework         | `gui_set_title()`, `gui_invalidate()` (R18)           | ✓ UC3.3   |
 
 ### 3.3 Threading model (CLAUDE.md R4)
 
@@ -611,20 +656,215 @@ page UTF-8.  Failures are non-fatal (mintty has no real Win32 HANDLE).
 
 ---
 
-### 4.8 Placeholder Components (stubs)
+### 4.8 GUI Framework — `gui.c` / `gui_backend.h` / `win_gui.c` / `lx_gui.c`
 
-| Component                    | File(s)                                                             | Planned UC | Status   |
-|------------------------------|---------------------------------------------------------------------|------------|----------|
-| GUI Framework                | `gui.c`, `win_gui.c`, `lx_gui.c`, `gui_backend.h`                 | UC3.1      | ✓ UC3.1  |
-| 2D Renderer                  | `renderer.c`, `win_D2D.c`, `lx_X11.c`                             | UC3.2      | stub     |
-| Directory View               | `dir.c`                                                             | UC3.3      | stub     |
-| Text Editor View             | `edit_txt.c`                                                        | UC8        |
-| Hex/ASCII Editor View        | `edit_hex.c`                                                        | UC9        |
-| Integrated Editor Dispatcher | `edit.c`                                                            | UC10       |
-| Floppy Mount                 | `mount.c`                                                           | UC18       |
-| Execution Engine             | `exec.c`, `exec_mon.c`, `exec_cpu.c`, `exec_mem.c`, `exec_screen.c`| UC25       |
-| DEVPAC3 Assembler            | `as.c`                                                              | UC30       |
-| Platform Thread/Mutex        | `win_platform.c`, `lx_platform.c`                                  | UC3.1      | ✓ UC3.1  |
+**Role:** portable window lifecycle, thread-safe message queue, and event
+routing.  `gui.c` is the portable layer; `gui_backend.h` is the private
+interface between `gui.c` and platform backends (`win_gui.c` / `lx_gui.c`).
+Each view (dir, edit, mount…) maps to one `gui_window_t` running in its own
+thread.
+
+**Public API:**
+
+| Function                                  | REQ(s)                        | Description                                              |
+|-------------------------------------------|-------------------------------|----------------------------------------------------------|
+| `gui_init()`                              | REQ-GUI-001, REQ-GUI-002      | Register WNDCLASS / open X11 display; idempotent         |
+| `gui_open_window(ptDesc, phWnd)`          | REQ-GUI-003, REQ-GUI-004      | Spawn thread; wait for HWND live; add to registry        |
+| `gui_close_window(hWnd)`                  | REQ-GUI-005, REQ-GUI-006      | PostMessageA(WM_CLOSE); join thread; free window struct  |
+| `gui_invalidate(hWnd)`                    | —                             | InvalidateRect → triggers WM_PAINT                       |
+| `gui_get_size(hWnd, piW, piH)`            | —                             | GetClientRect → client area dimensions                   |
+| `gui_shutdown()`                          | REQ-GUI-007, REQ-GUI-008      | Close all windows; UnregisterClass; destroy list mutex   |
+| `gui_set_title(hWnd, szTitle)`            | REQ-GUI-017, REQ-GUI-018      | Update OS title bar (R18); delegates to platform backend |
+| `gui_msg_create(pphQ, cap)`               | REQ-GUI-009, REQ-GUI-010      | Allocate circular event buffer + mutex                   |
+| `gui_msg_post(hQ, ptEvt)`                 | REQ-GUI-011, REQ-GUI-012      | Append event; ST_ERROR if full (non-blocking)            |
+| `gui_msg_get(hQ, ptEvt, bBlock)`          | REQ-GUI-013                   | Dequeue; spin-wait 1 ms if bBlock=TRUE (TODO UC4: cond var) |
+| `gui_msg_destroy(pphQ)`                   | REQ-GUI-014                   | Free buffer + mutex; set handle NULL                     |
+
+**Platform backend (internal — gui_backend.h):**
+
+| Function                                  | Description                                                        |
+|-------------------------------------------|--------------------------------------------------------------------|
+| `gui_platform_init()`                     | RegisterClassEx "ST4EverView" (Win32) / XOpenDisplay (Linux)       |
+| `gui_platform_window_create(ptWnd)`       | CreateThread + Win32 Event sync (≤ 5 s); thread runs GetMessage loop |
+| `gui_platform_window_close(ptWnd)`        | PostMessageA(WM_CLOSE)                                             |
+| `gui_platform_window_invalidate(ptWnd)`   | InvalidateRect(NULL, FALSE)                                        |
+| `gui_platform_window_get_size(ptWnd, …)` | GetClientRect                                                      |
+| `gui_platform_window_set_title(ptWnd, sz)`| SetWindowTextA (Win32) / XStoreName (Linux)                       |
+| `gui_platform_get_native_handle(ptWnd)`   | Returns HWND for renderer attachment                               |
+| `gui_platform_shutdown()`                 | UnregisterClass (Win32) / XCloseDisplay (Linux)                    |
+
+**WndProc event translation (Win32 → gui_event_t):**
+
+| Win32 message    | gui_event_t produced                                    |
+|------------------|---------------------------------------------------------|
+| WM_PAINT         | GUI_EVT_PAINT                                           |
+| WM_KEYDOWN       | GUI_EVT_KEY_DOWN (mapped to gui_key_t)                  |
+| WM_CHAR          | GUI_EVT_KEY_DOWN (GUI_KEY_PRINTABLE + cChar)            |
+| WM_LBUTTONDOWN   | GUI_EVT_MOUSE_DOWN (LEFT, iX, iY)                       |
+| WM_RBUTTONDOWN   | GUI_EVT_MOUSE_DOWN (RIGHT, iX, iY)                      |
+| WM_LBUTTONUP     | GUI_EVT_MOUSE_UP                                        |
+| WM_MOUSEMOVE     | GUI_EVT_MOUSE_MOVE                                      |
+| WM_MOUSEWHEEL    | GUI_EVT_SCROLL (iDelta = GET_WHEEL_DELTA_WPARAM / WHEEL_DELTA) |
+| WM_SIZE          | GUI_EVT_RESIZE (iWidth, iHeight from lParam)            |
+| WM_CLOSE→DESTROY | GUI_EVT_CLOSE                                           |
+
+**External dependencies:**
+
+| Call                                                  | Tag   | Purpose                              |
+|-------------------------------------------------------|-------|--------------------------------------|
+| `CreateThread / WaitForSingleObject / CloseHandle`    | [WIN] | Window thread lifecycle              |
+| `CreateEvent / SetEvent`                              | [WIN] | Window-ready synchronisation signal  |
+| `RegisterClassEx / CreateWindowEx / ShowWindow`       | [WIN] | Window creation                      |
+| `GetMessage / TranslateMessage / DispatchMessage`     | [WIN] | Win32 message pump                   |
+| `PostMessageA / InvalidateRect / GetClientRect`       | [WIN] | Window control                       |
+| `SetWindowTextA`                                      | [WIN] | Dynamic title (R18)                  |
+| `platform_mutex_create/lock/unlock/destroy`           | [ST4] | List mutex + queue mutex             |
+| `malloc / free / memset`                              | [CRT] | Window struct and queue allocation   |
+
+---
+
+### 4.9 2D Renderer — `renderer.c` / `win_D2D.c` / `lx_X11.c`
+
+**Role:** portable 2D drawing abstraction. `renderer.c` provides NULL-guard
+wrappers and the public API. `win_D2D.c` implements Direct2D and DirectWrite
+via COM pure C (COBJMACROS + INITGUID — no C++ wrapper). `lx_X11.c` is a
+stub (TODO UC3-Linux).
+
+**Public API:**
+
+| Function                                                      | REQ(s)      | Description                                                  |
+|---------------------------------------------------------------|-------------|--------------------------------------------------------------|
+| `renderer_create(pHandle, pNativeWnd)`                        | REQ-RND-001, REQ-RND-002 | Allocate D2D factory + HwndRenderTarget + DirectWrite text format |
+| `renderer_begin_draw(hRnd)`                                   | REQ-RND-003 | `ID2D1HwndRenderTarget::BeginDraw()`                         |
+| `renderer_end_draw(hRnd)`                                     | REQ-RND-003 | `EndDraw()`; recreate target on D2DERR_RECREATE_TARGET       |
+| `renderer_fill_rect(hRnd, rect, clr)`                         | REQ-RND-004 | `FillRectangle()` with solid brush                           |
+| `renderer_draw_rect(hRnd, rect, clr, fStrokeW)`               | REQ-RND-004 | `DrawRectangle()` outline                                    |
+| `renderer_draw_line(hRnd, x0,y0,x1,y1, clr, fW)`             | REQ-RND-004 | `DrawLine()`                                                 |
+| `renderer_draw_text(hRnd, szText, fX, fY, clr)`               | REQ-RND-004 | `DrawText()` with Courier New 13 pt monospace                |
+| `renderer_draw_bitmap(hRnd, …)`                               | REQ-RND-004 | `DrawBitmap()` for ST screen blit (TODO UC26)                |
+| `renderer_resize(hRnd, iW, iH)`                               | REQ-RND-005 | `Resize()` on render target (WM_SIZE)                        |
+| `renderer_get_font_metrics(hRnd, piCellW, piCellH)`           | REQ-RND-007 | Query monospace cell dimensions for text-grid layout         |
+| `renderer_destroy(pHandle)`                                   | REQ-RND-006 | Release all COM objects; safe no-op if NULL                  |
+
+**Initialisation sequence:**
+
+```
+renderer_create(pHandle, hWnd)
+  ├─ D2D1CreateFactory()              [WIN] — singleton, shared by all renderers
+  ├─ DWriteCreateFactory()            [WIN] — singleton
+  ├─ CreateTextFormat("Courier New", 13 pt, BOLD) [WIN]
+  ├─ CreateHwndRenderTarget(hWnd, size) [WIN]
+  └─ measure cell size via GetDesignGlyphMetrics → iCellW, iCellH
+```
+
+**External dependencies (win_D2D.c):**
+
+| Call                                       | Tag   | Purpose                           |
+|--------------------------------------------|-------|-----------------------------------|
+| `D2D1CreateFactory`                        | [WIN] | Create ID2D1Factory               |
+| `DWriteCreateFactory`                      | [WIN] | Create IDWriteFactory             |
+| `CreateHwndRenderTarget`                   | [WIN] | Bind D2D to HWND                  |
+| `CreateTextFormat`                         | [WIN] | Courier New 13 pt monospace       |
+| `CoInitializeEx / CoUninitialize`          | [WIN] | COM initialisation per thread     |
+| `malloc / free`                            | [CRT] | Renderer struct allocation        |
+
+**TODO(UC26):** `renderer_draw_bitmap` for Atari ST screen surface blit.
+
+---
+
+### 4.10 Directory View — `dir.c`
+
+**Role:** file-system tree scan, flat render list, D2D rendering, and
+keyboard/mouse/scroll event handling. Opens as a `GUI_WND_DIR` window via
+`gui_open_window()`.  Implements the `dir` / `d` / CTRL+D command.
+
+**Public API:**
+
+| Function                           | REQ(s)                    | Description                                              |
+|------------------------------------|---------------------------|----------------------------------------------------------|
+| `dir_open(szPath, ptLineCtx, pptView)` | REQ-DIR-001..005      | Alloc view, scan root, open GUI window (blocks until HWND live) |
+| `dir_close(pptView)`               | REQ-DIR-006, REQ-DIR-007  | Close window (join thread), free tree + flat list, *pptView=NULL |
+
+**Key internal functions:**
+
+| Function                                                        | REQ(s)       | Description                                                      |
+|-----------------------------------------------------------------|--------------|------------------------------------------------------------------|
+| `dir_node_load_children(ptNode)`                                | REQ-DIR-005  | Win32 two-pass FindFirstFileA (dirs first, then files); non-fatal on access-denied |
+| `dir_flat_rebuild(ptView)`                                      | REQ-DIR-005  | Reset flat array; call `dir_flat_rebuild_rec()` from root        |
+| `dir_flat_rebuild_rec(ptView, ptNode, iDepth, bLast, uiMask)`   | —            | DFS → flat array; propagates `uiLastMask` bitmask per entry      |
+| `dir_build_prefix(ptEntry, szBuf, uiMax)`                       | —            | ASCII connector from `uiLastMask`: `\-- ` / `+-- ` / `\|   ` / `    ` |
+| `dir_render(ptView)`                                            | —            | D2D: bg + selection rect + `..` row (yellow) + flat entries      |
+| `dir_event_callback(hWnd, ptEvent, pCtx)`                       | REQ-DIR-008..013 | GUI_EVT_PAINT / RESIZE / KEY_DOWN / MOUSE_DOWN / SCROLL / CLOSE |
+| `dir_handle_key(ptView, eKey)`                                  | REQ-DIR-012  | ↑↓ PgUp/PgDn Home End ENTER SPACE → selection + scroll          |
+| `dir_handle_click(ptView, iX, iY)`                              | REQ-DIR-008  | Left-click: select + toggle expand/collapse on dirs              |
+| `dir_handle_scroll(ptView, iDelta)`                             | REQ-DIR-013  | Clamp `iScrollOffset`                                            |
+| `dir_activate_sel(ptView)`                                      | REQ-DIR-008..010 | `..` → navigate up; dir → toggle; file → set szSelected      |
+| `dir_navigate_up(ptView)`                                       | REQ-DIR-009  | Free tree, reload from parent path, rebuild flat list            |
+| `dir_scroll_to_sel(ptView)`                                     | REQ-DIR-012  | Ensure selected row is within visible range                      |
+| `dir_get_parent_path(szIn, szOut, uiMax)`                       | —            | Strip last component; special-case Windows drive root `"C:\"`   |
+
+**Flat list data model:**
+
+```
+dir_node_t (tree)           dir_flat_entry_t (O(1) render list)
+─────────────────           ───────────────────────────────────
+szName                 ──►  ptNode
+bIsDir                       iDepth
+bChildrenLoaded              bLastSibling
+aptChildren[]                uiLastMask  ← bit i=1 if ancestor[i] was last sibling
+iChildCount
+```
+
+`iSelectedFlat` convention: `-2` = nothing; `-1` = `..` row; `≥ 0` = `aptFlat[i]`.
+
+**External dependencies:**
+
+| Call                                             | Tag       | Purpose                                 |
+|--------------------------------------------------|-----------|-----------------------------------------|
+| `FindFirstFileA / FindNextFileA / FindClose`     | [WIN]     | Directory scan (two passes)             |
+| `opendir / readdir / closedir`                   | [POX]     | Directory scan (Linux stub)             |
+| `getcwd`                                         | [POX/CRT] | Resolve NULL path to cwd                |
+| `renderer_*`                                     | [ST4]     | All drawing primitives                  |
+| `gui_open_window / gui_close_window`             | [ST4]     | Window lifecycle                        |
+| `gui_set_title`                                  | [ST4]     | Dynamic title R18                       |
+| `malloc / free / memset / strncpy / snprintf`    | [CRT]     | Tree node and string management         |
+
+**Thread model:**
+
+```
+Console thread                       Window thread (dir)
+──────────────                       ───────────────────
+dir_open()
+  ├─ malloc(dir_view_t + aptFlat)
+  ├─ dir_node_load_children(root)    (root children only — lazy)
+  ├─ dir_flat_rebuild()
+  └─ gui_open_window() ────────────► WndProc → dir_event_callback()
+       blocks until HWND live            GUI_EVT_PAINT  → renderer_create (lazy)
+                                         GUI_EVT_KEY_DOWN → dir_handle_key()
+Console thread does NOT               GUI_EVT_MOUSE_DOWN → dir_handle_click()
+access ptView after open               GUI_EVT_CLOSE  → renderer_destroy()
+until dir_close() is called.
+```
+
+**TODO(UC4):** mutex on `line_context_t` to protect `szSelected` write from window thread.
+**TODO(UC7/UC18):** right-click context menu on file / directory.
+
+---
+
+### 4.11 Placeholder Components (stubs)
+
+| Component                    | File(s)                                                              | Planned UC | Status    |
+|------------------------------|----------------------------------------------------------------------|------------|-----------|
+| GUI Framework                | `gui.c`, `win_gui.c`, `lx_gui.c`, `gui_backend.h`                  | UC3.1      | ✓ UC3.1 §4.8 |
+| 2D Renderer                  | `renderer.c`, `win_D2D.c`, `lx_X11.c`                              | UC3.2      | ✓ UC3.2 §4.9 |
+| Directory View               | `dir.c`                                                              | UC3.3      | ✓ UC3.3 §4.10|
+| Platform Thread/Mutex        | `win_platform.c`, `lx_platform.c`                                   | UC3.1      | ✓ UC3.1   |
+| Text Editor View             | `edit_txt.c`                                                         | UC8        | stub      |
+| Hex/ASCII Editor View        | `edit_hex.c`                                                         | UC9        | stub      |
+| Integrated Editor Dispatcher | `edit.c`                                                             | UC10       | stub      |
+| Floppy Mount                 | `mount.c`                                                            | UC18       | stub      |
+| Execution Engine             | `exec.c`, `exec_mon.c`, `exec_cpu.c`, `exec_mem.c`, `exec_screen.c` | UC25       | stub      |
+| DEVPAC3 Assembler            | `as.c`                                                               | UC30       | stub      |
 
 ---
 
@@ -791,8 +1031,12 @@ Input: `{ 0x70, 0x2A, 0x4E, 0x75 }` at base `0x1000`
 | UFR-TRC-005  | REQ-TRC-004                     | INT-TRC-003            | TC-TRC-003                     | ✓ PASS       |
 | UFR-TRC-006  | REQ-TRC-009..011                | INT-TRC-008, INT-TRC-009 | TC-TRC-008, TC-TRC-009       | ✓ PASS       |
 | UFR-TRC-007  | REQ-TRC-014                     | —                      | —                              | TODO UC3     |
-| UFR-CON-040..091 | —                           | —                      | —                              | TODO UCx     |
-| UFR-DIR-001..006 | —                           | —                      | —                              | TODO UC3     |
+| UFR-CON-040      | REQ-CON-011, REQ-DIR-001..007 | INT-DIR-001..010     | TC-DIR-001..016                | ✓ UC3.3      |
+| UFR-CON-050..091 | —                           | —                      | —                              | TODO UCx     |
+| UFR-GUI-005      | REQ-RND-001..007            | INT-RND-001..007       | TC-RND-001..020                | ✓ UC3.2      |
+| UFR-GUI-006      | REQ-GUI-017, REQ-DIR-011    | —                      | TC-DIR-018 (manual)            | ✓ UC3.3      |
+| UFR-DIR-001..004 | REQ-DIR-001..013            | INT-DIR-001..010       | TC-DIR-001..020                | ✓ UC3.3      |
+| UFR-DIR-005..006 | —                           | —                      | —                              | TODO UC7/UC18|
 
 #### REQ → TC coverage (UC1)
 
@@ -971,6 +1215,142 @@ Source: `use_cases/use_case_03_1.c`
 | REQ-GUI-015  | TC-GUI-018                      | SKIP       |
 | REQ-GUI-016  | —                               | TODO UC3.2 |
 
+---
+
+### 5.12 INTENT Catalog — UC3.2
+
+Source: `use_cases/use_case_03_2.c`
+
+| ID          | INTENT text                                                                                |
+|-------------|--------------------------------------------------------------------------------------------|
+| INT-RND-001 | renderer_create with valid window handle succeeds and returns non-NULL handle              |
+| INT-RND-002 | renderer_create with NULL parameters returns ST_ERROR                                      |
+| INT-RND-003 | begin_draw / end_draw on valid renderer succeed without crash                              |
+| INT-RND-004 | draw primitives (fill_rect, draw_rect, draw_line, draw_text) accept NULL renderer → ST_ERROR |
+| INT-RND-005 | renderer_resize with new dimensions does not crash or leak                                 |
+| INT-RND-006 | renderer_get_font_metrics returns positive cell width and height                           |
+| INT-RND-007 | renderer_destroy(NULL) is safe; destroy(valid) releases all COM objects cleanly           |
+
+### 5.13 Test Cases — UC3.2 (2D renderer)
+
+Source: `use_cases/use_case_03_2.c`
+
+| ID          | Functional description                               | Type | UFR         | REQ          | INTENT      | Expected outcome                                                | Status     |
+|-------------|------------------------------------------------------|------|-------------|--------------|-------------|-----------------------------------------------------------------|------------|
+| TC-RND-001  | renderer_create with valid window → ST_NO_ERROR      | [N]  | UFR-GUI-005 | REQ-RND-002  | INT-RND-001 | handle ≠ NULL                                                   | PASS UC3.2 |
+| TC-RND-002  | renderer_create(NULL, *) → ST_ERROR                  | [R]  | UFR-GUI-005 | REQ-RND-001  | INT-RND-002 | ST_ERROR; handle stays NULL                                     | PASS UC3.2 |
+| TC-RND-003  | renderer_create(*, NULL) → ST_ERROR                  | [R]  | UFR-GUI-005 | REQ-RND-001  | INT-RND-002 | ST_ERROR                                                        | PASS UC3.2 |
+| TC-RND-004  | begin_draw + end_draw on valid renderer              | [N]  | UFR-GUI-005 | REQ-RND-003  | INT-RND-003 | both return ST_NO_ERROR                                         | PASS UC3.2 |
+| TC-RND-005  | begin_draw(NULL) → ST_ERROR                          | [R]  | UFR-GUI-005 | REQ-RND-003  | INT-RND-004 | ST_ERROR                                                        | PASS UC3.2 |
+| TC-RND-006  | end_draw(NULL) → ST_ERROR                            | [R]  | UFR-GUI-005 | REQ-RND-003  | INT-RND-004 | ST_ERROR                                                        | PASS UC3.2 |
+| TC-RND-007  | fill_rect(NULL, …) → ST_ERROR                        | [R]  | UFR-GUI-005 | REQ-RND-004  | INT-RND-004 | ST_ERROR                                                        | PASS UC3.2 |
+| TC-RND-008  | draw_rect(NULL, …) → ST_ERROR                        | [R]  | UFR-GUI-005 | REQ-RND-004  | INT-RND-004 | ST_ERROR                                                        | PASS UC3.2 |
+| TC-RND-009  | draw_line(NULL, …) → ST_ERROR                        | [R]  | UFR-GUI-005 | REQ-RND-004  | INT-RND-004 | ST_ERROR                                                        | PASS UC3.2 |
+| TC-RND-010  | draw_text(NULL, …) → ST_ERROR                        | [R]  | UFR-GUI-005 | REQ-RND-004  | INT-RND-004 | ST_ERROR                                                        | PASS UC3.2 |
+| TC-RND-011  | resize(NULL, …) → ST_ERROR                           | [R]  | UFR-GUI-005 | REQ-RND-005  | INT-RND-005 | ST_ERROR                                                        | PASS UC3.2 |
+| TC-RND-012  | get_font_metrics: cell W > 0 and H > 0               | [N]  | UFR-GUI-005 | REQ-RND-007  | INT-RND-006 | iCellW > 0; iCellH > 0                                          | PASS UC3.2 |
+| TC-RND-013  | get_font_metrics(NULL, …) → ST_ERROR                 | [R]  | UFR-GUI-005 | REQ-RND-007  | INT-RND-006 | ST_ERROR                                                        | PASS UC3.2 |
+| TC-RND-014  | renderer_destroy(NULL) → no crash                    | [R]  | UFR-GUI-005 | REQ-RND-006  | INT-RND-007 | no crash; safe no-op                                            | PASS UC3.2 |
+| TC-RND-015  | renderer_destroy(valid) → ST_NO_ERROR                | [N]  | UFR-GUI-005 | REQ-RND-006  | INT-RND-007 | ST_NO_ERROR; COM released                                       | PASS UC3.2 |
+| TC-RND-016  | D2D draw scene renders (visual — make manual)        | [S]  | UFR-GUI-005 | REQ-RND-002  | INT-RND-001 | coloured rectangles + text visible in window                    | SKIP       |
+| TC-RND-017  | resize redraws correctly (visual — make manual)      | [S]  | UFR-GUI-005 | REQ-RND-005  | INT-RND-005 | content scales after resize                                     | SKIP       |
+| TC-RND-018  | font metrics match actual render (visual)            | [S]  | UFR-GUI-005 | REQ-RND-007  | INT-RND-006 | text aligns on cell grid                                        | SKIP       |
+| TC-RND-019  | full scene: fill + rect + line + text (visual)       | [S]  | UFR-GUI-005 | REQ-RND-004  | INT-RND-003 | all primitives visible and correctly coloured                   | SKIP       |
+| TC-RND-020  | destroy + recreate renderer (visual)                 | [S]  | UFR-GUI-005 | REQ-RND-006  | INT-RND-007 | second create succeeds; first destroy releases cleanly          | SKIP       |
+
+#### Test Summary — UC3.2
+
+| Module | [N] | [R] | [S] | Total | Result    |
+|--------|-----|-----|-----|-------|-----------|
+| RND    | 7   | 10  | 5   | 22    | ALL PASS  |
+
+#### REQ → TC coverage (UC3.2)
+
+| REQ          | TC(s)                               | Status    |
+|--------------|-------------------------------------|-----------|
+| REQ-RND-001  | TC-RND-002, TC-RND-003              | ✓ PASS    |
+| REQ-RND-002  | TC-RND-001, TC-RND-016              | ✓ PASS    |
+| REQ-RND-003  | TC-RND-004..006                     | ✓ PASS    |
+| REQ-RND-004  | TC-RND-007..010, TC-RND-019         | ✓ PASS    |
+| REQ-RND-005  | TC-RND-011, TC-RND-017              | ✓ PASS    |
+| REQ-RND-006  | TC-RND-014, TC-RND-015, TC-RND-020  | ✓ PASS    |
+| REQ-RND-007  | TC-RND-012, TC-RND-013, TC-RND-018  | ✓ PASS    |
+
+---
+
+### 5.14 INTENT Catalog — UC3.3
+
+Source: `use_cases/use_case_03_3.c`
+
+| ID          | INTENT text                                                                              |
+|-------------|------------------------------------------------------------------------------------------|
+| INT-DIR-001 | dir_open with valid path returns ST_NO_ERROR and a non-NULL view                         |
+| INT-DIR-002 | after dir_open, root and flat list are initialised (ptRoot non-NULL, iFlatCount >= 0)    |
+| INT-DIR-003 | dir_close releases the view and sets the pointer to NULL                                 |
+| INT-DIR-004 | dir_open can be called again on the same path after a close (idempotent open/close cycle)|
+| INT-DIR-005 | NULL ptLineCtx must be rejected before any side effect                                   |
+| INT-DIR-006 | NULL pptView must be rejected before any side effect                                     |
+| INT-DIR-007 | both NULL parameters must be rejected                                                    |
+| INT-DIR-008 | dir_close(NULL) must be rejected                                                         |
+| INT-DIR-009 | dir_close(&NULL) is idempotent (view already closed — safe no-op)                        |
+| INT-DIR-010 | non-existent path opens with an empty tree (non-fatal scan failure)                      |
+
+### 5.15 Test Cases — UC3.3 (directory tree view)
+
+Source: `use_cases/use_case_03_3.c`
+
+| ID          | Functional description                                      | Type | UFR          | REQ          | INTENT      | Expected outcome                                                | Status     |
+|-------------|-------------------------------------------------------------|------|--------------|--------------|-------------|-----------------------------------------------------------------|------------|
+| TC-DIR-001  | dir_open(valid path) → ST_NO_ERROR                          | [N]  | UFR-DIR-001  | REQ-DIR-001..004 | INT-DIR-001 | ST_NO_ERROR; ptView ≠ NULL                               | PASS UC3.3 |
+| TC-DIR-002  | after dir_open: *pptView != NULL                            | [N]  | UFR-DIR-001  | REQ-DIR-004  | INT-DIR-001 | ptView ≠ NULL                                                   | PASS UC3.3 |
+| TC-DIR-003  | after dir_open: ptRoot != NULL                              | [N]  | UFR-DIR-001  | REQ-DIR-004  | INT-DIR-002 | ptView->ptRoot ≠ NULL                                           | PASS UC3.3 |
+| TC-DIR-004  | after dir_open: szRootPath non-empty                        | [N]  | UFR-DIR-001  | REQ-DIR-004  | INT-DIR-002 | szRootPath[0] ≠ '\0'                                            | PASS UC3.3 |
+| TC-DIR-005  | after dir_open: iFlatCount >= 0                             | [N]  | UFR-DIR-001  | REQ-DIR-005  | INT-DIR-002 | iFlatCount ≥ 0                                                  | PASS UC3.3 |
+| TC-DIR-006  | dir_close(valid view) → ST_NO_ERROR                         | [N]  | UFR-DIR-001  | REQ-DIR-006, REQ-DIR-007 | INT-DIR-003 | ST_NO_ERROR                                   | PASS UC3.3 |
+| TC-DIR-007  | after dir_close: *pptView == NULL                           | [N]  | UFR-DIR-001  | REQ-DIR-007  | INT-DIR-003 | ptView == NULL                                                  | PASS UC3.3 |
+| TC-DIR-008  | dir_open second time on same path → ST_NO_ERROR             | [N]  | UFR-DIR-001  | REQ-DIR-001  | INT-DIR-004 | second open succeeds                                            | PASS UC3.3 |
+| TC-DIR-009  | dir_open(NULL ptLineCtx) → ST_ERROR                         | [R]  | UFR-DIR-001  | REQ-DIR-001  | INT-DIR-005 | ST_ERROR; *pptView unchanged (NULL)                             | PASS UC3.3 |
+| TC-DIR-010  | dir_open(NULL ptLineCtx): *pptView unchanged                | [R]  | UFR-DIR-001  | REQ-DIR-001  | INT-DIR-005 | *pptView stays NULL                                             | PASS UC3.3 |
+| TC-DIR-011  | dir_open(NULL pptView) → ST_ERROR                           | [R]  | UFR-DIR-001  | REQ-DIR-001  | INT-DIR-006 | ST_ERROR                                                        | PASS UC3.3 |
+| TC-DIR-012  | dir_open(NULL, NULL) → ST_ERROR                             | [R]  | UFR-DIR-001  | REQ-DIR-001  | INT-DIR-007 | ST_ERROR                                                        | PASS UC3.3 |
+| TC-DIR-013  | dir_close(NULL) → ST_ERROR                                  | [R]  | UFR-DIR-001  | REQ-DIR-006  | INT-DIR-008 | ST_ERROR                                                        | PASS UC3.3 |
+| TC-DIR-014  | dir_close(&NULL) → ST_NO_ERROR (idempotent)                 | [R]  | UFR-DIR-001  | REQ-DIR-006  | INT-DIR-009 | ST_NO_ERROR                                                     | PASS UC3.3 |
+| TC-DIR-015  | dir_open(non-existent) → ST_NO_ERROR + empty tree           | [R]  | UFR-DIR-001  | REQ-DIR-003  | INT-DIR-010 | ST_NO_ERROR; iFlatCount == 0  ADAPTED(UC6)                      | PASS UC3.3 |
+| TC-DIR-016  | non-existent: iFlatCount == 0                               | [R]  | UFR-DIR-001  | REQ-DIR-003  | INT-DIR-010 | iFlatCount == 0                                                 | PASS UC3.3 |
+| TC-DIR-017  | ASCII tree visible in window (visual)                       | [S]  | UFR-DIR-001  | REQ-DIR-004  | INT-DIR-001 | tree lines and file names rendered (make manual)                | SKIP       |
+| TC-DIR-018  | selected row shows highlight rect (visual)                  | [S]  | UFR-DIR-002  | REQ-DIR-012  | INT-DIR-002 | blue rect behind selected item (make manual)                    | SKIP       |
+| TC-DIR-019  | arrow keys move selection and scroll (visual)               | [S]  | UFR-DIR-001  | REQ-DIR-012  | INT-DIR-002 | navigation via ↑↓ PgUp/PgDn Home End (make manual)             | SKIP       |
+| TC-DIR-020  | left-click on dir expands/collapses (visual)                | [S]  | UFR-DIR-003  | REQ-DIR-008  | INT-DIR-002 | expand reveals children; click again collapses (make manual)    | SKIP       |
+
+#### Test Summary — UC3.3
+
+| Module | [N] | [R] | [S] | Total | Result    |
+|--------|-----|-----|-----|-------|-----------|
+| DIR    | 8   | 8   | 4   | 20    | ALL PASS  |
+
+#### REQ → TC coverage (UC3.3)
+
+| REQ          | TC(s)                                   | Status    |
+|--------------|-----------------------------------------|-----------|
+| REQ-DIR-001  | TC-DIR-001, TC-DIR-009..012             | ✓ PASS    |
+| REQ-DIR-002  | (NULL path → cwd — manual `dir` verify) | ✓ PASS    |
+| REQ-DIR-003  | TC-DIR-015, TC-DIR-016                  | ✓ PASS    |
+| REQ-DIR-004  | TC-DIR-002..004                         | ✓ PASS    |
+| REQ-DIR-005  | TC-DIR-005                              | ✓ PASS    |
+| REQ-DIR-006  | TC-DIR-006, TC-DIR-013, TC-DIR-014      | ✓ PASS    |
+| REQ-DIR-007  | TC-DIR-007                              | ✓ PASS    |
+| REQ-DIR-008  | TC-DIR-020 (manual)                     | SKIP      |
+| REQ-DIR-009  | (manual — `..` navigation)              | SKIP      |
+| REQ-DIR-010  | (manual — file selection → szSelected)  | SKIP      |
+| REQ-DIR-011  | (manual — title bar updated)            | SKIP      |
+| REQ-DIR-012  | TC-DIR-019 (manual)                     | SKIP      |
+| REQ-DIR-013  | (manual — mouse wheel)                  | SKIP      |
+| REQ-CON-011  | TC-DIR-001 (line_cmd_dir dispatched)    | ✓ PASS    |
+| REQ-GUI-017  | (gui_set_title NULL params — TC-GUI-x)  | ✓ PASS    |
+| REQ-GUI-018  | (manual — title bar visible)            | SKIP      |
+
+---
+
 #### UFR traceability update (UC2 + UC3.1)
 
 | UFR              | REQ(s)           | TC(s)                              | Status     |
@@ -986,13 +1366,16 @@ Source: `use_cases/use_case_03_1.c`
 
 #### Open items — cumulative
 
-| Item              | TC / REQ                       | Target  | Nature                                              |
-|-------------------|--------------------------------|---------|-----------------------------------------------------|
-| STM bus error     | TC-STM-010, REQ-STM-011        | UC24    | Stub returns ST_NO_ERROR+0xFF; real map → ST_ERROR  |
-| CPU decode        | TC-CPU-006, REQ-CPU-008        | UC21    | Stub: PC+2; real decode/execute to come             |
-| Disasm DC.W       | TC-DIS-001, REQ-DIS-005        | UC11    | All opcodes → DC.W; full decode in UC11–UC14        |
-| Trace GUI window  | UFR-TRC-007, REQ-TRC-014       | UC3.3   | stderr → dedicated Win32/X11 window                 |
-| Line editor       | UFR-CON-007..009, REQ-CON-010  | UC4     | History, tab-completion, arrow navigation            |
-| D2D renderer      | UFR-GUI-005, REQ-GUI-016       | UC3.2   | win_D2D.c (COM pure C) + renderer.c portable layer  |
-| dir view          | UFR-DIR-001..004, UFR-CON-040  | UC3.3   | Tree scan + D2D rendering + navigation + selection   |
-| Window manual TC  | TC-GUI-016..018                | UC4     | Will become TEST_MANUAL when make manual is ready   |
+| Item                    | TC / REQ                       | Target   | Nature                                                           |
+|-------------------------|--------------------------------|----------|------------------------------------------------------------------|
+| STM bus error           | TC-STM-010, REQ-STM-011        | UC24     | Stub returns ST_NO_ERROR+0xFF; real map → ST_ERROR               |
+| CPU decode              | TC-CPU-006, REQ-CPU-008        | UC21     | Stub: PC+2; real decode/execute to come                          |
+| Disasm DC.W             | TC-DIS-001, REQ-DIS-005        | UC11     | All opcodes → DC.W; full decode in UC11–UC14                     |
+| Trace GUI window        | UFR-TRC-007, REQ-TRC-014       | UC3.3    | stderr → dedicated Win32/X11 window (still TODO)                 |
+| Line editor             | UFR-CON-007..009, REQ-CON-010  | UC4      | History, tab-completion, arrow navigation                        |
+| Dir context menu        | UFR-DIR-005..006               | UC7/UC18 | Right-click on file/dir → contextual commands                    |
+| szSelected race         | REQ-DIR-010                    | UC4      | Window thread writes szSelected without mutex; add in UC4        |
+| gui_msg spin-wait       | REQ-GUI-013                    | UC4      | Replace 1 ms sleep with condition variable / Win32 Event         |
+| Window manual TC        | TC-GUI-016..018                | UC4      | Will become TEST_MANUAL when make manual is ready                |
+| Dir manual TC           | TC-DIR-017..020, TC-RND-016..020| UC4     | Visual tests: make manual when TEST_MANUAL macro implemented     |
+| lx_X11 renderer         | REQ-RND-002..007               | UC3-Linux| Linux stub — X11/XRender implementation deferred                 |
