@@ -1,113 +1,113 @@
-09:24:12 [TRC ] gui_msg_create:333  pphQueue=000000e4db5ffd80 uiCapacity=4
-09:24:12 [TRC ] platform_mutex_create:28  pptMutex=0000028717371438
-09:24:12 [TRC ] gui_msg_post:392  hQueue=0000028717371410
-09:24:12 [TRC ] platform_mutex_lock:59  ptMutex=00000287173714c0
-09:24:12 [TRC ] platform_mutex_unlock:71  ptMutex=00000287173714c0
-09:24:12 [TRC ] gui_msg_get:432  hQueue=0000028717371410 bBlock=0
-09:24:12 [TRC ] platform_mutex_lock:59  ptMutex=00000287173714c0
-09:24:12 [TRC ] platform_mutex_unlock:71  ptMutex=00000287173714c0
-09:24:12 [TRC ] gui_msg_post:392  hQueue=0000028717371410
-09:24:12 [TRC ] platform_mutex_lock:59  ptMutex=00000287173714c0
-09:24:12 [TRC ] platform_mutex_unlock:71  ptMutex=00000287173714c0
-09:24:12 [TRC ] gui_msg_post:392  hQueue=0000028717371410
-09:24:12 [TRC ] platform_mutex_lock:59  ptMutex=00000287173714c0
-09:24:12 [TRC ] platform_mutex_unlock:71  ptMutex=00000287173714c0
-09:24:12 [TRC ] gui_msg_get:432  hQueue=0000028717371410 bBlock=0
-09:24:12 [TRC ] platform_mutex_lock:59  ptMutex=00000287173714c0
-09:24:12 [TRC ] platform_mutex_unlock:71  ptMutex=00000287173714c0
-09:24:12 [TRC ] gui_msg_get:432  hQueue=0000028717371410 bBlock=0
-09:24:12 [TRC ] platform_mutex_lock:59  ptMutex=00000287173714c0
-09:24:12 [TRC ] platform_mutex_unlock:71  ptMutex=00000287173714c0
-09:24:12 [TRC ] gui_msg_post:392  hQueue=0000028717371410
-09:24:12 [TRC ] platform_mutex_lock:59  ptMutex=00000287173714c0
-09:24:12 [TRC ] platform_mutex_unlock:71  ptMutex=00000287173714c0
-09:24:12 [TRC ] gui_msg_post:392  hQueue=0000028717371410
-09:24:12 [TRC ] platform_mutex_lock:59  ptMutex=00000287173714c0
-09:24:12 [TRC ] platform_mutex_unlock:71  ptMutex=00000287173714c0
-09:24:12 [TRC ] gui_msg_post:392  hQueue=0000028717371410
-09:24:12 [TRC ] platform_mutex_lock:59  ptMutex=00000287173714c0
-09:24:12 [TRC ] platform_mutex_unlock:71  ptMutex=00000287173714c0
-09:24:12 [TRC ] gui_msg_post:392  hQueue=0000028717371410
-09:24:12 [TRC ] platform_mutex_lock:59  ptMutex=00000287173714c0
-09:24:12 [TRC ] platform_mutex_unlock:71  ptMutex=00000287173714c0
-09:24:12 [TRC ] gui_msg_get:432  hQueue=0000028717371410 bBlock=0
-09:24:12 [TRC ] platform_mutex_lock:59  ptMutex=00000287173714c0
-09:24:12 [TRC ] platform_mutex_unlock:71  ptMutex=00000287173714c0
-09:24:12 [TRC ] gui_msg_get:432  hQueue=0000028717371410 bBlock=0
-09:24:12 [TRC ] platform_mutex_lock:59  ptMutex=00000287173714c0
-09:24:12 [TRC ] platform_mutex_unlock:71  ptMutex=00000287173714c0
-09:24:12 [TRC ] gui_msg_get:432  hQueue=0000028717371410 bBlock=0
-09:24:12 [TRC ] platform_mutex_lock:59  ptMutex=00000287173714c0
-09:24:12 [TRC ] platform_mutex_unlock:71  ptMutex=00000287173714c0
-09:24:12 [TRC ] gui_msg_get:432  hQueue=0000028717371410 bBlock=0
-09:24:12 [TRC ] platform_mutex_lock:59  ptMutex=00000287173714c0
-09:24:12 [TRC ] platform_mutex_unlock:71  ptMutex=00000287173714c0
-09:24:12 [TRC ] gui_msg_destroy:478  pphQueue=000000e4db5ffd80
-09:24:12 [TRC ] platform_mutex_destroy:85  pptMutex=0000028717371438
-09:24:12 [TRC ] gui_msg_create:333  pphQueue=0000000000000000 uiCapacity=4
-09:24:12 [ERR ] gui_msg_create:338  NULL pphQueue
-09:24:12 [TRC ] gui_msg_create:333  pphQueue=000000e4db5ffd80 uiCapacity=0
-09:24:12 [ERR ] gui_msg_create:344  uiCapacity must be > 0
-09:24:12 [TRC ] gui_msg_create:333  pphQueue=000000e4db5ffd80 uiCapacity=2
-09:24:12 [TRC ] platform_mutex_create:28  pptMutex=0000028717371438
-09:24:12 [TRC ] gui_msg_post:392  hQueue=0000000000000000
-09:24:12 [ERR ] gui_msg_post:396  NULL parameter: hQueue=0000000000000000 ptEvent=000000e4db5ffd60
-09:24:12 [TRC ] gui_msg_post:392  hQueue=0000028717371410
-09:24:12 [ERR ] gui_msg_post:396  NULL parameter: hQueue=0000028717371410 ptEvent=0000000000000000
-09:24:12 [TRC ] gui_msg_get:432  hQueue=0000000000000000 bBlock=0
-09:24:12 [ERR ] gui_msg_get:436  NULL parameter: hQueue=0000000000000000 ptEvent=000000e4db5ffd40
-09:24:12 [TRC ] gui_msg_get:432  hQueue=0000028717371410 bBlock=0
-09:24:12 [ERR ] gui_msg_get:436  NULL parameter: hQueue=0000028717371410 ptEvent=0000000000000000
-09:24:12 [TRC ] gui_msg_get:432  hQueue=0000028717371410 bBlock=0
-09:24:12 [TRC ] platform_mutex_lock:59  ptMutex=0000028717371490
-09:24:12 [TRC ] platform_mutex_unlock:71  ptMutex=0000028717371490
-09:24:12 [TRC ] gui_msg_post:392  hQueue=0000028717371410
-09:24:12 [TRC ] platform_mutex_lock:59  ptMutex=0000028717371490
-09:24:12 [TRC ] platform_mutex_unlock:71  ptMutex=0000028717371490
-09:24:12 [TRC ] gui_msg_post:392  hQueue=0000028717371410
-09:24:12 [TRC ] platform_mutex_lock:59  ptMutex=0000028717371490
-09:24:12 [TRC ] platform_mutex_unlock:71  ptMutex=0000028717371490
-09:24:12 [TRC ] gui_msg_post:392  hQueue=0000028717371410
-09:24:12 [TRC ] platform_mutex_lock:59  ptMutex=0000028717371490
-09:24:12 [TRC ] platform_mutex_unlock:71  ptMutex=0000028717371490
-09:24:12 [ERR ] gui_msg_post:412  queue full (capacity=2)
-09:24:12 [TRC ] gui_msg_destroy:478  pphQueue=000000e4db5ffd80
-09:24:12 [TRC ] platform_mutex_destroy:85  pptMutex=0000028717371438
-09:24:12 [TRC ] gui_msg_destroy:478  pphQueue=0000000000000000
-09:24:12 [ERR ] gui_msg_destroy:482  NULL pphQueue or *pphQueue
-09:24:12 [TRC ] gui_msg_destroy:478  pphQueue=000000e4db5ffd80
-09:24:12 [ERR ] gui_msg_destroy:482  NULL pphQueue or *pphQueue
-09:24:12 [TRC ] gui_init:115  (void)
-09:24:12 [TRC ] platform_mutex_create:28  pptMutex=00007ff6a3fc90c8
-09:24:12 [TRC ] gui_platform_init:390  (void)
-09:24:12 [INF ] gui_platform_init:413  WNDCLASS 'ST4EverView' registered
-09:24:12 [INF ] gui_init:148  GUI subsystem initialised
-09:24:12 [TRC ] gui_init:115  (void)
-09:24:12 [INF ] gui_init:119  gui_init: already initialised
-09:24:12 [TRC ] gui_shutdown:283  (void)
-09:24:12 [TRC ] gui_platform_shutdown:563  (void)
-09:24:12 [INF ] gui_platform_shutdown:565  WNDCLASS 'ST4EverView' unregistered
-09:24:12 [TRC ] platform_mutex_destroy:85  pptMutex=00007ff6a3fc90c8
-09:24:12 [INF ] gui_shutdown:319  GUI subsystem shutdown complete
-09:24:12 [TRC ] gui_shutdown:283  (void)
-09:24:12 [TRC ] gui_init:115  (void)
-09:24:12 [TRC ] platform_mutex_create:28  pptMutex=00007ff6a3fc90c8
-09:24:12 [TRC ] gui_platform_init:390  (void)
-09:24:12 [INF ] gui_platform_init:413  WNDCLASS 'ST4EverView' registered
-09:24:12 [INF ] gui_init:148  GUI subsystem initialised
-09:24:12 [TRC ] gui_open_window:158  ptDesc=0000000000000000 phWnd=000000e4db5ffd38
-09:24:12 [ERR ] gui_open_window:162  NULL parameter: ptDesc=0000000000000000 phWnd=000000e4db5ffd38
-09:24:12 [TRC ] gui_open_window:158  ptDesc=000000e4db5ffd10 phWnd=0000000000000000
-09:24:12 [ERR ] gui_open_window:162  NULL parameter: ptDesc=000000e4db5ffd10 phWnd=0000000000000000
-09:24:12 [TRC ] gui_close_window:214  hWnd=0000000000000000
-09:24:12 [ERR ] gui_close_window:218  NULL hWnd
-09:24:12 [TRC ] gui_invalidate:248  hWnd=0000000000000000
-09:24:12 [ERR ] gui_invalidate:252  NULL hWnd
-09:24:12 [TRC ] gui_get_size:266  hWnd=0000000000000000
-09:24:12 [ERR ] gui_get_size:270  NULL parameter
-09:24:12 [TRC ] gui_shutdown:283  (void)
-09:24:12 [TRC ] gui_platform_shutdown:563  (void)
-09:24:12 [INF ] gui_platform_shutdown:565  WNDCLASS 'ST4EverView' unregistered
-09:24:12 [TRC ] platform_mutex_destroy:85  pptMutex=00007ff6a3fc90c8
-09:24:12 [INF ] gui_shutdown:319  GUI subsystem shutdown complete
-09:24:12 [INF ] trace_shutdown:371  ST4Ever 0.1.0-UC3.1 shutting down - trace closing
+15:58:50 [TRC ] gui_msg_create:333  pphQueue=000000290a7ffe60 uiCapacity=4
+15:58:50 [TRC ] platform_mutex_create:28  pptMutex=0000016966161438
+15:58:50 [TRC ] gui_msg_post:392  hQueue=0000016966161410
+15:58:50 [TRC ] platform_mutex_lock:59  ptMutex=00000169661614c0
+15:58:50 [TRC ] platform_mutex_unlock:71  ptMutex=00000169661614c0
+15:58:50 [TRC ] gui_msg_get:432  hQueue=0000016966161410 bBlock=0
+15:58:50 [TRC ] platform_mutex_lock:59  ptMutex=00000169661614c0
+15:58:50 [TRC ] platform_mutex_unlock:71  ptMutex=00000169661614c0
+15:58:50 [TRC ] gui_msg_post:392  hQueue=0000016966161410
+15:58:50 [TRC ] platform_mutex_lock:59  ptMutex=00000169661614c0
+15:58:50 [TRC ] platform_mutex_unlock:71  ptMutex=00000169661614c0
+15:58:50 [TRC ] gui_msg_post:392  hQueue=0000016966161410
+15:58:50 [TRC ] platform_mutex_lock:59  ptMutex=00000169661614c0
+15:58:50 [TRC ] platform_mutex_unlock:71  ptMutex=00000169661614c0
+15:58:50 [TRC ] gui_msg_get:432  hQueue=0000016966161410 bBlock=0
+15:58:50 [TRC ] platform_mutex_lock:59  ptMutex=00000169661614c0
+15:58:50 [TRC ] platform_mutex_unlock:71  ptMutex=00000169661614c0
+15:58:50 [TRC ] gui_msg_get:432  hQueue=0000016966161410 bBlock=0
+15:58:50 [TRC ] platform_mutex_lock:59  ptMutex=00000169661614c0
+15:58:50 [TRC ] platform_mutex_unlock:71  ptMutex=00000169661614c0
+15:58:50 [TRC ] gui_msg_post:392  hQueue=0000016966161410
+15:58:50 [TRC ] platform_mutex_lock:59  ptMutex=00000169661614c0
+15:58:50 [TRC ] platform_mutex_unlock:71  ptMutex=00000169661614c0
+15:58:50 [TRC ] gui_msg_post:392  hQueue=0000016966161410
+15:58:50 [TRC ] platform_mutex_lock:59  ptMutex=00000169661614c0
+15:58:50 [TRC ] platform_mutex_unlock:71  ptMutex=00000169661614c0
+15:58:50 [TRC ] gui_msg_post:392  hQueue=0000016966161410
+15:58:50 [TRC ] platform_mutex_lock:59  ptMutex=00000169661614c0
+15:58:50 [TRC ] platform_mutex_unlock:71  ptMutex=00000169661614c0
+15:58:50 [TRC ] gui_msg_post:392  hQueue=0000016966161410
+15:58:50 [TRC ] platform_mutex_lock:59  ptMutex=00000169661614c0
+15:58:50 [TRC ] platform_mutex_unlock:71  ptMutex=00000169661614c0
+15:58:50 [TRC ] gui_msg_get:432  hQueue=0000016966161410 bBlock=0
+15:58:50 [TRC ] platform_mutex_lock:59  ptMutex=00000169661614c0
+15:58:50 [TRC ] platform_mutex_unlock:71  ptMutex=00000169661614c0
+15:58:50 [TRC ] gui_msg_get:432  hQueue=0000016966161410 bBlock=0
+15:58:50 [TRC ] platform_mutex_lock:59  ptMutex=00000169661614c0
+15:58:50 [TRC ] platform_mutex_unlock:71  ptMutex=00000169661614c0
+15:58:50 [TRC ] gui_msg_get:432  hQueue=0000016966161410 bBlock=0
+15:58:50 [TRC ] platform_mutex_lock:59  ptMutex=00000169661614c0
+15:58:50 [TRC ] platform_mutex_unlock:71  ptMutex=00000169661614c0
+15:58:50 [TRC ] gui_msg_get:432  hQueue=0000016966161410 bBlock=0
+15:58:50 [TRC ] platform_mutex_lock:59  ptMutex=00000169661614c0
+15:58:50 [TRC ] platform_mutex_unlock:71  ptMutex=00000169661614c0
+15:58:50 [TRC ] gui_msg_destroy:478  pphQueue=000000290a7ffe60
+15:58:50 [TRC ] platform_mutex_destroy:85  pptMutex=0000016966161438
+15:58:50 [TRC ] gui_msg_create:333  pphQueue=0000000000000000 uiCapacity=4
+15:58:50 [ERR ] gui_msg_create:338  NULL pphQueue
+15:58:50 [TRC ] gui_msg_create:333  pphQueue=000000290a7ffe60 uiCapacity=0
+15:58:50 [ERR ] gui_msg_create:344  uiCapacity must be > 0
+15:58:50 [TRC ] gui_msg_create:333  pphQueue=000000290a7ffe60 uiCapacity=2
+15:58:50 [TRC ] platform_mutex_create:28  pptMutex=0000016966161438
+15:58:50 [TRC ] gui_msg_post:392  hQueue=0000000000000000
+15:58:50 [ERR ] gui_msg_post:396  NULL parameter: hQueue=0000000000000000 ptEvent=000000290a7ffe40
+15:58:50 [TRC ] gui_msg_post:392  hQueue=0000016966161410
+15:58:50 [ERR ] gui_msg_post:396  NULL parameter: hQueue=0000016966161410 ptEvent=0000000000000000
+15:58:50 [TRC ] gui_msg_get:432  hQueue=0000000000000000 bBlock=0
+15:58:50 [ERR ] gui_msg_get:436  NULL parameter: hQueue=0000000000000000 ptEvent=000000290a7ffe20
+15:58:50 [TRC ] gui_msg_get:432  hQueue=0000016966161410 bBlock=0
+15:58:50 [ERR ] gui_msg_get:436  NULL parameter: hQueue=0000016966161410 ptEvent=0000000000000000
+15:58:50 [TRC ] gui_msg_get:432  hQueue=0000016966161410 bBlock=0
+15:58:50 [TRC ] platform_mutex_lock:59  ptMutex=0000016966161490
+15:58:50 [TRC ] platform_mutex_unlock:71  ptMutex=0000016966161490
+15:58:50 [TRC ] gui_msg_post:392  hQueue=0000016966161410
+15:58:50 [TRC ] platform_mutex_lock:59  ptMutex=0000016966161490
+15:58:50 [TRC ] platform_mutex_unlock:71  ptMutex=0000016966161490
+15:58:50 [TRC ] gui_msg_post:392  hQueue=0000016966161410
+15:58:50 [TRC ] platform_mutex_lock:59  ptMutex=0000016966161490
+15:58:50 [TRC ] platform_mutex_unlock:71  ptMutex=0000016966161490
+15:58:50 [TRC ] gui_msg_post:392  hQueue=0000016966161410
+15:58:50 [TRC ] platform_mutex_lock:59  ptMutex=0000016966161490
+15:58:50 [TRC ] platform_mutex_unlock:71  ptMutex=0000016966161490
+15:58:50 [ERR ] gui_msg_post:412  queue full (capacity=2)
+15:58:50 [TRC ] gui_msg_destroy:478  pphQueue=000000290a7ffe60
+15:58:50 [TRC ] platform_mutex_destroy:85  pptMutex=0000016966161438
+15:58:50 [TRC ] gui_msg_destroy:478  pphQueue=0000000000000000
+15:58:50 [ERR ] gui_msg_destroy:482  NULL pphQueue or *pphQueue
+15:58:50 [TRC ] gui_msg_destroy:478  pphQueue=000000290a7ffe60
+15:58:50 [ERR ] gui_msg_destroy:482  NULL pphQueue or *pphQueue
+15:58:50 [TRC ] gui_init:115  (void)
+15:58:50 [TRC ] platform_mutex_create:28  pptMutex=00007ff6584f90c8
+15:58:50 [TRC ] gui_platform_init:390  (void)
+15:58:50 [INF ] gui_platform_init:413  WNDCLASS 'ST4EverView' registered
+15:58:50 [INF ] gui_init:148  GUI subsystem initialised
+15:58:50 [TRC ] gui_init:115  (void)
+15:58:50 [INF ] gui_init:119  gui_init: already initialised
+15:58:50 [TRC ] gui_shutdown:283  (void)
+15:58:50 [TRC ] gui_platform_shutdown:563  (void)
+15:58:50 [INF ] gui_platform_shutdown:565  WNDCLASS 'ST4EverView' unregistered
+15:58:50 [TRC ] platform_mutex_destroy:85  pptMutex=00007ff6584f90c8
+15:58:50 [INF ] gui_shutdown:319  GUI subsystem shutdown complete
+15:58:50 [TRC ] gui_shutdown:283  (void)
+15:58:50 [TRC ] gui_init:115  (void)
+15:58:50 [TRC ] platform_mutex_create:28  pptMutex=00007ff6584f90c8
+15:58:50 [TRC ] gui_platform_init:390  (void)
+15:58:50 [INF ] gui_platform_init:413  WNDCLASS 'ST4EverView' registered
+15:58:50 [INF ] gui_init:148  GUI subsystem initialised
+15:58:50 [TRC ] gui_open_window:158  ptDesc=0000000000000000 phWnd=000000290a7ffe18
+15:58:50 [ERR ] gui_open_window:162  NULL parameter: ptDesc=0000000000000000 phWnd=000000290a7ffe18
+15:58:50 [TRC ] gui_open_window:158  ptDesc=000000290a7ffdf0 phWnd=0000000000000000
+15:58:50 [ERR ] gui_open_window:162  NULL parameter: ptDesc=000000290a7ffdf0 phWnd=0000000000000000
+15:58:50 [TRC ] gui_close_window:214  hWnd=0000000000000000
+15:58:50 [ERR ] gui_close_window:218  NULL hWnd
+15:58:50 [TRC ] gui_invalidate:248  hWnd=0000000000000000
+15:58:50 [ERR ] gui_invalidate:252  NULL hWnd
+15:58:50 [TRC ] gui_get_size:266  hWnd=0000000000000000
+15:58:50 [ERR ] gui_get_size:270  NULL parameter
+15:58:50 [TRC ] gui_shutdown:283  (void)
+15:58:50 [TRC ] gui_platform_shutdown:563  (void)
+15:58:50 [INF ] gui_platform_shutdown:565  WNDCLASS 'ST4EverView' unregistered
+15:58:50 [TRC ] platform_mutex_destroy:85  pptMutex=00007ff6584f90c8
+15:58:50 [INF ] gui_shutdown:319  GUI subsystem shutdown complete
+15:58:50 [INF ] trace_shutdown:371  ST4Ever 0.1.0-UC3.1 shutting down - trace closing

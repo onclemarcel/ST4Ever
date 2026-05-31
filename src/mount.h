@@ -25,14 +25,14 @@
                              MOUNT_SECTORS * MOUNT_SECTOR_SIZE)
 /* 737,280 bytes */
 
-typedef enum
+typedef enum mount_src_s
 {
     MOUNT_SRC_DIR  = 0,   /* Mounted from a PC directory             */
     MOUNT_SRC_ST   = 1,   /* Mounted from a .st image                */
     MOUNT_SRC_MSA  = 2    /* Mounted from a .msa image               */
 } mount_src_t;
 
-typedef struct
+typedef struct mount_context_s
 {
     mount_src_t  eSrc;                  /* Source type               */
     char         szSrcPath[ST_MAX_PATH];/* Source dir or image path  */

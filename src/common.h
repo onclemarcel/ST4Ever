@@ -24,7 +24,7 @@
  * Return codes
  * ------------------------------------------------------------------ */
 
-typedef enum
+typedef enum st_error_s
 {
     ST_NO_ERROR = 0,   /* Operation completed successfully            */
     ST_ERROR    = 1    /* Operation failed - see trace log for detail */
@@ -34,7 +34,7 @@ typedef enum
  * Boolean
  * ------------------------------------------------------------------ */
 
-typedef enum
+typedef enum st_bool_s
 {
     ST_FALSE = 0,
     ST_TRUE  = 1

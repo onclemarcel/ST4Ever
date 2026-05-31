@@ -417,6 +417,42 @@ Macro à ajouter dans `use_cases.h` lors de UC4 :
 
 Convention : remplacer les `TEST_SKIP("[S] ...")` existants qui ont une question visuelle claire par `TEST_MANUAL(desc, question)` lors de l'implémentation réelle du module concerné. Le bloc matriciel d'en-tête devient `[S] Z tests - run make manual`.
 
+**R17 — Traçabilité REQ ↔ fonction dans SRTD.md §4.x** *(établie UC3.1, 2026-05-30)*
+
+Chaque fonction publique (et chaque fonction interne non-triviale) d'un module doit être associée à au moins un REQ dans la table **Public API** / **Key internal functions** de la section §4.x correspondante de SRTD.md.
+
+Format de la table enrichie :
+
+```
+| Function          | REQ(s)                   | Description           |
+|-------------------|--------------------------|-----------------------|
+| trace_init(bOpen) | REQ-TRC-001, REQ-TRC-002 | Init log file…        |
+| format_entry(…)   | REQ-TRC-015              | Build entry format    |
+```
+
+Règles :
+- **Avant d'implémenter** une nouvelle fonction publique : vérifier qu'un REQ existe. Sinon, créer le REQ dans §2.x avant d'écrire le code.
+- **Lors de la mise à jour** d'un §4.x : toujours remplir la colonne REQ pour toutes les fonctions du module.
+- **Fonctions internes** < 5 lignes sans effet de bord documentable (helpers purs) : REQ optionnel, marquer `—` si non applicable.
+- La colonne REQ est la source de vérité pour la revue de couverture : toute fonction sans REQ est un gap à combler.
+
+Sens de la traçabilité complète : `UFR → REQ → §4.x (table fonctions) → .c (implémentation)`
+
+**R18 — Titre de fenêtre dynamique pour chaque vue GUI** *(établie UC3.1, planifiée UC3.3, 2026-05-30)*
+
+Chaque vue GUI met à jour sa barre de titre en fonction du contexte courant via `SetWindowTextA` (Win32) / `XStoreName` (X11). Format : `ST4Ever - <Type>: <contexte>`.
+
+Exemples :
+- `ST4Ever - Dir: C:\demos\atari\`
+- `ST4Ever - Edit: ENCHANT.PRG [hex]`
+- `ST4Ever - Execute: ENCHANT.PRG — step 42`
+- `ST4Ever - Trace`
+
+Règles :
+- Le titre est mis à jour dans le handler `GUI_EVT_PAINT` (ou à tout changement de contexte significatif) via l'API publique de la vue concernée.
+- La mise en œuvre est à la charge de chaque UC de vue (UC3.3 dir, UC8 edit, UC25 execute…).
+- Sur Windows : `SetWindowTextA(ptState->hWnd, szTitle)` depuis `gui_platform_window_set_title()` à ajouter dans `gui_backend.h`.
+
 
 ## 6. Use Cases
 
@@ -430,7 +466,8 @@ Les étapes de développement fonctionnelles sont formalisées en Use Cases, per
 | UC3.2 | GUI render | win_D2D.c (Direct2D COM pur C) + renderer.c portable | texte, rect, ligne visibles |
 | UC3.3 | `dir` | dir.c : scan FS + arbre + rendu D2D + clavier/souris/scroll/sélection + line_cmd_dir | ouverture, scroll, sélection |
 | UC4 | console | Line editor riche : historique ↑↓, Home/End, tab-completion, ghost-text ; prompt contextuel toggleable (trace/disk/fichier) ; `colors on/off` ; historique persistant `~/.st4ever_history` ; `--script file` batch mode ; `make manual` + macro `TEST_MANUAL` | navigation + complétion + prompt état |
-| UC5 | `where`, `info` | Répertoire courant + état sélection (where) ; dashboard global état application : cwd, fichier sélectionné, trace, disque monté, binaire chargé (info) | affichage path + dashboard |
+| UC5 | `where`, `info` | Répertoire courant + état sélection (where) ; dashboard global état application : cwd, fichier sélectionné, trace, disque monté, binaire chargé (info) ; **P8** : `SetConsoleTitleA` statut automatique | affichage path + dashboard + titre console |
+| UC5-bis | prefs | Module `prefs.c` : lecture/écriture `%APPDATA%\ST4Ever\prefs.ini` ; mémorisation position/taille fenêtres par type (P7) — **optionnel**, après UC5 | save/restore position fenêtre dir |
 | UC6 | plateforme | Abstraction fichiers : open/read/write/stat/mkdir, listing répertoire | tests lecture/écriture |
 | UC7 | `load` | Chargement fichier texte/binaire, détection type, buffer mémoire | load .txt, .bin, .PRG stub |
 | UC8 | `edit` texte | Vue éditeur texte Win32/GDI + X11 : scroll, numéros de ligne, sauvegarde | édition + save .S et .TXT |
@@ -620,43 +657,51 @@ Les étapes de développement fonctionnelles sont formalisées en Use Cases, per
 
 *Claude et Tonton Marcel déposent ici leurs propositions UX/fonctionnelles au fil des UCs. Avant de clore un UC, les propositions sont passées en revue ensemble : celles agréées sont planifiées dans le tableau section 6 et retirées d'ici. **Un UC est clos quand §7 ne contient plus de propositions non arbitrées pour cet UC.***
 
-*Les propositions P1–P5 issues de UC1/UC2 ont été agréées et planifiées (UC4/UC5). Ci-dessous les propositions issues de UC3.1 — à arbitrer avant clôture.*
+*Les propositions P1–P5 issues de UC1/UC2 ont été agréées et planifiées (UC4/UC5). Les propositions P6–P8 issues de UC3.1 ont été arbitrées ci-dessous — UC3.1 est donc clos.*
 
 ---
 
-### Propositions Claude — UC3.1
+### Arbitrage UC1/UC2 (2026-05-30) — *reconstitué depuis UC4/UC5, original non persisté en git*
 
-**P6 — Titre de fenêtre dynamique**
+**P1 — Prompt contextuel toggleable** → **ACCEPTÉ — UC4**
 
-Chaque vue affiche dans sa barre de titre le contexte courant, par exemple :
-- `ST4Ever - Dir: C:\demos\atari\`
-- `ST4Ever - Edit: ENCHANT.PRG [hex]`
-- `ST4Ever - Execute: ENCHANT.PRG — step 42`
+Le prompt affiche l'état courant (trace active, disque monté, fichier sélectionné) en plus du simple `ST4Ever>`. Toggleable pour ne pas encombrer l'affichage.
 
-*Avis Claude :* très réaliste, coût minimal (1 appel `SetWindowTextA` déclenché par le gestionnaire d'événements). Permet à l'utilisateur de distinguer plusieurs vues ouvertes simultanément d'un coup d'œil. Recommandé dès UC3.3 (dir) et systématisé dans chaque UC de vue suivant.
+**P2 — Commande `colors on/off`** → **ACCEPTÉ — UC4**
 
-*Proposition de traitement :* convention à poser en R17 dans §5, implémentée dans chaque UC de vue dès UC3.3.
+Activer ou désactiver les couleurs ANSI de la console (utile pour les terminaux sans support VT100 ou pour la redirection vers fichier).
+
+**P3 — Historique persistant `~/.st4ever_history`** → **ACCEPTÉ — UC4**
+
+L'historique des commandes (navigable ↑↓) est sauvegardé entre sessions dans un fichier, comme un shell Unix standard.
+
+**P4 — Mode batch `--script file`** → **ACCEPTÉ — UC4**
+
+Lancer ST4Ever avec un fichier de commandes à exécuter séquentiellement, sans interaction utilisateur. Utile pour les scénarios de test répétables.
+
+**P5 — `make manual` et macro `TEST_MANUAL`** → **ACCEPTÉ — UC4 (R16)**
+
+Séparer les tests automatiques (`make tests`) des tests visuels (`make manual`). La macro `TEST_MANUAL(desc, question)` affiche une question y/n à l'utilisateur pour valider les comportements non automatisables (GUI, rendu). Formalisé en R16.
 
 ---
 
-**P7 — Mémorisation de la position et taille des fenêtres**
+### Arbitrage UC3.1 (2026-05-30)
 
-À la fermeture d'une vue, sauvegarder ses coordonnées et dimensions dans un fichier `~/.st4ever_prefs` (ou `%APPDATA%\ST4Ever\prefs.ini`). À la prochaine ouverture du même type de vue, restaurer ces valeurs au lieu des tailles par défaut.
+**P6 — Titre de fenêtre dynamique** → **ACCEPTÉ — R18 + UC3.3**
 
-*Avis Claude :* réaliste mais non trivial — nécessite un module `prefs.c` (lecture/écriture INI ou JSON minimaliste). Valeur UX modérée pour un projet en développement actif. À différer après UC5 quand les vues principales sont stables. Risque : ajoute de l'état persistant externe à gérer dans les tests.
+Chaque vue GUI affiche dans sa barre de titre le contexte courant (`ST4Ever - Dir: C:\demos\`, `ST4Ever - Edit: ENCHANT.PRG [hex]`…). Convention posée en R18 §5, appliquée dès UC3.3 et systématisée dans chaque UC de vue suivant.
 
-*Proposition de traitement :* UC optionnel "UC5-bis Préférences" après UC5, si arbitrage favorable.
+**P7 — Mémorisation position/taille des fenêtres** → **ACCEPTÉ — UC5-bis (optionnel, après UC5)**
 
----
+Architecture conservée : console terminal + vues GUI (voir décision D1 ci-dessous). Module `prefs.c` (fichier INI `%APPDATA%\ST4Ever\prefs.ini`) différé après UC5, quand les vues principales seront stables.
 
-**P8 — Indicateur d'état dans la barre de titre de la console**
+**P8 — Indicateur d'état dans la barre de titre de la console** → **ACCEPTÉ — UC5**
 
-Le titre de la fenêtre console (mintty/cmd.exe) reflète l'état courant :
-`ST4Ever v0.1 | trace ON | dir: C:\demos | disk: A:\ mounted`
+`SetConsoleTitleA` mis à jour à chaque changement d'état (trace, disque monté, fichier sélectionné). Intégré dans UC5 (`where`/`info`) comme effet de bord automatique. Architecture console conservée (voir D1).
 
-*Avis Claude :* très simple sur Windows (`SetConsoleTitleA`), quasi invisible en termes de code. Utile pendant le développement pour visualiser l'état sans avoir à taper `where`. Complémentaire à UC5 (`info` / `where`).
+**D1 — Décision architecturale : console terminal conservée (2026-05-30)**
 
-*Proposition de traitement :* ajouter à UC5 dans la commande `where` / `info` comme effet de bord automatique.
+P7 et P8 ont soulevé la question : app console (actuelle) vs app GUI multi-fenêtres où la console serait elle-même une fenêtre. Décision : **conserver l'architecture console + vues GUI satellites**. Raisons : (1) transformer la console en fenêtre GUI exigerait un mini-émulateur de terminal (texte scrollable, curseur, input) — travail disproportionné hors objectif Atari ST ; (2) UC4 (line editor) est déjà la bonne UX dans mintty ; (3) `SetConsoleTitleA` (P8) couvre le besoin de statut global sans refonte. L'option "console GUI" reste ouverte comme UC long terme si nécessaire.
 
 ## 8. Licence & attribution
 Pas de redistribution prévue à ce jour

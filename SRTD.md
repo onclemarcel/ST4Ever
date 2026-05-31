@@ -112,7 +112,7 @@ through one or more test cases in Section 5.
 | ID          | Requirement                                                                                                   | Status   | UC   |
 |-------------|---------------------------------------------------------------------------------------------------------------|----------|------|
 | UFR-TRC-001 | The trace console shall display log entries with colour coding by level (TRACE, INFO, ERROR, TODO).           | ✓ UC1    | UC1  |
-| UFR-TRC-002 | Each entry shall include the emitting function name and source line number.                                   | ✓ UC1    | UC1  |
+| UFR-TRC-002 | Each entry shall be timestamped and include the emitting function name and source line number.                                   | ✓ UC1    | UC1  |
 | UFR-TRC-003 | Repeated TRACE entries from the same function shall be compacted as a single `[xN]` counter entry.           | ✓ UC1    | UC1  |
 | UFR-TRC-004 | All log entries shall be written to `st4ever_trace.log` regardless of console visibility.                    | ✓ UC1    | UC1  |
 | UFR-TRC-005 | LOG_INFO, LOG_ERROR, and LOG_TODO shall always be emitted regardless of the TRACE filter.                    | ✓ UC1    | UC1  |
@@ -181,7 +181,8 @@ requirement that will expose it (`UFR-EXE-*`, planned UC21–27).
 | REQ-TRC-011 | `trace_is_trace_enabled()` shall reflect the current filter state accurately.                                     | UFR-TRC-006              | ✓ UC1         | UC1  |
 | REQ-TRC-012 | `trace_shutdown()` shall flush pending entries, close the log file, and free all resources.                       | UFR-TRC-004              | ✓ UC1         | UC1  |
 | REQ-TRC-013 | Trace output shall be written to `st4ever_trace.log` (always) and to stderr with ANSI colours (when open).        | UFR-TRC-004, UFR-TRC-001 | ✓ UC1         | UC1  |
-| REQ-TRC-014 | `trace_open/close` shall call `gui_open_window` / close for the dedicated trace GUI window.                       | UFR-TRC-007              | TODO UC3      | UC3  |
+| REQ-TRC-014 | `trace_open/close` shall call `gui_open_window` / close for the dedicated trace GUI window.                       | UFR-TRC-007              | TODO UC3.3    | UC3.3|
+| REQ-TRC-015 | Each log entry shall be formatted as `HH:MM:SS [LEVEL] function:line  message` — timestamp from system clock (`localtime`/`strftime`), level tag, emitting function (`__func__`), source line (`__LINE__`). | UFR-TRC-002 | ✓ UC1 | UC1 |
 
 ### 2.2 Console Line Reader — `line.h` / `line.c`
 
@@ -399,47 +400,47 @@ colour. Four levels: TRACE (compacted), INFO, ERROR, TODO.
 
 **Public API:**
 
-| Function                             | Description                                    |
-|--------------------------------------|------------------------------------------------|
-| `trace_init(bOpen)`                  | Init log file; optional console open           |
-| `trace_open()`                       | Show trace console (stderr for UC1)            |
-| `trace_close()`                      | Hide trace console (idempotent)                |
-| `trace_set_trace_enabled(b)`         | Suppress / re-enable LOG_TRACE only            |
-| `trace_is_trace_enabled()`           | Query LOG_TRACE filter state                   |
-| `trace_is_open()`                    | Query console visibility                       |
-| `trace_log(level, func, line, fmt,…)`| Emit one entry (use LOG_* macros instead)      |
-| `trace_shutdown()`                   | Flush, close file, free state                  |
+| Function                              | REQ(s)                        | Description                               |
+|---------------------------------------|-------------------------------|-------------------------------------------|
+| `trace_init(bOpen)`                   | REQ-TRC-001, REQ-TRC-002      | Init log file; optional console open      |
+| `trace_open()`                        | REQ-TRC-008                   | Show trace console (stderr for UC1)       |
+| `trace_close()`                       | REQ-TRC-006, REQ-TRC-007      | Hide trace console (idempotent)           |
+| `trace_set_trace_enabled(b)`          | REQ-TRC-009, REQ-TRC-010      | Suppress / re-enable LOG_TRACE only       |
+| `trace_is_trace_enabled()`            | REQ-TRC-011                   | Query LOG_TRACE filter state              |
+| `trace_is_open()`                     | REQ-TRC-003                   | Query console visibility                  |
+| `trace_log(level, func, line, fmt,…)` | REQ-TRC-004, REQ-TRC-013      | Emit one entry (use LOG_* macros instead) |
+| `trace_shutdown()`                    | REQ-TRC-012                   | Flush, close file, free state             |
 
 **Key internal functions:**
 
-| Function            | Description                                                          |
-|---------------------|----------------------------------------------------------------------|
-| `flush_compaction()`| Writes the pending `[xN]` entry before any non-TRACE line           |
-| `format_entry(…)`   | Builds the timestamped, level-tagged text line                       |
-| `write_to_file(…)`  | `fprintf` to the log file handle `[CRT]`                            |
-| `write_to_stderr(…)`| ANSI-coloured write to stderr `[CRT]` (when console open, UC1 only) |
+| Function                             | REQ(s)       | Description                                               |
+|--------------------------------------|--------------|-----------------------------------------------------------|
+| `trace_get_timestamp(szBuf, uiBufLen)` | REQ-TRC-015 | Fills buffer with `HH:MM:SS` from system clock            |
+| `trace_level_label(eLevel)`          | REQ-TRC-015  | Returns level tag (`TRC `, `INF `, `ERR `, `TODO`)        |
+| `trace_level_ansi(eLevel)`           | REQ-TRC-013  | Returns ANSI colour escape for a log level                |
+| `trace_flush_compact()`              | REQ-TRC-005  | Emits pending `[xN]` summary before any non-TRACE entry   |
 
 **External dependencies:**
 
-| Call                     | Tag   | Purpose                              |
-|--------------------------|-------|--------------------------------------|
-| `fopen / fclose / fprintf`| [CRT]| Log file I/O                         |
-| `vsnprintf`              | [CRT] | Format variadic args                 |
-| `fprintf(stderr,…)`      | [CRT] | ANSI console output (UC1)            |
-| `localtime / strftime`   | [CRT] | Timestamp in log entries             |
+| Call                      | Tag   | Purpose                              |
+|---------------------------|-------|--------------------------------------|
+| `fopen / fclose / fprintf`| [CRT] | Log file I/O                         |
+| `vsnprintf`               | [CRT] | Format variadic args in `trace_log()`|
+| `fprintf(stderr,…)`       | [CRT] | ANSI console output (when open)      |
+| `time / localtime / strftime` | [CRT] | Timestamp via `trace_get_timestamp()`|
 
-**TODO(UC3):** `trace_open/close` will call `gui_open_window` / close for the
+**TODO(UC3.3):** `trace_open/close` will call `gui_open_window` / close for the
 dedicated trace GUI window.
 
 **Compaction sequence:**
 
 ```
 LOG_TRACE("msg A")  ← from function foo()
-  └─ same function as last?  YES → g_trace_uiCount++
-                             NO  → flush_compaction(); emit new entry
+  └─ same function as last?  YES → g_trace_iCompactCount++
+                             NO  → trace_flush_compact(); emit new entry
 
 LOG_INFO("msg B")   ← from function bar()
-  └─ flush_compaction() → write "[x3] foo …"
+  └─ trace_flush_compact() → write "[x3] foo …"
      then emit INFO "msg B"
 ```
 
@@ -452,25 +453,26 @@ handler.  Owns `line_context_t` (cwd, current selection, running flag).
 
 **Public API:**
 
-| Function                    | Description                                      |
-|-----------------------------|--------------------------------------------------|
-| `line_init(ptCtx)`          | Zero context, capture cwd, set bRunning=TRUE     |
-| `line_run(ptCtx)`           | Blocking loop: prompt → read → dispatch          |
-| `line_shutdown(ptCtx)`      | Clear context, set bRunning=FALSE                |
-| `line_print_msg(fmt,…)`     | Normal response to stdout                        |
-| `line_print_warning(fmt,…)` | Yellow warning to stdout                         |
-| `line_print_error(fmt,…)`   | Red error to stdout                              |
+| Function                    | REQ(s)                          | Description                              |
+|-----------------------------|---------------------------------|------------------------------------------|
+| `line_init(ptCtx)`          | REQ-CON-001..003                | Zero context, capture cwd, bRunning=TRUE |
+| `line_run(ptCtx)`           | REQ-CON-006..009                | Blocking loop: prompt → read → dispatch  |
+| `line_shutdown(ptCtx)`      | REQ-CON-004, REQ-CON-005        | Clear context, set bRunning=FALSE        |
+| `line_print_msg(fmt,…)`     | —                               | Normal response to stdout (utility)      |
+| `line_print_warning(fmt,…)` | —                               | Yellow warning to stdout (utility)       |
+| `line_print_error(fmt,…)`   | —                               | Red error to stdout (utility)            |
 
 **Key internal functions:**
 
-| Function            | Description                                              |
-|---------------------|----------------------------------------------------------|
-| `parse_line()`      | Tokenise raw input into `parsed_cmd_t`                   |
-| `match_command()`   | Map first token to `cmd_id_t` via `g_line_aCmds[]`      |
-| `line_cmd_help()`   | Print command summary                                    |
-| `line_cmd_quit()`   | Set `bRunning = FALSE`                                   |
-| `line_cmd_trace()`  | Call `trace_open/close/toggle` (full impl UC2)           |
-| `line_cmd_stub()`   | LOG_TODO + "not yet implemented" for all other commands  |
+| Function              | REQ(s)          | Description                                                    |
+|-----------------------|-----------------|----------------------------------------------------------------|
+| `line_trim()`         | —               | Remove leading/trailing whitespace in place (utility)          |
+| `line_parse_cmd()`    | REQ-CON-006..009| Tokenise raw input into `parsed_cmd_t` and match command token |
+| `line_dispatch()`     | REQ-CON-006..009| Route `parsed_cmd_t` to handler via `g_line_aHandlers[]`      |
+| `line_cmd_help()`     | REQ-CON-006     | Print command summary                                          |
+| `line_cmd_quit()`     | REQ-CON-007     | Set `bRunning = FALSE`                                         |
+| `line_cmd_trace()`    | REQ-CON-008     | Call `trace_open/close/toggle` (full impl UC2)                 |
+| `line_cmd_stub()`     | REQ-CON-009     | LOG_TODO + "not yet implemented" for all other commands        |
 
 **External dependencies:**
 
@@ -488,14 +490,14 @@ handler.  Owns `line_context_t` (cwd, current selection, running flag).
 
 ```
 line_run()
-  ├─ printf("ST4> ")         [CRT]
-  ├─ fgets(szBuf)            [CRT]
-  ├─ parse_line()     → parsed_cmd_t
-  ├─ match_command()  → cmd_id_t
-  ├─ CMD_HELP    → line_cmd_help()
-  ├─ CMD_QUIT    → line_cmd_quit() → bRunning=FALSE → loop exits
-  ├─ CMD_TRACE   → line_cmd_trace()
-  └─ CMD_*       → line_cmd_stub()  LOG_TODO + warning
+  ├─ printf("ST4> ")              [CRT]
+  ├─ fgets(szBuf)                 [CRT]
+  ├─ line_parse_cmd()  → parsed_cmd_t  (tokenise + match cmd token)
+  ├─ line_dispatch()   → g_line_aHandlers[eCmd]
+  │    ├─ CMD_HELP    → line_cmd_help()
+  │    ├─ CMD_QUIT    → line_cmd_quit() → bRunning=FALSE → loop exits
+  │    ├─ CMD_TRACE   → line_cmd_trace()
+  │    └─ CMD_*       → line_cmd_stub()  LOG_TODO + warning
 ```
 
 ---
@@ -508,16 +510,16 @@ register access is stubbed (returns `0xFF` / no-op).
 
 **Public API:**
 
-| Function                                      | Description                                |
-|-----------------------------------------------|--------------------------------------------|
-| `st_init(ptMachine, szRomPath)`               | Zero RAM, set bPoweredOn, load ROM opt.    |
-| `st_read_byte(ptMachine, addr, puiByte)`       | Read 1 byte from address space             |
-| `st_read_word(ptMachine, addr, puiWord)`       | Read big-endian word (even addr only)      |
-| `st_read_long(ptMachine, addr, puiLong)`       | Read big-endian long (even addr only)      |
-| `st_write_byte(ptMachine, addr, val)`          | Write 1 byte                               |
-| `st_write_word(ptMachine, addr, val)`          | Write big-endian word (even addr only)     |
-| `st_write_long(ptMachine, addr, val)`          | Write big-endian long (even addr only)     |
-| `st_shutdown(ptMachine)`                       | Zero state, set bPoweredOn=FALSE           |
+| Function                                      | REQ(s)                              | Description                            |
+|-----------------------------------------------|-------------------------------------|----------------------------------------|
+| `st_init(ptMachine, szRomPath)`               | REQ-STM-001..003                    | Zero RAM, set bPoweredOn, load ROM opt.|
+| `st_read_byte(ptMachine, addr, puiByte)`       | REQ-STM-004, REQ-STM-005..006, REQ-STM-011 | Read 1 byte from address space  |
+| `st_read_word(ptMachine, addr, puiWord)`       | REQ-STM-004, REQ-STM-007, REQ-STM-009 | Read big-endian word (even only)    |
+| `st_read_long(ptMachine, addr, puiLong)`       | REQ-STM-004, REQ-STM-008, REQ-STM-010 | Read big-endian long (even only)    |
+| `st_write_byte(ptMachine, addr, val)`          | REQ-STM-004, REQ-STM-006           | Write 1 byte                           |
+| `st_write_word(ptMachine, addr, val)`          | REQ-STM-004, REQ-STM-007, REQ-STM-009 | Write big-endian word (even only)   |
+| `st_write_long(ptMachine, addr, val)`          | REQ-STM-004, REQ-STM-008, REQ-STM-010 | Write big-endian long (even only)   |
+| `st_shutdown(ptMachine)`                       | REQ-STM-013, REQ-STM-014           | Zero state, set bPoweredOn=FALSE       |
 
 **External dependencies:**
 
@@ -550,12 +552,12 @@ word and advances PC+2 without decoding.
 
 **Public API:**
 
-| Function                                          | Description                               |
-|---------------------------------------------------|-------------------------------------------|
-| `cpu_init(ptCpu, ptMachine)`                      | Read reset vectors, set SR=0x2700         |
-| `cpu_reset(ptCpu, ptMachine)`                     | Re-read reset vectors                     |
-| `cpu_step(ptCpu, ptMachine, ptResult)`            | Fetch + decode + execute one instruction  |
-| `cpu_raise_exception(ptCpu, ptMachine, uiVector)` | Push exception frame, jump to vector      |
+| Function                                          | REQ(s)                           | Description                              |
+|---------------------------------------------------|----------------------------------|------------------------------------------|
+| `cpu_init(ptCpu, ptMachine)`                      | REQ-CPU-001..005                 | Read reset vectors, set SR=0x2700        |
+| `cpu_reset(ptCpu, ptMachine)`                     | REQ-CPU-002, REQ-CPU-003         | Re-read reset vectors                    |
+| `cpu_step(ptCpu, ptMachine, ptResult)`            | REQ-CPU-006..008                 | Fetch + decode + execute one instruction |
+| `cpu_raise_exception(ptCpu, ptMachine, uiVector)` | REQ-CPU-011                      | Push exception frame, jump to vector     |
 
 **External dependencies:**
 
@@ -576,10 +578,10 @@ UC1 stub: every 2-byte word produces `DC.W $XXXX` (`bValid = ST_FALSE`).
 
 **Public API:**
 
-| Function                                                              | Description                            |
-|-----------------------------------------------------------------------|----------------------------------------|
-| `disasm_one(pBuf, uiBufLen, uiAddr, ptResult)`                        | Disassemble one instruction            |
-| `disasm_range(pBuf, uiBufLen, uiAddr, ptResults, uiMax, puiLines)`    | Disassemble consecutive instructions   |
+| Function                                                              | REQ(s)              | Description                          |
+|-----------------------------------------------------------------------|---------------------|--------------------------------------|
+| `disasm_one(pBuf, uiBufLen, uiAddr, ptResult)`                        | REQ-DIS-001..005    | Disassemble one instruction          |
+| `disasm_range(pBuf, uiBufLen, uiAddr, ptResults, uiMax, puiLines)`    | REQ-DIS-001..005    | Disassemble consecutive instructions |
 
 **External dependencies:**
 
@@ -809,6 +811,8 @@ Input: `{ 0x70, 0x2A, 0x4E, 0x75 }` at base `0x1000`
 | REQ-TRC-011  | TC-TRC-008, TC-TRC-009      | ✓ PASS        |
 | REQ-TRC-012  | (trace_shutdown in main)    | ✓ PASS        |
 | REQ-TRC-013  | (file/ANSI — manual check)  | ✓ PASS        |
+| REQ-TRC-014  | —                           | TODO UC3.3    |
+| REQ-TRC-015  | (format — visual check st4ever_trace.log) | ✓ PASS |
 | REQ-TRC-014  | —                           | TODO UC3      |
 | REQ-CON-001  | TC-CON-001                  | ✓ PASS        |
 | REQ-CON-002  | TC-CON-002                  | ✓ PASS        |

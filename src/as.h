@@ -30,7 +30,7 @@
  * Error report
  * ------------------------------------------------------------------ */
 
-typedef struct
+typedef struct as_error_s
 {
     int  iLine;                 /* Source line number (1-based)       */
     char szMsg[ST_MAX_MSG];     /* Human-readable error description   */
@@ -40,7 +40,7 @@ typedef struct
  * Assembler context
  * ------------------------------------------------------------------ */
 
-typedef struct
+typedef struct as_context_s
 {
     char     szSourcePath[ST_MAX_PATH]; /* Input .S file              */
     char     szOutputPath[ST_MAX_PATH]; /* Output .PRG or .raw file   */

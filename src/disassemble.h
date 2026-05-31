@@ -31,7 +31,7 @@
  * Result of disassembling one instruction
  * ------------------------------------------------------------------ */
 
-typedef struct
+typedef struct disasm_result_s
 {
     st_u32_t uiAddr;                 /* Address of the opcode word    */
     st_u16_t auWords[5];             /* Raw opcode + extension words  */

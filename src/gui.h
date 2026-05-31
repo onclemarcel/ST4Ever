@@ -37,7 +37,7 @@ typedef struct gui_window_s *gui_window_t;   /* NULL = invalid        */
  * Window types  (determine default sizing and drawing mode)
  * ------------------------------------------------------------------ */
 
-typedef enum
+typedef enum gui_wnd_type_e
 {
     GUI_WND_TRACE    = 0,  /* Trace / log console               */
     GUI_WND_DIR      = 1,  /* Directory tree view               */
@@ -56,7 +56,7 @@ typedef enum
  * ------------------------------------------------------------------ */
 
 /* Key codes (platform-independent subset) */
-typedef enum
+typedef enum gui_key_e
 {
     GUI_KEY_NONE    = 0,
     GUI_KEY_UP,
@@ -80,7 +80,7 @@ typedef enum
 } gui_key_t;
 
 /* Mouse button identifiers */
-typedef enum
+typedef enum gui_mouse_btn_e
 {
     GUI_MOUSE_NONE   = 0,
     GUI_MOUSE_LEFT   = 1,
@@ -89,7 +89,7 @@ typedef enum
 } gui_mouse_btn_t;
 
 /* Event types */
-typedef enum
+typedef enum gui_evt_type_e
 {
     GUI_EVT_NONE       = 0,
     GUI_EVT_KEY_DOWN,        /* Key pressed (tKey, cChar)            */
@@ -104,17 +104,17 @@ typedef enum
 } gui_evt_type_t;
 
 /* Unified event structure */
-typedef struct
+typedef struct gui_event_s
 {
     gui_evt_type_t  eType;
 
     union
     {
-        struct { gui_key_t eKey; char cChar; } tKey;
-        struct { gui_mouse_btn_t eBtn; int iX; int iY; } tMouse;
-        struct { int iDelta; } tScroll;
-        struct { int iWidth; int iHeight; } tResize;
-        struct { unsigned int uiId; void *pData; } tCustom;
+        struct sKey { gui_key_t eKey; char cChar; } tKey;
+        struct sMouse { gui_mouse_btn_t eBtn; int iX; int iY; } tMouse;
+        struct sScroll { int iDelta; } tScroll;
+        struct sResize { int iWidth; int iHeight; } tResize;
+        struct sCustom { unsigned int uiId; void *pData; } tCustom;
     } uData;
 
 } gui_event_t;
@@ -128,7 +128,7 @@ typedef void (*gui_event_fn)(gui_window_t   hWnd,
                               gui_event_t   *ptEvent,
                               void          *pUserCtx);
 
-typedef struct
+typedef struct gui_wnd_desc_s
 {
     const char    *szTitle;    /* Window title bar text             */
     gui_wnd_type_t eType;      /* Window type (default sizing)      */

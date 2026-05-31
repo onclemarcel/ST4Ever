@@ -36,7 +36,7 @@ typedef struct dir_node_s
  * View context
  * ------------------------------------------------------------------ */
 
-typedef struct
+typedef struct dir_view_s
 {
     gui_window_t    hWnd;                  /* GUI window handle       */
     renderer_t      hRenderer;             /* Renderer handle         */

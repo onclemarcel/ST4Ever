@@ -8,7 +8,7 @@
 #include "gui.h"
 #include "renderer.h"
 
-typedef struct { gui_window_t hWnd; renderer_t hRenderer; } exec_mem_view_t;
+typedef struct exec_mem_view_s { gui_window_t hWnd; renderer_t hRenderer; } exec_mem_view_t;
 
 st_error_t exec_mem_open(exec_mem_view_t **pptView);
 st_error_t exec_mem_close(exec_mem_view_t **pptView);

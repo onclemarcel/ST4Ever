@@ -24,7 +24,7 @@
  * Command identifiers
  * ------------------------------------------------------------------ */
 
-typedef enum
+typedef enum cmd_id_s
 {
     CMD_UNKNOWN  = -1,  /* Unrecognised command token                */
     CMD_NONE     =  0,  /* Empty input line                          */
@@ -48,7 +48,7 @@ typedef enum
 
 #define LINE_MAX_ARGS   8   /* Maximum number of arguments per command */
 
-typedef struct
+typedef struct parsed_cmd_s
 {
     cmd_id_t  eCmd;                     /* Matched command identifier */
     char      szRaw[ST_MAX_CMD];        /* Verbatim input line        */
@@ -61,7 +61,7 @@ typedef struct
  * Console context
  * ------------------------------------------------------------------ */
 
-typedef struct
+typedef struct line_context_s
 {
     char      szCwd[ST_MAX_PATH];       /* Current working directory  */
     char      szSelected[ST_MAX_PATH];  /* Path selected via `dir`    */

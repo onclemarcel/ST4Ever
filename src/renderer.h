@@ -48,7 +48,7 @@ typedef struct renderer_font_s *renderer_font_t;   /* NULL = default  */
  * Colour (linear RGBA, 0.0 - 1.0)
  * ------------------------------------------------------------------ */
 
-typedef struct
+typedef struct renderer_color_s
 {
     float r;
     float g;
@@ -72,7 +72,7 @@ typedef struct
  * Rectangle  (pixel coordinates, float for D2D compatibility)
  * ------------------------------------------------------------------ */
 
-typedef struct
+typedef struct renderer_rect_s
 {
     float fX;   /* Left edge                                         */
     float fY;   /* Top edge                                          */
@@ -88,7 +88,7 @@ typedef struct
  * Text alignment
  * ------------------------------------------------------------------ */
 
-typedef enum
+typedef enum renderer_align_s
 {
     RENDERER_ALIGN_LEFT   = 0,
     RENDERER_ALIGN_CENTER = 1,
@@ -99,7 +99,7 @@ typedef enum
  * Font descriptors
  * ------------------------------------------------------------------ */
 
-typedef enum
+typedef enum renderer_font_id_s
 {
     RENDERER_FONT_MONO  = 0,  /* Fixed-pitch (Courier / Consolas)    */
     RENDERER_FONT_UI    = 1   /* Proportional UI font (Segoe / Sans) */

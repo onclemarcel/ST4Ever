@@ -81,7 +81,7 @@
  * CPU execution state
  * ------------------------------------------------------------------ */
 
-typedef enum
+typedef enum cpu_state_e
 {
     CPU_STATE_STOPPED  = 0, /* STOP instruction executed             */
     CPU_STATE_RUNNING  = 1, /* Normal execution                      */
@@ -93,7 +93,7 @@ typedef enum
  * Register file
  * ------------------------------------------------------------------ */
 
-typedef struct
+typedef struct cpu68k_s
 {
     st_u32_t   auDn[8];     /* D0-D7 data registers                  */
     st_u32_t   auAn[8];     /* A0-A7 address registers               */
@@ -111,7 +111,7 @@ typedef struct
  * Step result  (returned by cpu_step)
  * ------------------------------------------------------------------ */
 
-typedef struct
+typedef struct cpu_step_result_s
 {
     st_u16_t  uiOpcode;        /* Raw opcode word fetched             */
     st_u32_t  uiPCBefore;      /* PC before execution                 */

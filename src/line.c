@@ -50,7 +50,7 @@
  * Command table
  * ------------------------------------------------------------------ */
 
-typedef struct
+typedef struct cmd_entry_s
 {
     const char *szFull;    /* Full command name (e.g. "help")       */
     const char *szShort;   /* Single-letter shortcut (e.g. "h")     */

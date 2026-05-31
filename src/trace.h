@@ -33,8 +33,7 @@
 /* ------------------------------------------------------------------
  * Log levels
  * ------------------------------------------------------------------ */
-
-typedef enum
+typedef enum log_level_s
 {
     LOG_LEVEL_TRACE = 0,  /* Function entry / parameter trace        */
     LOG_LEVEL_INFO  = 1,  /* Functional progress info                */

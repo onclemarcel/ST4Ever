@@ -77,7 +77,7 @@
  * Machine state
  * ------------------------------------------------------------------ */
 
-typedef struct
+typedef struct st_machine_s
 {
     st_u8_t  aRam[ST_RAM_SIZE];         /* Main RAM (0x000000+)      */
     st_u8_t  aRom[ST_ROM_SIZE];         /* TOS ROM image             */
