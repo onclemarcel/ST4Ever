@@ -35,6 +35,62 @@ int g_uc_fails = 0;
 /* Dummy non-NULL pointer used to test NULL-guard bypasses */
 static int g_dummy = 0;
 
+#ifdef ST_MANUAL_TEST
+/* Persistent renderer handle for the manual paint callback */
+static renderer_t g_uc32_hR = NULL;
+
+static void uc32_paint_cb(gui_window_t   hWnd,
+                           gui_event_t   *ptEvent,
+                           void          *pCtx)
+{
+    renderer_color_t tBg     = {0.09f, 0.09f, 0.14f, 1.0f};
+    renderer_color_t tGreen  = RENDERER_COLOR_GREEN;
+    renderer_color_t tCyan   = RENDERER_COLOR_CYAN;
+    renderer_color_t tYellow = RENDERER_COLOR_YELLOW;
+    renderer_color_t tWhite  = RENDERER_COLOR_WHITE;
+    renderer_rect_t  tRect;
+    int              iW;
+    int              iH;
+
+    (void)pCtx;
+
+    if (ptEvent->eType == GUI_EVT_PAINT || ptEvent->eType == GUI_EVT_RESIZE)
+    {
+        if (g_uc32_hR == NULL)
+            renderer_create(hWnd, &g_uc32_hR);
+        if (g_uc32_hR == NULL)
+            return;
+
+        gui_get_size(hWnd, &iW, &iH);
+        tRect.fX = 0.0f;  tRect.fY = 0.0f;
+        tRect.fW = (float)iW; tRect.fH = (float)iH;
+        renderer_begin_draw(g_uc32_hR, &tBg);
+
+        tRect.fX = 20.0f; tRect.fY =  20.0f;
+        tRect.fW = 200.0f; tRect.fH =  80.0f;
+        renderer_fill_rect(g_uc32_hR, &tRect, &tGreen);
+
+        tRect.fX = 20.0f; tRect.fY = 120.0f;
+        tRect.fW = 200.0f; tRect.fH =  80.0f;
+        renderer_draw_rect(g_uc32_hR, &tRect, &tCyan, 2.0f);
+
+        renderer_draw_line(g_uc32_hR, 20, 220, 200, 300, &tYellow, 2.0f);
+
+        tRect.fX = 20.0f;  tRect.fY = 320.0f;
+        tRect.fW = 380.0f; tRect.fH =  30.0f;
+        renderer_draw_text(g_uc32_hR, "ST4Ever UC3.2", &tRect, &tWhite,
+                            RENDERER_FONT_MONO, RENDERER_ALIGN_LEFT);
+
+        renderer_end_draw(g_uc32_hR);
+    }
+    else if (ptEvent->eType == GUI_EVT_CLOSE)
+    {
+        if (g_uc32_hR != NULL)
+            renderer_destroy(&g_uc32_hR);
+    }
+}
+#endif
+
 int main(void)
 {
     renderer_t      hR;
@@ -155,26 +211,46 @@ int main(void)
     printf("\n--- Test group 3: visual output (manual) ---\n");
     /* ================================================================ */
 
-    /* INTENT[INT-RND-003 → TC-RND-007 → REQ-RND-006]:
-     * renderer_create on a live window returns ST_NO_ERROR and
-     * the window background switches from GDI-dark to D2D-dark */
-    TEST_SKIP("[S] renderer_create on open window (run make manual)");
+    /* INTENT[INT-RND-003 → TC-RND-007..011 → REQ-RND-006..008]:
+     * renderer on a live window draws: fill_rect, draw_rect, draw_line,
+     * draw_text — all visible in a D2D window */
+#ifdef ST_MANUAL_TEST
+    {
+        gui_wnd_desc_t tManualDesc;
+        gui_window_t   hManualWnd;
 
-    /* INTENT[INT-RND-003 → TC-RND-008 → REQ-RND-007]:
-     * renderer_fill_rect draws a coloured rectangle */
-    TEST_SKIP("[S] renderer_fill_rect: green rect visible in window");
+        gui_init();
+        memset(&tManualDesc, 0, sizeof(tManualDesc));
+        tManualDesc.szTitle  = "ST4Ever - UC3.2 D2D Renderer";
+        tManualDesc.eType    = GUI_WND_DIR;
+        tManualDesc.pfnEvent = uc32_paint_cb;
+        tManualDesc.pUserCtx = NULL;
+        hManualWnd = NULL;
+        gui_open_window(&tManualDesc, &hManualWnd);
+        platform_sleep_ms(600);
 
-    /* INTENT[INT-RND-003 → TC-RND-009 → REQ-RND-007]:
-     * renderer_draw_rect draws a hollow rectangle outline */
-    TEST_SKIP("[S] renderer_draw_rect: cyan outline visible");
+        TEST_MANUAL("[S] TC-RND-007 renderer_create on open window",
+                    "Is a dark window with D2D content visible?");
+        TEST_MANUAL("[S] TC-RND-008 renderer_fill_rect: green filled rect",
+                    "Is a green filled rectangle visible in the upper area?");
+        TEST_MANUAL("[S] TC-RND-009 renderer_draw_rect: cyan hollow outline",
+                    "Is a cyan hollow rectangle visible below the green one?");
+        TEST_MANUAL("[S] TC-RND-010 renderer_draw_line: yellow diagonal",
+                    "Is a yellow diagonal line visible below the rectangles?");
+        TEST_MANUAL("[S] TC-RND-011 renderer_draw_text: 'ST4Ever UC3.2'",
+                    "Is white text 'ST4Ever UC3.2' visible at the bottom?");
 
-    /* INTENT[INT-RND-003 → TC-RND-010 → REQ-RND-007]:
-     * renderer_draw_line draws a diagonal line */
-    TEST_SKIP("[S] renderer_draw_line: yellow diagonal visible");
-
-    /* INTENT[INT-RND-003 → TC-RND-011 → REQ-RND-007,REQ-RND-008]:
-     * renderer_draw_text renders Consolas + Segoe UI text */
-    TEST_SKIP("[S] renderer_draw_text: 'ST4Ever UC3.2' text visible");
+        gui_close_window(hManualWnd);
+        hManualWnd = NULL;
+        gui_shutdown();
+    }
+#else
+    TEST_SKIP("[S] TC-RND-007 renderer_create on open window (run make manual)");
+    TEST_SKIP("[S] TC-RND-008 renderer_fill_rect: green rect visible in window");
+    TEST_SKIP("[S] TC-RND-009 renderer_draw_rect: cyan outline visible");
+    TEST_SKIP("[S] TC-RND-010 renderer_draw_line: yellow diagonal visible");
+    TEST_SKIP("[S] TC-RND-011 renderer_draw_text: 'ST4Ever UC3.2' text visible");
+#endif
 
     /* ================================================================ */
     printf("\n[cleanup] trace_shutdown()\n");

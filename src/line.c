@@ -364,7 +364,7 @@ static st_error_t line_cmd_quit(const parsed_cmd_t *ptParsed,
  *
  * trace          -> toggle open/closed (trace_enabled state unchanged)
  * trace on       -> open + enable LOG_TRACE
- * trace off      -> disable LOG_TRACE + close
+ * trace off      -> disable LOG_TRACE (view stays open — P19)
  * trace <other>  -> warning, no effect
  * Extra args     -> warning, first arg still processed
  *
@@ -442,19 +442,16 @@ static st_error_t line_cmd_trace(const parsed_cmd_t *ptParsed,
     }
     else if (strcmp(szArg, "off") == 0)
     {
+        /* P19: trace off filters LOG_TRACE only; view stays open.
+         * Use 'trace' (no arg) to close the view. */
         eResult = trace_set_trace_enabled(ST_FALSE);
         if (eResult != ST_NO_ERROR)
         {
             line_print_error("trace off: disable LOG_TRACE failed");
             return ST_ERROR;
         }
-        eResult = trace_close();
-        if (eResult != ST_NO_ERROR)
-        {
-            line_print_error("trace off: close failed");
-            return ST_ERROR;
-        }
-        line_print_msg("Trace: OFF");
+        line_print_msg("Trace: LOG_TRACE filtered  "
+                       "(use 'trace' to close the view)");
     }
     else
     {

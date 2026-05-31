@@ -269,15 +269,37 @@ int main(void)
 
     /* INTENT[INT-GUI-004 → TC-GUI-016 → REQ-GUI-004]:
      * gui_open_window spawns a thread, window appears with dark background */
-    TEST_SKIP("[S] gui_open_window() - window visible (run make manual)");
+#ifdef ST_MANUAL_TEST
+    gui_init();
+    memset(&tDesc, 0, sizeof(tDesc));
+    tDesc.szTitle  = "ST4Ever - UC3.1 Manual Test";
+    tDesc.eType    = GUI_WND_DIR;
+    tDesc.pfnEvent = NULL;
+    tDesc.pUserCtx = NULL;
+    hWnd = NULL;
+    gui_open_window(&tDesc, &hWnd);
+    platform_sleep_ms(500);
+    TEST_MANUAL("[S] TC-GUI-016 window open with dark background",
+                "Is a dark window titled 'ST4Ever - UC3.1 Manual Test' "
+                "visible?");
 
     /* INTENT[INT-GUI-004 → TC-GUI-017 → REQ-GUI-006]:
      * gui_close_window posts WM_CLOSE, thread exits, handle freed */
-    TEST_SKIP("[S] window: dark background, title bar visible");
+    TEST_MANUAL("[S] TC-GUI-017 title bar shows correct title",
+                "Does the title bar read 'ST4Ever - UC3.1 Manual Test'?");
+    gui_close_window(hWnd);
+    hWnd = NULL;
 
     /* INTENT[INT-GUI-005 → TC-GUI-018 → REQ-GUI-015]:
      * OS close button (X) fires WM_DESTROY -> GUI_EVT_CLOSE callback */
-    TEST_SKIP("[S] gui_close_window() - window closes cleanly");
+    TEST_MANUAL("[S] TC-GUI-018 gui_close_window: window disappears cleanly",
+                "Did the window disappear from the taskbar?");
+    gui_shutdown();
+#else
+    TEST_SKIP("[S] TC-GUI-016 gui_open_window() - window visible (run make manual)");
+    TEST_SKIP("[S] TC-GUI-017 window: dark background, title bar visible");
+    TEST_SKIP("[S] TC-GUI-018 gui_close_window() - window closes cleanly");
+#endif
 
     /* ================================================================ */
     printf("\n[cleanup] trace_shutdown()\n");

@@ -13,7 +13,7 @@
  * with `make run`.
  *
  * TEST MATRIX:
- *   [N] Nominal    : 22 tests  - toggle, on, off, state consistency
+ *   [N] Nominal    : 21 tests  - toggle, on, off, state consistency
  *   [R] Robustness :  4 tests  - idempotent open/close, level isolation
  *   [S] Skipped    :  4 tests  - command dispatch via stdin (manual)
  *
@@ -21,7 +21,7 @@
  *   Group 1: trace (toggle)   - open when closed, close when open,
  *                               trace_enabled state preserved
  *   Group 2: trace on         - open + enable LOG_TRACE, idempotent
- *   Group 3: trace off        - disable LOG_TRACE + close, idempotent
+ *   Group 3: trace off        - disable LOG_TRACE only; view stays open (P19)
  *   Group 4: state consistency - LOG levels unaffected by trace off
  *   Group 5: skipped tests    - manual stdin dispatch validation
  *
@@ -125,29 +125,30 @@ static void test_trace_off(void)
     printf("\n--- Test group 3: trace off ---\n");
 
     /* Precondition: console open, trace_enabled TRUE (from group 2).
-     * Simulates: trace_set_trace_enabled(FALSE) + trace_close() */
+     * ADAPTED: P19 - trace off no longer calls trace_close().
+     * Simulates: trace_set_trace_enabled(FALSE) only; view stays open. */
 
-    /* INTENT[INT-TRC-017 → TC-TRC-017 → REQ-TRC-014]:
-     * `trace off` must disable LOG_TRACE output (before closing) */
+    /* INTENT[INT-TRC-017 → TC-TRC-017 → REQ-TRC-009]:
+     * `trace off` must disable LOG_TRACE output */
     UC_CHECK("[N] trace_set_trace_enabled(FALSE)  [trace off: disable]",
              trace_set_trace_enabled(ST_FALSE));
     UC_TEST("[N] trace_is_trace_enabled() == FALSE after trace off",
             trace_is_trace_enabled() == ST_FALSE);
 
-    /* INTENT[INT-TRC-018 → TC-TRC-018 → REQ-TRC-015]:
-     * `trace off` must close the trace console */
-    UC_CHECK("[N] trace_close()  [trace off: close console]",
-             trace_close());
-    UC_TEST("[N] trace_is_open() == FALSE after trace off",
-            trace_is_open() == ST_FALSE);
+    /* ADAPTED: P19 - INT-TRC-018: trace off must NOT close the console.
+     * INTENT[INT-TRC-018 → TC-TRC-015 → UFR-CON-031]:
+     * `trace off` must leave the trace view open (filter only) */
+    UC_TEST("[N] trace_is_open() == TRUE after trace off (P19: view stays open)",
+            trace_is_open() == ST_TRUE);
 
-    /* INTENT[INT-TRC-019 → TC-TRC-019 → REQ-TRC-015]:
-     * `trace off` when console already closed must be idempotent
-     * (close is idempotent per UC1 contract) */
-    UC_TEST("[R] trace_close() idempotent: already closed -> ST_NO_ERROR",
-            trace_close() == ST_NO_ERROR);
-    UC_TEST("[R] trace_is_open() still FALSE after second close",
-            trace_is_open() == ST_FALSE);
+    /* ADAPTED: P19 - INT-TRC-019: idempotency now covers second disable,
+     * not trace_close() (which is no longer called by trace off).
+     * INTENT[INT-TRC-019 → TC-TRC-016 → REQ-TRC-016]:
+     * `trace off` twice is harmless; view remains open */
+    UC_TEST("[R] trace_set_trace_enabled(FALSE) idempotent -> ST_NO_ERROR",
+            trace_set_trace_enabled(ST_FALSE) == ST_NO_ERROR);
+    UC_TEST("[R] trace_is_open() still TRUE after second trace off",
+            trace_is_open() == ST_TRUE);
 }
 
 /* ------------------------------------------------------------------
@@ -158,7 +159,7 @@ static void test_state_consistency(void)
 {
     printf("\n--- Test group 4: state consistency ---\n");
 
-    /* Precondition: console closed, trace_enabled FALSE (from group 3) */
+    /* Precondition: console OPEN, trace_enabled FALSE (from group 3 — P19) */
 
     /* INTENT[INT-TRC-020 → TC-TRC-020 → REQ-TRC-016]:
      * After trace off, LOG_INFO / LOG_ERROR / LOG_TODO must still
@@ -189,10 +190,17 @@ static void test_skipped(void)
 {
     printf("\n--- Test group 5: command dispatch (manual via make run) ---\n");
 
-    TEST_SKIP("[S] `trace`         toggle via console - validated manually");
-    TEST_SKIP("[S] `trace on`      via console - validated manually");
-    TEST_SKIP("[S] `trace off`     via console - validated manually");
-    TEST_SKIP("[S] `trace <bad>`   unknown-arg warning - validated manually");
+    TEST_MANUAL("[S] 'trace' toggles the trace window",
+                "In a second terminal run './release/st4ever.exe', type "
+                "'trace' ENTER: did trace open? Type 'trace' again: "
+                "did it close?");
+    TEST_MANUAL("[S] 'trace on' opens trace and enables LOG_TRACE",
+                "Type 'trace on': trace open and LOG_TRACE lines visible? "
+                "Type 'trace off': LOG_TRACE filtered, console still open?");
+    TEST_MANUAL("[S] 'trace off' is idempotent when LOG_TRACE already disabled",
+                "Type 'trace off' twice: no error, console still open?");
+    TEST_MANUAL("[S] 'trace <bad>' shows warning with no state change",
+                "Type 'trace xyz': warning shown, trace state unchanged?");
 }
 
 /* ------------------------------------------------------------------

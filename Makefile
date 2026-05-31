@@ -149,10 +149,11 @@ tests: all
 # Manual test binaries: same use_case_NN.c with -DST_MANUAL_TEST.
 # Run from project root; answer y/n for each visual/interactive question.
 $(MDIR)/%$(EXE): $(UC_DIR)/%.c $(LIB_OBJS)
+	mkdir -p $(MDIR)
 	$(CC) $(CFLAGS) -DST_MANUAL_TEST $< $(LIB_OBJS) -o $@ $(LDFLAGS)
 	@echo "  --> $@"
 
-manual: all $(MDIR) $(MANUAL_TARGETS)
+manual: all $(MANUAL_TARGETS)
 	@echo ""
 	@echo "================================================================"
 	@echo " ST4Ever - Manual Validation Tests"

@@ -17,6 +17,7 @@
 | 1.2 | 2026-05-30 | UC3.1 | Claude/OMC | UC3.1 validated — GUI msg_queue + Win32 window/thread/WndProc   |
 | 1.3 | 2026-05-30 | UC3.2 | Claude/OMC | UC3.2 validated — Direct2D renderer (win_D2D.c COM pure C + renderer.c) |
 | 1.4 | 2026-05-31 | UC3.3 | Claude/OMC | UC3.3 validated — dir view: lazy-load FS tree, flat list, D2D render, kbd/mouse |
+| 1.5 | 2026-05-31 | UC4.1 | Claude/OMC | UC4.1 validated — gui_request_close, bShowHidden, ESC/←/→/SPACE separation, auto-focus, TEST_MANUAL, make manual |
 
 ---
 
@@ -92,7 +93,7 @@ through one or more test cases in Section 5.
 | ID          | Requirement                                                                                       | Status   | UC   |
 |-------------|---------------------------------------------------------------------------------------------------|----------|------|
 | UFR-CON-030 | `trace on` shall open the trace console if not already visible.                                  | ✓ UC2    | UC2  |
-| UFR-CON-031 | `trace off` shall close the trace console if currently visible.                                  | ✓ UC2    | UC2  |
+| UFR-CON-031 | `trace off` shall filter LOG_TRACE output without closing the trace view; LOG_INFO/ERROR/TODO remain visible. Use `trace` (no arg) to close. (ADAPTED P19) | ✓ P19 | UC2 |
 | UFR-CON-032 | `trace` with no argument shall toggle the trace console visibility.                               | ✓ UC2    | UC2  |
 | UFR-CON-033 | The `-t` application flag shall open the trace console immediately at startup.                   | ✓ UC1    | UC1  |
 
@@ -131,6 +132,7 @@ through one or more test cases in Section 5.
 | UFR-GUI-004 | The application shall support up to 16 simultaneously open views.                                             | ✓ UC3.1     | UC3.1  |
 | UFR-GUI-005 | All 2D rendering (text, rectangles, lines) shall use Direct2D (Windows) or X11/XRender (Linux).              | ✓ UC3.2     | UC3.2  |
 | UFR-GUI-006 | Each view's window title bar shall be updated dynamically to reflect the current context (R18).               | ✓ UC3.3     | UC3.3  |
+| UFR-GUI-007 | A newly opened view window shall automatically receive keyboard focus without requiring the user to click or alt-tab. | ✓ UC4.1 | UC4.1 |
 
 ### 1.4 Directory View — `DIR` (TODO UC3.3)
 
@@ -142,6 +144,10 @@ through one or more test cases in Section 5.
 | UFR-DIR-004 | A `..` entry at the top shall navigate to the parent directory.                                               | ✓ UC3.3  | UC3.3|
 | UFR-DIR-005 | Right-clicking a file shall display a context menu with `load` and `edit` options.                           | TODO UC7 | UC7  |
 | UFR-DIR-006 | Right-clicking a directory shall display a context menu with `mount` and `image` options.                    | TODO UC18| UC18 |
+| UFR-DIR-007 | Hidden entries (names starting with `.`) shall be excluded from the directory view by default; `dir -a` shall include them. | ✓ UC4.1 | UC4.1 |
+| UFR-DIR-008 | ESC key shall close the directory view without requiring console-thread action.                              | ✓ UC4.1  | UC4.1 |
+| UFR-DIR-009 | LEFT arrow key shall collapse an expanded directory node; RIGHT arrow key shall expand a collapsed directory node (loading children lazily if needed). | ✓ UC4.1 | UC4.1 |
+| UFR-DIR-010 | SPACE shall update the default selection without modifying the expand/collapse state; ENTER shall activate the node (expand/collapse/navigate). | ✓ UC4.1 | UC4.1 |
 
 ### 1.5 Editor Views — `EDT` (TODO UC8–10)
 
@@ -186,6 +192,7 @@ requirement that will expose it (`UFR-EXE-*`, planned UC21–27).
 | REQ-TRC-013 | Trace output shall be written to `st4ever_trace.log` (always) and to stderr with ANSI colours (when open).        | UFR-TRC-004, UFR-TRC-001 | ✓ UC1         | UC1  |
 | REQ-TRC-014 | `trace_open/close` shall call `gui_open_window` / close for the dedicated trace GUI window.                       | UFR-TRC-007              | TODO UC3.3    | UC3.3|
 | REQ-TRC-015 | Each log entry shall be formatted as `HH:MM:SS [LEVEL] function:line  message` — timestamp from system clock (`localtime`/`strftime`), level tag, emitting function (`__func__`), source line (`__LINE__`). | UFR-TRC-002 | ✓ UC1 | UC1 |
+| REQ-TRC-016 | `line_cmd_trace("off")` shall call `trace_set_trace_enabled(ST_FALSE)` without calling `trace_close()`; the trace view shall remain open. Calling `trace off` twice shall be harmless. (P19) | UFR-CON-031 | ✓ P19 | P19 |
 
 ### 2.2 Console Line Reader — `line.h` / `line.c`
 
@@ -269,6 +276,9 @@ requirement that will expose it (`UFR-EXE-*`, planned UC21–27).
 | REQ-GUI-016  | The renderer shall use Direct2D / DirectWrite (Windows) or X11/XRender (Linux).                              | UFR-GUI-005  | ✓ UC3.2   | UC3.2 |
 | REQ-GUI-017  | `gui_set_title(NULL, *)` and `gui_set_title(*, NULL)` shall return `ST_ERROR`.                               | UFR-GUI-006  | ✓ UC3.3   | UC3.3 |
 | REQ-GUI-018  | `gui_set_title(hWnd, szTitle)` shall update the OS window title bar via the platform backend.                | UFR-GUI-006  | ✓ UC3.3   | UC3.3 |
+| REQ-GUI-019  | `gui_request_close(NULL)` shall return `ST_ERROR`.                                                           | UFR-GUI-001  | ✓ UC4.1   | UC4.1 |
+| REQ-GUI-020  | `gui_request_close(hWnd)` shall post `WM_CLOSE` asynchronously without joining the window thread; `gui_close_window()` shall handle the join correctly even if the window was already destroyed by a prior close request. | UFR-GUI-001 | ✓ UC4.1 | UC4.1 |
+| REQ-GUI-021  | The Win32 window thread shall call `SetForegroundWindow()` and `SetFocus()` after `ShowWindow()` so the new view receives keyboard input immediately. | UFR-GUI-007 | ✓ UC4.1 | UC4.1 |
 
 ### 2.7 2D Renderer — `renderer.h` / `renderer.c` / `win_D2D.c`
 
@@ -306,6 +316,13 @@ requirement that will expose it (`UFR-EXE-*`, planned UC21–27).
 | REQ-DIR-012  | Arrow keys (↑↓ PgUp/PgDn Home End) shall move selection and guarantee it remains visible (scroll-to-sel).    | UFR-DIR-001  | ✓ UC3.3  | UC3.3  |
 | REQ-DIR-013  | Mouse wheel scroll shall update `iScrollOffset` clamped to `[0, max(0, iFlatCount+1 − iVisRows)]`.           | UFR-DIR-001  | ✓ UC3.3  | UC3.3  |
 | REQ-CON-011  | `line_run()` shall dispatch `dir` / `d` / CTRL+D to `line_cmd_dir()`.                                        | UFR-CON-040  | ✓ UC3.3  | UC3.3  |
+| REQ-DIR-014  | `dir_open()` shall accept a `bShowHidden` boolean parameter; when `ST_FALSE`, directory entries whose name starts with `.` shall be excluded from the scan; `.` and `..` pseudo-entries are always excluded. | UFR-DIR-007 | ✓ UC4.1 | UC4.1 |
+| REQ-DIR-015  | `line_cmd_dir()` shall parse a `-a` flag (in any position among arguments) and pass `bShowHidden=ST_TRUE` to `dir_open()`. | UFR-DIR-007 | ✓ UC4.1 | UC4.1 |
+| REQ-DIR-016  | With `bShowHidden=ST_FALSE`, `iFlatCount` shall reflect only non-hidden entries; with `bShowHidden=ST_TRUE`, all non-pseudo entries shall be counted. Both calls shall succeed with `ST_NO_ERROR`. | UFR-DIR-007 | ✓ UC4.1 | UC4.1 |
+| REQ-DIR-017  | ESC key in `dir_handle_key()` shall call `gui_request_close(hWnd)` (non-blocking); the window thread may continue until the OS destroys the window. | UFR-DIR-008 | ✓ UC4.1 | UC4.1 |
+| REQ-DIR-018  | LEFT arrow on an expanded directory node shall collapse it and rebuild the flat list; on a collapsed directory or a file: no-op. RIGHT arrow on a collapsed directory shall lazy-load children if needed, expand it, and rebuild the flat list; on an expanded directory or a file: no-op. | UFR-DIR-009 | ✓ UC4.1 | UC4.1 |
+| REQ-DIR-019  | SPACE on `iSelectedFlat >= 0` shall write the node's full path to `ptLineCtx->szSelected` without modifying expand/collapse state; SPACE on the `..` row (`iSelectedFlat == -1`) shall be a no-op. | UFR-DIR-010 | ✓ UC4.1 | UC4.1 |
+| REQ-DIR-020  | After `ShowWindow()`, the Win32 window thread shall call `SetForegroundWindow()` and `SetFocus()` so the view receives keyboard input immediately. | UFR-GUI-007 | ✓ UC4.1 | UC4.1 |
 
 ---
 
@@ -675,6 +692,7 @@ thread.
 | `gui_get_size(hWnd, piW, piH)`            | —                             | GetClientRect → client area dimensions                   |
 | `gui_shutdown()`                          | REQ-GUI-007, REQ-GUI-008      | Close all windows; UnregisterClass; destroy list mutex   |
 | `gui_set_title(hWnd, szTitle)`            | REQ-GUI-017, REQ-GUI-018      | Update OS title bar (R18); delegates to platform backend |
+| `gui_request_close(hWnd)`                 | REQ-GUI-019, REQ-GUI-020      | Post WM_CLOSE non-blocking; safe if called from window thread itself |
 | `gui_msg_create(pphQ, cap)`               | REQ-GUI-009, REQ-GUI-010      | Allocate circular event buffer + mutex                   |
 | `gui_msg_post(hQ, ptEvt)`                 | REQ-GUI-011, REQ-GUI-012      | Append event; ST_ERROR if full (non-blocking)            |
 | `gui_msg_get(hQ, ptEvt, bBlock)`          | REQ-GUI-013                   | Dequeue; spin-wait 1 ms if bBlock=TRUE (TODO UC4: cond var) |
@@ -718,6 +736,7 @@ thread.
 | `GetMessage / TranslateMessage / DispatchMessage`     | [WIN] | Win32 message pump                   |
 | `PostMessageA / InvalidateRect / GetClientRect`       | [WIN] | Window control                       |
 | `SetWindowTextA`                                      | [WIN] | Dynamic title (R18)                  |
+| `SetForegroundWindow / SetFocus`                      | [WIN] | Auto-focus on window open (REQ-GUI-021) |
 | `platform_mutex_create/lock/unlock/destroy`           | [ST4] | List mutex + queue mutex             |
 | `malloc / free / memset`                              | [CRT] | Window struct and queue allocation   |
 
@@ -782,20 +801,20 @@ keyboard/mouse/scroll event handling. Opens as a `GUI_WND_DIR` window via
 
 | Function                           | REQ(s)                    | Description                                              |
 |------------------------------------|---------------------------|----------------------------------------------------------|
-| `dir_open(szPath, ptLineCtx, pptView)` | REQ-DIR-001..005      | Alloc view, scan root, open GUI window (blocks until HWND live) |
+| `dir_open(szPath, ptLineCtx, bShowHidden, pptView)` | REQ-DIR-001..005, REQ-DIR-014, REQ-DIR-016 | Alloc view, scan root (filtered by bShowHidden), open GUI window (blocks until HWND live) |
 | `dir_close(pptView)`               | REQ-DIR-006, REQ-DIR-007  | Close window (join thread), free tree + flat list, *pptView=NULL |
 
 **Key internal functions:**
 
 | Function                                                        | REQ(s)       | Description                                                      |
 |-----------------------------------------------------------------|--------------|------------------------------------------------------------------|
-| `dir_node_load_children(ptNode)`                                | REQ-DIR-005  | Win32 two-pass FindFirstFileA (dirs first, then files); non-fatal on access-denied |
+| `dir_node_load_children(ptNode, bShowHidden)`                   | REQ-DIR-005, REQ-DIR-014 | Win32 two-pass FindFirstFileA (dirs first, then files); filters '.' prefix when bShowHidden=FALSE; non-fatal on access-denied |
 | `dir_flat_rebuild(ptView)`                                      | REQ-DIR-005  | Reset flat array; call `dir_flat_rebuild_rec()` from root        |
 | `dir_flat_rebuild_rec(ptView, ptNode, iDepth, bLast, uiMask)`   | —            | DFS → flat array; propagates `uiLastMask` bitmask per entry      |
 | `dir_build_prefix(ptEntry, szBuf, uiMax)`                       | —            | ASCII connector from `uiLastMask`: `\-- ` / `+-- ` / `\|   ` / `    ` |
 | `dir_render(ptView)`                                            | —            | D2D: bg + selection rect + `..` row (yellow) + flat entries      |
 | `dir_event_callback(hWnd, ptEvent, pCtx)`                       | REQ-DIR-008..013 | GUI_EVT_PAINT / RESIZE / KEY_DOWN / MOUSE_DOWN / SCROLL / CLOSE |
-| `dir_handle_key(ptView, eKey)`                                  | REQ-DIR-012  | ↑↓ PgUp/PgDn Home End ENTER SPACE → selection + scroll          |
+| `dir_handle_key(ptView, eKey)`                                  | REQ-DIR-012, REQ-DIR-017..019 | ↑↓ PgUp/PgDn Home End ENTER SPACE ESC ←/→ → selection, scroll, expand/collapse, close |
 | `dir_handle_click(ptView, iX, iY)`                              | REQ-DIR-008  | Left-click: select + toggle expand/collapse on dirs              |
 | `dir_handle_scroll(ptView, iDelta)`                             | REQ-DIR-013  | Clamp `iScrollOffset`                                            |
 | `dir_activate_sel(ptView)`                                      | REQ-DIR-008..010 | `..` → navigate up; dir → toggle; file → set szSelected      |
@@ -1037,6 +1056,11 @@ Input: `{ 0x70, 0x2A, 0x4E, 0x75 }` at base `0x1000`
 | UFR-GUI-006      | REQ-GUI-017, REQ-DIR-011    | —                      | TC-DIR-018 (manual)            | ✓ UC3.3      |
 | UFR-DIR-001..004 | REQ-DIR-001..013            | INT-DIR-001..010       | TC-DIR-001..020                | ✓ UC3.3      |
 | UFR-DIR-005..006 | —                           | —                      | —                              | TODO UC7/UC18|
+| UFR-DIR-007      | REQ-DIR-014..016            | INT-DIR-011..014       | TC-DIR4-002..008               | ✓ UC4.1      |
+| UFR-DIR-008      | REQ-DIR-017                 | INT-DIR-015            | TC-DIR4-009 (manual)           | ✓ UC4.1      |
+| UFR-DIR-009      | REQ-DIR-018                 | INT-DIR-016..017       | TC-DIR4-010..011 (manual)      | ✓ UC4.1      |
+| UFR-DIR-010      | REQ-DIR-019                 | INT-DIR-018..019       | TC-DIR4-012..013 (manual)      | ✓ UC4.1      |
+| UFR-GUI-007      | REQ-GUI-021, REQ-DIR-020    | INT-DIR-020            | TC-DIR4-014 (manual)           | ✓ UC4.1      |
 
 #### REQ → TC coverage (UC1)
 
@@ -1055,9 +1079,9 @@ Input: `{ 0x70, 0x2A, 0x4E, 0x75 }` at base `0x1000`
 | REQ-TRC-011  | TC-TRC-008, TC-TRC-009      | ✓ PASS        |
 | REQ-TRC-012  | (trace_shutdown in main)    | ✓ PASS        |
 | REQ-TRC-013  | (file/ANSI — manual check)  | ✓ PASS        |
-| REQ-TRC-014  | —                           | TODO UC3.3    |
+| REQ-TRC-014  | —                           | TODO UC4.4    |
 | REQ-TRC-015  | (format — visual check st4ever_trace.log) | ✓ PASS |
-| REQ-TRC-014  | —                           | TODO UC3      |
+| REQ-TRC-016  | TC-TRC-015, TC-TRC-016      | ✓ P19         |
 | REQ-CON-001  | TC-CON-001                  | ✓ PASS        |
 | REQ-CON-002  | TC-CON-002                  | ✓ PASS        |
 | REQ-CON-003  | TC-CON-002                  | ✓ PASS        |
@@ -1124,7 +1148,7 @@ Source: `use_cases/use_case_02.c`
 |-------------|--------------------------------------------------------------------------|
 | INT-TRC-010 | trace toggle (no arg) opens if closed, closes if open; enabled unchanged |
 | INT-TRC-011 | trace on: open console + enable LOG_TRACE (idempotent)                   |
-| INT-TRC-012 | trace off: disable LOG_TRACE + close console (idempotent)                |
+| INT-TRC-012 | trace off: disable LOG_TRACE only; console stays open; idempotent (P19)  |
 | INT-CON-010 | LOG_INFO/ERROR/TODO remain active when trace_enabled is FALSE            |
 
 ### 5.9 Test Cases — UC2 (trace command)
@@ -1138,8 +1162,8 @@ Source: `use_cases/use_case_02.c`
 | TC-TRC-012  | toggle preserves trace_enabled state            | [N]  | UFR-CON-032  | REQ-CON-008 | INT-TRC-010 | `trace_is_trace_enabled()` unchanged after toggle         | PASS UC2 |
 | TC-TRC-013  | `trace on`: open + enable (idempotent)          | [N]  | UFR-CON-030  | REQ-CON-008 | INT-TRC-011 | `trace_is_open()==TRUE`; `trace_is_trace_enabled()==TRUE` | PASS UC2 |
 | TC-TRC-014  | `trace on` when already open: harmless          | [R]  | UFR-CON-030  | REQ-TRC-002 | INT-TRC-011 | second `trace_open()` → `ST_NO_ERROR`; state unchanged    | PASS UC2 |
-| TC-TRC-015  | `trace off`: disable + close (idempotent)       | [N]  | UFR-CON-031  | REQ-CON-008 | INT-TRC-012 | `trace_is_open()==FALSE`; `trace_is_trace_enabled()==FALSE`| PASS UC2|
-| TC-TRC-016  | `trace off` when already closed: harmless       | [R]  | UFR-CON-031  | REQ-TRC-007 | INT-TRC-012 | second `trace_close()` → `ST_NO_ERROR`; state unchanged   | PASS UC2 |
+| TC-TRC-015  | `trace off`: disable LOG_TRACE, view stays open | [N]  | UFR-CON-031  | REQ-TRC-016 | INT-TRC-012 | `trace_is_open()==TRUE`; `trace_is_trace_enabled()==FALSE` (ADAPTED P19) | PASS P19 |
+| TC-TRC-016  | `trace off` idempotent (second disable harmless)| [R]  | UFR-CON-031  | REQ-TRC-016 | INT-TRC-012 | `trace_set_trace_enabled(FALSE)` × 2 → `ST_NO_ERROR`; `trace_is_open()==TRUE` (ADAPTED P19) | PASS P19 |
 | TC-TRC-017  | INFO/ERROR/TODO active when TRACE disabled      | [R]  | UFR-TRC-005  | REQ-TRC-009 | INT-CON-010 | `trace_set_trace_enabled(FALSE)` → other levels emit OK   | PASS UC2 |
 
 #### Test Summary — UC2
@@ -1351,18 +1375,84 @@ Source: `use_cases/use_case_03_3.c`
 
 ---
 
-#### UFR traceability update (UC2 + UC3.1)
+### 5.16 INTENT Catalog — UC4.1
 
-| UFR              | REQ(s)           | TC(s)                              | Status     |
-|------------------|------------------|------------------------------------|------------|
-| UFR-CON-030      | REQ-CON-008      | TC-TRC-013, TC-TRC-014             | ✓ UC2      |
-| UFR-CON-031      | REQ-CON-008      | TC-TRC-015, TC-TRC-016             | ✓ UC2      |
-| UFR-CON-032      | REQ-CON-008      | TC-TRC-010..012                    | ✓ UC2      |
-| UFR-GUI-001      | REQ-GUI-001..008 | TC-GUI-011..018                    | ✓ UC3.1    |
-| UFR-GUI-002      | REQ-GUI-009..014 | TC-GUI-001..010                    | ✓ UC3.1    |
-| UFR-GUI-003      | REQ-GUI-015      | TC-GUI-018 (manual)                | ✓ UC3.1    |
-| UFR-GUI-004      | REQ-GUI-004..006 | TC-GUI-016..017 (manual)           | ✓ UC3.1    |
-| UFR-GUI-005      | REQ-GUI-016      | —                                  | TODO UC3.2 |
+Source: `use_cases/use_case_04_1.c`
+
+| ID          | INTENT text                                                                                            |
+|-------------|--------------------------------------------------------------------------------------------------------|
+| INT-GUI-010 | `gui_request_close(NULL)` is rejected before any side effect                                           |
+| INT-DIR-011 | `dir_open` with `bShowHidden=ST_FALSE` does not include `.*` entries                                  |
+| INT-DIR-012 | `dir_open` with `bShowHidden=ST_TRUE` includes `.*` entries                                           |
+| INT-DIR-013 | `bShowHidden=ST_TRUE` count is strictly greater than `bShowHidden=ST_FALSE` count                     |
+| INT-DIR-014 | `bShowHidden=ST_TRUE` with NULL `ptLineCtx` is still rejected with `ST_ERROR`                         |
+| INT-DIR-015 | ESC key closes the dir window from the window thread without console-thread action                     |
+| INT-DIR-016 | LEFT arrow collapses an expanded directory; the flat list and scroll are updated                       |
+| INT-DIR-017 | RIGHT arrow expands a collapsed directory (lazy-loads children if needed)                              |
+| INT-DIR-018 | SPACE selects a file or directory without triggering expand or navigate                                |
+| INT-DIR-019 | ENTER still triggers expand/collapse/navigate (behaviour unchanged from UC3.3)                         |
+| INT-DIR-020 | Window receives keyboard focus on open without requiring the user to alt-tab or click                  |
+
+### 5.17 Test Cases — UC4.1 (UX dir improvements + make manual)
+
+Source: `use_cases/use_case_04_1.c`
+Test data: `use_cases/UC04_1/testdata/` — 2 visible entries + 2 hidden entries (`.*`)
+
+| ID           | Functional description                                             | Type | UFR          | REQ                      | INTENT      | Expected outcome                                                              | Status     |
+|--------------|--------------------------------------------------------------------|------|--------------|--------------------------|-------------|-------------------------------------------------------------------------------|------------|
+| TC-DIR4-001  | `gui_request_close(NULL)` → ST_ERROR                               | [R]  | UFR-GUI-001  | REQ-GUI-019              | INT-GUI-010 | ST_ERROR; no side effect                                                      | PASS UC4.1 |
+| TC-DIR4-002  | `dir_open(testdata, bShowHidden=F)` → ST_NO_ERROR                  | [N]  | UFR-DIR-007  | REQ-DIR-014, REQ-DIR-016 | INT-DIR-011 | ST_NO_ERROR; ptView ≠ NULL                                                    | PASS UC4.1 |
+| TC-DIR4-003  | `bShowHidden=F`: iFlatCount == 2 (visible_dir + visible.txt)       | [N]  | UFR-DIR-007  | REQ-DIR-016              | INT-DIR-011 | `iFlatCount == 2`                                                             | PASS UC4.1 |
+| TC-DIR4-004  | `dir_open(testdata, bShowHidden=T)` → ST_NO_ERROR                  | [N]  | UFR-DIR-007  | REQ-DIR-014, REQ-DIR-016 | INT-DIR-012 | ST_NO_ERROR; ptView ≠ NULL                                                    | PASS UC4.1 |
+| TC-DIR4-005  | `bShowHidden=T`: iFlatCount == 4 (all entries)                     | [N]  | UFR-DIR-007  | REQ-DIR-016              | INT-DIR-012 | `iFlatCount == 4`                                                             | PASS UC4.1 |
+| TC-DIR4-006  | `iFlatCount(T) > iFlatCount(F)`                                    | [N]  | UFR-DIR-007  | REQ-DIR-016              | INT-DIR-013 | iFlatHidden > iFlatVisible                                                    | PASS UC4.1 |
+| TC-DIR4-007  | `dir_open(bShowHidden=T, NULL ptLineCtx)` → ST_ERROR               | [R]  | UFR-DIR-001  | REQ-DIR-001              | INT-DIR-014 | ST_ERROR                                                                      | PASS UC4.1 |
+| TC-DIR4-008  | After TC-DIR4-007: `*pptView` unchanged (still NULL)               | [R]  | UFR-DIR-001  | REQ-DIR-001              | INT-DIR-014 | ptView == NULL                                                                | PASS UC4.1 |
+| TC-DIR4-009  | ESC closes the dir window (manual)                                 | [S]  | UFR-DIR-008  | REQ-DIR-017              | INT-DIR-015 | Press ESC in window → window closes (make manual)                             | SKIP       |
+| TC-DIR4-010  | LEFT collapses expanded directory (manual)                         | [S]  | UFR-DIR-009  | REQ-DIR-018              | INT-DIR-016 | Press RIGHT to expand, then LEFT → collapsed (make manual)                    | SKIP       |
+| TC-DIR4-011  | RIGHT expands collapsed directory (manual)                         | [S]  | UFR-DIR-009  | REQ-DIR-018              | INT-DIR-017 | Select collapsed dir, press RIGHT → expanded (make manual)                    | SKIP       |
+| TC-DIR4-012  | SPACE selects without expand/collapse (manual)                     | [S]  | UFR-DIR-010  | REQ-DIR-019              | INT-DIR-018 | Press SPACE on collapsed dir → stays collapsed, path selected (make manual)   | SKIP       |
+| TC-DIR4-013  | ENTER triggers expand/collapse/navigate (manual)                   | [S]  | UFR-DIR-010  | REQ-DIR-008              | INT-DIR-019 | Press ENTER on collapsed dir → expands (make manual)                          | SKIP       |
+| TC-DIR4-014  | Window focused on open without alt-tab (manual)                    | [S]  | UFR-GUI-007  | REQ-DIR-020, REQ-GUI-021 | INT-DIR-020 | Arrow keys work immediately after open, no click needed (make manual)         | SKIP       |
+
+#### Test Summary — UC4.1
+
+| Module | [N] | [R] | [S] | Total | Result    |
+|--------|-----|-----|-----|-------|-----------|
+| GUI    | 0   | 1   | 0   | 1     | ALL PASS  |
+| DIR    | 5   | 2   | 5   | 12    | ALL PASS  |
+| **Total** | **5** | **3** | **6** | **14** | **ALL PASS** |
+
+#### REQ → TC coverage (UC4.1)
+
+| REQ          | TC(s)                           | Status     |
+|--------------|---------------------------------|------------|
+| REQ-GUI-019  | TC-DIR4-001                     | ✓ PASS     |
+| REQ-GUI-020  | (gui_close_window join safety — manual verify) | ✓ PASS |
+| REQ-GUI-021  | TC-DIR4-014 (manual)            | SKIP       |
+| REQ-DIR-014  | TC-DIR4-002, TC-DIR4-004, TC-DIR4-007 | ✓ PASS |
+| REQ-DIR-015  | (line_cmd_dir -a flag — manual `dir -a`) | ✓ PASS |
+| REQ-DIR-016  | TC-DIR4-003, TC-DIR4-005, TC-DIR4-006 | ✓ PASS |
+| REQ-DIR-017  | TC-DIR4-009 (manual)            | SKIP       |
+| REQ-DIR-018  | TC-DIR4-010, TC-DIR4-011 (manual) | SKIP     |
+| REQ-DIR-019  | TC-DIR4-012 (manual)            | SKIP       |
+| REQ-DIR-020  | TC-DIR4-014 (manual)            | SKIP       |
+
+---
+
+#### UFR traceability update (UC2 + UC3.1 + UC4.1)
+
+| UFR              | REQ(s)                      | TC(s)                              | Status     |
+|------------------|-----------------------------|------------------------------------|------------|
+| UFR-CON-030      | REQ-CON-008                 | TC-TRC-013, TC-TRC-014             | ✓ UC2      |
+| UFR-CON-031      | REQ-TRC-016                 | TC-TRC-015, TC-TRC-016             | ✓ P19 (ADAPTED from UC2) |
+| UFR-CON-032      | REQ-CON-008                 | TC-TRC-010..012                    | ✓ UC2      |
+| UFR-GUI-001      | REQ-GUI-001..008, REQ-GUI-019..020 | TC-GUI-011..018, TC-DIR4-001 | ✓ UC3.1 + UC4.1 |
+| UFR-GUI-002      | REQ-GUI-009..014            | TC-GUI-001..010                    | ✓ UC3.1    |
+| UFR-GUI-003      | REQ-GUI-015                 | TC-GUI-018 (manual)                | ✓ UC3.1    |
+| UFR-GUI-004      | REQ-GUI-004..006            | TC-GUI-016..017 (manual)           | ✓ UC3.1    |
+| UFR-GUI-005      | REQ-GUI-016                 | —                                  | TODO UC3.2 |
+| UFR-GUI-007      | REQ-GUI-021, REQ-DIR-020    | TC-DIR4-014 (manual)               | ✓ UC4.1    |
 
 #### Open items — cumulative
 
@@ -1371,11 +1461,12 @@ Source: `use_cases/use_case_03_3.c`
 | STM bus error           | TC-STM-010, REQ-STM-011        | UC24     | Stub returns ST_NO_ERROR+0xFF; real map → ST_ERROR               |
 | CPU decode              | TC-CPU-006, REQ-CPU-008        | UC21     | Stub: PC+2; real decode/execute to come                          |
 | Disasm DC.W             | TC-DIS-001, REQ-DIS-005        | UC11     | All opcodes → DC.W; full decode in UC11–UC14                     |
-| Trace GUI window        | UFR-TRC-007, REQ-TRC-014       | UC3.3    | stderr → dedicated Win32/X11 window (still TODO)                 |
-| Line editor             | UFR-CON-007..009, REQ-CON-010  | UC4      | History, tab-completion, arrow navigation                        |
+| Trace GUI window        | UFR-TRC-007, REQ-TRC-014       | UC4.4    | stderr → dedicated Win32/X11 D2D window with colour levels (P20) |
+| Line editor (raw input) | UFR-CON-007..009, REQ-CON-010  | UC4.2    | win_console_set_raw + line_read_rich; history/completion in UC4.3|
 | Dir context menu        | UFR-DIR-005..006               | UC7/UC18 | Right-click on file/dir → contextual commands                    |
-| szSelected race         | REQ-DIR-010                    | UC4      | Window thread writes szSelected without mutex; add in UC4        |
-| gui_msg spin-wait       | REQ-GUI-013                    | UC4      | Replace 1 ms sleep with condition variable / Win32 Event         |
-| Window manual TC        | TC-GUI-016..018                | UC4      | Will become TEST_MANUAL when make manual is ready                |
-| Dir manual TC           | TC-DIR-017..020, TC-RND-016..020| UC4     | Visual tests: make manual when TEST_MANUAL macro implemented     |
+| szSelected mutex        | REQ-DIR-010, REQ-DIR-019       | UC4.3    | Window thread writes szSelected without mutex; add with history module |
+| gui_msg spin-wait       | REQ-GUI-013                    | UC4.4    | Replace 1 ms sleep with condition variable / Win32 Event         |
+| Window manual TC        | TC-GUI-016..018                | ✓ UC4.1  | TEST_MANUAL macro + make manual now available (R16 implemented)  |
+| Dir manual TC           | TC-DIR-017..020, TC-RND-016..020 | ✓ UC4.1 | TEST_MANUAL macro + make manual implemented; visual tests active |
 | lx_X11 renderer         | REQ-RND-002..007               | UC3-Linux| Linux stub — X11/XRender implementation deferred                 |
+| ESC/←/→/SPACE manual TC | TC-DIR4-009..014               | UC4.1    | Requires display; validated via make manual                       |

@@ -1,14 +1,15 @@
 # Projet : ST4Ever : The Revival Engine for the Timeless ATARI ST
 
 ## 0. Historique et Raisons de changement
-2026-05-30: UC1 validé & pratiques de développement validées au travers de ce document CLAUDE.md
-2026-05-30: UC2 validé & nouvelles pratiques agréées dans CLAUDE.md
-2026-05-30: UC3 découpé en UC3.1/UC3.2/UC3.3 (décision co-développeur : D2D dès UC3, menu contextuel différé à UC7/UC18)
-2026-05-30: UC3.1 validé — msg_queue + Win32 window thread + WndProc
-2026-05-30: UC3.2 validé — Direct2D + DirectWrite + renderer portable (COBJMACROS + INITGUID requis)
-2026-05-31: UC3.3 validé — dir.c lazy-load + flat list + ASCII render + clavier/souris/scroll + gui_set_title (R18)
-2026-05-31: UC4 découpé en UC4.1/UC4.2/UC4.3 (contexte window limité ; raw input isolé en UC4.2 ; complétion/historique en UC4.3)
-2026-05-31: UC4.1 validé — gui_request_close + ESC/←/→/ESPACE + bShowHidden + dir -a + focus auto + TEST_MANUAL + make manual
+- 2026-05-30: UC1 validé & pratiques de développement validées au travers de ce document CLAUDE.md
+- 2026-05-30: UC2 validé & nouvelles pratiques agréées dans CLAUDE.md
+- 2026-05-30: UC3 découpé en UC3.1/UC3.2/UC3.3 (décision co-développeur : D2D dès UC3, menu contextuel différé à UC7/UC18)
+- 2026-05-30: UC3.1 validé — msg_queue + Win32 window thread + WndProc
+- 2026-05-30: UC3.2 validé — Direct2D + DirectWrite + renderer portable (COBJMACROS + INITGUID requis)
+- 2026-05-31: UC3.3 validé — dir.c lazy-load + flat list + ASCII render + clavier/souris/scroll + gui_set_title (R18)
+- 2026-05-31: UC4 découpé en UC4.1/UC4.2/UC4.3 (contexte window limité ; raw input isolé en UC4.2 ; complétion/historique en UC4.3)
+- 2026-05-31: UC4.1 validé — gui_request_close + ESC/←/→/ESPACE + bShowHidden + dir -a + focus auto + TEST_MANUAL + make manual
+- 2026-05-31: P19 appliqué — `trace off` ne ferme plus la vue ; filtre LOG_TRACE seulement
 
 ## 1. Contexte du projet
 
@@ -467,7 +468,11 @@ Règles :
 Chaque UC suit deux phases distinctes avant clôture :
 
 - **Phase 1 — Implémentation** : modifications sources/includes/Makefile, `make tests` 0 failure, `make manual` validé. Claude rend la main à Tonton Marcel pour relecture et validation fonctionnelle.
-- **Phase 2 — Documentation** : mise à jour CLAUDE.md (§2 headers, §4 pratiques, §5 recommandations, §6 tableau + sous-section UC validé), SRTD.md (§2.x REQ, §4.x tables fonctions + REQ, §5.x tests), traçabilité `use_case_XX.c` (INTENT, ADAPTED, TEST MATRIX).
+- **Phase 2 — Documentation** : 
+  - mise à jour CLAUDE.md (§4 pratiques, §5 recommandations, §6 tableau + sous-section UC validé)
+  - mise à jour traçabilité dans `use_cases_XX.c` (INTENT, ADAPTED, TEST MATRIX)
+  - mise à jour SRTD.md (UFRs, REQs, Tables fonctions, Tests, Matrices, Open Items) en conséquence des nouveaux contrats fonctionnels de CLAUDE.md (§6.x) et des modifications des `use_cases_XX.c`.
+  - Analyse des nouvelles propositions d'amélioration par Onclemarcel, si besoin et proposition amélioration UX par Claude, si approprié suite à la phase d'implémentation de l'UC.
 
 Règle : **un UC n'est clos que lorsque les deux phases sont complètes** et §7 ne contient plus de propositions non arbitrées pour ce UC. Claude initie la Phase 2 sans demande explicite dès que Phase 1 est validée par Tonton Marcel.
 
@@ -494,8 +499,9 @@ Les étapes de développement fonctionnelles sont formalisées en Use Cases, per
 | UC3.3 | `dir` | dir.c : scan FS + arbre + rendu D2D + clavier/souris/scroll/sélection + line_cmd_dir | ✓ VALIDÉ 2026-05-31 |
 | UC4.1 | UX dir + make manual | `gui_request_close()` non-bloquant + ESC/←/→/ESPACE séparés de ENTER + filtre `.*` + `dir -a` + focus auto + `TEST_MANUAL` + `make manual` | ✓ VALIDÉ 2026-05-31 |
 | UC4.2 | raw input | `win_console_set_raw()` + `win_console_read_key()` + termios-first (MSYS2) + `line_read_rich()` : édition char-à-char, ←/→/Home/End/Del/Backspace, CTRL+C/D/Q | raw line editor |
+| UC4.4 | trace view GUI | Fenêtre `GUI_WND_TRACE` D2D : scroll texte append-only, couleurs par niveau ; `trace.c` → `gui_msg_queue_t` → thread fenêtre ; suppression TODO(UC3.3) de trace.h/trace.c | trace view remplace stderr |
 | UC4.3 | complétion + historique + extras | Historique ↑↓ circulaire + `~/.st4ever_history` + tab-completion + ghost-text + prompt contextuel + `colors on/off` + `--script file` | line editor complet |
-| UC5 | `where`, `info` | Répertoire courant + état sélection (where) ; dashboard global état application : cwd, fichier sélectionné, trace, disque monté, binaire chargé (info) ; **P8** : `SetConsoleTitleA` statut automatique | affichage path + dashboard + titre console |
+| UC5 | `where`, `info` | Répertoire courant + état sélection (where) ; dashboard global état application : cwd, fichier sélectionné, trace, disque monté, binaire chargé (info) ; **P8** : `SetConsoleTitleA` statut automatique ; **P21** : touche `H` toggle hidden dans vue dir ; **P22** : F5 refresh vue dir | affichage path + dashboard + titre console |
 | UC5-bis | prefs | Module `prefs.c` : lecture/écriture `%APPDATA%\ST4Ever\prefs.ini` ; mémorisation position/taille fenêtres par type (P7) — **optionnel**, après UC5 | save/restore position fenêtre dir |
 | UC6 | plateforme | Abstraction fichiers : open/read/write/stat/mkdir, listing répertoire | tests lecture/écriture |
 | UC7 | `load` | Chargement fichier texte/binaire, détection type, buffer mémoire ; indicateur visuel sélection active dans vue `dir` (P11 : couleur secondaire sur ligne sélectionnée, ≠ highlight navigation) | load .txt, .bin, .PRG stub |
@@ -619,10 +625,10 @@ Les étapes de développement fonctionnelles sont formalisées en Use Cases, per
 *Module `line_cmd_trace` (→ UC4 pour les tests de dispatch stdin automatisés)*
 - `trace` (no arg) : ouvre si fermé (`trace_open()`), ferme si ouvert (`trace_close()`). Ne touche jamais à `trace_set_trace_enabled()`.
 - `trace on` : séquence `trace_open()` puis `trace_set_trace_enabled(TRUE)`. Idempotent si la console est déjà ouverte (`trace_open()` est idempotent — contrat UC1).
-- `trace off` : séquence `trace_set_trace_enabled(FALSE)` puis `trace_close()`. Idempotent si la console est déjà fermée (`trace_close()` est idempotent — contrat UC1).
+- `trace off` : **ADAPTED P19** — appelle uniquement `trace_set_trace_enabled(FALSE)` sans fermer la vue. La vue reste visible et continue d'afficher LOG_INFO/ERROR/TODO. Idempotent (second appel à `trace_set_trace_enabled(FALSE)` est no-op). Pour fermer la vue, utiliser `trace` (toggle).
 - `trace <inconnu>` : warning consommateur, pas de changement d'état.
 - Args superflus (`trace on foo`) : warning, puis traitement normal du premier arg.
-- Après `trace off`, `LOG_INFO/ERROR/TODO` restent actifs (fichier log seulement) ; `LOG_TRACE` silencieux. `trace_set_trace_enabled(TRUE)` réactive `LOG_TRACE` immédiatement.
+- Après `trace off` : `LOG_INFO/ERROR/TODO` restent actifs et visibles dans la vue ; `LOG_TRACE` silencieux. `trace_set_trace_enabled(TRUE)` réactive `LOG_TRACE` immédiatement.
 
 **Points d'attention pour les UCs suivants :**
 - UC3 : `gui_init` réel ouvre une fenêtre Win32 → les tests UC1/UC2 qui appellent des stubs GUI devront utiliser `#ifdef ST_TEST_LEVEL_UCxx` + `TEST_SKIP` (mécanisme R14 en place)
@@ -914,7 +920,25 @@ Formalisé en R19 : Phase 1 (code/tests) + Phase 2 (documentation) obligatoires 
 
 Formalisé en R20 : format `MAJOR.MINOR.PATCH`, mise à jour dans `common.h` en Phase 2 de clôture UC.
 
+**P19 Trace off ne devrait pas clore la console de trace mais seulement filtrer les LOG_TRACE** → **IMPLÉMENTÉ (2026-05-31)**
 
+Avis Claude : ACCEPTÉ — sémantique claire et cohérente : `trace off` = "silence les LOG_TRACE" (filtre), `trace` (no arg) = "toggle la visibilité de la vue" (ouverture/fermeture). Implémenté en 2 fichiers : `src/line.c` (suppression de `trace_close()` + nouveau message utilisateur), `use_cases/use_case_02.c` (ADAPTED markers sur INT-TRC-018/019). `SRTD.md` mis à jour : UFR-CON-031, REQ-TRC-016 ajouté, INT-TRC-012, TC-TRC-015/016. `CLAUDE.md` §6.2 contrat mis à jour.
+
+**P20 TODO(UC3) de trace.h a été oublié** → **ACCEPTÉ — planifié UC4.4**
+
+Avis Claude : ACCEPTÉ — le TODO(UC3.3) dans `trace.c:216` et `trace.h:24` prévoyait de remplacer la sortie stderr par une vraie fenêtre GUI. Oublié pendant UC3.3. Avec l'infra D2D disponible, la vue trace est une fenêtre D2D avec scroll de texte append-only coloré par niveau (plus simple que `dir` — pas d'arbre ni de lazy-load). Mécanisme : `trace.c` poste les entrées via `gui_msg_queue_t` vers le thread fenêtre `GUI_WND_TRACE`. P19 et P20 sont complémentaires : avec P20, la sémantique P19 ("trace off" = filtre, "trace" = toggle vue) gagne encore plus de sens. UC4.4 ajouté au tableau §6.
+
+---
+
+### Arbitrage UC4.1 (2026-05-31)
+
+**P21 — Touche `H` pour toggle hidden files depuis la vue dir** → **ACCEPTÉ — UC5**
+
+Depuis la vue dir ouverte, touche `H` toggle `bShowHidden` + rechargement des enfants du nœud courant + rebuild flat + redraw. Symétrique avec `dir -a` en ligne de commande. Coût : 1 case dans `dir_handle_key()` + appel `dir_node_reload_children()`. Différé de UC4.2 (qui ne touche que le line editor console) à UC5, où `dir_handle_key()` sera de nouveau en scope.
+
+**P22 — F5 pour rafraîchir la vue dir** → **ACCEPTÉ — UC5**
+
+Touche F5 = `dir_node_reload_children(ptView->ptRoot)` + rebuild flat + redraw. Utile dès UC7 quand `load` sera actif et que des fichiers peuvent apparaître/disparaître pendant une session. Coût : 1 case dans `dir_handle_key()`. Différé de UC4.2 à UC5 avec P21 (même scope : `dir_handle_key()`).
 
 ## 8. Licence & attribution
 Pas de redistribution prévue à ce jour

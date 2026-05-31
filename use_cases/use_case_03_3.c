@@ -159,19 +159,46 @@ int main(void)
 
     /* INTENT[INT-DIR-001 → TC-DIR-017 → REQ-DIR-004 → UFR-DIR-001]:
      * dir tree lines and file names are rendered in the window */
+    /* INTENT[INT-DIR-001..002 → TC-DIR-017..020 → REQ-DIR-004,008,012]:
+     * dir tree: ASCII render, highlight, keyboard, mouse click */
+#ifdef ST_MANUAL_TEST
+    ptView = NULL;
+    dir_open("use_cases", &tCtx, ST_FALSE, &ptView);
+    platform_sleep_ms(500);
+    TEST_MANUAL("[S] TC-DIR-017 ASCII tree rendered in window",
+                "Is the use_cases/ tree shown as ASCII lines in the window?");
+#else
     TEST_SKIP("[S] TC-DIR-017 ASCII tree rendered in window (run make manual)");
+#endif
 
     /* INTENT[INT-DIR-002 → TC-DIR-018 → REQ-DIR-012 �� UFR-DIR-002]:
      * selected row shows a distinct highlight rectangle */
+#ifdef ST_MANUAL_TEST
+    TEST_MANUAL("[S] TC-DIR-018 Selected row has a highlight rectangle",
+                "Does the selected row show a distinct highlighted background?");
+#else
     TEST_SKIP("[S] TC-DIR-018 Selected row shows highlight rect (run make manual)");
+#endif
 
     /* INTENT[INT-DIR-002 → TC-DIR-019 → REQ-DIR-012 → UFR-DIR-001]:
      * arrow keys move selection and guarantee scroll-to-visible */
+#ifdef ST_MANUAL_TEST
+    TEST_MANUAL("[S] TC-DIR-019 UP/DOWN arrows navigate and scroll",
+                "Press UP/DOWN in the window. Does the selection move?");
+#else
     TEST_SKIP("[S] TC-DIR-019 Arrow keys scroll and move selection (run make manual)");
+#endif
 
     /* INTENT[INT-DIR-002 → TC-DIR-020 → REQ-DIR-008 → UFR-DIR-003]:
      * left-click on a directory node toggles expand/collapse */
+#ifdef ST_MANUAL_TEST
+    TEST_MANUAL("[S] TC-DIR-020 Left-click on dir expands/collapses",
+                "Left-click on a directory row. Did it toggle expand/collapse?");
+    if (ptView != NULL)
+        dir_close(&ptView);
+#else
     TEST_SKIP("[S] TC-DIR-020 Left-click on dir expands/collapses (run make manual)");
+#endif
 
     /* ---- Teardown ------------------------------------------------- */
     line_shutdown(&tCtx);

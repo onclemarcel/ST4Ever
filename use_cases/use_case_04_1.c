@@ -128,37 +128,65 @@ int main(void)
 
     printf("\n--- Test group 4: visual UX dir (manual) ---\n");
 
-    /* INTENT[INT-DIR-015 → TC-DIR4-009 → REQ-DIR-017 → UFR-DIR-005]:
+    /* Each test opens a fresh dir window so the user can interact with it
+     * before answering y/n. dir_close() is safe even if ESC already closed
+     * the window (join on already-terminated thread returns immediately). */
+
+    /* INTENT[INT-DIR-015 -> TC-DIR4-009 -> REQ-DIR-017 -> UFR-DIR-005]:
      * ESC key closes the dir window without console thread action */
+    ptView = NULL;
+    dir_open("use_cases", &tCtx, ST_FALSE, &ptView);
+    platform_sleep_ms(400);
     TEST_MANUAL("[S] TC-DIR4-009 ESC closes the dir window",
-                "Open 'dir use_cases' then press ESC. Did the window close?");
+                "Press ESC in the open window. Did it close?");
+    if (ptView != NULL) dir_close(&ptView);
 
-    /* INTENT[INT-DIR-016 → TC-DIR4-010 → REQ-DIR-018 → UFR-DIR-005]:
+    /* INTENT[INT-DIR-016 -> TC-DIR4-010 -> REQ-DIR-018 -> UFR-DIR-005]:
      * LEFT collapses an expanded directory */
+    ptView = NULL;
+    dir_open("use_cases", &tCtx, ST_FALSE, &ptView);
+    platform_sleep_ms(400);
     TEST_MANUAL("[S] TC-DIR4-010 LEFT collapses expanded directory",
-                "Navigate to an expanded dir, press LEFT. Did it collapse?");
+                "Press RIGHT to expand a dir, then LEFT. Did it collapse?");
+    if (ptView != NULL) dir_close(&ptView);
 
-    /* INTENT[INT-DIR-017 → TC-DIR4-011 → REQ-DIR-018 → UFR-DIR-005]:
+    /* INTENT[INT-DIR-017 -> TC-DIR4-011 -> REQ-DIR-018 -> UFR-DIR-005]:
      * RIGHT expands a collapsed directory */
+    ptView = NULL;
+    dir_open("use_cases", &tCtx, ST_FALSE, &ptView);
+    platform_sleep_ms(400);
     TEST_MANUAL("[S] TC-DIR4-011 RIGHT expands collapsed directory",
-                "Navigate to a collapsed dir, press RIGHT. Did it expand?");
+                "Select a collapsed dir, press RIGHT. Did it expand?");
+    if (ptView != NULL) dir_close(&ptView);
 
-    /* INTENT[INT-DIR-018 → TC-DIR4-012 → REQ-DIR-019 → UFR-DIR-005]:
+    /* INTENT[INT-DIR-018 -> TC-DIR4-012 -> REQ-DIR-019 -> UFR-DIR-005]:
      * SPACE selects a file/dir without triggering expand or navigate */
+    ptView = NULL;
+    dir_open("use_cases", &tCtx, ST_FALSE, &ptView);
+    platform_sleep_ms(400);
     TEST_MANUAL("[S] TC-DIR4-012 SPACE selects without expand",
-                "Press SPACE on a directory. Did it stay collapsed/expanded "
-                "while the path was selected?");
+                "Press SPACE on a collapsed directory. Did it stay "
+                "collapsed while the path was selected?");
+    if (ptView != NULL) dir_close(&ptView);
 
-    /* INTENT[INT-DIR-019 → TC-DIR4-013 → REQ-DIR-008 → UFR-DIR-003]:
+    /* INTENT[INT-DIR-019 -> TC-DIR4-013 -> REQ-DIR-008 -> UFR-DIR-003]:
      * ENTER still triggers expand/collapse and navigation */
-    TEST_MANUAL("[S] TC-DIR4-013 ENTER still triggers action",
+    ptView = NULL;
+    dir_open("use_cases", &tCtx, ST_FALSE, &ptView);
+    platform_sleep_ms(400);
+    TEST_MANUAL("[S] TC-DIR4-013 ENTER triggers expand/collapse/navigate",
                 "Press ENTER on a collapsed dir. Did it expand?");
+    if (ptView != NULL) dir_close(&ptView);
 
-    /* INTENT[INT-DIR-020 → TC-DIR4-014 → REQ-DIR-020 → UFR-DIR-005]:
+    /* INTENT[INT-DIR-020 -> TC-DIR4-014 -> REQ-DIR-020 -> UFR-DIR-005]:
      * window receives keyboard focus on open without requiring alt-tab */
+    ptView = NULL;
+    dir_open("use_cases", &tCtx, ST_FALSE, &ptView);
+    platform_sleep_ms(200);
     TEST_MANUAL("[S] TC-DIR4-014 Window focused on open (no alt-tab needed)",
-                "Type 'dir'. Did arrow keys work immediately in the new "
-                "window without clicking on it first?");
+                "Try arrow keys in the window immediately after it opened. "
+                "Did selection move without needing to click first?");
+    if (ptView != NULL) dir_close(&ptView);
 
     /* ---- Teardown ------------------------------------------------- */
     line_shutdown(&tCtx);
