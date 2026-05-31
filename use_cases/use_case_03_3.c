@@ -1,15 +1,17 @@
 /*
  * use_case_03_3.c - UC3.3 Validation: directory tree view
  *
- * SRTD reference: SRTD.md §5.9 — TC-DIR-*
+ * SRTD reference: SRTD.md §5.9 — TC-DIR-001..020
  *
  * TEST MATRIX - UC3.3:
- *   [N] Nominal    :  8 tests - dir_open lifecycle, flat list built,
+ *   [N] Nominal    :  8 tests - TC-DIR-001..008
+ *                               dir_open lifecycle, flat list built,
  *                               double open (reuse), valid path arg
- *   [R] Robustness :  6 tests - NULL ptLineCtx, NULL pptView, NULL both,
+ *   [R] Robustness :  8 tests - TC-DIR-009..016
+ *                               NULL ptLineCtx, NULL pptView, NULL both,
  *                               NULL to dir_close, empty *pptView close,
- *                               non-existent path (graceful empty tree)
- *   [S] Skipped    :  4 tests - visual rendering (run make manual):
+ *                               non-existent path (graceful empty tree x2)
+ *   [S] Skipped    :  4 tests - TC-DIR-017..020 (run make manual):
  *                               ASCII tree visible, selection highlight,
  *                               keyboard navigation, mouse click expand
  *
@@ -43,45 +45,49 @@ int main(void)
 
     printf("\n--- Test group 1: dir_open / dir_close lifecycle ---\n");
 
-    /* INTENT: dir_open with valid path returns ST_NO_ERROR and a view */
+    /* INTENT[INT-DIR-001 → TC-DIR-001..002 → REQ-DIR-001,004 → UFR-DIR-001]:
+     * dir_open with valid path returns ST_NO_ERROR and a non-NULL view */
     ptView  = NULL;
     eResult = dir_open(TEST_DIR_PATH, &tCtx, &ptView);
-    UC_TEST("[N] dir_open(valid path) -> ST_NO_ERROR",
+    UC_TEST("[N] TC-DIR-001 dir_open(valid path) -> ST_NO_ERROR",
             eResult == ST_NO_ERROR);
-    UC_TEST("[N] dir_open: *pptView != NULL",
+    UC_TEST("[N] TC-DIR-002 dir_open: *pptView != NULL",
             ptView != NULL);
 
     if (ptView != NULL)
     {
-        /* INTENT: after dir_open, root and flat list are initialised */
-        UC_TEST("[N] dir_open: ptRoot != NULL",
+        /* INTENT[INT-DIR-002 → TC-DIR-003..005 → REQ-DIR-004,005 → UFR-DIR-001]:
+         * after dir_open, root and flat list are initialised */
+        UC_TEST("[N] TC-DIR-003 dir_open: ptRoot != NULL",
                 ptView->ptRoot != NULL);
-        UC_TEST("[N] dir_open: szRootPath not empty",
+        UC_TEST("[N] TC-DIR-004 dir_open: szRootPath not empty",
                 ptView->szRootPath[0] != '\0');
-        UC_TEST("[N] dir_open: iFlatCount >= 0",
+        UC_TEST("[N] TC-DIR-005 dir_open: iFlatCount >= 0",
                 ptView->iFlatCount >= 0);
 
-        /* INTENT: dir_close releases the view and nulls the pointer */
+        /* INTENT[INT-DIR-003 → TC-DIR-006..007 → REQ-DIR-006,007 → UFR-DIR-001]:
+         * dir_close releases the view and sets the pointer to NULL */
         eResult = dir_close(&ptView);
-        UC_TEST("[N] dir_close(valid view) -> ST_NO_ERROR",
+        UC_TEST("[N] TC-DIR-006 dir_close(valid view) -> ST_NO_ERROR",
                 eResult == ST_NO_ERROR);
-        UC_TEST("[N] dir_close: *pptView == NULL after close",
+        UC_TEST("[N] TC-DIR-007 dir_close: *pptView == NULL after close",
                 ptView == NULL);
     }
     else
     {
         /* Skip the remaining lifecycle tests if open failed */
-        TEST_SKIP("[N] dir_open: ptRoot != NULL (open failed)");
-        TEST_SKIP("[N] dir_open: szRootPath not empty (open failed)");
-        TEST_SKIP("[N] dir_open: iFlatCount >= 0 (open failed)");
-        TEST_SKIP("[N] dir_close(valid view) -> ST_NO_ERROR");
-        TEST_SKIP("[N] dir_close: *pptView == NULL after close");
+        TEST_SKIP("[N] TC-DIR-003 dir_open: ptRoot != NULL (open failed)");
+        TEST_SKIP("[N] TC-DIR-004 dir_open: szRootPath not empty (open failed)");
+        TEST_SKIP("[N] TC-DIR-005 dir_open: iFlatCount >= 0 (open failed)");
+        TEST_SKIP("[N] TC-DIR-006 dir_close(valid view) -> ST_NO_ERROR");
+        TEST_SKIP("[N] TC-DIR-007 dir_close: *pptView == NULL after close");
     }
 
-    /* INTENT: dir_open can be called again on same path after close */
+    /* INTENT[INT-DIR-004 → TC-DIR-008 → REQ-DIR-001 → UFR-DIR-001]:
+     * dir_open can be called again on the same path after a close */
     ptView  = NULL;
     eResult = dir_open(TEST_DIR_PATH, &tCtx, &ptView);
-    UC_TEST("[N] dir_open second time -> ST_NO_ERROR",
+    UC_TEST("[N] TC-DIR-008 dir_open second time -> ST_NO_ERROR",
             eResult == ST_NO_ERROR);
     if (ptView != NULL)
     {
@@ -90,58 +96,75 @@ int main(void)
 
     printf("\n--- Test group 2: robustness ---\n");
 
-    /* INTENT: NULL ptLineCtx must be rejected */
+    /* INTENT[INT-DIR-005 → TC-DIR-009..010 → REQ-DIR-001 → UFR-DIR-001]:
+     * NULL ptLineCtx must be rejected before any side effect */
     ptView  = NULL;
     eResult = dir_open(TEST_DIR_PATH, NULL, &ptView);
-    UC_TEST("[R] dir_open(NULL ptLineCtx) -> ST_ERROR",
+    UC_TEST("[R] TC-DIR-009 dir_open(NULL ptLineCtx) -> ST_ERROR",
             eResult == ST_ERROR);
-    UC_TEST("[R] dir_open(NULL ptLineCtx): *pptView unchanged (NULL)",
+    UC_TEST("[R] TC-DIR-010 dir_open(NULL ptLineCtx): *pptView unchanged (NULL)",
             ptView == NULL);
 
-    /* INTENT: NULL pptView must be rejected */
+    /* INTENT[INT-DIR-006 → TC-DIR-011 → REQ-DIR-001 → UFR-DIR-001]:
+     * NULL pptView must be rejected before any side effect */
     eResult = dir_open(TEST_DIR_PATH, &tCtx, NULL);
-    UC_TEST("[R] dir_open(NULL pptView) -> ST_ERROR",
+    UC_TEST("[R] TC-DIR-011 dir_open(NULL pptView) -> ST_ERROR",
             eResult == ST_ERROR);
 
-    /* INTENT: both NULL parameters must be rejected */
+    /* INTENT[INT-DIR-007 → TC-DIR-012 → REQ-DIR-001 → UFR-DIR-001]:
+     * both NULL parameters must be rejected */
     eResult = dir_open(TEST_DIR_PATH, NULL, NULL);
-    UC_TEST("[R] dir_open(NULL, NULL) -> ST_ERROR",
+    UC_TEST("[R] TC-DIR-012 dir_open(NULL, NULL) -> ST_ERROR",
             eResult == ST_ERROR);
 
-    /* INTENT: dir_close(NULL) must be rejected */
+    /* INTENT[INT-DIR-008 → TC-DIR-013 → REQ-DIR-006 → UFR-DIR-001]:
+     * dir_close(NULL) must be rejected */
     eResult = dir_close(NULL);
-    UC_TEST("[R] dir_close(NULL) -> ST_ERROR",
+    UC_TEST("[R] TC-DIR-013 dir_close(NULL) -> ST_ERROR",
             eResult == ST_ERROR);
 
-    /* INTENT: dir_close(&NULL) is idempotent (already closed) */
+    /* INTENT[INT-DIR-009 → TC-DIR-014 → REQ-DIR-006 → UFR-DIR-001]:
+     * dir_close(&NULL) is idempotent — view already closed, safe no-op */
     ptNull  = NULL;
     eResult = dir_close(&ptNull);
-    UC_TEST("[R] dir_close(&NULL) -> ST_NO_ERROR (idempotent)",
+    UC_TEST("[R] TC-DIR-014 dir_close(&NULL) -> ST_NO_ERROR (idempotent)",
             eResult == ST_NO_ERROR);
 
-    /* INTENT: non-existent path opens with an empty tree (non-fatal) */
+    /* INTENT[INT-DIR-010 → TC-DIR-015..016 → REQ-DIR-003 → UFR-DIR-001]:
+     * non-existent path opens with an empty tree (non-fatal scan failure) */
     ptView  = NULL;
     eResult = dir_open("nonexistent_path_xyz_st4ever", &tCtx, &ptView);
-    UC_TEST("[R] dir_open(non-existent path) -> ST_NO_ERROR (empty tree)",
+    UC_TEST("[R] TC-DIR-015 dir_open(non-existent path) -> ST_NO_ERROR",
             eResult == ST_NO_ERROR);
     if (ptView != NULL)
     {
-        UC_TEST("[R] dir_open(non-existent): iFlatCount == 0",
-                /* ADAPTED: UC6 - real platform file API may differ */
+        /* ADAPTED: UC6 - real platform file API may differ */
+        UC_TEST("[R] TC-DIR-016 dir_open(non-existent): iFlatCount == 0",
                 ptView->iFlatCount == 0);
         dir_close(&ptView);
     }
     else
     {
-        TEST_SKIP("[R] dir_open(non-existent): iFlatCount == 0 (open failed)");
+        TEST_SKIP("[R] TC-DIR-016 dir_open(non-existent): iFlatCount == 0 (open failed)");
     }
 
     printf("\n--- Test group 3: visual output (manual) ---\n");
 
-    TEST_SKIP("[S] ASCII tree rendered in window (run make manual)");
-    TEST_SKIP("[S] Selected row shows highlight rect (run make manual)");
-    TEST_SKIP("[S] Arrow keys scroll and move selection (run make manual)");
-    TEST_SKIP("[S] Left-click on dir expands/collapses (run make manual)");
+    /* INTENT[INT-DIR-001 → TC-DIR-017 → REQ-DIR-004 → UFR-DIR-001]:
+     * dir tree lines and file names are rendered in the window */
+    TEST_SKIP("[S] TC-DIR-017 ASCII tree rendered in window (run make manual)");
+
+    /* INTENT[INT-DIR-002 → TC-DIR-018 → REQ-DIR-012 �� UFR-DIR-002]:
+     * selected row shows a distinct highlight rectangle */
+    TEST_SKIP("[S] TC-DIR-018 Selected row shows highlight rect (run make manual)");
+
+    /* INTENT[INT-DIR-002 → TC-DIR-019 → REQ-DIR-012 → UFR-DIR-001]:
+     * arrow keys move selection and guarantee scroll-to-visible */
+    TEST_SKIP("[S] TC-DIR-019 Arrow keys scroll and move selection (run make manual)");
+
+    /* INTENT[INT-DIR-002 → TC-DIR-020 → REQ-DIR-008 → UFR-DIR-003]:
+     * left-click on a directory node toggles expand/collapse */
+    TEST_SKIP("[S] TC-DIR-020 Left-click on dir expands/collapses (run make manual)");
 
     /* ---- Teardown ------------------------------------------------- */
     line_shutdown(&tCtx);

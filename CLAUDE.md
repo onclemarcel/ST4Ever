@@ -349,7 +349,12 @@ CLAUDE.md est l'interface de projet entre sessions de conversation. Sa mise à j
 **R14 — Non-régression des tests use_case_XX : stratégie "intent-stable, assertion-évolutive"**
 Chaque `use_case_XX.c` valide l'**intention fonctionnelle** du UC, pas les détails d'implémentation du stub. Quand un UC ultérieur fait évoluer un comportement, on adapte l'assertion, pas l'intention. Règles :
 
-1. **Documenter l'intention séparément de l'assertion** : chaque bloc de test commence par un commentaire `/* INTENT: ... */` décrivant le comportement attendu de façon immuable. Quand une assertion est mise à jour, ajouter `/* ADAPTED: UCN - raison */` sur la ligne précédente.
+1. **Documenter l'intention séparément de l'assertion** : chaque bloc de test commence par un commentaire INTENT structuré incluant la chaîne de traçabilité complète issue de SRTD.md :
+   ```c
+   /* INTENT[INT-XXX-NNN → TC-XXX-NNN → REQ-XXX-NNN → UFR-XXX-NNN]:
+    * description du comportement attendu de façon immuable */
+   ```
+   Quand plusieurs TCs ou REQs consécutifs partagent le même INTENT, les noter en plage (`TC-XXX-001..003`) ou en liste (`REQ-XXX-001,004`). Quand une assertion est mise à jour, ajouter `/* ADAPTED: UCN - raison */` sur la ligne précédente.
 
 2. **Politique lors de l'implémentation d'un UCN** : avant de valider UCN, lancer `make tests`. Si un test antérieur échoue :
    - Comportement stub → réel (attendu) : mettre à jour l'assertion + commenter `ADAPTED: UCN`
