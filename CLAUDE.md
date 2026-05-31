@@ -5,6 +5,7 @@
 2026-05-30: UC2 validé & nouvelles pratiques agréées dans CLAUDE.md
 2026-05-30: UC3 découpé en UC3.1/UC3.2/UC3.3 (décision co-développeur : D2D dès UC3, menu contextuel différé à UC7/UC18)
 2026-05-30: UC3.1 en cours — msg_queue + Win32 window thread + WndProc validés
+2026-05-30: UC3.2 en cours — Direct2D + DirectWrite + renderer portable validés (COBJMACROS + INITGUID requis)
 
 ## 1. Contexte du projet
 
@@ -463,7 +464,7 @@ Les étapes de développement fonctionnelles sont formalisées en Use Cases, per
 | UC1 | `help`, `quit`, `trace -t` | Prototype complet, stubs, console + trace fonctionnels | ✓ VALIDÉ 2026-05-30 |
 | UC2 | `trace on/off/toggle` | Gestion complète de la trace console | ✓ VALIDÉ 2026-05-30 |
 | UC3.1 | GUI infra | msg_queue (portable) + win_gui.c window/thread/WndProc + gui_platform_* | ✓ VALIDÉ 2026-05-30 |
-| UC3.2 | GUI render | win_D2D.c (Direct2D COM pur C) + renderer.c portable | texte, rect, ligne visibles |
+| UC3.2 | GUI render | win_D2D.c (Direct2D COM pur C) + renderer.c portable | ✓ VALIDÉ 2026-05-30 |
 | UC3.3 | `dir` | dir.c : scan FS + arbre + rendu D2D + clavier/souris/scroll/sélection + line_cmd_dir | ouverture, scroll, sélection |
 | UC4 | console | Line editor riche : historique ↑↓, Home/End, tab-completion, ghost-text ; prompt contextuel toggleable (trace/disk/fichier) ; `colors on/off` ; historique persistant `~/.st4ever_history` ; `--script file` batch mode ; `make manual` + macro `TEST_MANUAL` | navigation + complétion + prompt état |
 | UC5 | `where`, `info` | Répertoire courant + état sélection (where) ; dashboard global état application : cwd, fichier sélectionné, trace, disque monté, binaire chargé (info) ; **P8** : `SetConsoleTitleA` statut automatique | affichage path + dashboard + titre console |

@@ -36,8 +36,7 @@ CFLAGS += -I./src
 ifeq ($(OS),Windows_NT)
     PLATFORM := win
     EXE      := .exe
-    LDFLAGS  := -lkernel32 -luser32 -lgdi32
-    # TODO(UC3): add -ld2d1 -ldwrite -lole32 -luuid when Direct2D is active
+    LDFLAGS  := -lkernel32 -luser32 -lgdi32 -ld2d1 -ldwrite -lole32 -luuid
 else
     PLATFORM := linux
     EXE      :=

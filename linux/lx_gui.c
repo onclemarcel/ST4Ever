@@ -95,4 +95,29 @@ st_error_t gui_platform_shutdown(void)
     return ST_NO_ERROR;
 }
 
+void *gui_platform_get_native_handle(struct gui_window_s *ptWnd)
+{
+    LOG_TRACE("ptWnd=%p", (void *)ptWnd);
+    if (ptWnd == NULL)
+    {
+        return NULL;
+    }
+    LOG_TODO("gui_platform_get_native_handle: return XID (UC3-Linux)");
+    return NULL;
+}
+
+st_error_t gui_platform_window_set_title(struct gui_window_s *ptWnd,
+                                          const char          *szTitle)
+{
+    LOG_TRACE("ptWnd=%p szTitle='%s'",
+              (void *)ptWnd, szTitle ? szTitle : "(null)");
+    if (ptWnd == NULL || szTitle == NULL)
+    {
+        LOG_ERROR("NULL parameter");
+        return ST_ERROR;
+    }
+    LOG_TODO("gui_platform_window_set_title: XStoreName (UC3-Linux)");
+    return ST_NO_ERROR;
+}
+
 #endif /* ST_PLATFORM_LINUX */

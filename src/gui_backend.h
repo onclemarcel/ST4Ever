@@ -112,4 +112,37 @@ st_error_t gui_platform_window_get_size(struct gui_window_s *ptWnd,
  */
 st_error_t gui_platform_shutdown(void);
 
+/*
+ * gui_platform_get_native_handle() - Return the OS window handle.
+ *
+ * Returns the platform-specific window handle as a void*:
+ *   Win32 : HWND   (cast to HWND in win-specific code)
+ *   X11   : Window (cast to Window/unsigned long in lx-specific code)
+ *
+ * Used by renderer_platform_create() to obtain the HWND/XID needed
+ * to create a D2D HwndRenderTarget or X11 Drawable.
+ *
+ * Parameters:
+ *   ptWnd [in] : Open window record.
+ *
+ * Returns: native handle, or NULL if ptWnd is NULL / window not open.
+ */
+void *gui_platform_get_native_handle(struct gui_window_s *ptWnd);
+
+/*
+ * gui_platform_window_set_title() - Update the window title bar text.
+ *
+ * Called by views to implement R18 (dynamic title per context).
+ * Format convention: "ST4Ever - <Type>: <context>"
+ * e.g. "ST4Ever - Dir: C:\demos\"
+ *
+ * Parameters:
+ *   ptWnd   [in] : Target window.
+ *   szTitle [in] : New null-terminated title string.
+ *
+ * Returns: ST_NO_ERROR on success, ST_ERROR if any parameter is NULL.
+ */
+st_error_t gui_platform_window_set_title(struct gui_window_s *ptWnd,
+                                          const char          *szTitle);
+
 #endif /* GUI_BACKEND_H */

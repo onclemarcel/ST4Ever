@@ -20,8 +20,9 @@
  *   forwards them to the registered gui_event_fn callback.
  *
  * UC3.1: blank window (dark background), full event translation.
- *         No renderer attached yet (D2D comes in UC3.2).
- * TODO(UC3.2): WM_PAINT delegates to renderer_begin/end_draw.
+ * UC3.2: CoInitialize per thread; WM_PAINT fires GUI_EVT_PAINT only
+ *         (view callback owns D2D drawing); gui_platform_get_native_handle
+ *         and gui_platform_window_set_title added (R18).
  */
 
 #include "../src/gui_backend.h"
@@ -31,6 +32,7 @@
 
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#include <objbase.h>   /* CoInitializeEx / CoUninitialize */
 #include <stdlib.h>
 #include <string.h>
 
@@ -146,18 +148,27 @@ static LRESULT CALLBACK win_wnd_proc(HWND   hWnd,
         return DefWindowProc(hWnd, uMsg, wParam, lParam);
     }
 
-    /* Paint: dark background fill + optional view callback */
+    /* Paint: view callback owns all drawing via renderer (UC3.2+).
+     * GDI fallback only when no view is attached (testing / debug). */
     case WM_PAINT:
     {
         PAINTSTRUCT tPs;
         HDC         hDC;
-        HBRUSH      hBrush;
-        RECT        tRect;
 
         hDC = BeginPaint(hWnd, &tPs);
-        if (hDC != NULL)
+
+        if (ptWnd != NULL && ptWnd->tDesc.pfnEvent != NULL)
         {
-            /* Dark Atari-ST-inspired background (UC3.2: D2D replaces) */
+            /* View draws via renderer_begin/end_draw in callback */
+            tEvt.eType = GUI_EVT_PAINT;
+            ptWnd->tDesc.pfnEvent((gui_window_t)ptWnd, &tEvt,
+                                   ptWnd->tDesc.pUserCtx);
+        }
+        else if (hDC != NULL)
+        {
+            /* No view attached: dark fallback until renderer exists */
+            RECT   tRect;
+            HBRUSH hBrush;
             GetClientRect(hWnd, &tRect);
             hBrush = CreateSolidBrush(RGB(24, 24, 36));
             if (hBrush != NULL)
@@ -165,14 +176,8 @@ static LRESULT CALLBACK win_wnd_proc(HWND   hWnd,
                 FillRect(hDC, &tRect, hBrush);
                 DeleteObject(hBrush);
             }
-
-            if (ptWnd != NULL && ptWnd->tDesc.pfnEvent != NULL)
-            {
-                tEvt.eType = GUI_EVT_PAINT;
-                ptWnd->tDesc.pfnEvent((gui_window_t)ptWnd, &tEvt,
-                                       ptWnd->tDesc.pUserCtx);
-            }
         }
+
         EndPaint(hWnd, &tPs);
         return 0;
     }
@@ -328,6 +333,9 @@ static void win_wnd_thread(void *pArg)
     int                  iH;
     MSG                  tMsg;
 
+    /* COM must be initialised per thread for DirectWrite (UC3.2+) */
+    CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
+
     ptWnd   = (struct gui_window_s *)pArg;
     ptState = (win_wnd_state_t *)ptWnd->pPlatform;
 
@@ -376,6 +384,7 @@ static void win_wnd_thread(void *pArg)
 
     /* bOpen already set to ST_FALSE by WM_DESTROY handler */
     LOG_INFO("window thread exiting: '%s'", szTitle);
+    CoUninitialize();
 }
 
 /* ------------------------------------------------------------------
@@ -555,6 +564,50 @@ st_error_t gui_platform_window_get_size(struct gui_window_s *ptWnd,
 
     *piWidth  = (int)(tRect.right  - tRect.left);
     *piHeight = (int)(tRect.bottom - tRect.top);
+    return ST_NO_ERROR;
+}
+
+void *gui_platform_get_native_handle(struct gui_window_s *ptWnd)
+{
+    win_wnd_state_t *ptState;
+
+    LOG_TRACE("ptWnd=%p", (void *)ptWnd);
+
+    if (ptWnd == NULL)
+    {
+        return NULL;
+    }
+
+    ptState = (win_wnd_state_t *)ptWnd->pPlatform;
+    if (ptState == NULL)
+    {
+        return NULL;
+    }
+
+    return (void *)ptState->hWnd;
+}
+
+st_error_t gui_platform_window_set_title(struct gui_window_s *ptWnd,
+                                          const char          *szTitle)
+{
+    win_wnd_state_t *ptState;
+
+    LOG_TRACE("ptWnd=%p szTitle='%s'",
+              (void *)ptWnd, szTitle ? szTitle : "(null)");
+
+    if (ptWnd == NULL || szTitle == NULL)
+    {
+        LOG_ERROR("NULL parameter");
+        return ST_ERROR;
+    }
+
+    ptState = (win_wnd_state_t *)ptWnd->pPlatform;
+    if (ptState == NULL || ptState->hWnd == NULL)
+    {
+        return ST_NO_ERROR;
+    }
+
+    SetWindowTextA(ptState->hWnd, szTitle);
     return ST_NO_ERROR;
 }
 
