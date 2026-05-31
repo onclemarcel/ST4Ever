@@ -1,16 +1,27 @@
 /*
  * use_case_03_1.c - UC3.1 Validation: GUI message queue + Win32 window
  *
- * Tests:
- *   1. gui_msg_queue_t full lifecycle (nominal + robustness)
- *   2. gui_init / gui_shutdown lifecycle (nominal + idempotency)
- *   3. gui_* NULL-parameter robustness (headless)
- *   4. gui_open_window / gui_close_window (manual - require display)
+ * SRTD reference: SRTD.md §5.10–§5.11 — test cases TC-GUI-001..018
+ * Traceability chain per INTENT block:
+ *   INTENT[INT-GUI-NNN → TC-GUI-NNN → REQ-GUI-NNN]: intent text
  *
  * TEST MATRIX - UC3.1:
- *   [N] Nominal    : 14 tests - msg_queue lifecycle, gui init/shutdown
- *   [R] Robustness : 11 tests - NULL params, capacity 0, queue full/empty
+ *   [N] Nominal    : 22 tests - gui_msg_queue_t full lifecycle (incl.
+ *                               loop assertions), gui_init/shutdown
+ *   [R] Robustness : 17 tests - NULL params, capacity 0, queue full,
+ *                               queue empty, NULL window handles
  *   [S] Skipped    :  3 tests - window open/visible/close (make manual)
+ *
+ * Test groups:
+ *   Group 1: gui_msg_queue_t nominal  (create, post, get, FIFO,
+ *             fill/drain to capacity, destroy)
+ *   Group 2: gui_msg_queue_t robustness (NULL params, capacity 0,
+ *             queue full, queue empty)
+ *   Group 3: gui lifecycle nominal    (gui_init, gui_shutdown,
+ *             idempotency of both)
+ *   Group 4: gui_* NULL-param robustness (open_window, close_window,
+ *             invalidate, get_size)
+ *   Group 5: window open / close      (visual — make manual)
  *
  * Exit code: 0 = all tests passed, 1 = one or more failures.
  */
@@ -32,13 +43,11 @@ int main(void)
     int              iH;
     int              i;
 
-    /* ---------------------------------------------------------------- */
     printf("\n");
     printf("================================================================\n");
     printf(" UC3.1 - GUI message queue + Win32 window infrastructure\n");
     printf("================================================================\n");
 
-    /* Minimal trace init (log to file, console closed) */
     trace_init(ST_FALSE);
 
     /* ================================================================ */
@@ -47,12 +56,14 @@ int main(void)
 
     hQ = NULL;
 
-    /* INTENT: create a queue of capacity 4 */
+    /* INTENT[INT-GUI-001 → TC-GUI-001 → REQ-GUI-009,REQ-GUI-010]:
+     * create queue of capacity N: handle non-NULL */
     eRet = gui_msg_create(&hQ, 4);
     UC_TEST("[N] gui_msg_create(4) -> ST_NO_ERROR", eRet == ST_NO_ERROR);
     UC_TEST("[N] gui_msg_create: handle not NULL", hQ != NULL);
 
-    /* INTENT: post one event, get it back intact */
+    /* INTENT[INT-GUI-001 → TC-GUI-002 → REQ-GUI-011]:
+     * post one event, get it back intact — type preserved */
     memset(&tEvt, 0, sizeof(tEvt));
     tEvt.eType = GUI_EVT_PAINT;
     eRet = gui_msg_post(hQ, &tEvt);
@@ -66,7 +77,8 @@ int main(void)
     UC_TEST("[N] gui_msg_get: event type preserved",
             tGot.eType == GUI_EVT_PAINT);
 
-    /* INTENT: post two different events, get both in FIFO order */
+    /* INTENT[INT-GUI-001 → TC-GUI-003 → REQ-GUI-011]:
+     * events dequeued in FIFO order, payload intact */
     memset(&tEvt, 0, sizeof(tEvt));
     tEvt.eType = GUI_EVT_RESIZE;
     tEvt.uData.tResize.iWidth  = 800;
@@ -89,11 +101,12 @@ int main(void)
     UC_TEST("[N] FIFO order: second dequeued is CLOSE",
             tGot.eType == GUI_EVT_CLOSE);
 
-    /* INTENT: fill queue to capacity then drain */
+    /* INTENT[INT-GUI-001 → TC-GUI-004,TC-GUI-005 → REQ-GUI-011,REQ-GUI-012]:
+     * fill queue to capacity then drain all events without loss */
     for (i = 0; i < 4; i++)
     {
         memset(&tEvt, 0, sizeof(tEvt));
-        tEvt.eType           = GUI_EVT_SCROLL;
+        tEvt.eType            = GUI_EVT_SCROLL;
         tEvt.uData.tScroll.iDelta = i + 1;
         eRet = gui_msg_post(hQ, &tEvt);
         UC_TEST("[N] fill to capacity: each post succeeds",
@@ -107,7 +120,8 @@ int main(void)
         UC_TEST("[N] drain: each get succeeds", eRet == ST_NO_ERROR);
     }
 
-    /* INTENT: destroy releases resources, sets handle to NULL */
+    /* INTENT[INT-GUI-001 → TC-GUI-006 → REQ-GUI-014]:
+     * destroy releases resources and sets handle to NULL */
     eRet = gui_msg_destroy(&hQ);
     UC_TEST("[N] gui_msg_destroy -> ST_NO_ERROR", eRet == ST_NO_ERROR);
     UC_TEST("[N] gui_msg_destroy: handle set to NULL", hQ == NULL);
@@ -116,12 +130,14 @@ int main(void)
     printf("\n--- Test group 2: gui_msg_queue_t robustness ---\n");
     /* ================================================================ */
 
-    /* INTENT: NULL out-pointer rejected */
+    /* INTENT[INT-GUI-001 → TC-GUI-009 → REQ-GUI-009]:
+     * NULL out-pointer rejected before any allocation */
     eRet = gui_msg_create(NULL, 4);
     UC_TEST("[R] gui_msg_create(NULL out) -> ST_ERROR",
             eRet == ST_ERROR);
 
-    /* INTENT: capacity=0 rejected */
+    /* INTENT[INT-GUI-001 → TC-GUI-009 → REQ-GUI-010]:
+     * zero capacity rejected — handle must stay NULL */
     hQ = NULL;
     eRet = gui_msg_create(&hQ, 0);
     UC_TEST("[R] gui_msg_create(capacity=0) -> ST_ERROR",
@@ -131,34 +147,36 @@ int main(void)
     /* Create a valid queue for remaining robustness tests */
     gui_msg_create(&hQ, 2);
 
-    /* INTENT: post to NULL queue rejected */
+    /* INTENT[INT-GUI-001 → TC-GUI-010 → REQ-GUI-011]:
+     * NULL queue or NULL event rejected on post */
     memset(&tEvt, 0, sizeof(tEvt));
     tEvt.eType = GUI_EVT_KEY_DOWN;
     eRet = gui_msg_post(NULL, &tEvt);
     UC_TEST("[R] gui_msg_post(NULL queue) -> ST_ERROR",
             eRet == ST_ERROR);
 
-    /* INTENT: post with NULL event rejected */
     eRet = gui_msg_post(hQ, NULL);
     UC_TEST("[R] gui_msg_post(NULL event) -> ST_ERROR",
             eRet == ST_ERROR);
 
-    /* INTENT: get from NULL queue rejected */
+    /* INTENT[INT-GUI-001 → TC-GUI-010 → REQ-GUI-013]:
+     * NULL queue or NULL output pointer rejected on get */
     eRet = gui_msg_get(NULL, &tGot, ST_FALSE);
     UC_TEST("[R] gui_msg_get(NULL queue) -> ST_ERROR",
             eRet == ST_ERROR);
 
-    /* INTENT: get into NULL output rejected */
     eRet = gui_msg_get(hQ, NULL, ST_FALSE);
     UC_TEST("[R] gui_msg_get(NULL event out) -> ST_ERROR",
             eRet == ST_ERROR);
 
-    /* INTENT: get on empty queue (non-blocking) returns ST_ERROR */
+    /* INTENT[INT-GUI-003 → TC-GUI-008 → REQ-GUI-013]:
+     * non-blocking get on empty queue returns ST_ERROR immediately */
     eRet = gui_msg_get(hQ, &tGot, ST_FALSE);
     UC_TEST("[R] gui_msg_get on empty queue -> ST_ERROR",
             eRet == ST_ERROR);
 
-    /* INTENT: post beyond capacity returns ST_ERROR */
+    /* INTENT[INT-GUI-002 → TC-GUI-007 → REQ-GUI-012]:
+     * post beyond capacity returns ST_ERROR without blocking */
     memset(&tEvt, 0, sizeof(tEvt));
     tEvt.eType = GUI_EVT_PAINT;
     gui_msg_post(hQ, &tEvt);
@@ -169,11 +187,11 @@ int main(void)
 
     gui_msg_destroy(&hQ);
 
-    /* INTENT: destroy NULL pphQueue rejected */
+    /* INTENT[INT-GUI-001 → TC-GUI-010 → REQ-GUI-014]:
+     * destroy with NULL pphQueue or *pphQueue==NULL both rejected */
     eRet = gui_msg_destroy(NULL);
     UC_TEST("[R] gui_msg_destroy(NULL) -> ST_ERROR", eRet == ST_ERROR);
 
-    /* INTENT: destroy already-NULL handle rejected */
     hQ = NULL;
     eRet = gui_msg_destroy(&hQ);
     UC_TEST("[R] gui_msg_destroy(*pphQueue=NULL) -> ST_ERROR",
@@ -183,20 +201,24 @@ int main(void)
     printf("\n--- Test group 3: gui_init / gui_shutdown lifecycle ---\n");
     /* ================================================================ */
 
-    /* INTENT: gui_init initialises Win32 WNDCLASS */
+    /* INTENT[INT-GUI-004 → TC-GUI-011 → REQ-GUI-001]:
+     * gui_init registers the Win32 WNDCLASS without error */
     eRet = gui_init();
     UC_TEST("[N] gui_init() -> ST_NO_ERROR", eRet == ST_NO_ERROR);
 
-    /* INTENT: second call is idempotent */
+    /* INTENT[INT-GUI-004 → TC-GUI-011 → REQ-GUI-002]:
+     * second gui_init call is idempotent — no double-registration */
     eRet = gui_init();
     UC_TEST("[N] gui_init() idempotent -> ST_NO_ERROR",
             eRet == ST_NO_ERROR);
 
-    /* INTENT: gui_shutdown cleans up without crash */
+    /* INTENT[INT-GUI-004 → TC-GUI-012 → REQ-GUI-007,REQ-GUI-008]:
+     * gui_shutdown closes all resources cleanly */
     eRet = gui_shutdown();
     UC_TEST("[N] gui_shutdown() -> ST_NO_ERROR", eRet == ST_NO_ERROR);
 
-    /* INTENT: second shutdown is a safe no-op */
+    /* INTENT[INT-GUI-004 → TC-GUI-013 → REQ-GUI-007]:
+     * gui_shutdown without prior init is a safe no-op */
     eRet = gui_shutdown();
     UC_TEST("[N] gui_shutdown() idempotent -> ST_NO_ERROR",
             eRet == ST_NO_ERROR);
@@ -205,14 +227,14 @@ int main(void)
     printf("\n--- Test group 4: gui_* NULL-parameter robustness ---\n");
     /* ================================================================ */
 
-    /* Re-init for the NULL-param tests */
     gui_init();
 
     memset(&tDesc, 0, sizeof(tDesc));
     tDesc.szTitle = "UC3.1 Test";
     tDesc.eType   = GUI_WND_DIR;
 
-    /* INTENT: NULL ptDesc rejected */
+    /* INTENT[INT-GUI-005 → TC-GUI-014 → REQ-GUI-003]:
+     * gui_open_window rejects NULL ptDesc or NULL phWnd before side effects */
     hWnd = NULL;
     eRet = gui_open_window(NULL, &hWnd);
     UC_TEST("[R] gui_open_window(NULL desc) -> ST_ERROR",
@@ -220,22 +242,20 @@ int main(void)
     UC_TEST("[R] gui_open_window(NULL desc): hWnd stays NULL",
             hWnd == NULL);
 
-    /* INTENT: NULL phWnd rejected */
     eRet = gui_open_window(&tDesc, NULL);
     UC_TEST("[R] gui_open_window(NULL phWnd) -> ST_ERROR",
             eRet == ST_ERROR);
 
-    /* INTENT: close NULL handle rejected */
+    /* INTENT[INT-GUI-005 → TC-GUI-015 → REQ-GUI-005]:
+     * gui_close_window, gui_invalidate, gui_get_size reject NULL handle */
     eRet = gui_close_window(NULL);
     UC_TEST("[R] gui_close_window(NULL) -> ST_ERROR",
             eRet == ST_ERROR);
 
-    /* INTENT: invalidate NULL rejected */
     eRet = gui_invalidate(NULL);
     UC_TEST("[R] gui_invalidate(NULL) -> ST_ERROR",
             eRet == ST_ERROR);
 
-    /* INTENT: get_size with NULL hWnd rejected */
     iW = 0; iH = 0;
     eRet = gui_get_size(NULL, &iW, &iH);
     UC_TEST("[R] gui_get_size(NULL hWnd) -> ST_ERROR",
@@ -247,8 +267,16 @@ int main(void)
     printf("\n--- Test group 5: window open / close (manual) ---\n");
     /* ================================================================ */
 
+    /* INTENT[INT-GUI-004 → TC-GUI-016 → REQ-GUI-004]:
+     * gui_open_window spawns a thread, window appears with dark background */
     TEST_SKIP("[S] gui_open_window() - window visible (run make manual)");
+
+    /* INTENT[INT-GUI-004 → TC-GUI-017 → REQ-GUI-006]:
+     * gui_close_window posts WM_CLOSE, thread exits, handle freed */
     TEST_SKIP("[S] window: dark background, title bar visible");
+
+    /* INTENT[INT-GUI-005 → TC-GUI-018 → REQ-GUI-015]:
+     * OS close button (X) fires WM_DESTROY -> GUI_EVT_CLOSE callback */
     TEST_SKIP("[S] gui_close_window() - window closes cleanly");
 
     /* ================================================================ */

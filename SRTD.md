@@ -185,7 +185,7 @@ requirement that will expose it (`UFR-EXE-*`, planned UC21–27).
 
 ### 2.2 Console Line Reader — `line.h` / `line.c`
 
-> Design ref: CLAUDE.md §1.1.1–1.1.12, §5 R5
+> Design ref: CLAUDE.md §1.1 (table commandes validées + sous-sections dir/load/edit…), §5 R5
 
 | ID           | Software Requirement                                                                                    | Parent UFR               | Status   | UC   |
 |--------------|---------------------------------------------------------------------------------------------------------|--------------------------|----------|------|
@@ -202,7 +202,7 @@ requirement that will expose it (`UFR-EXE-*`, planned UC21–27).
 
 ### 2.3 ST Machine Emulator — `ST.h` / `ST.c`
 
-> Design ref: CLAUDE.md §1 memory map, §5 R6, R9
+> Design ref: src/ST.h (memory map 24-bit address space en commentaire fichier), CLAUDE.md §5 R6, R9
 > Parent UFR: none at UC1 level — will link to `UFR-EXE-*` when UC25 exposes execution.
 
 | ID           | Software Requirement                                                                                    | Parent UFR    | Status        | UC    |
