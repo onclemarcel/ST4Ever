@@ -60,7 +60,8 @@ static const renderer_color_t g_dir_clrDD   = {0.95f, 0.90f, 0.10f, 1.0f};
 
 static dir_node_t *dir_node_create(void);
 static void        dir_node_free_tree(dir_node_t *ptNode);
-static st_error_t  dir_node_load_children(dir_node_t *ptNode);
+static st_error_t  dir_node_load_children(dir_node_t *ptNode,
+                                           st_bool_t   bShowHidden);
 
 static void dir_flat_rebuild(dir_view_t *ptView);
 static void dir_flat_rebuild_rec(dir_view_t *ptView,
@@ -147,7 +148,8 @@ static void dir_node_free_tree(dir_node_t *ptNode)
  * A scan error (access denied, path not found) is non-fatal: the node
  * is marked loaded with zero children and ST_NO_ERROR is returned.
  */
-static st_error_t dir_node_load_children(dir_node_t *ptNode)
+static st_error_t dir_node_load_children(dir_node_t *ptNode,
+                                           st_bool_t   bShowHidden)
 {
     dir_node_t *ptLast;
     dir_node_t *ptChild;
@@ -186,6 +188,9 @@ static st_error_t dir_node_load_children(dir_node_t *ptNode)
 
                 if (strcmp(tFd.cFileName, ".")  == 0) continue;
                 if (strcmp(tFd.cFileName, "..") == 0) continue;
+                /* P15: filter '.*' entries unless -a requested */
+                if (bShowHidden == ST_FALSE
+                &&  tFd.cFileName[0] == '.') continue;
 
                 /* Pass 0: dirs only; pass 1: files only */
                 if (iPass == 0 && !bIsDir) continue;
@@ -240,6 +245,9 @@ static st_error_t dir_node_load_children(dir_node_t *ptNode)
             {
                 if (strcmp(ptEnt->d_name, ".")  == 0) continue;
                 if (strcmp(ptEnt->d_name, "..") == 0) continue;
+                /* P15: filter '.*' entries unless -a requested */
+                if (bShowHidden == ST_FALSE
+                &&  ptEnt->d_name[0] == '.') continue;
 
                 snprintf(szFull, sizeof(szFull), "%s/%s",
                          ptNode->szPath, ptEnt->d_name);
@@ -524,7 +532,7 @@ static void dir_navigate_up(dir_view_t *ptView)
     ptView->ptRoot->bChildrenLoaded = ST_FALSE;
     ptView->ptRoot->iDepth          = -1;
 
-    dir_node_load_children(ptView->ptRoot);
+    dir_node_load_children(ptView->ptRoot, ptView->bShowHidden);
 
     ptView->iFlatCount    = 0;
     ptView->iScrollOffset = 0;
@@ -562,7 +570,7 @@ static void dir_activate_sel(dir_view_t *ptView, gui_window_t hWnd)
         {
             if (ptNode->bChildrenLoaded == ST_FALSE)
             {
-                dir_node_load_children(ptNode);
+                dir_node_load_children(ptNode, ptView->bShowHidden);
             }
             ptNode->bExpanded = ST_TRUE;
         }
@@ -753,9 +761,71 @@ static void dir_handle_key(dir_view_t  *ptView,
         break;
 
     case GUI_KEY_ENTER:
-    case GUI_KEY_SPACE:
+        /* P13: ENTER = action (expand/collapse dir, select file, nav up) */
         dir_activate_sel(ptView, hWnd);
         bRedraw = ST_TRUE;
+        break;
+
+    case GUI_KEY_SPACE:
+        /* P13: SPACE = pure selection — update szSelected, no expand */
+        if (ptView->iSelectedFlat >= 0)
+        {
+            dir_node_t *ptNode;
+            ptNode = ptView->aptFlat[ptView->iSelectedFlat].ptNode;
+            if (ptView->ptLineCtx != NULL)
+            {
+                strncpy(ptView->ptLineCtx->szSelected,
+                        ptNode->szPath,
+                        ST_MAX_PATH - 1);
+                ptView->ptLineCtx->szSelected[ST_MAX_PATH - 1] = '\0';
+                LOG_INFO("dir: SPACE selected '%s'", ptNode->szPath);
+            }
+        }
+        break;
+
+    case GUI_KEY_LEFT:
+        /* P12: collapse expanded directory */
+        if (ptView->iSelectedFlat >= 0)
+        {
+            dir_node_t *ptNode;
+            ptNode = ptView->aptFlat[ptView->iSelectedFlat].ptNode;
+            if (ptNode->bIsDir == ST_TRUE
+            &&  ptNode->bExpanded == ST_TRUE)
+            {
+                ptNode->bExpanded  = ST_FALSE;
+                ptView->iFlatCount = 0;
+                dir_flat_rebuild(ptView);
+                dir_scroll_to_sel(ptView);
+                bRedraw = ST_TRUE;
+            }
+        }
+        break;
+
+    case GUI_KEY_RIGHT:
+        /* P12: expand collapsed directory (lazy-load children if needed) */
+        if (ptView->iSelectedFlat >= 0)
+        {
+            dir_node_t *ptNode;
+            ptNode = ptView->aptFlat[ptView->iSelectedFlat].ptNode;
+            if (ptNode->bIsDir == ST_TRUE
+            &&  ptNode->bExpanded == ST_FALSE)
+            {
+                if (ptNode->bChildrenLoaded == ST_FALSE)
+                {
+                    dir_node_load_children(ptNode, ptView->bShowHidden);
+                }
+                ptNode->bExpanded  = ST_TRUE;
+                ptView->iFlatCount = 0;
+                dir_flat_rebuild(ptView);
+                dir_scroll_to_sel(ptView);
+                bRedraw = ST_TRUE;
+            }
+        }
+        break;
+
+    case GUI_KEY_ESCAPE:
+        /* P9: ESC closes the view non-blocking from the window thread */
+        gui_request_close(hWnd);
         break;
 
     default:
@@ -908,6 +978,7 @@ static void dir_event_callback(gui_window_t  hWnd,
 
 st_error_t dir_open(const char     *szPath,
                      line_context_t *ptLineCtx,
+                     st_bool_t       bShowHidden,
                      dir_view_t    **pptView)
 {
     dir_view_t    *ptView;
@@ -917,8 +988,9 @@ st_error_t dir_open(const char     *szPath,
     char           szTitle[ST_MAX_PATH + 32];
     const char    *szRoot;
 
-    LOG_TRACE("szPath=%p ptLineCtx=%p pptView=%p",
-              (void *)szPath, (void *)ptLineCtx, (void *)pptView);
+    LOG_TRACE("szPath=%p ptLineCtx=%p bShowHidden=%d pptView=%p",
+              (void *)szPath, (void *)ptLineCtx,
+              (int)bShowHidden, (void *)pptView);
 
     if (ptLineCtx == NULL || pptView == NULL)
     {
@@ -965,6 +1037,7 @@ st_error_t dir_open(const char     *szPath,
     strncpy(ptView->szRootPath, szRoot, ST_MAX_PATH - 1);
     ptView->szRootPath[ST_MAX_PATH - 1] = '\0';
     ptView->ptLineCtx     = ptLineCtx;
+    ptView->bShowHidden   = bShowHidden;
     ptView->iSelectedFlat = -1;   /* ".." selected by default */
     ptView->iCellH        = 20;   /* overridden on first PAINT */
     ptView->iCellW        = 10;
@@ -984,7 +1057,7 @@ st_error_t dir_open(const char     *szPath,
     ptView->ptRoot->bExpanded = ST_TRUE;
     ptView->ptRoot->iDepth    = -1;
 
-    eResult = dir_node_load_children(ptView->ptRoot);
+    eResult = dir_node_load_children(ptView->ptRoot, ptView->bShowHidden);
     if (eResult != ST_NO_ERROR)
     {
         dir_node_free_tree(ptView->ptRoot);

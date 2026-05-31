@@ -92,7 +92,7 @@ typedef int64_t  st_i64_t;   /* Signed   64-bit */
  * ------------------------------------------------------------------ */
 
 #define ST_APP_NAME         "ST4Ever"
-#define ST_APP_VERSION      "0.1.0-UC3.1"
+#define ST_APP_VERSION      "0.4.1"
 #define ST_APP_DESC         "Atari ST Revival Engine"
 
 /* ------------------------------------------------------------------

@@ -374,6 +374,9 @@ static void win_wnd_thread(void *pArg)
     ptWnd->bOpen = ST_TRUE;
     ShowWindow(ptState->hWnd, SW_SHOWNORMAL);
     UpdateWindow(ptState->hWnd);
+    /* P16: grab focus so arrow keys work immediately without alt-tab */
+    SetForegroundWindow(ptState->hWnd);
+    SetFocus(ptState->hWnd);
     SetEvent(ptState->hReady); /* signal creating thread: HWND is live */
 
     while (GetMessage(&tMsg, NULL, 0, 0) > 0)

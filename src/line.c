@@ -485,7 +485,9 @@ static st_error_t line_cmd_dir(const parsed_cmd_t *ptParsed,
                                  line_context_t     *ptCtx)
 {
     const char *szPath;
+    st_bool_t   bShowHidden;
     st_error_t  eResult;
+    int         iArg;
 
     LOG_TRACE("ptParsed=%p ptCtx=%p", (void *)ptParsed, (void *)ptCtx);
 
@@ -495,11 +497,25 @@ static st_error_t line_cmd_dir(const parsed_cmd_t *ptParsed,
         return ST_ERROR;
     }
 
-    if (ptParsed->iArgc > 2)
+    /* Parse arguments: optional -a flag and optional path (P15) */
+    bShowHidden = ST_FALSE;
+    szPath      = NULL;
+
+    for (iArg = 1; iArg < ptParsed->iArgc; iArg++)
     {
-        line_print_warning(
-            "dir: ignoring extra arguments after '%s'",
-            ptParsed->aszArgv[1]);
+        if (strcmp(ptParsed->aszArgv[iArg], "-a") == 0)
+        {
+            bShowHidden = ST_TRUE;
+        }
+        else if (szPath == NULL)
+        {
+            szPath = ptParsed->aszArgv[iArg];
+        }
+        else
+        {
+            line_print_warning("dir: ignoring extra argument '%s'",
+                               ptParsed->aszArgv[iArg]);
+        }
     }
 
     /* Close any existing dir view */
@@ -513,8 +529,7 @@ static st_error_t line_cmd_dir(const parsed_cmd_t *ptParsed,
         g_line_ptDirView = NULL;
     }
 
-    szPath  = (ptParsed->iArgc > 1) ? ptParsed->aszArgv[1] : NULL;
-    eResult = dir_open(szPath, ptCtx, &g_line_ptDirView);
+    eResult = dir_open(szPath, ptCtx, bShowHidden, &g_line_ptDirView);
     if (eResult != ST_NO_ERROR)
     {
         line_print_error("dir: failed to open view for '%s'",
@@ -522,9 +537,10 @@ static st_error_t line_cmd_dir(const parsed_cmd_t *ptParsed,
         return ST_ERROR;
     }
 
-    line_print_msg("Directory view opened%s%s.",
+    line_print_msg("Directory view opened%s%s%s.",
                    szPath ? " for " : "",
-                   szPath ? szPath  : "");
+                   szPath ? szPath  : "",
+                   bShowHidden ? " (showing hidden files)" : "");
     return ST_NO_ERROR;
 }
 

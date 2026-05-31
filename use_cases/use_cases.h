@@ -65,6 +65,38 @@
     printf("  [SKIP] %s\n", (desc))
 
 /*
+ * TEST_MANUAL(desc, question) - Visual/interactive test (R16).
+ *
+ * In manual mode (-DST_MANUAL_TEST via 'make manual'): displays the
+ * description and asks the user y/n.  In automated mode: prints [SKIP].
+ *
+ * Usage:
+ *   TEST_MANUAL("[S] Window title updated", "Is the title correct?");
+ */
+#ifdef ST_MANUAL_TEST
+#define TEST_MANUAL(desc, question) \
+    do { \
+        int _c; \
+        printf("  [MANUAL] %s\n  > %s (y/n): ", (desc), (question)); \
+        fflush(stdout); \
+        _c = getchar(); \
+        while (getchar() != '\n'); \
+        if (_c == 'y' || _c == 'Y') \
+        { \
+            printf("  [PASS]  %s\n", (desc)); \
+        } \
+        else \
+        { \
+            printf("  [FAIL]  %s\n", (desc)); \
+            g_uc_fails++; \
+        } \
+    } while (0)
+#else
+#define TEST_MANUAL(desc, question) \
+    printf("  [SKIP] %s (run make manual)\n", (desc))
+#endif
+
+/*
  * ST_TEST_LEVEL_UCNN is defined by the Makefile (-DST_TEST_LEVEL_UC01,
  * -DST_TEST_LEVEL_UC03, ...) when compiling each use_case_NN binary.
  * Use it to guard assertions that depend on stub vs real behaviour:

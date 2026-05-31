@@ -236,6 +236,27 @@ st_error_t gui_get_size(gui_window_t  hWnd,
 st_error_t gui_shutdown(void);
 
 /*
+ * gui_request_close() - Ask a window to close without blocking (UC4.1/P9).
+ *
+ * Posts a close request to the window's event loop and returns immediately.
+ * Unlike gui_close_window(), this does NOT join the window thread.
+ * Intended for use from the window thread itself (e.g. ESC key handler)
+ * or when the caller does not want to block.
+ *
+ * The caller is responsible for eventually calling gui_close_window() (or
+ * dir_close() etc.) to join the thread and free resources.
+ * gui_close_window() handles the case where the window is already closed.
+ *
+ * Parameters:
+ *   hWnd [in] : Window to close.
+ *
+ * Returns:
+ *   ST_NO_ERROR on success.
+ *   ST_ERROR    if hWnd is NULL.
+ */
+st_error_t gui_request_close(gui_window_t hWnd);
+
+/*
  * gui_set_title() - Update the window title bar text (R18).
  *
  * Delegates to gui_platform_window_set_title().  Intended for views

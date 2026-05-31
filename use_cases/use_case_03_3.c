@@ -48,7 +48,8 @@ int main(void)
     /* INTENT[INT-DIR-001 → TC-DIR-001..002 → REQ-DIR-001,004 → UFR-DIR-001]:
      * dir_open with valid path returns ST_NO_ERROR and a non-NULL view */
     ptView  = NULL;
-    eResult = dir_open(TEST_DIR_PATH, &tCtx, &ptView);
+    /* ADAPTED: UC4.1 - dir_open() gained bShowHidden parameter */
+    eResult = dir_open(TEST_DIR_PATH, &tCtx, ST_FALSE, &ptView);
     UC_TEST("[N] TC-DIR-001 dir_open(valid path) -> ST_NO_ERROR",
             eResult == ST_NO_ERROR);
     UC_TEST("[N] TC-DIR-002 dir_open: *pptView != NULL",
@@ -86,7 +87,8 @@ int main(void)
     /* INTENT[INT-DIR-004 → TC-DIR-008 → REQ-DIR-001 → UFR-DIR-001]:
      * dir_open can be called again on the same path after a close */
     ptView  = NULL;
-    eResult = dir_open(TEST_DIR_PATH, &tCtx, &ptView);
+    /* ADAPTED: UC4.1 - dir_open() gained bShowHidden parameter */
+    eResult = dir_open(TEST_DIR_PATH, &tCtx, ST_FALSE, &ptView);
     UC_TEST("[N] TC-DIR-008 dir_open second time -> ST_NO_ERROR",
             eResult == ST_NO_ERROR);
     if (ptView != NULL)
@@ -99,7 +101,8 @@ int main(void)
     /* INTENT[INT-DIR-005 → TC-DIR-009..010 → REQ-DIR-001 → UFR-DIR-001]:
      * NULL ptLineCtx must be rejected before any side effect */
     ptView  = NULL;
-    eResult = dir_open(TEST_DIR_PATH, NULL, &ptView);
+    /* ADAPTED: UC4.1 - bShowHidden parameter added */
+    eResult = dir_open(TEST_DIR_PATH, NULL, ST_FALSE, &ptView);
     UC_TEST("[R] TC-DIR-009 dir_open(NULL ptLineCtx) -> ST_ERROR",
             eResult == ST_ERROR);
     UC_TEST("[R] TC-DIR-010 dir_open(NULL ptLineCtx): *pptView unchanged (NULL)",
@@ -107,13 +110,15 @@ int main(void)
 
     /* INTENT[INT-DIR-006 → TC-DIR-011 → REQ-DIR-001 → UFR-DIR-001]:
      * NULL pptView must be rejected before any side effect */
-    eResult = dir_open(TEST_DIR_PATH, &tCtx, NULL);
+    /* ADAPTED: UC4.1 - bShowHidden parameter added */
+    eResult = dir_open(TEST_DIR_PATH, &tCtx, ST_FALSE, NULL);
     UC_TEST("[R] TC-DIR-011 dir_open(NULL pptView) -> ST_ERROR",
             eResult == ST_ERROR);
 
     /* INTENT[INT-DIR-007 → TC-DIR-012 → REQ-DIR-001 → UFR-DIR-001]:
      * both NULL parameters must be rejected */
-    eResult = dir_open(TEST_DIR_PATH, NULL, NULL);
+    /* ADAPTED: UC4.1 - bShowHidden parameter added */
+    eResult = dir_open(TEST_DIR_PATH, NULL, ST_FALSE, NULL);
     UC_TEST("[R] TC-DIR-012 dir_open(NULL, NULL) -> ST_ERROR",
             eResult == ST_ERROR);
 
@@ -133,7 +138,9 @@ int main(void)
     /* INTENT[INT-DIR-010 → TC-DIR-015..016 → REQ-DIR-003 → UFR-DIR-001]:
      * non-existent path opens with an empty tree (non-fatal scan failure) */
     ptView  = NULL;
-    eResult = dir_open("nonexistent_path_xyz_st4ever", &tCtx, &ptView);
+    /* ADAPTED: UC4.1 - bShowHidden parameter added */
+    eResult = dir_open("nonexistent_path_xyz_st4ever", &tCtx, ST_FALSE,
+                       &ptView);
     UC_TEST("[R] TC-DIR-015 dir_open(non-existent path) -> ST_NO_ERROR",
             eResult == ST_NO_ERROR);
     if (ptView != NULL)

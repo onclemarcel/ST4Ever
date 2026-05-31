@@ -75,9 +75,16 @@ TARGET     := $(RELEASE)/st4ever$(EXE)
 UC_TARGETS := $(patsubst $(UC_DIR)/%.c, $(TDIR)/%$(EXE), $(UC_FILES))
 
 # -----------------------------------------------------------------------------
+# Manual test directory (same use_case_NN.c compiled with -DST_MANUAL_TEST)
+# UC4: make manual runs interactive visual validation tests.
+# -----------------------------------------------------------------------------
+MDIR           := manual
+MANUAL_TARGETS := $(patsubst $(UC_DIR)/%.c, $(MDIR)/%$(EXE), $(UC_FILES))
+
+# -----------------------------------------------------------------------------
 # Top-level targets
 # -----------------------------------------------------------------------------
-.PHONY: all run tests clean
+.PHONY: all run tests manual clean
 
 all: $(BUILD) $(RELEASE) $(TDIR) $(TARGET) $(UC_TARGETS)
 
@@ -139,6 +146,34 @@ tests: all
 	echo ""; \
 	exit $$FAILS
 
+# Manual test binaries: same use_case_NN.c with -DST_MANUAL_TEST.
+# Run from project root; answer y/n for each visual/interactive question.
+$(MDIR)/%$(EXE): $(UC_DIR)/%.c $(LIB_OBJS)
+	$(CC) $(CFLAGS) -DST_MANUAL_TEST $< $(LIB_OBJS) -o $@ $(LDFLAGS)
+	@echo "  --> $@"
+
+manual: all $(MDIR) $(MANUAL_TARGETS)
+	@echo ""
+	@echo "================================================================"
+	@echo " ST4Ever - Manual Validation Tests"
+	@echo " Answer y/n for each visual/interactive test."
+	@echo " (must be run from the project root directory)"
+	@echo "================================================================"
+	@FAILS=0; \
+	for t in $(MANUAL_TARGETS); do \
+	    echo ""; \
+	    echo "  Running: $$t"; \
+	    echo "  --------"; \
+	    $$t; STATUS=$$?; \
+	    if [ $$STATUS -ne 0 ]; then FAILS=$$((FAILS + 1)); fi; \
+	done; \
+	echo ""; \
+	echo "================================================================"; \
+	echo " Results: $$FAILS manual test program(s) reported failure"; \
+	echo "================================================================"; \
+	echo ""; \
+	exit $$FAILS
+
 # -----------------------------------------------------------------------------
 clean:
-	rm -rf $(BUILD) $(RELEASE) $(TDIR)
+	rm -rf $(BUILD) $(RELEASE) $(TDIR) $(MDIR)

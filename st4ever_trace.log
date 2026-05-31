@@ -1,172 +1,111 @@
-19:21:05 [TRC ] gui_init:115  (void)
-19:21:05 [TRC ] platform_mutex_create:28  pptMutex=00007ff676d5e0c8
-19:21:05 [TRC ] gui_platform_init:399  (void)
-19:21:05 [INF ] gui_platform_init:422  WNDCLASS 'ST4EverView' registered
-19:21:05 [INF ] gui_init:148  GUI subsystem initialised
-19:21:05 [TRC ] line_init:673  ptCtx=0000007c18fff540
-19:21:05 [INF ] line_init:692  console initialised, cwd='C:\msys\home\claude\ST4Ever'
-19:21:05 [TRC ] dir_open:920  szPath=00007ff676d55036 ptLineCtx=0000007c18fff540 pptView=0000007c18fff950
-19:21:05 [TRC ] gui_open_window:158  ptDesc=0000007c18fff4d0 phWnd=0000021da5ca81f0
-19:21:05 [TRC ] gui_platform_window_create:432  ptWnd=0000021da5ca8ca0
-19:21:05 [TRC ] platform_thread_create:132  pptThread=0000021da5ca8cc8 pfnEntry=00007ff676d4ad18 pArg=0000021da5ca8ca0
-19:21:05 [INF ] platform_thread_create:170  thread created (HANDLE=0000000000000178)
-19:21:05 [TRC ] renderer_create:27  hWnd=0000021da5ca8ca0 phCtx=0000021da5ca81f8
-19:21:05 [TRC ] renderer_platform_create:188  ptCtx=0000021da5cac730 hWnd=0000021da5ca8ca0
-19:21:05 [TRC ] gui_platform_get_native_handle:574  ptWnd=0000021da5ca8ca0
-19:21:05 [INF ] renderer_platform_create:322  D2D renderer created: mono cell=7.1x15.2
-19:21:05 [INF ] renderer_create:55  renderer created for window 0000021da5ca8ca0
-19:21:05 [TRC ] renderer_get_font_metrics:78  hCtx=0000021da5cac730 fontId=0
-19:21:05 [TRC ] renderer_platform_get_font_metrics:385  ptCtx=0000021da5cac730 fontId=0
-19:21:05 [TRC ] gui_get_size:266  hWnd=0000021da5ca8ca0
-19:21:05 [TRC ] gui_platform_window_get_size:542  ptWnd=0000021da5ca8ca0
-19:21:05 [TRC ] renderer_begin_draw:93  hCtx=0000021da5cac730
-19:21:05 [TRC ] renderer_platform_begin_draw:417  ptCtx=0000021da5cac730
-19:21:05 [TRC ] renderer_fill_rect:122  hCtx=0000021da5cac730
-19:21:05 [TRC ] renderer_platform_fill_rect:481  ptCtx=0000021da5cac730
-19:21:05 [TRC ] renderer_draw_text:182  hCtx=0000021da5cac730 text='..'
-19:21:05 [TRC ] renderer_platform_draw_text:595  ptCtx=0000021da5cac730 text='..'
-19:21:05 [TRC ] renderer_draw_text:182  hCtx=0000021da5cac730 text='+-- [+] UC01/'
-19:21:05 [TRC ] renderer_platform_draw_text:595  ptCtx=0000021da5cac730 text='+-- [+] UC01/'
-19:21:05 [TRC ] renderer_draw_text:182  hCtx=0000021da5cac730 text='+-- use_cases.h'
-19:21:05 [TRC ] renderer_platform_draw_text:595  ptCtx=0000021da5cac730 text='+-- use_cases.h'
-19:21:05 [TRC ] renderer_draw_text:182  hCtx=0000021da5cac730 text='+-- use_case_01.c'
-19:21:05 [TRC ] renderer_platform_draw_text:595  ptCtx=0000021da5cac730 text='+-- use_case_01.c'
-19:21:05 [TRC ] renderer_draw_text:182  hCtx=0000021da5cac730 text='+-- use_case_02.c'
-19:21:05 [TRC ] renderer_platform_draw_text:595  ptCtx=0000021da5cac730 text='+-- use_case_02.c'
-19:21:05 [TRC ] renderer_draw_text:182  hCtx=0000021da5cac730 text='+-- use_case_03_1.c'
-19:21:05 [TRC ] renderer_platform_draw_text:595  ptCtx=0000021da5cac730 text='+-- use_case_03_1.c'
-19:21:05 [TRC ] renderer_draw_text:182  hCtx=0000021da5cac730 text='+-- use_case_03_2.c'
-19:21:05 [TRC ] renderer_platform_draw_text:595  ptCtx=0000021da5cac730 text='+-- use_case_03_2.c'
-19:21:05 [TRC ] renderer_draw_text:182  hCtx=0000021da5cac730 text='\-- use_case_03_3.c'
-19:21:05 [TRC ] renderer_platform_draw_text:595  ptCtx=0000021da5cac730 text='\-- use_case_03_3.c'
-19:21:05 [TRC ] renderer_end_draw:107  hCtx=0000021da5cac730
-19:21:05 [TRC ] renderer_platform_end_draw:447  ptCtx=0000021da5cac730
-19:21:05 [INF ] gui_platform_window_create:488  platform window created: HWND=00000000001e02e4
-19:21:05 [TRC ] platform_mutex_lock:59  ptMutex=0000021da5ca7190
-19:21:05 [TRC ] platform_mutex_unlock:71  ptMutex=0000021da5ca7190
-19:21:05 [INF ] gui_open_window:205  window opened: title='ST4Ever - Dir: use_cases'
-19:21:05 [INF ] dir_open:1017  dir view opened: 'use_cases' (7 flat entries)
-19:21:05 [TRC ] dir_close:1026  pptView=0000007c18fff950
-19:21:05 [TRC ] gui_close_window:214  hWnd=0000021da5ca8ca0
-19:21:05 [TRC ] gui_platform_window_close:496  ptWnd=0000021da5ca8ca0
-19:21:05 [TRC ] platform_thread_join:178  ptThread=0000021da5ca8d10
-19:21:05 [TRC ] renderer_destroy:217  phCtx=0000021da5ca81f8
-19:21:05 [TRC ] renderer_platform_destroy:329  ptCtx=0000021da5cac730
-19:21:05 [INF ] renderer_destroy:230  renderer destroyed
-19:21:05 [INF ] win_wnd_thread:386  window thread exiting: 'ST4Ever - Dir: use_cases'
-19:21:05 [TRC ] platform_thread_destroy:199  pptThread=0000021da5ca8cc8
-19:21:05 [TRC ] platform_mutex_lock:59  ptMutex=0000021da5ca7190
-19:21:05 [TRC ] platform_mutex_unlock:71  ptMutex=0000021da5ca7190
-19:21:05 [INF ] gui_close_window:240  window closed
-19:21:05 [INF ] dir_close:1065  dir view closed
-19:21:05 [TRC ] dir_open:920  szPath=00007ff676d55036 ptLineCtx=0000007c18fff540 pptView=0000007c18fff950
-19:21:05 [TRC ] gui_open_window:158  ptDesc=0000007c18fff4d0 phWnd=0000021da5cac610
-19:21:05 [TRC ] gui_platform_window_create:432  ptWnd=0000021da5cac860
-19:21:05 [TRC ] platform_thread_create:132  pptThread=0000021da5cac888 pfnEntry=00007ff676d4ad18 pArg=0000021da5cac860
-19:21:05 [INF ] platform_thread_create:170  thread created (HANDLE=00000000000001fc)
-19:21:05 [TRC ] renderer_create:27  hWnd=0000021da5cac860 phCtx=0000021da5cac618
-19:21:05 [TRC ] renderer_platform_create:188  ptCtx=0000021da5bc1a40 hWnd=0000021da5cac860
-19:21:05 [TRC ] gui_platform_get_native_handle:574  ptWnd=0000021da5cac860
-19:21:06 [INF ] renderer_platform_create:322  D2D renderer created: mono cell=7.1x15.2
-19:21:06 [INF ] renderer_create:55  renderer created for window 0000021da5cac860
-19:21:06 [TRC ] renderer_get_font_metrics:78  hCtx=0000021da5bc1a40 fontId=0
-19:21:06 [TRC ] renderer_platform_get_font_metrics:385  ptCtx=0000021da5bc1a40 fontId=0
-19:21:06 [TRC ] gui_get_size:266  hWnd=0000021da5cac860
-19:21:06 [TRC ] gui_platform_window_get_size:542  ptWnd=0000021da5cac860
-19:21:06 [TRC ] renderer_begin_draw:93  hCtx=0000021da5bc1a40
-19:21:06 [TRC ] renderer_platform_begin_draw:417  ptCtx=0000021da5bc1a40
-19:21:06 [TRC ] renderer_fill_rect:122  hCtx=0000021da5bc1a40
-19:21:06 [TRC ] renderer_platform_fill_rect:481  ptCtx=0000021da5bc1a40
-19:21:06 [TRC ] renderer_draw_text:182  hCtx=0000021da5bc1a40 text='..'
-19:21:06 [TRC ] renderer_platform_draw_text:595  ptCtx=0000021da5bc1a40 text='..'
-19:21:06 [TRC ] renderer_draw_text:182  hCtx=0000021da5bc1a40 text='+-- [+] UC01/'
-19:21:06 [TRC ] renderer_platform_draw_text:595  ptCtx=0000021da5bc1a40 text='+-- [+] UC01/'
-19:21:06 [TRC ] renderer_draw_text:182  hCtx=0000021da5bc1a40 text='+-- use_cases.h'
-19:21:06 [TRC ] renderer_platform_draw_text:595  ptCtx=0000021da5bc1a40 text='+-- use_cases.h'
-19:21:06 [TRC ] renderer_draw_text:182  hCtx=0000021da5bc1a40 text='+-- use_case_01.c'
-19:21:06 [TRC ] renderer_platform_draw_text:595  ptCtx=0000021da5bc1a40 text='+-- use_case_01.c'
-19:21:06 [TRC ] renderer_draw_text:182  hCtx=0000021da5bc1a40 text='+-- use_case_02.c'
-19:21:06 [TRC ] renderer_platform_draw_text:595  ptCtx=0000021da5bc1a40 text='+-- use_case_02.c'
-19:21:06 [TRC ] renderer_draw_text:182  hCtx=0000021da5bc1a40 text='+-- use_case_03_1.c'
-19:21:06 [TRC ] renderer_platform_draw_text:595  ptCtx=0000021da5bc1a40 text='+-- use_case_03_1.c'
-19:21:06 [TRC ] renderer_draw_text:182  hCtx=0000021da5bc1a40 text='+-- use_case_03_2.c'
-19:21:06 [TRC ] renderer_platform_draw_text:595  ptCtx=0000021da5bc1a40 text='+-- use_case_03_2.c'
-19:21:06 [TRC ] renderer_draw_text:182  hCtx=0000021da5bc1a40 text='\-- use_case_03_3.c'
-19:21:06 [TRC ] renderer_platform_draw_text:595  ptCtx=0000021da5bc1a40 text='\-- use_case_03_3.c'
-19:21:06 [TRC ] renderer_end_draw:107  hCtx=0000021da5bc1a40
-19:21:06 [TRC ] renderer_platform_end_draw:447  ptCtx=0000021da5bc1a40
-19:21:06 [INF ] gui_platform_window_create:488  platform window created: HWND=00000000000f0602
-19:21:06 [TRC ] platform_mutex_lock:59  ptMutex=0000021da5ca7190
-19:21:06 [TRC ] platform_mutex_unlock:71  ptMutex=0000021da5ca7190
-19:21:06 [INF ] gui_open_window:205  window opened: title='ST4Ever - Dir: use_cases'
-19:21:06 [INF ] dir_open:1017  dir view opened: 'use_cases' (7 flat entries)
-19:21:06 [TRC ] dir_close:1026  pptView=0000007c18fff950
-19:21:06 [TRC ] gui_close_window:214  hWnd=0000021da5cac860
-19:21:06 [TRC ] gui_platform_window_close:496  ptWnd=0000021da5cac860
-19:21:06 [TRC ] platform_thread_join:178  ptThread=0000021da5bc1a30
-19:21:06 [TRC ] renderer_destroy:217  phCtx=0000021da5cac618
-19:21:06 [TRC ] renderer_platform_destroy:329  ptCtx=0000021da5bc1a40
-19:21:06 [INF ] renderer_destroy:230  renderer destroyed
-19:21:06 [INF ] win_wnd_thread:386  window thread exiting: 'ST4Ever - Dir: use_cases'
-19:21:06 [TRC ] platform_thread_destroy:199  pptThread=0000021da5cac888
-19:21:06 [TRC ] platform_mutex_lock:59  ptMutex=0000021da5ca7190
-19:21:06 [TRC ] platform_mutex_unlock:71  ptMutex=0000021da5ca7190
-19:21:06 [INF ] gui_close_window:240  window closed
-19:21:06 [INF ] dir_close:1065  dir view closed
-19:21:06 [TRC ] dir_open:920  szPath=00007ff676d55036 ptLineCtx=0000000000000000 pptView=0000007c18fff950
-19:21:06 [ERR ] dir_open:925  NULL parameter: ptLineCtx=0000000000000000 pptView=0000007c18fff950
-19:21:06 [TRC ] dir_open:920  szPath=00007ff676d55036 ptLineCtx=0000007c18fff540 pptView=0000000000000000
-19:21:06 [ERR ] dir_open:925  NULL parameter: ptLineCtx=0000007c18fff540 pptView=0000000000000000
-19:21:06 [TRC ] dir_open:920  szPath=00007ff676d55036 ptLineCtx=0000000000000000 pptView=0000000000000000
-19:21:06 [ERR ] dir_open:925  NULL parameter: ptLineCtx=0000000000000000 pptView=0000000000000000
-19:21:06 [TRC ] dir_close:1026  pptView=0000000000000000
-19:21:06 [ERR ] dir_close:1030  pptView is NULL
-19:21:06 [TRC ] dir_close:1026  pptView=0000007c18fff948
-19:21:06 [TRC ] dir_open:920  szPath=00007ff676d55434 ptLineCtx=0000007c18fff540 pptView=0000007c18fff950
-19:21:06 [TRC ] gui_open_window:158  ptDesc=0000007c18fff4d0 phWnd=0000021da5bc1720
-19:21:06 [TRC ] gui_platform_window_create:432  ptWnd=0000021da5b78680
-19:21:06 [TRC ] platform_thread_create:132  pptThread=0000021da5b786a8 pfnEntry=00007ff676d4ad18 pArg=0000021da5b78680
-19:21:06 [INF ] platform_thread_create:170  thread created (HANDLE=0000000000000234)
-19:21:06 [TRC ] renderer_create:27  hWnd=0000021da5b78680 phCtx=0000021da5bc1728
-19:21:06 [TRC ] renderer_platform_create:188  ptCtx=0000021da5bc1a00 hWnd=0000021da5b78680
-19:21:06 [TRC ] gui_platform_get_native_handle:574  ptWnd=0000021da5b78680
-19:21:06 [INF ] renderer_platform_create:322  D2D renderer created: mono cell=7.1x15.2
-19:21:06 [INF ] renderer_create:55  renderer created for window 0000021da5b78680
-19:21:06 [TRC ] renderer_get_font_metrics:78  hCtx=0000021da5bc1a00 fontId=0
-19:21:06 [TRC ] renderer_platform_get_font_metrics:385  ptCtx=0000021da5bc1a00 fontId=0
-19:21:06 [TRC ] gui_get_size:266  hWnd=0000021da5b78680
-19:21:06 [TRC ] gui_platform_window_get_size:542  ptWnd=0000021da5b78680
-19:21:06 [TRC ] renderer_begin_draw:93  hCtx=0000021da5bc1a00
-19:21:06 [TRC ] renderer_platform_begin_draw:417  ptCtx=0000021da5bc1a00
-19:21:06 [TRC ] renderer_fill_rect:122  hCtx=0000021da5bc1a00
-19:21:06 [TRC ] renderer_platform_fill_rect:481  ptCtx=0000021da5bc1a00
-19:21:06 [TRC ] renderer_draw_text:182  hCtx=0000021da5bc1a00 text='..'
-19:21:06 [TRC ] renderer_platform_draw_text:595  ptCtx=0000021da5bc1a00 text='..'
-19:21:06 [TRC ] renderer_end_draw:107  hCtx=0000021da5bc1a00
-19:21:06 [TRC ] renderer_platform_end_draw:447  ptCtx=0000021da5bc1a00
-19:21:06 [INF ] gui_platform_window_create:488  platform window created: HWND=0000000000100602
-19:21:06 [TRC ] platform_mutex_lock:59  ptMutex=0000021da5ca7190
-19:21:06 [TRC ] platform_mutex_unlock:71  ptMutex=0000021da5ca7190
-19:21:06 [INF ] gui_open_window:205  window opened: title='ST4Ever - Dir: nonexistent_path_xyz_st4ever'
-19:21:06 [INF ] dir_open:1017  dir view opened: 'nonexistent_path_xyz_st4ever' (0 flat entries)
-19:21:06 [TRC ] dir_close:1026  pptView=0000007c18fff950
-19:21:06 [TRC ] gui_close_window:214  hWnd=0000021da5b78680
-19:21:06 [TRC ] gui_platform_window_close:496  ptWnd=0000021da5b78680
-19:21:06 [TRC ] platform_thread_join:178  ptThread=0000021da5bc1b70
-19:21:06 [TRC ] renderer_destroy:217  phCtx=0000021da5bc1728
-19:21:06 [TRC ] renderer_platform_destroy:329  ptCtx=0000021da5bc1a00
-19:21:06 [INF ] renderer_destroy:230  renderer destroyed
-19:21:06 [INF ] win_wnd_thread:386  window thread exiting: 'ST4Ever - Dir: nonexistent_path_xyz_st4ever'
-19:21:06 [TRC ] platform_thread_destroy:199  pptThread=0000021da5b786a8
-19:21:06 [TRC ] platform_mutex_lock:59  ptMutex=0000021da5ca7190
-19:21:06 [TRC ] platform_mutex_unlock:71  ptMutex=0000021da5ca7190
-19:21:06 [INF ] gui_close_window:240  window closed
-19:21:06 [INF ] dir_close:1065  dir view closed
-19:21:06 [TRC ] line_shutdown:778  ptCtx=0000007c18fff540
-19:21:06 [INF ] line_shutdown:794  console shutdown complete
-19:21:06 [TRC ] gui_shutdown:283  (void)
-19:21:06 [TRC ] gui_platform_shutdown:616  (void)
-19:21:06 [INF ] gui_platform_shutdown:618  WNDCLASS 'ST4EverView' unregistered
-19:21:06 [TRC ] platform_mutex_destroy:85  pptMutex=00007ff676d5e0c8
-19:21:06 [INF ] gui_shutdown:319  GUI subsystem shutdown complete
-19:21:06 [INF ] trace_shutdown:371  ST4Ever 0.1.0-UC3.1 shutting down - trace closing
+21:16:06 [TRC ] gui_init:115  (void)
+21:16:06 [TRC ] platform_mutex_create:28  pptMutex=00007ff66846e0c8
+21:16:06 [TRC ] gui_platform_init:402  (void)
+21:16:06 [INF ] gui_platform_init:425  WNDCLASS 'ST4EverView' registered
+21:16:06 [INF ] gui_init:148  GUI subsystem initialised
+21:16:06 [TRC ] line_init:689  ptCtx=00000091d35ffa00
+21:16:06 [INF ] line_init:708  console initialised, cwd='C:\msys\home\claude\ST4Ever'
+21:16:06 [TRC ] gui_request_close:248  hWnd=0000000000000000
+21:16:06 [ERR ] gui_request_close:252  NULL hWnd
+21:16:06 [TRC ] dir_open:991  szPath=00007ff6684650c2 ptLineCtx=00000091d35ffa00 bShowHidden=0 pptView=00000091d35ffe08
+21:16:06 [TRC ] gui_open_window:158  ptDesc=00000091d35ff990 phWnd=000001c4f3d981b0
+21:16:06 [TRC ] gui_platform_window_create:435  ptWnd=000001c4f3d98c60
+21:16:06 [TRC ] platform_thread_create:132  pptThread=000001c4f3d98c88 pfnEntry=00007ff66845ae28 pArg=000001c4f3d98c60
+21:16:06 [INF ] platform_thread_create:170  thread created (HANDLE=0000000000000178)
+21:16:06 [TRC ] renderer_create:27  hWnd=000001c4f3d98c60 phCtx=000001c4f3d981b8
+21:16:06 [TRC ] renderer_platform_create:188  ptCtx=000001c4f3d9b1f0 hWnd=000001c4f3d98c60
+21:16:06 [TRC ] gui_platform_get_native_handle:577  ptWnd=000001c4f3d98c60
+21:16:06 [INF ] renderer_platform_create:322  D2D renderer created: mono cell=7.1x15.2
+21:16:06 [INF ] renderer_create:55  renderer created for window 000001c4f3d98c60
+21:16:06 [TRC ] renderer_get_font_metrics:78  hCtx=000001c4f3d9b1f0 fontId=0
+21:16:06 [TRC ] renderer_platform_get_font_metrics:385  ptCtx=000001c4f3d9b1f0 fontId=0
+21:16:06 [TRC ] gui_get_size:290  hWnd=000001c4f3d98c60
+21:16:06 [TRC ] gui_platform_window_get_size:545  ptWnd=000001c4f3d98c60
+21:16:06 [TRC ] renderer_begin_draw:93  hCtx=000001c4f3d9b1f0
+21:16:06 [TRC ] renderer_platform_begin_draw:417  ptCtx=000001c4f3d9b1f0
+21:16:06 [TRC ] renderer_fill_rect:122  hCtx=000001c4f3d9b1f0
+21:16:06 [TRC ] renderer_platform_fill_rect:481  ptCtx=000001c4f3d9b1f0
+21:16:06 [TRC ] renderer_draw_text:182  hCtx=000001c4f3d9b1f0 text='..'
+21:16:06 [TRC ] renderer_platform_draw_text:595  ptCtx=000001c4f3d9b1f0 text='..'
+21:16:06 [TRC ] renderer_draw_text:182  hCtx=000001c4f3d9b1f0 text='+-- [+] visible_dir/'
+21:16:06 [TRC ] renderer_platform_draw_text:595  ptCtx=000001c4f3d9b1f0 text='+-- [+] visible_dir/'
+21:16:06 [TRC ] renderer_draw_text:182  hCtx=000001c4f3d9b1f0 text='\-- visible.txt'
+21:16:06 [TRC ] renderer_platform_draw_text:595  ptCtx=000001c4f3d9b1f0 text='\-- visible.txt'
+21:16:06 [TRC ] renderer_end_draw:107  hCtx=000001c4f3d9b1f0
+21:16:06 [TRC ] renderer_platform_end_draw:447  ptCtx=000001c4f3d9b1f0
+21:16:06 [INF ] gui_platform_window_create:491  platform window created: HWND=00000000000a06a0
+21:16:06 [TRC ] platform_mutex_lock:59  ptMutex=000001c4f3d97150
+21:16:06 [TRC ] platform_mutex_unlock:71  ptMutex=000001c4f3d97150
+21:16:06 [INF ] gui_open_window:205  window opened: title='ST4Ever - Dir: use_cases/UC04_1/testdata'
+21:16:06 [INF ] dir_open:1090  dir view opened: 'use_cases/UC04_1/testdata' (2 flat entries)
+21:16:06 [TRC ] dir_close:1099  pptView=00000091d35ffe08
+21:16:06 [TRC ] gui_close_window:214  hWnd=000001c4f3d98c60
+21:16:06 [TRC ] gui_platform_window_close:499  ptWnd=000001c4f3d98c60
+21:16:06 [TRC ] platform_thread_join:178  ptThread=000001c4f3d98cd0
+21:16:06 [TRC ] renderer_destroy:217  phCtx=000001c4f3d981b8
+21:16:06 [TRC ] renderer_platform_destroy:329  ptCtx=000001c4f3d9b1f0
+21:16:06 [INF ] renderer_destroy:230  renderer destroyed
+21:16:06 [INF ] win_wnd_thread:389  window thread exiting: 'ST4Ever - Dir: use_cases/UC04_1/testdata'
+21:16:06 [TRC ] platform_thread_destroy:199  pptThread=000001c4f3d98c88
+21:16:06 [TRC ] platform_mutex_lock:59  ptMutex=000001c4f3d97150
+21:16:06 [TRC ] platform_mutex_unlock:71  ptMutex=000001c4f3d97150
+21:16:06 [INF ] gui_close_window:240  window closed
+21:16:06 [INF ] dir_close:1138  dir view closed
+21:16:06 [TRC ] dir_open:991  szPath=00007ff6684650c2 ptLineCtx=00000091d35ffa00 bShowHidden=1 pptView=00000091d35ffe08
+21:16:06 [TRC ] gui_open_window:158  ptDesc=00000091d35ff990 phWnd=000001c4f5558aa0
+21:16:06 [TRC ] gui_platform_window_create:435  ptWnd=000001c4f5559db0
+21:16:06 [TRC ] platform_thread_create:132  pptThread=000001c4f5559dd8 pfnEntry=00007ff66845ae28 pArg=000001c4f5559db0
+21:16:06 [INF ] platform_thread_create:170  thread created (HANDLE=0000000000000264)
+21:16:06 [TRC ] renderer_create:27  hWnd=000001c4f5559db0 phCtx=000001c4f5558aa8
+21:16:06 [TRC ] renderer_platform_create:188  ptCtx=000001c4f55a1a40 hWnd=000001c4f5559db0
+21:16:06 [TRC ] gui_platform_get_native_handle:577  ptWnd=000001c4f5559db0
+21:16:06 [INF ] renderer_platform_create:322  D2D renderer created: mono cell=7.1x15.2
+21:16:06 [INF ] renderer_create:55  renderer created for window 000001c4f5559db0
+21:16:06 [TRC ] renderer_get_font_metrics:78  hCtx=000001c4f55a1a40 fontId=0
+21:16:06 [TRC ] renderer_platform_get_font_metrics:385  ptCtx=000001c4f55a1a40 fontId=0
+21:16:06 [TRC ] gui_get_size:290  hWnd=000001c4f5559db0
+21:16:06 [TRC ] gui_platform_window_get_size:545  ptWnd=000001c4f5559db0
+21:16:06 [TRC ] renderer_begin_draw:93  hCtx=000001c4f55a1a40
+21:16:06 [TRC ] renderer_platform_begin_draw:417  ptCtx=000001c4f55a1a40
+21:16:06 [TRC ] renderer_fill_rect:122  hCtx=000001c4f55a1a40
+21:16:06 [TRC ] renderer_platform_fill_rect:481  ptCtx=000001c4f55a1a40
+21:16:06 [TRC ] renderer_draw_text:182  hCtx=000001c4f55a1a40 text='..'
+21:16:06 [TRC ] renderer_platform_draw_text:595  ptCtx=000001c4f55a1a40 text='..'
+21:16:06 [TRC ] renderer_draw_text:182  hCtx=000001c4f55a1a40 text='+-- [+] .hidden_dir/'
+21:16:06 [TRC ] renderer_platform_draw_text:595  ptCtx=000001c4f55a1a40 text='+-- [+] .hidden_dir/'
+21:16:06 [TRC ] renderer_draw_text:182  hCtx=000001c4f55a1a40 text='+-- [+] visible_dir/'
+21:16:06 [TRC ] renderer_platform_draw_text:595  ptCtx=000001c4f55a1a40 text='+-- [+] visible_dir/'
+21:16:06 [TRC ] renderer_draw_text:182  hCtx=000001c4f55a1a40 text='+-- .hidden_file'
+21:16:06 [TRC ] renderer_platform_draw_text:595  ptCtx=000001c4f55a1a40 text='+-- .hidden_file'
+21:16:06 [TRC ] renderer_draw_text:182  hCtx=000001c4f55a1a40 text='\-- visible.txt'
+21:16:06 [TRC ] renderer_platform_draw_text:595  ptCtx=000001c4f55a1a40 text='\-- visible.txt'
+21:16:06 [TRC ] renderer_end_draw:107  hCtx=000001c4f55a1a40
+21:16:06 [TRC ] renderer_platform_end_draw:447  ptCtx=000001c4f55a1a40
+21:16:06 [INF ] gui_platform_window_create:491  platform window created: HWND=0000000000430656
+21:16:06 [TRC ] platform_mutex_lock:59  ptMutex=000001c4f3d97150
+21:16:06 [TRC ] platform_mutex_unlock:71  ptMutex=000001c4f3d97150
+21:16:06 [INF ] gui_open_window:205  window opened: title='ST4Ever - Dir: use_cases/UC04_1/testdata'
+21:16:06 [INF ] dir_open:1090  dir view opened: 'use_cases/UC04_1/testdata' (4 flat entries)
+21:16:06 [TRC ] dir_close:1099  pptView=00000091d35ffe08
+21:16:06 [TRC ] gui_close_window:214  hWnd=000001c4f5559db0
+21:16:06 [TRC ] gui_platform_window_close:499  ptWnd=000001c4f5559db0
+21:16:06 [TRC ] platform_thread_join:178  ptThread=000001c4f55a1a10
+21:16:06 [TRC ] renderer_destroy:217  phCtx=000001c4f5558aa8
+21:16:06 [TRC ] renderer_platform_destroy:329  ptCtx=000001c4f55a1a40
+21:16:06 [INF ] renderer_destroy:230  renderer destroyed
+21:16:06 [INF ] win_wnd_thread:389  window thread exiting: 'ST4Ever - Dir: use_cases/UC04_1/testdata'
+21:16:06 [TRC ] platform_thread_destroy:199  pptThread=000001c4f5559dd8
+21:16:06 [TRC ] platform_mutex_lock:59  ptMutex=000001c4f3d97150
+21:16:06 [TRC ] platform_mutex_unlock:71  ptMutex=000001c4f3d97150
+21:16:06 [INF ] gui_close_window:240  window closed
+21:16:06 [INF ] dir_close:1138  dir view closed
+21:16:06 [TRC ] dir_open:991  szPath=00007ff6684650c2 ptLineCtx=0000000000000000 bShowHidden=1 pptView=00000091d35ffe08
+21:16:06 [ERR ] dir_open:997  NULL parameter: ptLineCtx=0000000000000000 pptView=00000091d35ffe08
+21:16:06 [TRC ] line_shutdown:794  ptCtx=00000091d35ffa00
+21:16:06 [INF ] line_shutdown:810  console shutdown complete
+21:16:06 [TRC ] gui_shutdown:307  (void)
+21:16:06 [TRC ] gui_platform_shutdown:619  (void)
+21:16:06 [INF ] gui_platform_shutdown:621  WNDCLASS 'ST4EverView' unregistered
+21:16:06 [TRC ] platform_mutex_destroy:85  pptMutex=00007ff66846e0c8
+21:16:06 [INF ] gui_shutdown:343  GUI subsystem shutdown complete
+21:16:06 [INF ] trace_shutdown:371  ST4Ever 0.1.0-UC3.1 shutting down - trace closing

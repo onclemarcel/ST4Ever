@@ -241,6 +241,30 @@ st_error_t gui_close_window(gui_window_t hWnd)
     return ST_NO_ERROR;
 }
 
+st_error_t gui_request_close(gui_window_t hWnd)
+{
+    struct gui_window_s *ptWnd;
+
+    LOG_TRACE("hWnd=%p", (void *)hWnd);
+
+    if (hWnd == NULL)
+    {
+        LOG_ERROR("NULL hWnd");
+        return ST_ERROR;
+    }
+
+    ptWnd = (struct gui_window_s *)hWnd;
+
+    if (ptWnd->bOpen == ST_TRUE)
+    {
+        gui_platform_window_close(ptWnd);
+    }
+
+    LOG_INFO("close requested for window '%s'",
+             ptWnd->tDesc.szTitle ? ptWnd->tDesc.szTitle : "(untitled)");
+    return ST_NO_ERROR;
+}
+
 st_error_t gui_invalidate(gui_window_t hWnd)
 {
     struct gui_window_s *ptWnd;

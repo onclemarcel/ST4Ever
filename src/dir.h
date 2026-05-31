@@ -113,6 +113,7 @@ typedef struct dir_view_s
     int               iWndHeight;            /* Client area height (px)*/
     int               iCellW;               /* Monospace cell width   */
     int               iCellH;               /* Monospace cell height  */
+    st_bool_t         bShowHidden;           /* Show '.*' entries (P15)*/
     char              szRootPath[ST_MAX_PATH];
 } dir_view_t;
 
@@ -129,9 +130,10 @@ typedef struct dir_view_s
  * visible.
  *
  * Parameters:
- *   szPath    [in]  : Root path (NULL or "" = cwd).
- *   ptLineCtx [in]  : Console context (szSelected updated on file pick).
- *   pptView   [out] : Receives the allocated view context.
+ *   szPath      [in]  : Root path (NULL or "" = cwd).
+ *   ptLineCtx   [in]  : Console context (szSelected updated on file pick).
+ *   bShowHidden [in]  : ST_TRUE to show '.*' entries (P15 / dir -a).
+ *   pptView     [out] : Receives the allocated view context.
  *
  * Returns:
  *   ST_NO_ERROR on success.
@@ -139,6 +141,7 @@ typedef struct dir_view_s
  */
 st_error_t dir_open(const char     *szPath,
                      line_context_t *ptLineCtx,
+                     st_bool_t       bShowHidden,
                      dir_view_t    **pptView);
 
 /*
