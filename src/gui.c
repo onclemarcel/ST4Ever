@@ -320,6 +320,23 @@ st_error_t gui_shutdown(void)
     return ST_NO_ERROR;
 }
 
+st_error_t gui_set_title(gui_window_t hWnd, const char *szTitle)
+{
+    struct gui_window_s *ptWnd;
+
+    LOG_TRACE("hWnd=%p szTitle=%p", (void *)hWnd, (void *)szTitle);
+
+    if (hWnd == NULL || szTitle == NULL)
+    {
+        LOG_ERROR("NULL parameter: hWnd=%p szTitle=%p",
+                  (void *)hWnd, (void *)szTitle);
+        return ST_ERROR;
+    }
+
+    ptWnd = (struct gui_window_s *)hWnd;
+    return gui_platform_window_set_title(ptWnd, szTitle);
+}
+
 /* ------------------------------------------------------------------
  * Message queue API
  * ------------------------------------------------------------------ */

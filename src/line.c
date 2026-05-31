@@ -12,6 +12,7 @@
  */
 
 #include "line.h"
+#include "dir.h"
 #include "trace.h"
 
 #include <stdio.h>
@@ -39,6 +40,12 @@
 #define CON_RED     "\033[91m"
 #define CON_CYAN    "\033[96m"
 #define CON_GRAY    "\033[90m"
+
+/* ------------------------------------------------------------------
+ * Module-level state
+ * ------------------------------------------------------------------ */
+
+static dir_view_t *g_line_ptDirView = NULL;
 
 /* ------------------------------------------------------------------
  * Prompt string
@@ -461,6 +468,67 @@ static st_error_t line_cmd_trace(const parsed_cmd_t *ptParsed,
 }
 
 /*
+ * line_cmd_dir() - Open (or refresh) the directory tree view.
+ *
+ * dir [path]  : open tree view at <path> (default: cwd).
+ * If a view is already open it is closed first.
+ * The opened dir_view_t is kept in g_line_ptDirView.
+ *
+ * Parameters:
+ *   ptParsed [in]     : Parsed command.
+ *   ptCtx    [in/out] : Console context (szSelected updated on pick).
+ *
+ * Returns:
+ *   ST_NO_ERROR on success, ST_ERROR if window creation fails.
+ */
+static st_error_t line_cmd_dir(const parsed_cmd_t *ptParsed,
+                                 line_context_t     *ptCtx)
+{
+    const char *szPath;
+    st_error_t  eResult;
+
+    LOG_TRACE("ptParsed=%p ptCtx=%p", (void *)ptParsed, (void *)ptCtx);
+
+    if (ptParsed == NULL || ptCtx == NULL)
+    {
+        LOG_ERROR("NULL parameter");
+        return ST_ERROR;
+    }
+
+    if (ptParsed->iArgc > 2)
+    {
+        line_print_warning(
+            "dir: ignoring extra arguments after '%s'",
+            ptParsed->aszArgv[1]);
+    }
+
+    /* Close any existing dir view */
+    if (g_line_ptDirView != NULL)
+    {
+        eResult = dir_close(&g_line_ptDirView);
+        if (eResult != ST_NO_ERROR)
+        {
+            line_print_warning("dir: could not close previous view");
+        }
+        g_line_ptDirView = NULL;
+    }
+
+    szPath  = (ptParsed->iArgc > 1) ? ptParsed->aszArgv[1] : NULL;
+    eResult = dir_open(szPath, ptCtx, &g_line_ptDirView);
+    if (eResult != ST_NO_ERROR)
+    {
+        line_print_error("dir: failed to open view for '%s'",
+                         szPath ? szPath : "(cwd)");
+        return ST_ERROR;
+    }
+
+    line_print_msg("Directory view opened%s%s.",
+                   szPath ? " for " : "",
+                   szPath ? szPath  : "");
+    return ST_NO_ERROR;
+}
+
+/*
  * line_cmd_stub() - Generic stub for commands not yet implemented.
  *
  * Informs the user and logs a LOG_TODO so the stub is visible in
@@ -514,7 +582,7 @@ static const cmd_handler_fn g_line_aHandlers[CMD_COUNT] =
     /* CMD_NONE    (0) */ NULL,
     /* CMD_HELP       */ line_cmd_help,
     /* CMD_QUIT       */ line_cmd_quit,
-    /* CMD_DIR        */ line_cmd_stub,
+    /* CMD_DIR        */ line_cmd_dir,
     /* CMD_LOAD       */ line_cmd_stub,
     /* CMD_EDIT       */ line_cmd_stub,
     /* CMD_IMAGE      */ line_cmd_stub,
@@ -713,6 +781,13 @@ st_error_t line_shutdown(line_context_t *ptCtx)
     {
         LOG_ERROR("ptCtx is NULL");
         return ST_ERROR;
+    }
+
+    /* Close dir view before clearing context */
+    if (g_line_ptDirView != NULL)
+    {
+        dir_close(&g_line_ptDirView);
+        g_line_ptDirView = NULL;
     }
 
     memset(ptCtx, 0, sizeof(line_context_t));

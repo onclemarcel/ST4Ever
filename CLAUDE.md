@@ -4,8 +4,9 @@
 2026-05-30: UC1 validé & pratiques de développement validées au travers de ce document CLAUDE.md
 2026-05-30: UC2 validé & nouvelles pratiques agréées dans CLAUDE.md
 2026-05-30: UC3 découpé en UC3.1/UC3.2/UC3.3 (décision co-développeur : D2D dès UC3, menu contextuel différé à UC7/UC18)
-2026-05-30: UC3.1 en cours — msg_queue + Win32 window thread + WndProc validés
-2026-05-30: UC3.2 en cours — Direct2D + DirectWrite + renderer portable validés (COBJMACROS + INITGUID requis)
+2026-05-30: UC3.1 validé — msg_queue + Win32 window thread + WndProc
+2026-05-30: UC3.2 validé — Direct2D + DirectWrite + renderer portable (COBJMACROS + INITGUID requis)
+2026-05-31: UC3.3 validé — dir.c lazy-load + flat list + ASCII render + clavier/souris/scroll + gui_set_title (R18)
 
 ## 1. Contexte du projet
 
@@ -465,7 +466,7 @@ Les étapes de développement fonctionnelles sont formalisées en Use Cases, per
 | UC2 | `trace on/off/toggle` | Gestion complète de la trace console | ✓ VALIDÉ 2026-05-30 |
 | UC3.1 | GUI infra | msg_queue (portable) + win_gui.c window/thread/WndProc + gui_platform_* | ✓ VALIDÉ 2026-05-30 |
 | UC3.2 | GUI render | win_D2D.c (Direct2D COM pur C) + renderer.c portable | ✓ VALIDÉ 2026-05-30 |
-| UC3.3 | `dir` | dir.c : scan FS + arbre + rendu D2D + clavier/souris/scroll/sélection + line_cmd_dir | ouverture, scroll, sélection |
+| UC3.3 | `dir` | dir.c : scan FS + arbre + rendu D2D + clavier/souris/scroll/sélection + line_cmd_dir | ✓ VALIDÉ 2026-05-31 |
 | UC4 | console | Line editor riche : historique ↑↓, Home/End, tab-completion, ghost-text ; prompt contextuel toggleable (trace/disk/fichier) ; `colors on/off` ; historique persistant `~/.st4ever_history` ; `--script file` batch mode ; `make manual` + macro `TEST_MANUAL` | navigation + complétion + prompt état |
 | UC5 | `where`, `info` | Répertoire courant + état sélection (where) ; dashboard global état application : cwd, fichier sélectionné, trace, disque monté, binaire chargé (info) ; **P8** : `SetConsoleTitleA` statut automatique | affichage path + dashboard + titre console |
 | UC5-bis | prefs | Module `prefs.c` : lecture/écriture `%APPDATA%\ST4Ever\prefs.ini` ; mémorisation position/taille fenêtres par type (P7) — **optionnel**, après UC5 | save/restore position fenêtre dir |
@@ -653,6 +654,83 @@ Les étapes de développement fonctionnelles sont formalisées en Use Cases, per
 - UC4 : le spin-wait 1ms de `gui_msg_get(bBlock=TRUE)` sera remplacé par une variable de condition ou un Win32 Event dans la queue
 - UC4 : les 3 tests [S] (fenêtre visible) seront convertis en `TEST_MANUAL`
 - UC3.3 (fin) : compléter SRTD.md §4 avec les sections détaillées GUI — §4.8 `gui.c`/`gui_backend.h`, §4.9 `win_gui.c`/`win_D2D.c`, §4.10 `dir.c` — sur le modèle de §4.2–§4.7 (rôle, API, dépendances, séquence). Différé car la GUI est construite en 3 sous-UCs ; un §4.x complet après UC3.3 sera plus cohérent.
+
+### 6.4 Use Case 03.2 (UC3.2) — VALIDÉ (2026-05-30)
+
+*(Résumé : win_D2D.c Direct2D COM pur C + renderer.c portable. Voir commit history pour détails.)*
+
+**Périmètre :** `win/win_D2D.c` (renderer D2D complet : create, resize, begin/end_draw, fill_rect, draw_rect, draw_line, draw_text, draw_bitmap, destroy) + `src/renderer.c` (couche portable + NULL-guards). `gui_platform_get_native_handle()` et `gui_platform_window_set_title()` ajoutés à `win_gui.c`.
+
+**Tests :** `use_case_03_2.c` — **7N + 10R + 5S = 22 tests**, 0 failure.
+
+---
+
+### 6.5 Use Case 03.3 (UC3.3) — VALIDÉ (2026-05-31)
+
+**Périmètre fonctionnel implémenté :**
+- `src/dir.h` : `dir_node_t` + `bChildrenLoaded`/`iDepth` ; `dir_flat_entry_t` (iDepth, bLastSibling, uiLastMask) ; `dir_view_t` complet (hWnd, hRenderer, aptFlat, iFlatCount, iScrollOffset, iSelectedFlat, iCellW/H, iWndWidth/H).
+- `src/dir.c` : implémentation complète —
+  - `dir_node_load_children()` : scan Win32 FindFirstFile (deux passes dirs/fichiers) + stub Linux opendir/readdir. Scan non-fatal (access denied → nœud vide).
+  - `dir_flat_rebuild_rec()` : DFS → tableau plat ; `uiLastMask` (bitmask 32 bits) calculé au fil de la récursion pour génération O(1) du préfixe ASCII.
+  - `dir_build_prefix()` : préfixe ASCII par niveau (`|   ` / `    ` + `+-- ` / `\-- `).
+  - `dir_render()` : begin_draw → fond sombre → highlight sélection → ".." (jaune) → entrées flat (cyan=dir, gris=fichier) → end_draw.
+  - `dir_event_callback()` : `GUI_EVT_PAINT` (création lazy renderer), `GUI_EVT_RESIZE`, `GUI_EVT_KEY_DOWN`, `GUI_EVT_MOUSE_DOWN` (clic gauche), `GUI_EVT_SCROLL`, `GUI_EVT_CLOSE` (destruction renderer).
+  - `dir_navigate_up()` : libère l'arbre, recharge depuis répertoire parent, reconstruit flat list.
+  - `dir_activate_sel()` : expand/collapse (lazy load enfants) sur répertoire, écriture `ptLineCtx->szSelected` sur fichier, navigation parent sur "..".
+  - `dir_handle_key()` : ↑↓ PgUp/PgDn Home End ENTER SPACE avec scroll-to-selection.
+  - `dir_handle_click()` : clic gauche → sélection + expand si répertoire.
+  - `dir_handle_scroll()` : molette souris (iDelta).
+- `src/gui.h` + `src/gui.c` : ajout de `gui_set_title(hWnd, szTitle)` (R18) déléguant à `gui_platform_window_set_title()`.
+- `src/line.c` : `line_cmd_dir()` (ferme vue existante, ouvre nouvelle via `dir_open`, affiche confirmation) ; `g_line_ptDirView` static global ; dispatch table CMD_DIR → `line_cmd_dir` ; `line_shutdown()` ferme la vue avant le memset.
+
+**Architecture lazy-load validée :**
+- Root level scanné à l'ouverture (1 niveau visible immédiatement).
+- Sous-répertoires : `bChildrenLoaded == ST_FALSE` jusqu'au premier expand (ENTER/clic sur nœud).
+- `dir_flat_rebuild()` reconstruit la liste plate après chaque expand/collapse/navigation.
+- Thread model : console thread crée la vue → `gui_open_window()` bloque jusqu'à fenêtre live → window thread gère tous les events via `dir_event_callback`. Pas de race : le console thread ne touche plus à `ptView` après `gui_open_window()`.
+
+**Tests R14/R15 appliqués :**
+- `use_cases/use_case_03_3.c` : TEST MATRIX **8N + 8R + 4S = 20 tests**, 0 failure
+  - [N] `dir_open(valid path)` → ST_NO_ERROR, ptView != NULL, ptRoot != NULL, szRootPath non-vide, iFlatCount >= 0
+  - [N] `dir_close(valid view)` → ST_NO_ERROR, *pptView = NULL
+  - [N] Double open (close + reopen)
+  - [R] NULL ptLineCtx, NULL pptView, NULL les deux → ST_ERROR
+  - [R] `dir_close(NULL)` → ST_ERROR ; `dir_close(&NULL)` → ST_NO_ERROR (idempotent)
+  - [R] Chemin inexistant → ST_NO_ERROR + iFlatCount == 0 (non-fatal)
+  - [S] 4 tests visuels : rendu ASCII, highlight sélection, navigation clavier, clic expand
+
+**Contrats comportementaux validés :**
+
+*Module `dir` lifecycle*
+- `dir_open(NULL, ptCtx, &ptView)` : chemin NULL → résolu en cwd via `getcwd` (non fatal, fallback ".")
+- `dir_open(path, NULL, ...)` ou `dir_open(..., NULL)` → `ST_ERROR`
+- `dir_open(non-existent, ...)` → `ST_NO_ERROR` + iFlatCount == 0 (scan non-fatal)
+- `dir_close(NULL)` → `ST_ERROR` ; `dir_close(&NULL)` → `ST_NO_ERROR`
+- Après `dir_close()` : window thread joiné, renderer détruit, arbre libéré, aptFlat libéré, *pptView = NULL
+
+*Module `dir` navigation / sélection*
+- `iSelectedFlat = -1` : ".." sélectionné → ENTER charge le répertoire parent
+- `iSelectedFlat >= 0` sur répertoire → ENTER toggle expand/collapse + lazy load si besoin
+- `iSelectedFlat >= 0` sur fichier → ENTER écrit `ptLineCtx->szSelected` + LOG_INFO
+- Clic gauche sur répertoire = select + toggle expand/collapse
+- Molette scroll : `iScrollOffset` clampé à `[0, max(0, iFlatCount+1 - iVisRows)]`
+- `dir_scroll_to_sel()` garantit que la sélection est toujours dans la zone visible
+
+*Module `gui` (ajout UC3.3)*
+- `gui_set_title(NULL, ...)` ou `gui_set_title(..., NULL)` → `ST_ERROR`
+- `gui_set_title(hWnd, szTitle)` délègue à `gui_platform_window_set_title` → `SetWindowTextA` (Win32)
+
+*Module `line_cmd_dir`*
+- Ferme vue existante `g_line_ptDirView` si non NULL avant d'ouvrir la nouvelle
+- Arg optionnel : `dir` (cwd) ou `dir <path>` ; extra args → warning, traitement normal
+- `line_shutdown()` ferme `g_line_ptDirView` si ouvert avant de memset le contexte
+
+**Points d'attention pour les UCs suivants :**
+- UC4 : écriture `ptLineCtx->szSelected` depuis le thread fenêtre sans verrou → UC4 ajoutera un mutex sur `line_context_t`
+- UC4 : spin-wait 1ms dans `gui_msg_get(bBlock=TRUE)` → remplacer par Win32 Event/variable de condition
+- UC4 : les 4 tests [S] seront convertis en `TEST_MANUAL` avec `make manual`
+- UC7/UC18 : menu contextuel (clic droit sur fichier/répertoire) différé à ces UCs
+- SRTD.md §4.8–§4.10 (`gui.c`, `win_gui.c`/`win_D2D.c`, `dir.c`) à rédiger en fin d'UC3 complet
 
 ## 7. Propositions d'améliorations
 

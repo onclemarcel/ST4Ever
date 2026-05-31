@@ -235,6 +235,23 @@ st_error_t gui_get_size(gui_window_t  hWnd,
  */
 st_error_t gui_shutdown(void);
 
+/*
+ * gui_set_title() - Update the window title bar text (R18).
+ *
+ * Delegates to gui_platform_window_set_title().  Intended for views
+ * that implement the dynamic title convention:
+ *   "ST4Ever - <Type>: <context>"
+ *
+ * Parameters:
+ *   hWnd    [in] : Target window (must be open).
+ *   szTitle [in] : New null-terminated title string.
+ *
+ * Returns:
+ *   ST_NO_ERROR on success.
+ *   ST_ERROR    if hWnd or szTitle is NULL.
+ */
+st_error_t gui_set_title(gui_window_t hWnd, const char *szTitle);
+
 /* ------------------------------------------------------------------
  * Message queue API
  * ------------------------------------------------------------------ */
