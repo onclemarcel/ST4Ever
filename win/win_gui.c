@@ -388,27 +388,29 @@ static void win_wnd_thread(void *pArg)
     ShowWindow(ptState->hWnd, SW_SHOWNORMAL);
     UpdateWindow(ptState->hWnd);
     /* P16: grab focus so arrow keys work immediately without alt-tab.
-     * AttachThreadInput synchronises input queues so SetForegroundWindow
-     * succeeds even when the caller (e.g. mintty) owns the foreground.
-     * Without this, SetForegroundWindow is silently ignored by Windows
-     * when the calling process did not receive the last input event. */
+     * Skipped for read-only/passive windows (GUI_WND_TRACE) where the
+     * user does not need to interact via keyboard immediately and should
+     * keep console focus. */
     hFgWnd    = GetForegroundWindow();
     dwFgThread = GetWindowThreadProcessId(hFgWnd, NULL);
     dwMyThread = GetCurrentThreadId();
 
     ptState->hPrevFgWnd = hFgWnd;   /* saved for restore on close */
 
-    if (hFgWnd != NULL && dwFgThread != dwMyThread)
+    if (ptWnd->tDesc.eType != GUI_WND_TRACE)
     {
-        AttachThreadInput(dwMyThread, dwFgThread, TRUE);
-        SetForegroundWindow(ptState->hWnd);
-        SetFocus(ptState->hWnd);
-        AttachThreadInput(dwMyThread, dwFgThread, FALSE);
-    }
-    else
-    {
-        SetForegroundWindow(ptState->hWnd);
-        SetFocus(ptState->hWnd);
+        if (hFgWnd != NULL && dwFgThread != dwMyThread)
+        {
+            AttachThreadInput(dwMyThread, dwFgThread, TRUE);
+            SetForegroundWindow(ptState->hWnd);
+            SetFocus(ptState->hWnd);
+            AttachThreadInput(dwMyThread, dwFgThread, FALSE);
+        }
+        else
+        {
+            SetForegroundWindow(ptState->hWnd);
+            SetFocus(ptState->hWnd);
+        }
     }
     SetEvent(ptState->hReady); /* signal creating thread: HWND is live */
 
@@ -551,8 +553,6 @@ st_error_t gui_platform_window_invalidate(struct gui_window_s *ptWnd)
 {
     win_wnd_state_t *ptState;
 
-    LOG_TRACE("ptWnd=%p", (void *)ptWnd);
-
     if (ptWnd == NULL)
     {
         LOG_ERROR("NULL ptWnd");
@@ -574,8 +574,6 @@ st_error_t gui_platform_window_get_size(struct gui_window_s *ptWnd,
 {
     win_wnd_state_t *ptState;
     RECT             tRect;
-
-    LOG_TRACE("ptWnd=%p", (void *)ptWnd);
 
     if (ptWnd == NULL || piWidth == NULL || piHeight == NULL)
     {
@@ -607,8 +605,6 @@ void *gui_platform_get_native_handle(struct gui_window_s *ptWnd)
 {
     win_wnd_state_t *ptState;
 
-    LOG_TRACE("ptWnd=%p", (void *)ptWnd);
-
     if (ptWnd == NULL)
     {
         return NULL;
@@ -627,9 +623,6 @@ st_error_t gui_platform_window_set_title(struct gui_window_s *ptWnd,
                                           const char          *szTitle)
 {
     win_wnd_state_t *ptState;
-
-    LOG_TRACE("ptWnd=%p szTitle='%s'",
-              (void *)ptWnd, szTitle ? szTitle : "(null)");
 
     if (ptWnd == NULL || szTitle == NULL)
     {

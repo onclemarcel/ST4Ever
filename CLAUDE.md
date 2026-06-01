@@ -14,6 +14,11 @@
 - 2026-06-01: fix dir.c 4 warnings `-Wformat-truncation` (szPat+3, iPathLen check, szLine+320)
 - 2026-06-01: fix focus-retour — `hPrevFgWnd` dans `win_wnd_state_t`, restauration dans `WM_DESTROY` (focus revient au terminal source à la fermeture des vues GUI)
 - 2026-06-01: UC4.3 validé — historique ↑↓ circulaire + ~/.st4ever_history + TAB completion (commandes/chemins) + ghost text DIM + prompt contextuel [T][file] + colors on/off (c_*() runtime) + --script batch + mutex ptSelectedMutex + line_set/get_selected() + CON_KEY_TAB
+- 2026-06-01: UC4.4 codé — fenêtre GUI_WND_TRACE D2D (trace_view_t ring buffer + mutex + auto-scroll) ; trace_log() append → gui_invalidate() avec garde réentrante ; suppression TODO(UC3)/TODO(UC3.3) ; ST_APP_VERSION 0.4.4
+- 2026-06-01: P26 appliqué — `trace` (toggle-open) active LOG_TRACE off par défaut ; `trace on` obligatoire pour activer LOG_TRACE ; `trace off` inchangé
+- 2026-06-01: fix focus — fenêtre trace n'accroche plus le focus (read-only) ; `win_gui.c` : bloc P16 conditionné à `eType != GUI_WND_TRACE`
+- 2026-06-01: fix stderr — `trace_log()` et `trace_flush_compact()` ne passent plus par stderr ; terminal propre dès que `bOpen=TRUE` ; diagnostic via `st4ever_trace.log` ; `trace_level_ansi()` + macros ANSI supprimées (dead code)
+- 2026-06-01: R22 appliqué — purge LOG_TRACE des primitives récurrentes ; §6.9 UC4.4 ajouté avec contrats comportementaux (END key fix, stderr supprimé, focus non volé) (mutex lock/unlock/create/destroy, renderer draw/begin/end, gui invalidate/get_size/msg_post/get, win_gui invalidate/get_size/get_native_handle/set_title) ; LOG_TRACE cantonné aux fonctions UX et cycle de vie
 
 ## 1. Contexte du projet
 
@@ -49,7 +54,7 @@ Chaque commande est accessible par son nom complet, son alias monogramme et un r
 |----------|-------|------------|---------|---------------------|
 | `help`   | `h`   | CTRL+H     | ✓ UC1   | Liste toutes les commandes avec synopsis ; ignore les arguments (warning) |
 | `quit`   | `q`   | CTRL+Q / C | ✓ UC1   | Ferme toutes les vues et quitte proprement ; ignore les arguments (warning) |
-| `trace`  | `t`   | CTRL+T     | ✓ UC2   | Sans arg : toggle open/close. `on` : ouvre + active LOG_TRACE. `off` : filtre LOG_TRACE uniquement — **la vue reste ouverte** (P19, ADAPTED §6.2). Détails §6.2 |
+| `trace`  | `t`   | CTRL+T     | ✓ UC2   | Sans arg : toggle open/close. **Ouverture : LOG_TRACE off par défaut** (P26). `on` : ouvre + active LOG_TRACE. `off` : filtre LOG_TRACE uniquement — **la vue reste ouverte** (P19). Détails §6.2 |
 | `colors` | `c`   | —          | ✓ UC4.3 | Sans arg : toggle on/off. `on` : active les codes ANSI. `off` : désactive (utile terminal sans VT100 ou redirection fichier). Détails §6.8 |
 
 **Commandes à implémenter — spécification détaillée dans les sous-sections ci-dessous :**
@@ -498,6 +503,29 @@ MINGW64 (le compilateur du projet) ne fournit pas `termios.h`. La stratégie "te
 
 Sur Linux, `termios` reste la stratégie unique (dans `linux/lx_console.c`). Cette règle s'applique à tout futur code d'entrée console Windows.
 
+**R22 — Politique LOG_TRACE : cantonner aux fonctions UX et cycle de vie** *(établie UC4.4, 2026-06-01)*
+
+`LOG_TRACE` n'est pertinent que pour répondre à *"quelle action utilisateur a déclenché ce chemin ?"*. Il est contre-productif dans les fonctions appelées en boucle par le moteur de rendu ou les primitives de synchronisation.
+
+**Fonctions sans LOG_TRACE (primitives récurrentes) :**
+
+| Couche | Fonctions purgées |
+|---|---|
+| `win/win_platform.c` | `platform_mutex_lock/unlock/create/destroy` |
+| `src/renderer.c` | `renderer_begin/end_draw`, `renderer_fill/draw_rect`, `renderer_draw_line/text/bitmap`, `renderer_get_font_metrics` |
+| `win/win_D2D.c` | `renderer_platform_begin/end_draw`, `renderer_platform_fill/draw_rect`, `renderer_platform_draw_line/text`, `renderer_platform_get_font_metrics` |
+| `src/gui.c` | `gui_invalidate`, `gui_get_size`, `gui_msg_post`, `gui_msg_get` |
+| `win/win_gui.c` | `gui_platform_window_invalidate/get_size/get_native_handle/set_title` |
+
+**Fonctions conservant LOG_TRACE (cycle de vie + UX) :**
+- Cycle de vie modules : `trace_init/open/close/shutdown`, `gui_init/shutdown`, `renderer_create/resize/destroy`
+- Cycle de vie fenêtres : `gui_open/close_window`, `gui_request_close`, `gui_platform_window_create/close`, `gui_platform_init/shutdown`
+- Dispatch et navigation : tous les `line_cmd_*`, `dir_handle_key/click`, `dir_open/close`, `dir_navigate_up`, `dir_activate_sel`
+- Threads : `platform_thread_create/join/destroy`
+- Infrastructure partagée : `gui_msg_create/destroy`, `gui_set_title`
+
+**Règle d'application pour les UCs futurs** : avant d'ajouter `LOG_TRACE` dans une nouvelle fonction, vérifier si elle peut être appelée plus d'une fois par action utilisateur (paint loop, mutex, query) — si oui, omettre le LOG_TRACE.
+
 
 ## 6. Use Cases
 
@@ -513,7 +541,7 @@ Les étapes de développement fonctionnelles sont formalisées en Use Cases, per
 | UC4.1 | UX dir + make manual | `gui_request_close()` non-bloquant + ESC/←/→/ESPACE séparés de ENTER + filtre `.*` + `dir -a` + focus auto + `TEST_MANUAL` + `make manual` | ✓ VALIDÉ 2026-05-31 |
 | UC4.2 | raw input | `console.h` (CON_KEY_*) + pipe/VT100 mintty (R21) + Win32 cmd.exe + `line_read_rich()` : insert/←/→/Home/End/Del/Backspace, CTRL shortcuts, ESC + `make manual UC=XX` | ✓ VALIDÉ 2026-06-01 |
 | UC4.3 | complétion + historique + extras | Historique ↑↓ circulaire + `~/.st4ever_history` + tab-completion commandes/chemins + ghost-text DIM + prompt contextuel `[T][file]` + `colors on/off` + `--script file` + mutex `ptSelectedMutex` + `line_set/get_selected()` | ✓ VALIDÉ 2026-06-01 |
-| UC4.4 | trace view GUI | Fenêtre `GUI_WND_TRACE` D2D : scroll texte append-only, couleurs par niveau ; `trace.c` → `gui_msg_queue_t` → thread fenêtre ; suppression TODO(UC3.3) de trace.h/trace.c | trace view remplace stderr |
+| UC4.4 | trace view GUI | Fenêtre `GUI_WND_TRACE` D2D : scroll texte append-only, couleurs par niveau ; `trace.c` ring buffer + mutex + garde réentrante ; suppression TODO(UC3)/TODO(UC3.3) | ⚙ EN COURS 2026-06-01 |
 | UC5 | `where`, `info`, `history` | Répertoire courant + état sélection (where) ; dashboard global état application : cwd, fichier sélectionné, trace, disque monté, binaire chargé (info) ; **P8** : `SetConsoleTitleA` statut automatique ; **P21** : touche `H` toggle hidden dans vue dir ; **P22** : F5 refresh vue dir ; **P23bis** : TAB préfixe commun avant cycle ghost ; **P24** : `colors auto` via `isatty()` au démarrage ; **P25** : commande `history [N]` | affichage path + dashboard + titre console |
 | UC5-bis | prefs | Module `prefs.c` : lecture/écriture `%APPDATA%\ST4Ever\prefs.ini` ; mémorisation position/taille fenêtres par type (P7) — **optionnel**, après UC5 | save/restore position fenêtre dir |
 | UC6 | plateforme | Abstraction fichiers : open/read/write/stat/mkdir, listing répertoire | tests lecture/écriture |
@@ -1007,10 +1035,71 @@ Les étapes de développement fonctionnelles sont formalisées en Use Cases, per
 - Rebuild à chaque `line_redraw()` — pas de cache — cohérent par conception
 
 **Points d'attention pour les UCs suivants :**
-- UC4.4 : `console_restore()` doit être appelé avant l'ouverture de la fenêtre trace GUI.
 - UC5 : `line_cmd_where()` pourra utiliser `line_get_selected()` pour afficher le fichier sélectionné courant.
 - UC5 : P21 (touche `H` toggle hidden dans vue dir) et P22 (F5 refresh) touchent `dir_handle_key()` — même scope que UC5 `where`/`info`.
 - UC18 : P10 (historique navigation dir ALT+←/→) + P14 (sélection multiple CTRL+ESPACE) toujours en attente de `mount` context.
+
+### 6.9 Use Case 04.4 (UC4.4) — ⚙ EN COURS (2026-06-01)
+
+**Périmètre fonctionnel implémenté :**
+- `trace_view_t` (interne `trace.c`) : ring buffer 200 lignes × `(ST_MAX_MSG + 64)` octets heap, mutex `ptMutex`, auto-scroll `bAutoScroll`.
+- `trace_event_callback()` : renderer D2D lazy (`GUI_EVT_PAINT`), resize, scroll molette, touches ↑↓/PgUp/PgDn/Home/End/ESC.
+- `trace_render()` : couleurs par niveau (gris/cyan/rouge/magenta), alternance lignes paires/impaires.
+- `trace_open()` : ouvre `GUI_WND_TRACE` ; dégradation propre si GUI non disponible (pas de focus volé — `eType == GUI_WND_TRACE` exclut le bloc P16 dans `win_gui.c`).
+- `trace_close()` : `gui_close_window()` + libération view après join du thread.
+- `trace_log()` : append ring buffer + `gui_invalidate()` sous garde `g_trace_bInNotify` (anti-récursion infinie via `LOG_TRACE` dans les sous-fonctions).
+- Purge LOG_TRACE des primitives récurrentes (R22) : mutex, renderer draw, gui invalidate/get_size.
+- `line_cmd_trace()` toggle-open : LOG_TRACE off par défaut (P26).
+
+**Anomalies découvertes et résolues :**
+- `renderer_draw_text()` : ordre d'arguments inversé (`szText, ptRect`, pas `ptRect, szText`).
+- `trace_open()` : absence de garde idempotence → double-open ouvrait une 2ème fenêtre.
+- Stack overflow : `trace_log → platform_mutex_lock → LOG_TRACE → trace_log →...` récursion infinie. Corrigé : `g_trace_bInNotify` couvre toute la section GUI (mutex + invalidate).
+- `GUI_KEY_END` : `trace_view_scroll(ptView, 0)` était no-op. Corrigé : delta négatif grand → clamped à `iMaxOff` par la logique existante.
+
+**Contrats comportementaux validés :**
+
+*Module `trace_log()`* — **ADAPTED UC4.4** par rapport à UC1/UC2
+- `trace_log()` quand `bOpen=TRUE` et GUI active (`g_trace_ptView != NULL`) : écrit dans **le ring buffer GUI + log file uniquement**. ~~stderr~~ : supprimé — terminal propre dès que la console est ouverte. *ADAPTED:UC4.4 — contrat UC1 prévoyait stderr comme sortie principale.*
+- `trace_log()` quand `bOpen=TRUE` et GUI indisponible (`g_trace_ptView == NULL`) : écrit dans **log file uniquement** — stderr toujours supprimé. Les traces "préliminaires" pendant l'init de la fenêtre ne polluent pas le terminal.
+- `trace_log()` quand `bOpen=FALSE` : écrit dans log file uniquement (comportement UC1 inchangé).
+- Garde `g_trace_bInNotify` : empêche la récursion `trace_log → mutex_lock → LOG_TRACE → trace_log`. Toute la section GUI (mutex + append + invalidate) est protégée en une seule zone critique.
+
+*Module `trace_open()`*
+- `gui_open_window()` échoue (headless, gui_init non appelé) : `trace_open()` retourne `ST_NO_ERROR` avec warning `fprintf(stderr, ...)` direct — trace reste fonctionnelle (log file uniquement).
+- Fenêtre ouverte : **pas de focus volé** (`eType == GUI_WND_TRACE` exclut le bloc `AttachThreadInput` / `SetForegroundWindow` dans `win_wnd_thread()`). L'utilisateur conserve le focus console.
+- `trace_open()` idempotent : second appel quand déjà ouvert → `ST_NO_ERROR` immédiat sans créer de 2ème fenêtre.
+
+*`line_cmd_trace()` toggle-open — P26*
+- `trace` (fermé → ouvert) : `trace_open()` suivi de `trace_set_trace_enabled(ST_FALSE)`. LOG_TRACE off par défaut.
+- Message console : *"Trace console opened (LOG_TRACE off — use 'trace on' to enable)."*
+- `trace on` : `trace_open()` + `trace_set_trace_enabled(ST_TRUE)` — inchangé.
+- `trace off` (P19) : `trace_set_trace_enabled(ST_FALSE)` — vue reste ouverte, inchangé.
+
+*Navigation clavier dans la fenêtre trace*
+- `ESC` : `gui_request_close(hWnd)` — ferme sans bloquer.
+- `↑` / `↓` : scroll d'une ligne ; désactive auto-scroll si on remonte.
+- `PgUp` / `PgDn` : scroll d'un écran.
+- `Home` : `iScrollOff = 0`, `bAutoScroll = ST_FALSE`.
+- `End` : scroll forcé à `iMaxOff` (delta négatif = iCount+1 → clamped), `bAutoScroll = ST_TRUE`.
+- Molette souris : délégué à `trace_view_scroll()` ; `bAutoScroll` recalculé à chaque scroll.
+
+*Auto-scroll*
+- `bAutoScroll = ST_TRUE` à l'init et après `End` : chaque nouvelle ligne appended déplace `iScrollOff` pour garder la dernière ligne visible.
+- `bAutoScroll = ST_FALSE` dès que l'utilisateur remonte (`↑`, `PgUp`, scroll molette vers le haut, `Home`).
+- Retrouvé automatiquement quand `iScrollOff >= iMaxOff` (scroll molette jusqu'en bas ou touche `End`).
+
+**Tests UC4.4 :**
+- TEST MATRIX : **12N + 2R + 8S = 22 tests**, 0 failure.
+- [N] : gui_init + trace lifecycle (init/open/close/shutdown), idempotence, shutdown-while-open.
+- [R] : double open, double close.
+- [S] : `make manual UC=04_4` — fenêtre visible, couleurs niveaux, auto-scroll, scroll molette, PgUp/PgDn, Home/End, stderr silencieux, ESC ferme.
+
+**Points d'attention pour les UCs suivants :**
+- UC4.4 Phase 2 (documentation SRTD.md) : à compléter après validation manuelle complète.
+- UC5 : `console_restore()` doit être appelé avant l'ouverture de la fenêtre trace GUI si trace est ouvert en mode raw.
+- UC5 : P21/P22 touchent `dir_handle_key()` — même scope que UC5.
+- UC18 : P10/P14 toujours en attente de `mount` context.
 
 ## 7. Propositions d'améliorations
 
@@ -1149,6 +1238,10 @@ Sur N candidats, le premier TAB insère le plus long préfixe commun dans le buf
 **P25 — Commande `history [N]` : afficher les N dernières commandes** → **ACCEPTÉ — UC5**
 
 Sans arg : 10 dernières numérotées. Avec arg N : N dernières. Nouvelle `line_cmd_history()` + `CMD_HISTORY`.
+
+**P26 — `trace` (toggle-open) : LOG_TRACE off par défaut** → **ACCEPTÉ — APPLIQUÉ UC4.4**
+
+Avis Claude : ACCEPTÉ — sans ce filtre, chaque `platform_mutex_lock/unlock` dans la boucle de rendu génère une rafale de LOG_TRACE à chaque repaint (vu lors de UC4.4 comme cause du stack overflow). L'utilisateur doit utiliser `trace on` explicitement pour activer LOG_TRACE. Sémantique résultante : `trace` = "ouvre la console pour voir INFO/ERROR/TODO" ; `trace on` = "débogage détaillé avec TRACE". `trace off` inchangé (P19).
 
 ## 8. Licence & attribution
 Pas de redistribution prévue à ce jour

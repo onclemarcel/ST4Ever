@@ -382,8 +382,6 @@ st_error_t renderer_platform_get_font_metrics(
 {
     win_d2d_ctx_t *ptD2D;
 
-    LOG_TRACE("ptCtx=%p fontId=%d", (void *)ptCtx, (int)eFontId);
-
     if (ptCtx == NULL || piCellW == NULL || piCellH == NULL)
     {
         LOG_ERROR("NULL parameter");
@@ -414,8 +412,6 @@ st_error_t renderer_platform_begin_draw(
     win_d2d_ctx_t *ptD2D;
     D2D1_COLOR_F   tClear;
 
-    LOG_TRACE("ptCtx=%p", (void *)ptCtx);
-
     if (ptCtx == NULL || ptBgColor == NULL)
     {
         LOG_ERROR("NULL parameter");
@@ -443,8 +439,6 @@ st_error_t renderer_platform_end_draw(struct renderer_s *ptCtx)
 {
     win_d2d_ctx_t *ptD2D;
     HRESULT        hr;
-
-    LOG_TRACE("ptCtx=%p", (void *)ptCtx);
 
     if (ptCtx == NULL)
     {
@@ -478,8 +472,6 @@ st_error_t renderer_platform_fill_rect(
     win_d2d_ctx_t *ptD2D;
     D2D1_RECT_F    tR;
 
-    LOG_TRACE("ptCtx=%p", (void *)ptCtx);
-
     if (ptCtx == NULL || ptRect == NULL || ptColor == NULL)
     {
         LOG_ERROR("NULL parameter");
@@ -509,8 +501,6 @@ st_error_t renderer_platform_draw_rect(
 {
     win_d2d_ctx_t *ptD2D;
     D2D1_RECT_F    tR;
-
-    LOG_TRACE("ptCtx=%p stroke=%.1f", (void *)ptCtx, (double)fStroke);
 
     if (ptCtx == NULL || ptRect == NULL || ptColor == NULL)
     {
@@ -547,11 +537,6 @@ st_error_t renderer_platform_draw_line(
     win_d2d_ctx_t  *ptD2D;
     D2D1_POINT_2F   tP0;
     D2D1_POINT_2F   tP1;
-
-    LOG_TRACE("ptCtx=%p (%.0f,%.0f)-(%.0f,%.0f)",
-              (void *)ptCtx,
-              (double)fX1, (double)fY1,
-              (double)fX2, (double)fY2);
 
     if (ptCtx == NULL || ptColor == NULL)
     {
@@ -591,9 +576,6 @@ st_error_t renderer_platform_draw_text(
     D2D1_RECT_F             tR;
     WCHAR                   awBuf[ST_MAX_MSG];
     int                     iLen;
-
-    LOG_TRACE("ptCtx=%p text='%.20s'",
-              (void *)ptCtx, szText ? szText : "(null)");
 
     if (ptCtx == NULL || szText == NULL || ptRect == NULL
     ||  ptColor == NULL)

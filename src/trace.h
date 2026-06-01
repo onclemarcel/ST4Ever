@@ -17,12 +17,15 @@
  *   LOG_TODO   marks stub functions or code paths not yet implemented.
  *              Helps track work remaining across the codebase.
  *
- * For UC1 the trace output is written to:
+ * When the trace console is open, output is written to:
  *   - st4ever_trace.log  (always, when initialized)
- *   - stderr with ANSI colours (when trace console is open)
+ *   - stderr with ANSI colours (always, as a fallback / CI-friendly copy)
+ *   - the GUI trace window (GUI_WND_TRACE, UC4.4): D2D append-only scroll
+ *     view with per-level colours.  Opened via gui_open_window() from
+ *     trace_open(); closed via gui_close_window() from trace_close().
  *
- * TODO(UC3): Replace the stderr output with a dedicated Win32 GDI window (Windows)
- * or X11 window (Linux) opened by gui_create_trace_window().
+ * Threading: trace_log() is called from any thread.  The GUI window
+ * notification (gui_invalidate) is guarded against re-entrancy.
  */
 
 #ifndef TRACE_H

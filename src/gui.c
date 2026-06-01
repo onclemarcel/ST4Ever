@@ -269,8 +269,6 @@ st_error_t gui_invalidate(gui_window_t hWnd)
 {
     struct gui_window_s *ptWnd;
 
-    LOG_TRACE("hWnd=%p", (void *)hWnd);
-
     if (hWnd == NULL)
     {
         LOG_ERROR("NULL hWnd");
@@ -286,8 +284,6 @@ st_error_t gui_get_size(gui_window_t  hWnd,
                          int          *piHeight)
 {
     struct gui_window_s *ptWnd;
-
-    LOG_TRACE("hWnd=%p", (void *)hWnd);
 
     if (hWnd == NULL || piWidth == NULL || piHeight == NULL)
     {
@@ -430,8 +426,6 @@ st_error_t gui_msg_post(gui_msg_queue_t    hQueue,
     struct gui_msg_queue_s *ptQ;
     st_error_t              eResult;
 
-    LOG_TRACE("hQueue=%p", (void *)hQueue);
-
     if (hQueue == NULL || ptEvent == NULL)
     {
         LOG_ERROR("NULL parameter: hQueue=%p ptEvent=%p",
@@ -469,8 +463,6 @@ st_error_t gui_msg_get(gui_msg_queue_t  hQueue,
     struct gui_msg_queue_s *ptQ;
     st_error_t              eResult;
     st_bool_t               bGot;
-
-    LOG_TRACE("hQueue=%p bBlock=%d", (void *)hQueue, (int)bBlock);
 
     if (hQueue == NULL || ptEvent == NULL)
     {

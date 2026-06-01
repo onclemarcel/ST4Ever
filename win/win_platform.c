@@ -25,7 +25,6 @@ st_error_t platform_mutex_create(st_mutex_t **pptMutex)
 {
     CRITICAL_SECTION *pCs;
 
-    LOG_TRACE("pptMutex=%p", (void *)pptMutex);
     if (pptMutex == NULL)
     {
         LOG_ERROR("NULL pptMutex");
@@ -56,7 +55,6 @@ st_error_t platform_mutex_create(st_mutex_t **pptMutex)
 
 st_error_t platform_mutex_lock(st_mutex_t *ptMutex)
 {
-    LOG_TRACE("ptMutex=%p", (void *)ptMutex);
     if (ptMutex == NULL || ptMutex->pHandle == NULL)
     {
         LOG_ERROR("NULL ptMutex or pHandle");
@@ -68,7 +66,6 @@ st_error_t platform_mutex_lock(st_mutex_t *ptMutex)
 
 st_error_t platform_mutex_unlock(st_mutex_t *ptMutex)
 {
-    LOG_TRACE("ptMutex=%p", (void *)ptMutex);
     if (ptMutex == NULL || ptMutex->pHandle == NULL)
     {
         LOG_ERROR("NULL ptMutex or pHandle");
@@ -82,7 +79,6 @@ st_error_t platform_mutex_destroy(st_mutex_t **pptMutex)
 {
     CRITICAL_SECTION *pCs;
 
-    LOG_TRACE("pptMutex=%p", (void *)pptMutex);
     if (pptMutex == NULL || *pptMutex == NULL)
     {
         LOG_ERROR("NULL pptMutex or *pptMutex");

@@ -864,7 +864,10 @@ static st_error_t line_cmd_trace(const parsed_cmd_t *ptParsed,
                 line_print_error("trace: open failed");
                 return ST_ERROR;
             }
-            line_print_msg("Trace console opened.");
+            /* P26: LOG_TRACE disabled by default on toggle-open to prevent
+             * flooding the view.  'trace on' enables it explicitly. */
+            trace_set_trace_enabled(ST_FALSE);
+            line_print_msg("Trace console opened (LOG_TRACE off — use 'trace on' to enable).");
         }
         return ST_NO_ERROR;
     }

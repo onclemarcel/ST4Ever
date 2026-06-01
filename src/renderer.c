@@ -75,8 +75,6 @@ st_error_t renderer_get_font_metrics(renderer_t         hCtx,
                                       int               *piCellW,
                                       int               *piCellH)
 {
-    LOG_TRACE("hCtx=%p fontId=%d", (void *)hCtx, (int)eFontId);
-
     if (hCtx == NULL || piCellW == NULL || piCellH == NULL)
     {
         LOG_ERROR("NULL parameter");
@@ -90,8 +88,6 @@ st_error_t renderer_get_font_metrics(renderer_t         hCtx,
 st_error_t renderer_begin_draw(renderer_t             hCtx,
                                 const renderer_color_t *ptBgColor)
 {
-    LOG_TRACE("hCtx=%p", (void *)hCtx);
-
     if (hCtx == NULL || ptBgColor == NULL)
     {
         LOG_ERROR("NULL parameter");
@@ -104,8 +100,6 @@ st_error_t renderer_begin_draw(renderer_t             hCtx,
 
 st_error_t renderer_end_draw(renderer_t hCtx)
 {
-    LOG_TRACE("hCtx=%p", (void *)hCtx);
-
     if (hCtx == NULL)
     {
         LOG_ERROR("NULL hCtx");
@@ -119,8 +113,6 @@ st_error_t renderer_fill_rect(renderer_t             hCtx,
                                 const renderer_rect_t  *ptRect,
                                 const renderer_color_t *ptColor)
 {
-    LOG_TRACE("hCtx=%p", (void *)hCtx);
-
     if (hCtx == NULL || ptRect == NULL || ptColor == NULL)
     {
         LOG_ERROR("NULL parameter");
@@ -136,8 +128,6 @@ st_error_t renderer_draw_rect(renderer_t             hCtx,
                                 const renderer_color_t *ptColor,
                                 float                   fStroke)
 {
-    LOG_TRACE("hCtx=%p stroke=%.1f", (void *)hCtx, (double)fStroke);
-
     if (hCtx == NULL || ptRect == NULL || ptColor == NULL)
     {
         LOG_ERROR("NULL parameter");
@@ -156,11 +146,6 @@ st_error_t renderer_draw_line(renderer_t             hCtx,
                                 const renderer_color_t *ptColor,
                                 float                   fStroke)
 {
-    LOG_TRACE("hCtx=%p (%.0f,%.0f)-(%.0f,%.0f)",
-              (void *)hCtx,
-              (double)fX1, (double)fY1,
-              (double)fX2, (double)fY2);
-
     if (hCtx == NULL || ptColor == NULL)
     {
         LOG_ERROR("NULL parameter");
@@ -179,9 +164,6 @@ st_error_t renderer_draw_text(renderer_t              hCtx,
                                 renderer_font_id_t      eFontId,
                                 renderer_align_t        eAlign)
 {
-    LOG_TRACE("hCtx=%p text='%.20s'",
-              (void *)hCtx, szText ? szText : "(null)");
-
     if (hCtx == NULL || szText == NULL
     ||  ptRect == NULL || ptColor == NULL)
     {
@@ -200,7 +182,6 @@ st_error_t renderer_draw_bitmap(renderer_t            hCtx,
                                   int                   iSrcH,
                                   const renderer_rect_t *ptDest)
 {
-    LOG_TRACE("hCtx=%p src=%dx%d", (void *)hCtx, iSrcW, iSrcH);
     ST_UNUSED(hCtx);
     ST_UNUSED(pPixels);
     ST_UNUSED(iSrcW);
