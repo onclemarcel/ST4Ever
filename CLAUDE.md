@@ -20,6 +20,7 @@
 - 2026-06-01: fix stderr — `trace_log()` et `trace_flush_compact()` ne passent plus par stderr ; terminal propre dès que `bOpen=TRUE` ; diagnostic via `st4ever_trace.log` ; `trace_level_ansi()` + macros ANSI supprimées (dead code)
 - 2026-06-01: R22 appliqué — purge LOG_TRACE des primitives récurrentes ; §6.9 UC4.4 ajouté avec contrats comportementaux (END key fix, stderr supprimé, focus non volé) (mutex lock/unlock/create/destroy, renderer draw/begin/end, gui invalidate/get_size/msg_post/get, win_gui invalidate/get_size/get_native_handle/set_title) ; LOG_TRACE cantonné aux fonctions UX et cycle de vie
 - 2026-06-01: UC5 validé — `where`/`info`/`history [N]` + P8 console title (`SetConsoleTitleA`) + P21 `H` dir hidden-toggle + P22 F5 refresh + P23bis TAB common prefix avant cycle ghost + P24 `colors auto` via `isatty()` + P27 `trace clear` + P28 `trace level trace|info|error` ; `CMD_INFO`/`CMD_HISTORY` ; `trace_clear()`/`trace_set_view_level()` ; `line_update_console_title()` ; ST_APP_VERSION 0.5.0
+- 2026-06-01: UC6 validé — `src/file.h` + `src/file.c` : `file_stat`, `file_open/read/write/close`, `file_mkdir`, `file_list_dir` (callback) ; CRT + POSIX portable ; ST_APP_VERSION 0.6.0
 
 ## 1. Contexte du projet
 
@@ -548,7 +549,7 @@ Les étapes de développement fonctionnelles sont formalisées en Use Cases, per
 | UC4.4 | trace view GUI | Fenêtre `GUI_WND_TRACE` D2D : scroll texte append-only, couleurs par niveau ; `trace.c` ring buffer + mutex + garde réentrante ; suppression TODO(UC3)/TODO(UC3.3) | ✓ VALIDÉ 2026-06-01 |
 | UC5 | `where`, `info`, `history` | Répertoire courant + état sélection (where) ; dashboard global état application : cwd, fichier sélectionné, trace, disque monté, binaire chargé (info) ; **P8** : `SetConsoleTitleA` statut automatique ; **P21** : touche `H` toggle hidden dans vue dir ; **P22** : F5 refresh vue dir ; **P23bis** : TAB préfixe commun avant cycle ghost ; **P24** : `colors auto` via `isatty()` au démarrage ; **P25** : commande `history [N]` ; **P27** : `trace clear` ; **P28** : `trace level trace\|info\|error` filtre vue | ✓ VALIDÉ 2026-06-01 |
 | UC5-bis | prefs | Module `prefs.c` : lecture/écriture `%APPDATA%\ST4Ever\prefs.ini` ; mémorisation position/taille fenêtres par type (P7) — **différé après UC10** : les types de vues (edit hex, edit txt, disassembly) doivent être stables avant de persister leurs positions | save/restore position fenêtre dir/edit |
-| UC6 | plateforme | Abstraction fichiers : open/read/write/stat/mkdir, listing répertoire | tests lecture/écriture |
+| UC6 | plateforme | Abstraction fichiers : open/read/write/stat/mkdir, listing répertoire | ✓ VALIDÉ 2026-06-01 |
 | UC7 | `load` | Chargement fichier texte/binaire, détection type, buffer mémoire ; indicateur visuel sélection active dans vue `dir` (P11 : couleur secondaire sur ligne sélectionnée, ≠ highlight navigation) | load .txt, .bin, .PRG stub |
 | UC8 | `edit` texte | Vue éditeur texte Win32/GDI + X11 : scroll, numéros de ligne, sauvegarde | édition + save .S et .TXT |
 | UC9 | `edit` hex | Vue hex/ASCII Win32/GDI + X11 : adresses, scroll, édition octets | navigation + modification |
@@ -1178,6 +1179,62 @@ Les étapes de développement fonctionnelles sont formalisées en Use Cases, per
 - UC6 : abstraction fichiers — `line_cmd_where()` pourra enrichir son affichage avec des infos stat sur la sélection.
 - UC7 : `line_cmd_info()` rempira les stubs "disk mounted" et "binary loaded" au fur et à mesure des UCs.
 - UC18 : P10 (historique navigation dir) + P14 (sélection multiple) toujours en attente de `mount` context.
+
+### 6.11 Use Case 06 (UC6) — ✓ VALIDÉ (2026-06-01)
+
+**Périmètre fonctionnel implémenté :**
+- `src/file.h` : types publics (`file_stat_t`, `file_mode_t`, `file_t` opaque, `file_list_fn` callback) + API complète.
+- `src/file.c` : implémentation portable CRT + POSIX (disponible via MinGW sans Win32 dans `src/`) :
+  - `file_stat()` : `stat()` POSIX → `bExists`/`bIsDir`/`uiSize` + extension lowercase via `file_extract_ext()`. Non-existence = `ST_NO_ERROR` + `bExists=FALSE`.
+  - `file_open()` : `fopen()` avec mode `"rb"`/`"wb"`/`"ab"` selon `file_mode_t`.
+  - `file_read()` : `fread()` + `ferror()` ; `*puiRead` = octets effectivement lus ; EOF = ST_NO_ERROR + `*puiRead=0`.
+  - `file_write()` : `fwrite()` ; short write = ST_ERROR.
+  - `file_close()` : `fclose()` + `free()` + `*pptFile=NULL` ; `file_close(&NULL)` = no-op.
+  - `file_mkdir()` : `_mkdir()` (Windows) / `mkdir(path, 0755)` (Linux) ; `EEXIST` = ST_NO_ERROR.
+  - `file_list_dir()` : `opendir`/`readdir`/`closedir` ; filtre `.`/`..` et `.*` si `bShowHidden=FALSE` ; invoque `pfnCallback(szFull, szName, &tStat, pCtx)` par entrée.
+- `use_cases/use_case_06.c` : TEST MATRIX **28N + 12R + 0S = 40 tests**, 0 failure.
+
+**Architecture :**
+- `file_t` est opaque (défini uniquement dans `file.c`) — les appelants ne peuvent pas manipuler `FILE *` directement.
+- `file_extract_ext()` : helper interne — trouve le dernier `.` après le dernier séparateur, copie en minuscules. Robuste sur les chemins avec points dans les répertoires.
+- `FILE_MKDIR` macro : `_mkdir` (Windows) / `mkdir` (Linux) — seule divergence plateforme, contenue dans `file.c`.
+- UC auto-inclus dans le build via `wildcard src/*.c` du Makefile.
+
+**Tests R14/R15 :**
+- `use_cases/use_case_06.c` : 28N + 12R + 0S = 40 tests
+  - [N] : `file_stat` (fichier/dir/non-existant/extension), open/read/EOF/close, write+round-trip+stat, mkdir new+existing, `file_list_dir` src/ (count/common.h/no-hidden/show-hidden)
+  - [R] : NULL params sur toutes les fonctions publiques, open non-existant en lecture, write uiLen=0, close(&NULL), list_dir non-existant
+
+**Contrats comportementaux validés :**
+
+*`file_stat(szPath, ptStat)`*
+- `szPath` ou `ptStat` NULL → `ST_ERROR`
+- Chemin non-existant → `ST_NO_ERROR` + `bExists=FALSE` (pas une erreur)
+- Extension extraite en minuscules depuis le dernier `.` après le dernier séparateur
+- Répertoire : `bIsDir=TRUE`, `uiSize=0`
+
+*`file_open/read/write/close`*
+- `file_open` non-existant en lecture → `ST_ERROR` + LOG_ERROR
+- `file_read` à EOF → `ST_NO_ERROR` + `*puiRead=0`
+- `file_write` avec `uiLen=0` → `ST_ERROR`
+- `file_close(&NULL)` → `ST_NO_ERROR` (idempotent)
+- `file_close` après close réussi → handle NULL, pas de double-free
+
+*`file_mkdir`*
+- Répertoire déjà existant → `ST_NO_ERROR` (EEXIST ignoré)
+
+*`file_list_dir`*
+- `pfnCallback=NULL` → `ST_ERROR`
+- Répertoire non-ouvrable → `ST_ERROR`
+- `.` et `..` jamais transmis au callback
+- `bShowHidden=FALSE` : entrées `.*` filtrées
+
+**Points d'attention pour les UCs suivants :**
+- UC7 : `line_cmd_load()` utilisera `file_stat()` pour détecter le type (dir → message, image → message, fichier → chargement) + `file_open/read/close` pour lire le contenu.
+- UC8-10 : `edit` utilisera `file_open(FILE_MODE_READ)` + `file_open(FILE_MODE_WRITE)` pour chargement et sauvegarde.
+- UC16 : image `.st` = `file_open(READ)` + `file_read` de 737 280 octets exact.
+- UC18 : `file_list_dir` alimentera la vue mount (listing du répertoire monté).
+- `file_stat` n'est pas récursif : pas d'équivalent `stat64` nécessaire pour l'instant (fichiers PRG/ST restent < 4 Go).
 
 ## 7. Propositions d'améliorations
 

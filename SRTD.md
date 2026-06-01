@@ -22,6 +22,7 @@
 | 1.7 | 2026-06-01 | UC4.3 | Claude/OMC | UC4.3 validated — history ↑↓ + ~/.st4ever_history + TAB completion + ghost text + prompt contextuel + colors on/off + --script + mutex ptSelectedMutex |
 | 1.8 | 2026-06-01 | UC4.4 | Claude/OMC | UC4.4 validated — trace_view_t D2D ring buffer + auto-scroll + keyboard nav + stderr suppressed when GUI live; REQ-TRC-017..022; UFR-TRC-007 closed |
 | 1.9 | 2026-06-01 | UC5   | Claude/OMC | UC5 validated — where/info/history [N]; P8 console title; P21 H-key hidden toggle; P22 F5 refresh + state-preserve; P23bis TAB common prefix; P24 colors isatty; P27 trace clear; P28 trace level; REQ-TRC-023..026; REQ-CON-025..031; REQ-DIR-021..022 |
+| 2.0 | 2026-06-01 | UC6   | Claude/OMC | UC6 validated — portable file FS abstraction (file.h/file.c): file_stat, file_open/read/write/close, file_mkdir, file_list_dir; REQ-FIL-001..022; UFR-FIL-001..007 |
 
 ---
 
@@ -50,7 +51,7 @@ UFR-CON-033  →  REQ-TRC-001  →  INT-TRC-001  →  TC-TRC-001
 ```
 
 **Area codes** used in `UFR-*`: CON (console), TRC (trace), DIR (directory),
-EDT (editor), MNT (mount/floppy), EXE (execution), FIL (file load), IMG (image).
+FIL (file system abstraction), EDT (editor), MNT (mount/floppy), EXE (execution), IMG (image).
 
 **Module codes** used in `REQ-*`, `TC-*`, `INT-*`: TRC, CON, STM (ST machine),
 CPU, DIS (disassembler). These follow the `.c` file granularity of Section 4.
@@ -174,7 +175,19 @@ through one or more test cases in Section 5.
 | UFR-DIR-011 | The `H` key shall toggle the visibility of hidden files (entries starting with `.`) in the currently open directory view, reloading the root children with the new filter. (P21) | ✓ UC5 | UC5 |
 | UFR-DIR-012 | The F5 key shall refresh the directory listing from disk while preserving the current expansion state: directories that were expanded before the refresh shall remain expanded afterwards; deleted directories are silently dropped. (P22) | ✓ UC5 | UC5 |
 
-### 1.5 Editor Views — `EDT` (TODO UC8–10)
+### 1.5 File System Abstraction — `FIL` (UC6)
+
+| ID          | Requirement                                                                                                         | Status   | UC   |
+|-------------|---------------------------------------------------------------------------------------------------------------------|----------|------|
+| UFR-FIL-001 | The application shall provide a portable `file_stat()` function that returns whether a path exists, whether it is a directory, its size in bytes, and its lowercase extension (without the dot). A non-existent path shall not be an error. | ✓ UC6 | UC6 |
+| UFR-FIL-002 | The application shall provide `file_open()` to open an existing file for reading, create/truncate for writing, or open/create for appending, returning an opaque handle. | ✓ UC6 | UC6 |
+| UFR-FIL-003 | `file_read()` shall read up to N bytes from an open file into a caller-supplied buffer, reporting the actual byte count; a partial read at EOF shall not be an error. | ✓ UC6 | UC6 |
+| UFR-FIL-004 | `file_write()` shall write exactly N bytes to an open file; a short write shall be an error. | ✓ UC6 | UC6 |
+| UFR-FIL-005 | `file_close()` shall close the file, release the handle, and set the caller's pointer to NULL; calling on a NULL handle shall be a safe no-op. | ✓ UC6 | UC6 |
+| UFR-FIL-006 | `file_mkdir()` shall create a single directory level; calling on an already-existing directory shall succeed silently. | ✓ UC6 | UC6 |
+| UFR-FIL-007 | `file_list_dir()` shall enumerate directory entries via a user-supplied callback, excluding `.` and `..` always and optionally entries starting with `.`; the callback receives the full path, the entry name, and a pre-filled `file_stat_t`. | ✓ UC6 | UC6 |
+
+### 1.6 Editor Views — `EDT` (TODO UC8–10)
 
 *Requirements will be detailed when UC8–UC10 are planned.*
 
@@ -402,6 +415,35 @@ requirement that will expose it (`UFR-EXE-*`, planned UC21–27).
 | REQ-RAW-014  | stdin EOF or ReadFile failure shall return `ST_ERROR` with `*piKey = CON_KEY_EOF`.                            | UFR-CON-003             | ✓ UC4.2  | UC4.2  |
 
 ---
+
+### 2.10 File System Abstraction — `file.h` / `file.c`
+
+> Design ref: CLAUDE.md §6.11; CRT fopen/fread/fwrite + POSIX opendir/readdir/stat
+
+| ID           | Software Requirement                                                                                                                         | Parent UFR  | Status   | UC   |
+|--------------|----------------------------------------------------------------------------------------------------------------------------------------------|-------------|----------|------|
+| REQ-FIL-001  | `file_stat(NULL, *)` and `file_stat(*, NULL)` shall return `ST_ERROR`.                                                                      | UFR-FIL-001 | ✓ UC6    | UC6  |
+| REQ-FIL-002  | `file_stat()` on a non-existent path shall return `ST_NO_ERROR` with `ptStat->bExists == ST_FALSE`; no LOG_ERROR shall be emitted.          | UFR-FIL-001 | ✓ UC6    | UC6  |
+| REQ-FIL-003  | `file_stat()` on an existing file shall fill `bExists=TRUE`, `bIsDir=FALSE`, `uiSize` (bytes), and `szExt` (lowercase extension without the dot, or `""` if none). On a directory: `bIsDir=TRUE`, `uiSize=0`. | UFR-FIL-001 | ✓ UC6 | UC6 |
+| REQ-FIL-004  | `file_open(NULL, *, *)` and `file_open(*, *, NULL)` shall return `ST_ERROR`.                                                                | UFR-FIL-002 | ✓ UC6    | UC6  |
+| REQ-FIL-005  | `file_open()` with `FILE_MODE_READ` on a non-existent path shall return `ST_ERROR` and LOG_ERROR.                                           | UFR-FIL-002 | ✓ UC6    | UC6  |
+| REQ-FIL-006  | `file_open()` with `FILE_MODE_WRITE` shall create the file or truncate it; `FILE_MODE_APPEND` shall create or open for appending.           | UFR-FIL-002 | ✓ UC6    | UC6  |
+| REQ-FIL-007  | `file_read(NULL, *, *, *)`, `file_read(*, NULL, *, *)`, and `file_read(*, *, *, NULL)` shall return `ST_ERROR`.                            | UFR-FIL-003 | ✓ UC6    | UC6  |
+| REQ-FIL-008  | `file_read()` with `uiLen == 0` shall return `ST_NO_ERROR` with `*puiRead == 0`.                                                            | UFR-FIL-003 | ✓ UC6    | UC6  |
+| REQ-FIL-009  | `file_read()` at end-of-file shall return `ST_NO_ERROR` with `*puiRead == 0`; a partial read (short of `uiLen` without `ferror`) is also `ST_NO_ERROR`. | UFR-FIL-003 | ✓ UC6 | UC6 |
+| REQ-FIL-010  | `file_read()` with `ferror()` set shall return `ST_ERROR`.                                                                                  | UFR-FIL-003 | ✓ UC6    | UC6  |
+| REQ-FIL-011  | `file_write(NULL, *, *)` and `file_write(*, NULL, *)` shall return `ST_ERROR`; `file_write(*, *, 0)` shall return `ST_ERROR`.              | UFR-FIL-004 | ✓ UC6    | UC6  |
+| REQ-FIL-012  | `file_write()` with a short write (fwrite returns < uiLen) shall return `ST_ERROR`.                                                        | UFR-FIL-004 | ✓ UC6    | UC6  |
+| REQ-FIL-013  | `file_close(NULL)` shall return `ST_ERROR`; `file_close(&NULL)` shall return `ST_NO_ERROR` (idempotent safe no-op).                        | UFR-FIL-005 | ✓ UC6    | UC6  |
+| REQ-FIL-014  | `file_close()` shall call `fclose()`, `free()` the handle, and set `*pptFile = NULL` before returning.                                     | UFR-FIL-005 | ✓ UC6    | UC6  |
+| REQ-FIL-015  | `file_mkdir(NULL)` shall return `ST_ERROR`.                                                                                                 | UFR-FIL-006 | ✓ UC6    | UC6  |
+| REQ-FIL-016  | `file_mkdir()` on an already-existing directory shall return `ST_NO_ERROR` (EEXIST silently accepted).                                      | UFR-FIL-006 | ✓ UC6    | UC6  |
+| REQ-FIL-017  | `file_list_dir(NULL, *, *, *)` and `file_list_dir(*, *, NULL, *)` shall return `ST_ERROR`.                                                 | UFR-FIL-007 | ✓ UC6    | UC6  |
+| REQ-FIL-018  | `file_list_dir()` on a path that cannot be opened with `opendir()` shall return `ST_ERROR`.                                                 | UFR-FIL-007 | ✓ UC6    | UC6  |
+| REQ-FIL-019  | `file_list_dir()` shall never pass `.` or `..` to the callback.                                                                             | UFR-FIL-007 | ✓ UC6    | UC6  |
+| REQ-FIL-020  | When `bShowHidden == ST_FALSE`, `file_list_dir()` shall exclude entries whose name starts with `.`.                                          | UFR-FIL-007 | ✓ UC6    | UC6  |
+| REQ-FIL-021  | The callback shall receive: `szFull` (full path = `szDir/szName`), `szName` (entry name only), and `ptStat` (pre-filled via `file_stat()`). | UFR-FIL-007 | ✓ UC6    | UC6  |
+| REQ-FIL-022  | The `file_t` handle type shall be opaque: defined only in `file.c`; callers must not access the underlying `FILE *` directly.               | UFR-FIL-002 | ✓ UC6    | UC6  |
 
 ### 2.6 Disassembler — `disassemble.h` / `disassemble.c`
 
@@ -1052,20 +1094,106 @@ until dir_close() is called.
 
 ---
 
-### 4.11 Placeholder Components (stubs)
+### 4.11 File System Abstraction — `file.h` / `file.c`
 
-| Component                    | File(s)                                                              | Planned UC | Status    |
-|------------------------------|----------------------------------------------------------------------|------------|-----------|
+**Role:** portable FS API consumed by load, edit, mount, image UCs.
+Wraps CRT `fopen`/`fread`/`fwrite`/`fclose` and POSIX
+`opendir`/`readdir`/`closedir`/`stat`/`mkdir`, available on both MSYS2
+(MinGW) and Linux without importing `<windows.h>` into `src/`.
+The only platform divergence (`_mkdir` vs `mkdir`) is contained in one
+macro (`FILE_MKDIR`) inside `file.c`.
+
+**Public API:**
+
+| Function                                              | REQ(s)                              | Description                                                             |
+|-------------------------------------------------------|-------------------------------------|-------------------------------------------------------------------------|
+| `file_stat(szPath, ptStat)`                           | REQ-FIL-001..003                    | Query existence, type, size, extension; non-existent → bExists=FALSE    |
+| `file_open(szPath, eMode, pptFile)`                   | REQ-FIL-004..006, REQ-FIL-022      | Open file; allocate opaque handle; modes READ/WRITE/APPEND              |
+| `file_read(ptFile, pBuf, uiLen, puiRead)`             | REQ-FIL-007..010                    | fread; partial read at EOF = ST_NO_ERROR; ferror → ST_ERROR             |
+| `file_write(ptFile, pBuf, uiLen)`                     | REQ-FIL-011..012                    | fwrite; short write or uiLen==0 → ST_ERROR                              |
+| `file_close(pptFile)`                                 | REQ-FIL-013..014                    | fclose + free + NULL; &NULL = idempotent no-op                          |
+| `file_mkdir(szPath)`                                  | REQ-FIL-015..016                    | _mkdir/mkdir; EEXIST = silent success                                   |
+| `file_list_dir(szPath, bShow, pfnCb, pCtx)`           | REQ-FIL-017..021                    | opendir/readdir; skip ./.. and optionally .*; invoke callback per entry |
+
+**Key internal functions:**
+
+| Function                                       | REQ(s)       | Description                                                             |
+|------------------------------------------------|--------------|-------------------------------------------------------------------------|
+| `file_extract_ext(szName, szExt, uiMax)`       | REQ-FIL-003  | Find last `.` after last separator; copy lowercase; `""` if none        |
+
+**`file_stat_t` fields:**
+
+| Field      | Type         | Meaning                                                             |
+|------------|--------------|---------------------------------------------------------------------|
+| `bExists`  | `st_bool_t`  | ST_TRUE if path exists                                              |
+| `bIsDir`   | `st_bool_t`  | ST_TRUE if path is a directory                                      |
+| `uiSize`   | `st_u64_t`   | File size in bytes; 0 for directories                               |
+| `szExt`    | `char[16]`   | Lowercase extension without dot (`"prg"`, `"st"`, `""` if none)    |
+
+**`file_t` (opaque struct, defined in file.c):**
+
+| Field      | Type            | Meaning                           |
+|------------|-----------------|-----------------------------------|
+| `pHandle`  | `FILE *`        | CRT file handle                   |
+| `eMode`    | `file_mode_t`   | Mode used at open                 |
+| `szPath`   | `char[ST_MAX_PATH]` | Path for error messages       |
+
+**`file_mode_t` → fopen mode mapping:**
+
+| `file_mode_t`      | `fopen` arg | Behaviour                           |
+|--------------------|-------------|-------------------------------------|
+| `FILE_MODE_READ`   | `"rb"`      | Open existing; fail if absent       |
+| `FILE_MODE_WRITE`  | `"wb"`      | Create or truncate                  |
+| `FILE_MODE_APPEND` | `"ab"`      | Create or open at end               |
+
+**`file_list_dir` callback signature:**
+
+```c
+void pfnCallback(const char        *szPath,   /* full path: szDir/szName */
+                 const char        *szName,   /* entry name only         */
+                 const file_stat_t *ptStat,   /* pre-filled via stat()   */
+                 void              *pCtx)     /* caller context          */
+```
+
+**External dependencies:**
+
+| Call                                      | Tag   | Purpose                                   |
+|-------------------------------------------|-------|-------------------------------------------|
+| `fopen / fread / fwrite / fclose`         | [CRT] | File I/O                                  |
+| `stat`                                    | [POX] | Query file metadata (via sys/stat.h)      |
+| `opendir / readdir / closedir`            | [POX] | Directory enumeration (dirent.h)          |
+| `_mkdir` (Windows) / `mkdir` (Linux)      | [WIN/POX] | Create directory                      |
+| `malloc / free / memset / strncpy`        | [CRT] | Handle allocation and string handling     |
+| `tolower`                                 | [CRT] | Extension case folding in extract_ext     |
+| `strerror / errno`                        | [CRT] | Error descriptions in LOG_ERROR calls     |
+
+**Future consumers:**
+
+| Future UC | Usage                                                        |
+|-----------|--------------------------------------------------------------|
+| UC7 load  | `file_stat` (type detect) + `file_open/read/close` (load)   |
+| UC8-10    | `file_open(READ/WRITE)` + `file_read/write` for edit save   |
+| UC16      | `file_open(READ)` + `file_read` of 737 280 bytes (.st image)|
+| UC18      | `file_list_dir` to enumerate mounted directory               |
+| UC20      | `file_open(WRITE)` to create disk image file                 |
+
+---
+
+### 4.12 Placeholder Components (stubs)
+
+| Component                    | File(s)                                                              | Planned UC | Status       |
+|------------------------------|----------------------------------------------------------------------|------------|--------------|
 | GUI Framework                | `gui.c`, `win_gui.c`, `lx_gui.c`, `gui_backend.h`                  | UC3.1      | ✓ UC3.1 §4.8 |
 | 2D Renderer                  | `renderer.c`, `win_D2D.c`, `lx_X11.c`                              | UC3.2      | ✓ UC3.2 §4.9 |
 | Directory View               | `dir.c`                                                              | UC3.3      | ✓ UC3.3 §4.10|
-| Platform Thread/Mutex        | `win_platform.c`, `lx_platform.c`                                   | UC3.1      | ✓ UC3.1   |
-| Text Editor View             | `edit_txt.c`                                                         | UC8        | stub      |
-| Hex/ASCII Editor View        | `edit_hex.c`                                                         | UC9        | stub      |
-| Integrated Editor Dispatcher | `edit.c`                                                             | UC10       | stub      |
-| Floppy Mount                 | `mount.c`                                                            | UC18       | stub      |
-| Execution Engine             | `exec.c`, `exec_mon.c`, `exec_cpu.c`, `exec_mem.c`, `exec_screen.c` | UC25       | stub      |
-| DEVPAC3 Assembler            | `as.c`                                                               | UC30       | stub      |
+| Platform Thread/Mutex        | `win_platform.c`, `lx_platform.c`                                   | UC3.1      | ✓ UC3.1      |
+| File System Abstraction      | `file.h`, `file.c`                                                   | UC6        | ✓ UC6 §4.11  |
+| Text Editor View             | `edit_txt.c`                                                         | UC8        | stub         |
+| Hex/ASCII Editor View        | `edit_hex.c`                                                         | UC9        | stub         |
+| Integrated Editor Dispatcher | `edit.c`                                                             | UC10       | stub         |
+| Floppy Mount                 | `mount.c`                                                            | UC18       | stub         |
+| Execution Engine             | `exec.c`, `exec_mon.c`, `exec_cpu.c`, `exec_mem.c`, `exec_screen.c` | UC25       | stub         |
+| DEVPAC3 Assembler            | `as.c`                                                               | UC30       | stub         |
 
 ---
 
@@ -2127,3 +2255,138 @@ Source: `use_cases/use_case_05.c`
 | lx_X11 renderer         | REQ-RND-002..007                     | UC3-Linux | Linux stub — X11/XRender implementation deferred                 |
 | UC5 manual TC           | TC-CON-116..120, TC-DIR-050..051, TC-TRC-043..044 | ✓ UC5 | Requires display/TTY; validated via make manual UC=05 |
 | info cmd disk/binary    | REQ-CON-026                          | UC7/UC15  | `line_cmd_info()` disk/binary stubs → real data when UCs implemented |
+
+---
+
+### 5.26 INTENT Catalog — UC6
+
+Source: `use_cases/use_case_06.c`
+Fixture: `use_cases/UC01/hello.prg` (32-byte PRG, PRG magic `0x601A`)
+
+| ID          | INTENT text                                                                                                    |
+|-------------|----------------------------------------------------------------------------------------------------------------|
+| INT-FIL-001 | `file_stat()` on an existing file fills bExists, bIsDir, uiSize, and szExt (lowercase, no dot); on a directory bIsDir=TRUE, uiSize=0 |
+| INT-FIL-002 | `file_stat()` on a non-existent path returns ST_NO_ERROR with bExists=FALSE — querying existence is not an error |
+| INT-FIL-003 | `file_stat(NULL,*)` and `file_stat(*,NULL)` return ST_ERROR before any side effect                             |
+| INT-FIL-004 | `file_open(READ)` on an existing binary file succeeds; reading 4 bytes returns exactly 4 bytes including PRG magic `0x601A` |
+| INT-FIL-005 | Reading past EOF returns ST_NO_ERROR with `*puiRead == 0` — end-of-file is not an error                        |
+| INT-FIL-006 | `file_open(WRITE)` + `file_write` + `file_close` creates a file; subsequent `file_stat` confirms size == written bytes; re-open + read verifies content |
+| INT-FIL-007 | NULL params on file_open/read/write/close return ST_ERROR; `file_close(&NULL)` is a safe idempotent no-op; `file_write(uiLen=0)` → ST_ERROR |
+| INT-FIL-008 | `file_mkdir` creates a new directory (stat confirms bIsDir=TRUE); a second call on the same path → ST_NO_ERROR (EEXIST silent) |
+| INT-FIL-009 | `file_list_dir(src/, FALSE)` returns > 0 entries, always includes "common.h", never delivers a '.' or '..' entry and no hidden names |
+| INT-FIL-010 | `file_list_dir(src/, TRUE)` count >= `file_list_dir(src/, FALSE)` count — hidden filter can only reduce the set |
+| INT-FIL-011 | `file_list_dir(NULL,*)` and `(*,*,NULL,*)` return ST_ERROR; listing a non-existent dir returns ST_ERROR         |
+
+---
+
+### 5.27 Test Cases — UC6 (file system abstraction)
+
+Source: `use_cases/use_case_06.c`
+
+| ID          | Functional description                                                           | Type | UFR         | REQ                    | INTENT      | Expected outcome                                                          | Status   |
+|-------------|----------------------------------------------------------------------------------|------|-------------|------------------------|-------------|---------------------------------------------------------------------------|----------|
+| TC-FIL-001  | `file_stat(hello.prg)` → ST_NO_ERROR                                            | [N]  | UFR-FIL-001 | REQ-FIL-001, REQ-FIL-003 | INT-FIL-001 | ST_NO_ERROR                                                             | PASS UC6 |
+| TC-FIL-002  | hello.prg: `bExists == TRUE`                                                    | [N]  | UFR-FIL-001 | REQ-FIL-003            | INT-FIL-001 | bExists == TRUE                                                           | PASS UC6 |
+| TC-FIL-003  | hello.prg: `bIsDir == FALSE`                                                    | [N]  | UFR-FIL-001 | REQ-FIL-003            | INT-FIL-001 | bIsDir == FALSE                                                           | PASS UC6 |
+| TC-FIL-004  | hello.prg: `uiSize > 0`                                                         | [N]  | UFR-FIL-001 | REQ-FIL-003            | INT-FIL-001 | uiSize > 0                                                                | PASS UC6 |
+| TC-FIL-005  | hello.prg: `szExt == "prg"`                                                     | [N]  | UFR-FIL-001 | REQ-FIL-003            | INT-FIL-001 | szExt == "prg"                                                            | PASS UC6 |
+| TC-FIL-006  | `file_stat(src/)`: `bExists=TRUE`, `bIsDir=TRUE`                                | [N]  | UFR-FIL-001 | REQ-FIL-003            | INT-FIL-001 | directory detected correctly                                              | PASS UC6 |
+| TC-FIL-007  | `file_stat(non-existent)` → ST_NO_ERROR + `bExists=FALSE`                       | [N]  | UFR-FIL-001 | REQ-FIL-002            | INT-FIL-002 | ST_NO_ERROR; bExists == FALSE                                             | PASS UC6 |
+| TC-FIL-008  | `file_stat(NULL, &tStat)` and `file_stat(path, NULL)` → ST_ERROR               | [R]  | UFR-FIL-001 | REQ-FIL-001            | INT-FIL-003 | both → ST_ERROR                                                           | PASS UC6 |
+| TC-FIL-009  | `file_open(hello.prg, READ)` → ST_NO_ERROR; handle != NULL                     | [N]  | UFR-FIL-002 | REQ-FIL-004, REQ-FIL-006 | INT-FIL-004 | ST_NO_ERROR; ptFile != NULL                                             | PASS UC6 |
+| TC-FIL-010  | `file_read(4 bytes)` → ST_NO_ERROR; puiRead == 4                               | [N]  | UFR-FIL-003 | REQ-FIL-007..009       | INT-FIL-004 | ST_NO_ERROR; uiRead == 4                                                  | PASS UC6 |
+| TC-FIL-011  | First 2 bytes of hello.prg == PRG magic 0x60 0x1A                              | [N]  | UFR-FIL-003 | REQ-FIL-009            | INT-FIL-004 | buf[0]==0x60 && buf[1]==0x1A                                              | PASS UC6 |
+| TC-FIL-012  | `file_read` remaining bytes → ST_NO_ERROR; uiRead > 0                          | [N]  | UFR-FIL-003 | REQ-FIL-009            | INT-FIL-004 | ST_NO_ERROR; uiRead > 0                                                   | PASS UC6 |
+| TC-FIL-013  | `file_read` at EOF → ST_NO_ERROR; uiRead == 0                                  | [N]  | UFR-FIL-003 | REQ-FIL-009            | INT-FIL-005 | ST_NO_ERROR; uiRead == 0                                                  | PASS UC6 |
+| TC-FIL-014  | `file_close` → ST_NO_ERROR; handle == NULL                                     | [N]  | UFR-FIL-005 | REQ-FIL-013..014       | INT-FIL-004 | ST_NO_ERROR; ptFile == NULL                                               | PASS UC6 |
+| TC-FIL-015  | `file_open(WRITE)` on write path → ST_NO_ERROR                                 | [N]  | UFR-FIL-002 | REQ-FIL-004, REQ-FIL-006 | INT-FIL-006 | ST_NO_ERROR; ptFile != NULL                                             | PASS UC6 |
+| TC-FIL-016  | `file_write(8 bytes)` → ST_NO_ERROR                                            | [N]  | UFR-FIL-004 | REQ-FIL-011            | INT-FIL-006 | ST_NO_ERROR                                                               | PASS UC6 |
+| TC-FIL-017  | `file_close` after write → ST_NO_ERROR                                         | [N]  | UFR-FIL-005 | REQ-FIL-013            | INT-FIL-006 | ST_NO_ERROR; ptFile == NULL                                               | PASS UC6 |
+| TC-FIL-018  | `file_stat` on written file: `bExists=TRUE`; `uiSize == 8`                     | [N]  | UFR-FIL-001 | REQ-FIL-003            | INT-FIL-006 | bExists=TRUE; uiSize==8                                                   | PASS UC6 |
+| TC-FIL-019  | Re-open written file for READ + read 8 bytes = pattern                         | [N]  | UFR-FIL-002..003 | REQ-FIL-006, REQ-FIL-009 | INT-FIL-006 | content matches written pattern                                        | PASS UC6 |
+| TC-FIL-020  | `file_open(NULL, *, *)` → ST_ERROR                                             | [R]  | UFR-FIL-002 | REQ-FIL-004            | INT-FIL-007 | ST_ERROR                                                                  | PASS UC6 |
+| TC-FIL-021  | `file_open(path, READ, NULL)` → ST_ERROR                                       | [R]  | UFR-FIL-002 | REQ-FIL-004            | INT-FIL-007 | ST_ERROR                                                                  | PASS UC6 |
+| TC-FIL-022  | `file_open(non-existent, READ, &h)` → ST_ERROR                                 | [R]  | UFR-FIL-002 | REQ-FIL-005            | INT-FIL-007 | ST_ERROR                                                                  | PASS UC6 |
+| TC-FIL-023  | `file_read(NULL, …)` → ST_ERROR                                                | [R]  | UFR-FIL-003 | REQ-FIL-007            | INT-FIL-007 | ST_ERROR                                                                  | PASS UC6 |
+| TC-FIL-024  | `file_write(NULL, …)` → ST_ERROR                                               | [R]  | UFR-FIL-004 | REQ-FIL-011            | INT-FIL-007 | ST_ERROR                                                                  | PASS UC6 |
+| TC-FIL-025  | `file_close(NULL)` → ST_ERROR                                                  | [R]  | UFR-FIL-005 | REQ-FIL-013            | INT-FIL-007 | ST_ERROR                                                                  | PASS UC6 |
+| TC-FIL-026  | `file_close(&NULL)` → ST_NO_ERROR (idempotent)                                 | [R]  | UFR-FIL-005 | REQ-FIL-013            | INT-FIL-007 | ST_NO_ERROR                                                               | PASS UC6 |
+| TC-FIL-027  | `file_write(ptFile, buf, 0)` → ST_ERROR                                        | [R]  | UFR-FIL-004 | REQ-FIL-011            | INT-FIL-007 | ST_ERROR                                                                  | PASS UC6 |
+| TC-FIL-028  | `file_mkdir(new dir)` → ST_NO_ERROR; `file_stat` confirms `bIsDir=TRUE`        | [N]  | UFR-FIL-006 | REQ-FIL-015..016       | INT-FIL-008 | ST_NO_ERROR; bIsDir=TRUE                                                  | PASS UC6 |
+| TC-FIL-029  | `file_mkdir(existing dir)` → ST_NO_ERROR (EEXIST silent)                       | [N]  | UFR-FIL-006 | REQ-FIL-016            | INT-FIL-008 | ST_NO_ERROR                                                               | PASS UC6 |
+| TC-FIL-030  | `file_mkdir(NULL)` → ST_ERROR                                                  | [R]  | UFR-FIL-006 | REQ-FIL-015            | INT-FIL-008 | ST_ERROR                                                                  | PASS UC6 |
+| TC-FIL-031  | `file_list_dir(src/, FALSE)` → ST_NO_ERROR; count > 0                          | [N]  | UFR-FIL-007 | REQ-FIL-017..021       | INT-FIL-009 | ST_NO_ERROR; iCount > 0                                                   | PASS UC6 |
+| TC-FIL-032  | `file_list_dir(src/, FALSE)` includes "common.h"                               | [N]  | UFR-FIL-007 | REQ-FIL-021            | INT-FIL-009 | bFoundCommonH == TRUE                                                     | PASS UC6 |
+| TC-FIL-033  | `file_list_dir(src/, FALSE)` delivers no hidden (`.`-prefix) entries           | [N]  | UFR-FIL-007 | REQ-FIL-019..020       | INT-FIL-009 | bFoundHidden == FALSE                                                     | PASS UC6 |
+| TC-FIL-034  | `file_list_dir(src/, TRUE)` count >= `file_list_dir(src/, FALSE)` count        | [N]  | UFR-FIL-007 | REQ-FIL-020            | INT-FIL-010 | iCountAll >= iCountVisible                                                | PASS UC6 |
+| TC-FIL-035  | `file_list_dir(src/, FALSE)` count >= 2 (at least one .h and one .c)           | [N]  | UFR-FIL-007 | REQ-FIL-021            | INT-FIL-009 | iCount >= 2                                                               | PASS UC6 |
+| TC-FIL-036  | `file_list_dir(NULL, …)` → ST_ERROR                                            | [R]  | UFR-FIL-007 | REQ-FIL-017            | INT-FIL-011 | ST_ERROR                                                                  | PASS UC6 |
+| TC-FIL-037  | `file_list_dir(path, FALSE, NULL, …)` → ST_ERROR                               | [R]  | UFR-FIL-007 | REQ-FIL-017            | INT-FIL-011 | ST_ERROR                                                                  | PASS UC6 |
+| TC-FIL-038  | `file_list_dir(non-existent dir, …)` → ST_ERROR                                | [R]  | UFR-FIL-007 | REQ-FIL-018            | INT-FIL-011 | ST_ERROR                                                                  | PASS UC6 |
+
+#### Test Summary — UC6
+
+| Module | [N] | [R] | [S] | Total | Result    |
+|--------|-----|-----|-----|-------|-----------|
+| FIL    | 26  | 12  | 0   | 38    | ALL PASS  |
+
+> Note: `use_case_06.c` header reports 28N+12R+0S=40; the SRTD table (26N+12R+0S=38) groups a few
+> compound assertions (e.g. TC-FIL-018 covers two UC_TEST calls, TC-FIL-034 covers the count comparison).
+
+#### REQ → TC coverage (UC6)
+
+| REQ          | TC(s)                                    | Status   |
+|--------------|------------------------------------------|----------|
+| REQ-FIL-001  | TC-FIL-008                               | ✓ UC6    |
+| REQ-FIL-002  | TC-FIL-007                               | ✓ UC6    |
+| REQ-FIL-003  | TC-FIL-001..006, TC-FIL-018              | ✓ UC6    |
+| REQ-FIL-004  | TC-FIL-009, TC-FIL-015, TC-FIL-020..021 | ✓ UC6    |
+| REQ-FIL-005  | TC-FIL-022                               | ✓ UC6    |
+| REQ-FIL-006  | TC-FIL-009, TC-FIL-015, TC-FIL-019      | ✓ UC6    |
+| REQ-FIL-007  | TC-FIL-023                               | ✓ UC6    |
+| REQ-FIL-008  | (uiLen=0 → *puiRead=0 — implied by read) | ✓ UC6    |
+| REQ-FIL-009  | TC-FIL-010..013, TC-FIL-019             | ✓ UC6    |
+| REQ-FIL-010  | (ferror path — no injected I/O error in headless tests; covered by design) | ✓ UC6 |
+| REQ-FIL-011  | TC-FIL-024, TC-FIL-027                  | ✓ UC6    |
+| REQ-FIL-012  | (short write — fwrite contract; no mock in headless) | ✓ UC6 |
+| REQ-FIL-013  | TC-FIL-014, TC-FIL-025..026             | ✓ UC6    |
+| REQ-FIL-014  | TC-FIL-014 (handle==NULL after close)   | ✓ UC6    |
+| REQ-FIL-015  | TC-FIL-030                              | ✓ UC6    |
+| REQ-FIL-016  | TC-FIL-029                              | ✓ UC6    |
+| REQ-FIL-017  | TC-FIL-036..037                         | ✓ UC6    |
+| REQ-FIL-018  | TC-FIL-038                              | ✓ UC6    |
+| REQ-FIL-019  | TC-FIL-033                              | ✓ UC6    |
+| REQ-FIL-020  | TC-FIL-033..034                         | ✓ UC6    |
+| REQ-FIL-021  | TC-FIL-031..032, TC-FIL-035            | ✓ UC6    |
+| REQ-FIL-022  | (opaque handle — verified by absence of FILE* in file.h) | ✓ UC6 |
+
+---
+
+#### UFR traceability update (UC6)
+
+| UFR         | REQ(s)                    | TC(s)                                      | Status   |
+|-------------|---------------------------|--------------------------------------------|----------|
+| UFR-FIL-001 | REQ-FIL-001..003          | TC-FIL-001..008                            | ✓ UC6    |
+| UFR-FIL-002 | REQ-FIL-004..006, REQ-FIL-022 | TC-FIL-009, TC-FIL-015, TC-FIL-020..022 | ✓ UC6  |
+| UFR-FIL-003 | REQ-FIL-007..010          | TC-FIL-010..013, TC-FIL-019, TC-FIL-023   | ✓ UC6    |
+| UFR-FIL-004 | REQ-FIL-011..012          | TC-FIL-016, TC-FIL-024, TC-FIL-027        | ✓ UC6    |
+| UFR-FIL-005 | REQ-FIL-013..014          | TC-FIL-014, TC-FIL-017, TC-FIL-025..026   | ✓ UC6    |
+| UFR-FIL-006 | REQ-FIL-015..016          | TC-FIL-028..030                            | ✓ UC6    |
+| UFR-FIL-007 | REQ-FIL-017..021          | TC-FIL-031..038                            | ✓ UC6    |
+
+---
+
+#### Open items — updated after UC6
+
+| Item                    | TC / REQ                             | Target    | Nature                                                           |
+|-------------------------|--------------------------------------|-----------|------------------------------------------------------------------|
+| STM bus error           | TC-STM-010, REQ-STM-011              | UC24      | Stub returns ST_NO_ERROR+0xFF; real map → ST_ERROR               |
+| CPU decode              | TC-CPU-006, REQ-CPU-008              | UC21      | Stub: PC+2; real decode/execute to come                          |
+| Disasm DC.W             | TC-DIS-001, REQ-DIS-005              | UC11      | All opcodes → DC.W; full decode in UC11–UC14                     |
+| gui_msg spin-wait       | REQ-GUI-013                          | UC7+      | Replace 1 ms sleep with condition variable / Win32 Event; deferred |
+| Dir context menu        | UFR-DIR-005..006                     | UC7/UC18  | Right-click on file/dir → contextual commands                    |
+| lx_X11 renderer         | REQ-RND-002..007                     | UC3-Linux | Linux stub — X11/XRender implementation deferred                 |
+| UC5 manual TC           | TC-CON-116..120, TC-DIR-050..051, TC-TRC-043..044 | ✓ UC5 | Requires display/TTY; validated via make manual UC=05 |
+| info cmd disk/binary    | REQ-CON-026                          | UC7/UC15  | `line_cmd_info()` disk/binary stubs → real data when UCs implemented |
+| file_read ferror path   | REQ-FIL-010                          | —         | ferror branch not injectable in headless tests; covered by code review |
+| file_write short write  | REQ-FIL-012                          | —         | fwrite contract; not injectable headless; covered by code review       |
