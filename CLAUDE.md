@@ -476,7 +476,7 @@ Chaque UC suit deux phases distinctes avant clôture :
 - **Phase 2 — Documentation** :
   - Mise à jour traçabilité dans `use_cases_XX.c` (INTENT, ADAPTED, TEST MATRIX).
   - Mise à jour SRTD.md (UFRs, REQs, Tables fonctions, Tests, Matrices, Open Items) en conséquence des nouveaux contrats fonctionnels de CLAUDE.md §6.x et des modifications des `use_cases_XX.c`.
-  - Analyse des nouvelles propositions d'amélioration par Onclemarcel ; propositions UX par Claude si approprié.
+  - **Revue §7** : analyser chaque proposition non arbitrée du UC courant — donner l'avis Claude (ACCEPTÉ / REFUSÉ / MODIFIÉ + justification) et planifier dans le tableau §6 ou clore. Déposer toute nouvelle proposition UX/fonctionnelle émergente du UC dans §7 (avec numéro P séquentiel) avant de demander l'arbitrage de Tonton Marcel.
 
 Règle : **un UC n'est clos que lorsque les deux phases sont complètes** et §7 ne contient plus de propositions non arbitrées pour ce UC. Claude initie la Phase 2 sans demande explicite dès que Phase 1 est validée par Tonton Marcel.
 
@@ -514,7 +514,7 @@ Les étapes de développement fonctionnelles sont formalisées en Use Cases, per
 | UC4.2 | raw input | `console.h` (CON_KEY_*) + pipe/VT100 mintty (R21) + Win32 cmd.exe + `line_read_rich()` : insert/←/→/Home/End/Del/Backspace, CTRL shortcuts, ESC + `make manual UC=XX` | ✓ VALIDÉ 2026-06-01 |
 | UC4.3 | complétion + historique + extras | Historique ↑↓ circulaire + `~/.st4ever_history` + tab-completion commandes/chemins + ghost-text DIM + prompt contextuel `[T][file]` + `colors on/off` + `--script file` + mutex `ptSelectedMutex` + `line_set/get_selected()` | ✓ VALIDÉ 2026-06-01 |
 | UC4.4 | trace view GUI | Fenêtre `GUI_WND_TRACE` D2D : scroll texte append-only, couleurs par niveau ; `trace.c` → `gui_msg_queue_t` → thread fenêtre ; suppression TODO(UC3.3) de trace.h/trace.c | trace view remplace stderr |
-| UC5 | `where`, `info` | Répertoire courant + état sélection (where) ; dashboard global état application : cwd, fichier sélectionné, trace, disque monté, binaire chargé (info) ; **P8** : `SetConsoleTitleA` statut automatique ; **P21** : touche `H` toggle hidden dans vue dir ; **P22** : F5 refresh vue dir | affichage path + dashboard + titre console |
+| UC5 | `where`, `info`, `history` | Répertoire courant + état sélection (where) ; dashboard global état application : cwd, fichier sélectionné, trace, disque monté, binaire chargé (info) ; **P8** : `SetConsoleTitleA` statut automatique ; **P21** : touche `H` toggle hidden dans vue dir ; **P22** : F5 refresh vue dir ; **P23bis** : TAB préfixe commun avant cycle ghost ; **P24** : `colors auto` via `isatty()` au démarrage ; **P25** : commande `history [N]` | affichage path + dashboard + titre console |
 | UC5-bis | prefs | Module `prefs.c` : lecture/écriture `%APPDATA%\ST4Ever\prefs.ini` ; mémorisation position/taille fenêtres par type (P7) — **optionnel**, après UC5 | save/restore position fenêtre dir |
 | UC6 | plateforme | Abstraction fichiers : open/read/write/stat/mkdir, listing répertoire | tests lecture/écriture |
 | UC7 | `load` | Chargement fichier texte/binaire, détection type, buffer mémoire ; indicateur visuel sélection active dans vue `dir` (P11 : couleur secondaire sur ligne sélectionnée, ≠ highlight navigation) | load .txt, .bin, .PRG stub |
@@ -1125,6 +1125,30 @@ Depuis la vue dir ouverte, touche `H` toggle `bShowHidden` + rechargement des en
 **P22 — F5 pour rafraîchir la vue dir** → **ACCEPTÉ — UC5**
 
 Touche F5 = `dir_node_reload_children(ptView->ptRoot)` + rebuild flat + redraw. Utile dès UC7 quand `load` sera actif et que des fichiers peuvent apparaître/disparaître pendant une session. Coût : 1 case dans `dir_handle_key()`. Différé de UC4.2 à UC5 avec P21 (même scope : `dir_handle_key()`).
+
+**P23 Acceptation de la proposition d'auto-completion**
+
+Lorsqu'il existe plusieurs possibilités d'auto-completion dans les noms de fichiers en argument des commandes, les possibilités s'affichent en color DIM mais sans possibilité de valider l'entièreté de la proposition par Entrée (sans valider la commande), puis un deuxième appui Entrée valide la commande complète.
+
+Avis Claude : **REFUSÉ tel quel — mécanisme TAB standard suffit.** Le double-Enter casse la sémantique fondamentale "Enter = exécuter" (invariant de UC1 à UC4.3). Un premier Enter qui insérerait le ghost sans exécuter surprendrait l'utilisateur habitué à tout shell. L'implémentation UC4.3 est déjà conforme au standard : 1 candidat → insertion immédiate du suffixe par TAB ; N candidats → TAB cycle le ghost DIM ; toute touche non-TAB efface le ghost. Si l'on veut améliorer, la bonne direction est le **préfixe commun** : le premier TAB sur N candidats insère d'abord le plus long préfixe commun aux N candidats (comme bash), puis les TABs suivants cyclent. Cela reste 100 % TAB-driven et ne touche pas Enter.
+
+→ **Proposition reformulée — P23bis (déposée ci-dessous, à arbitrer)**
+
+---
+
+### Arbitrage UC4.3 (2026-06-01)
+
+**P23bis — TAB : insertion du préfixe commun avant le cycle** → **ACCEPTÉ — UC5**
+
+Sur N candidats, le premier TAB insère le plus long préfixe commun dans le buffer ; les TABs suivants cyclent les candidats en ghost DIM. Comportement bash standard.
+
+**P24 — `colors auto` : détection ANSI automatique au démarrage** → **ACCEPTÉ — UC5**
+
+`bColors = isatty(STDOUT_FILENO)` dans `line_init()` : ANSI activé si TTY, désactivé si pipe/fichier. `colors on/off` reste disponible pour forcer.
+
+**P25 — Commande `history [N]` : afficher les N dernières commandes** → **ACCEPTÉ — UC5**
+
+Sans arg : 10 dernières numérotées. Avec arg N : N dernières. Nouvelle `line_cmd_history()` + `CMD_HISTORY`.
 
 ## 8. Licence & attribution
 Pas de redistribution prévue à ce jour

@@ -4,17 +4,19 @@
  *
  * TEST MATRIX - UC4.3:
  *   [N] Nominal    : 19 tests - history add/get/count/wrap/persist,
- *                               colors toggle, set/get_selected,
+ *                               colors toggle, set/get_selected (mutex),
  *                               script mode, cmd completion query,
  *                               path completion query
  *   [R] Robustness :  7 tests - NULL params, empty history, out-of-
  *                               range index, missing script file,
- *                               empty prefix
- *   [S] Skipped    :  8 tests - run make manual
+ *                               empty/invalid completion prefix
+ *   [S] Skipped    :  8 tests - run make manual UC=04_3
+ *                               (history nav, TAB ghost, prompt [T]/[file],
+ *                                colors off, --script end-to-end)
  *
  * Traceability:
- *   INT-LIN-001..020 → TC-LIN-001..020 → REQ-LIN-001..012
- *   UFR-CON-040..055 (UC4.3 feature set)
+ *   INT-LIN-001..023 → TC-LIN-001..036 → REQ-CON-017..024
+ *   UFR-CON-007, UFR-CON-009, UFR-CON-047..049, UFR-DIR-002
  */
 
 #include "use_cases.h"

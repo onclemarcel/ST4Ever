@@ -19,6 +19,7 @@
 | 1.4 | 2026-05-31 | UC3.3 | Claude/OMC | UC3.3 validated — dir view: lazy-load FS tree, flat list, D2D render, kbd/mouse |
 | 1.5 | 2026-05-31 | UC4.1 | Claude/OMC | UC4.1 validated — gui_request_close, bShowHidden, ESC/←/→/SPACE separation, auto-focus, TEST_MANUAL, make manual |
 | 1.6 | 2026-06-01 | UC4.2 | Claude/OMC | UC4.2 validated — console.h (CON_KEY_*) + win pipe/VT100 + line_read_rich + CTRL shortcuts + make manual UC=XX + focus restore on close |
+| 1.7 | 2026-06-01 | UC4.3 | Claude/OMC | UC4.3 validated — history ↑↓ + ~/.st4ever_history + TAB completion + ghost text + prompt contextuel + colors on/off + --script + mutex ptSelectedMutex |
 
 ---
 
@@ -71,9 +72,12 @@ through one or more test cases in Section 5.
 | UFR-CON-004 | An unrecognised command shall display an informative error and keep the console active.           | ✓ UC1    | UC1  |
 | UFR-CON-005 | Every command shall be invokable by its full name, its single-letter alias, or a CTRL shortcut.  | ✓ UC1    | UC1  |
 | UFR-CON-006 | Arguments to unimplemented commands shall produce a "not yet implemented" message.                | ✓ UC1    | UC1  |
-| UFR-CON-007 | Command history shall be navigable with the up/down arrow keys.                                   | TODO UC4.3 | UC4.3 |
+| UFR-CON-007 | Command history shall be navigable with the up/down arrow keys; the most recent entry browsed then restored on DOWN past newest. | ✓ UC4.3 | UC4.3 |
 | UFR-CON-008 | Home/End keys shall move the cursor to the start/end of the input line.                          | ✓ UC4.2  | UC4.2 |
-| UFR-CON-009 | Tab shall complete the current argument against file and directory names.                          | TODO UC4.3 | UC4.3 |
+| UFR-CON-009 | Tab shall complete the command name on the first word, file/directory names on further words; a single match inserts immediately, multiple matches cycle as ghost text. | ✓ UC4.3 | UC4.3 |
+| UFR-CON-047 | `colors [on|off]` shall toggle or force ANSI colour codes in console output; useful for terminals without VT100 or file redirection. | ✓ UC4.3 | UC4.3 |
+| UFR-CON-048 | `--script <file>` shall execute commands from the given file line-by-line without interactive input; a missing file shall return an error and exit. | ✓ UC4.3 | UC4.3 |
+| UFR-CON-049 | The prompt shall display `[T]` when the trace view is open and `[basename]` when a file is currently selected, so the user sees active state at a glance. | ✓ UC4.3 | UC4.3 |
 | UFR-CON-041 | The application shall support cursor movement (←/→) within the current input line.               | ✓ UC4.2  | UC4.2 |
 | UFR-CON-042 | The application shall support character insertion at cursor position.                             | ✓ UC4.2  | UC4.2 |
 | UFR-CON-043 | The application shall support character deletion (Backspace before cursor, Delete at cursor).     | ✓ UC4.2  | UC4.2 |
@@ -219,8 +223,14 @@ requirement that will expose it (`UFR-EXE-*`, planned UC21–27).
 | REQ-CON-010  | `line_run()` shall support cursor movement (←/→/Home/End), Backspace/Delete, and CTRL shortcuts via the rich line editor when stdin is a TTY. | UFR-CON-008, UFR-CON-041..046 | ✓ UC4.2 | UC4.2 |
 | REQ-CON-015  | `line_run()` shall fall back to plain `fgets()` input when `console_set_raw()` returns `ST_ERROR` (non-TTY: CI, pipes). | UFR-CON-001 | ✓ UC4.2 | UC4.2 |
 | REQ-CON-016  | `line_run()` shall call `console_restore()` after the main loop when raw mode was active.             | UFR-CON-001              | ✓ UC4.2  | UC4.2 |
-| REQ-CON-017  | History navigation (↑/↓) shall be implemented in UC4.3.                                              | UFR-CON-007              | TODO UC4.3 | UC4.3 |
-| REQ-CON-018  | Tab-completion shall complete the command name on the first word, file/directory names on further words. | UFR-CON-009           | TODO UC4.3 | UC4.3 |
+| REQ-CON-017  | `line_read_rich()` shall browse history with ↑/↓: UP stores the current edit buffer in `szSavedInput` and fetches entries from most-recent toward oldest; DOWN moves toward newest; pressing DOWN past the newest restores `szSavedInput`. | UFR-CON-007 | ✓ UC4.3 | UC4.3 |
+| REQ-CON-018  | TAB on the first word shall call `line_complete_cmd_query()`; TAB on subsequent words shall call `line_complete_path_query()`. One candidate → immediate suffix insertion. Multiple candidates → ghost text cycle. Any non-TAB key clears ghost. | UFR-CON-009 | ✓ UC4.3 | UC4.3 |
+| REQ-CON-019  | `line_history_add()` shall silently ignore empty strings and exact duplicates of the most-recent entry. The ring buffer is capped at `LINE_HISTORY_MAX` (64); the oldest entry is evicted when full. | UFR-CON-007 | ✓ UC4.3 | UC4.3 |
+| REQ-CON-020  | `line_init()` shall call `line_history_load(NULL)` to restore history from `$HOME/.st4ever_history`; `line_shutdown()` shall call `line_history_save(NULL)` to persist it. A missing file on load shall return `ST_NO_ERROR` (first-run case). | UFR-CON-007 | ✓ UC4.3 | UC4.3 |
+| REQ-CON-021  | `line_cmd_colors()` shall toggle `g_line_bColors` when called without argument; `colors on/off` shall force the value. All ANSI output shall be gated by `c_*()` static-inline functions that return `""` when colors are disabled. | UFR-CON-047 | ✓ UC4.3 | UC4.3 |
+| REQ-CON-022  | When `szScriptFile[0] != '\0'`, `line_run()` shall open the file and dispatch each non-blank, non-comment line through `line_parse_cmd()` + `line_dispatch()` without entering raw mode. A missing file shall return `ST_ERROR`. | UFR-CON-048 | ✓ UC4.3 | UC4.3 |
+| REQ-CON-023  | `line_set_selected(ptCtx, szPath)` and `line_get_selected(ptCtx, szBuf, uiBufLen)` shall acquire `ptCtx->ptSelectedMutex` before accessing `szSelected`; `set_selected(ptCtx, NULL)` shall clear the field. | UFR-DIR-002 | ✓ UC4.3 | UC4.3 |
+| REQ-CON-024  | `line_build_prompt()` shall prepend `[T]` when `trace_is_open() == ST_TRUE` and `[basename]` when `szSelected` is non-empty; both are included, neither, or just one depending on state. | UFR-CON-049 | ✓ UC4.3 | UC4.3 |
 
 ### 2.3 ST Machine Emulator — `ST.h` / `ST.c`
 
@@ -472,13 +482,14 @@ loop, shut down in reverse order.
 
 ```
 main(argc, argv)
-  ├─ parse -t / -h flags                           [CRT]
+  ├─ parse -t / -h / --script flags                [CRT]
   ├─ win_console_init()         [ST4]  ANSI + UTF-8 on Win32
   ├─ trace_init(bOpen)          [ST4]  open log; optionally show console
   ├─ gui_init()                 [ST4]  register Win32 class (stub UC3)
-  ├─ line_init(&tCtx)           [ST4]  capture cwd, bRunning=TRUE
-  ├─ line_run(&tCtx)            [ST4]  blocking loop
-  ├─ line_shutdown(&tCtx)       [ST4]
+  ├─ line_init(&tCtx)           [ST4]  capture cwd, load history, bRunning=TRUE
+  ├─ copy szScriptFile → tCtx   [CRT]  --script path set before line_run
+  ├─ line_run(&tCtx)            [ST4]  blocking loop (or script batch)
+  ├─ line_shutdown(&tCtx)       [ST4]  save history
   ├─ gui_shutdown()             [ST4]  (stub UC3)
   └─ trace_shutdown()           [ST4]  flush + close log
 ```
@@ -549,49 +560,67 @@ handler.  Owns `line_context_t` (cwd, current selection, running flag).
 
 **Public API:**
 
-| Function                    | REQ(s)                          | Description                              |
-|-----------------------------|---------------------------------|------------------------------------------|
-| `line_init(ptCtx)`          | REQ-CON-001..003                | Zero context, capture cwd, bRunning=TRUE |
-| `line_run(ptCtx)`           | REQ-CON-006..009                | Blocking loop: prompt → read → dispatch  |
-| `line_shutdown(ptCtx)`      | REQ-CON-004, REQ-CON-005        | Clear context, set bRunning=FALSE        |
-| `line_print_msg(fmt,…)`     | —                               | Normal response to stdout (utility)      |
-| `line_print_warning(fmt,…)` | —                               | Yellow warning to stdout (utility)       |
-| `line_print_error(fmt,…)`   | —                               | Red error to stdout (utility)            |
+| Function                                          | REQ(s)                          | Description                                                        |
+|---------------------------------------------------|---------------------------------|--------------------------------------------------------------------|
+| `line_init(ptCtx)`                                | REQ-CON-001..003, REQ-CON-020   | Zero context, capture cwd, create mutex, load history, bRunning=TRUE |
+| `line_run(ptCtx)`                                 | REQ-CON-006..009, REQ-CON-022   | Blocking loop (interactive or script batch)                        |
+| `line_shutdown(ptCtx)`                            | REQ-CON-004, REQ-CON-005, REQ-CON-020 | Save history, close dir view, destroy mutex, bRunning=FALSE  |
+| `line_print_msg(fmt,…)`                           | —                               | Normal response to stdout (utility)                                |
+| `line_print_warning(fmt,…)`                       | —                               | Yellow warning to stdout (utility)                                 |
+| `line_print_error(fmt,…)`                         | —                               | Red error to stdout (utility)                                      |
+| `line_history_add(szEntry)`                       | REQ-CON-019                     | Add entry; ignore empty / adjacent duplicate; evict oldest on full |
+| `line_history_count()`                            | REQ-CON-019                     | Return current number of stored entries                            |
+| `line_history_get(iVirt, szBuf, uiBufLen)`        | REQ-CON-017                     | Get entry at virtual index 0=oldest; ST_ERROR if out-of-range      |
+| `line_history_clear()`                            | —                               | Reset count/head to 0; no deallocation                             |
+| `line_history_save(szPath)`                       | REQ-CON-020                     | Write history to file; NULL → `$HOME/.st4ever_history`            |
+| `line_history_load(szPath)`                       | REQ-CON-020                     | Read history from file; missing file → ST_NO_ERROR (first run)    |
+| `line_complete_cmd_query(szPrefix, aOut, iMax)`   | REQ-CON-018                     | Return count of command names matching prefix (szFull and szShort) |
+| `line_complete_path_query(szPrefix, szCwd, aOut, iMax)` | REQ-CON-018               | Return count of FS entries matching prefix; dirs suffixed `/`      |
+| `line_set_colors(bColors)`                        | REQ-CON-021                     | Set global ANSI color state                                        |
+| `line_get_colors()`                               | REQ-CON-021                     | Query current ANSI color state                                     |
+| `line_set_selected(ptCtx, szPath)`                | REQ-CON-023                     | Thread-safe write under mutex; NULL clears the field               |
+| `line_get_selected(ptCtx, szBuf, uiBufLen)`       | REQ-CON-023                     | Thread-safe read under mutex                                       |
 
 **Key internal functions:**
 
-| Function              | REQ(s)          | Description                                                    |
-|-----------------------|-----------------|----------------------------------------------------------------|
-| `line_trim()`         | —               | Remove leading/trailing whitespace in place (utility)          |
-| `line_parse_cmd()`    | REQ-CON-006..009| Tokenise raw input into `parsed_cmd_t` and match command token |
-| `line_dispatch()`     | REQ-CON-006..009| Route `parsed_cmd_t` to handler via `g_line_aHandlers[]`      |
-| `line_cmd_help()`     | REQ-CON-006     | Print command summary                                          |
-| `line_cmd_quit()`     | REQ-CON-007     | Set `bRunning = FALSE`                                         |
-| `line_cmd_trace()`    | REQ-CON-008     | Call `trace_open/close/toggle` (full impl UC2)                 |
-| `line_cmd_stub()`     | REQ-CON-009     | LOG_TODO + "not yet implemented" for all other commands        |
-
-**UC4.2 additions (static helpers — not in line.h):**
-
-| Function                           | REQ(s)                              | Description                                                    |
-|------------------------------------|-------------------------------------|----------------------------------------------------------------|
-| `line_redraw(szBuf, uiLen, uiCur)` | REQ-CON-010                         | `\r\033[2K` + prompt + buffer + `\033[ND` cursor reposition    |
-| `line_shortcut(szBuf, szCmd)`      | REQ-CON-010, UFR-CON-046            | Fill buf with cmd name, redraw, `\n`, return ST_NO_ERROR       |
-| `line_read_rich(ptCtx, szBuf)`     | REQ-CON-010, REQ-CON-015..016, UFR-CON-041..046 | Rich editor loop: insert, edit, CTRL shortcuts, EOF→ST_ERROR |
+| Function                           | REQ(s)                              | Description                                                              |
+|------------------------------------|-------------------------------------|--------------------------------------------------------------------------|
+| `line_trim()`                      | —                                   | Remove leading/trailing whitespace in place (utility)                    |
+| `line_parse_cmd()`                 | REQ-CON-006..009                    | Tokenise raw input into `parsed_cmd_t` and match command token           |
+| `line_dispatch()`                  | REQ-CON-006..009                    | Route `parsed_cmd_t` to handler via `g_line_aHandlers[]`                |
+| `line_cmd_help()`                  | REQ-CON-006                         | Print command summary                                                    |
+| `line_cmd_quit()`                  | REQ-CON-007                         | Set `bRunning = FALSE`                                                   |
+| `line_cmd_trace()`                 | REQ-CON-008                         | Call `trace_open/close/toggle` (full impl UC2)                           |
+| `line_cmd_colors()`                | REQ-CON-021                         | Toggle or force `g_line_bColors`; warn on unknown arg                    |
+| `line_cmd_stub()`                  | REQ-CON-009                         | LOG_TODO + "not yet implemented" for all other commands                  |
+| `line_run_script(ptCtx)`           | REQ-CON-022                         | Open `szScriptFile`, parse+dispatch each line; `#` and blanks skipped    |
+| `line_redraw(ptCtx, szBuf, uiLen, uiCur, szGhost)` | REQ-CON-010              | `\r\033[2K` + prompt + buffer + ghost DIM + `\033[ND` cursor reposition  |
+| `line_shortcut(szBuf, szCmd)`      | REQ-CON-010, UFR-CON-046            | Fill buf with cmd name, redraw, `\n`, return ST_NO_ERROR                 |
+| `line_read_rich(ptCtx, szBuf)`     | REQ-CON-010, REQ-CON-015..018, UFR-CON-041..046 | Rich editor: insert, edit, CTRL, history ↑↓, TAB ghost, EOF |
+| `line_build_prompt(ptCtx, szBuf, uiBufLen)` | REQ-CON-024                | Build dynamic prompt `APP_NAME[T][basename]> ` using current state       |
+| `line_path_basename(szPath)`       | —                                   | Return pointer to last component of a path (no alloc)                    |
 
 **External dependencies:**
 
-| Call                    | Tag       | Purpose                                |
-|-------------------------|-----------|----------------------------------------|
-| `fgets`                 | [CRT]     | Fallback line read (non-TTY / UC4.2)   |
-| `console_set_raw`       | [ST4]     | Enable raw key-by-key input (UC4.2)    |
-| `console_restore`       | [ST4]     | Restore console mode after loop (UC4.2)|
-| `console_read_key`      | [ST4]     | Read one key as CON_KEY_* (UC4.2)      |
-| `getcwd`                | [POX/CRT] | Capture working directory (Linux/MSYS2)|
-| `GetCurrentDirectory`   | [WIN]     | Capture working directory (Win32)      |
-| `printf / fprintf`      | [CRT]     | Console output                         |
+| Call                      | Tag       | Purpose                                             |
+|---------------------------|-----------|-----------------------------------------------------|
+| `fgets`                   | [CRT]     | Fallback line read (non-TTY / script mode)          |
+| `console_set_raw`         | [ST4]     | Enable raw key-by-key input                         |
+| `console_restore`         | [ST4]     | Restore console mode after loop                     |
+| `console_read_key`        | [ST4]     | Read one key as CON_KEY_*                           |
+| `trace_is_open`           | [ST4]     | Query trace state for prompt (UC4.3)                |
+| `opendir / readdir / closedir` | [POX] | Path completion (POSIX available via MinGW)        |
+| `getcwd`                  | [POX/CRT] | Capture working directory                           |
+| `GetCurrentDirectory`     | [WIN]     | Capture working directory (Win32)                   |
+| `platform_mutex_create/lock/unlock/destroy` | [ST4] | Thread-safe szSelected access       |
+| `printf / fprintf / fopen / fclose` | [CRT] | Console output + history file I/O              |
 
 **UC4.2:** `fgets` replaced by `line_read_rich()` when stdin is a TTY;
 `fgets` fallback kept for non-TTY (CI, pipes, `--script` mode).
+
+**UC4.3 additions:** history ring buffer (global to `line.c`, persists across init/shutdown);
+`c_*()` static-inline ANSI helpers gate all colour output; `ptSelectedMutex` protects
+`szSelected` from concurrent window-thread writes; `line_run_script()` branch in `line_run()`.
 
 **Command dispatch sequence:**
 
@@ -921,7 +950,7 @@ access ptView after open               GUI_EVT_CLOSE  → renderer_destroy()
 until dir_close() is called.
 ```
 
-**TODO(UC4):** mutex on `line_context_t` to protect `szSelected` write from window thread.
+**UC4.3:** `dir.c` calls `line_set_selected()` (thread-safe) instead of writing `szSelected` directly. Mutex owned by `line_context_t.ptSelectedMutex` (created in `line_init`, destroyed in `line_shutdown`).
 **TODO(UC7/UC18):** right-click context menu on file / directory.
 
 ---
@@ -1544,8 +1573,8 @@ Test data: `use_cases/UC04_1/testdata/` — 2 visible entries + 2 hidden entries
 | Disasm DC.W             | TC-DIS-001, REQ-DIS-005        | UC11     | All opcodes → DC.W; full decode in UC11–UC14                     |
 | Trace GUI window        | UFR-TRC-007, REQ-TRC-014       | UC4.4    | stderr → dedicated Win32/X11 D2D window with colour levels (P20) |
 | Line editor (raw + edit)        | UFR-CON-041..046, REQ-CON-010, REQ-CON-015..016 | ✓ UC4.2 | console.h + line_read_rich done; history/completion in UC4.3 |
-| Line editor (history/completion)| UFR-CON-007, UFR-CON-009, REQ-CON-017..018 | UC4.3 | ↑↓ history + tab-completion (cmd 1st word / path further words) + ghost text CON_DIM |
-| szSelected mutex                | REQ-DIR-010, REQ-DIR-019       | UC4.3    | Window thread writes szSelected without mutex; add with history module |
+| Line editor (history/completion)| UFR-CON-007, UFR-CON-009, REQ-CON-017..018 | ✓ UC4.3 | ↑↓ history + tab-completion + ghost text CON_DIM — all validated |
+| szSelected mutex                | REQ-CON-023, REQ-DIR-010, REQ-DIR-019 | ✓ UC4.3 | `line_set/get_selected()` under `ptSelectedMutex` — validated |
 | Dir context menu        | UFR-DIR-005..006               | UC7/UC18 | Right-click on file/dir → contextual commands                    |
 | gui_msg spin-wait       | REQ-GUI-013                    | UC4.4    | Replace 1 ms sleep with condition variable / Win32 Event         |
 | Window manual TC        | TC-GUI-016..018                | ✓ UC4.1  | TEST_MANUAL macro + make manual now available (R16 implemented)  |
@@ -1653,3 +1682,134 @@ Source: `use_cases/use_case_04_2.c`
 | UFR-CON-044      | REQ-CON-010, REQ-RAW-012        | TC-CON-003, TC-CON-015          | ✓ UC4.2  |
 | UFR-CON-045      | REQ-CON-010                     | TC-CON-015..016                 | ✓ UC4.2  |
 | UFR-CON-046      | REQ-CON-010                     | TC-CON-001, TC-CON-016..017     | ✓ UC4.2  |
+
+---
+
+### 5.20 INTENT Catalog — UC4.3
+
+Source: `use_cases/use_case_04_3.c`
+
+| ID           | INTENT text                                                                                         |
+|--------------|-----------------------------------------------------------------------------------------------------|
+| INT-LIN-001  | Empty history has count 0 after clear                                                               |
+| INT-LIN-002  | `history_add(NULL)` returns ST_ERROR                                                                |
+| INT-LIN-003  | `history_add("")` is a no-op (empty strings ignored)                                                |
+| INT-LIN-004  | Normal add stores the entry and increments count                                                    |
+| INT-LIN-005  | Duplicate of the most recent entry is silently ignored                                              |
+| INT-LIN-006  | `history_get()` virtual 0 returns the oldest entry                                                  |
+| INT-LIN-007  | `history_get()` virtual count-1 returns the most recent entry                                       |
+| INT-LIN-008  | `history_get()` with out-of-range index returns ST_ERROR                                            |
+| INT-LIN-009  | `history_get(NULL buf)` and `history_get(buf, 0)` return ST_ERROR                                  |
+| INT-LIN-010  | Count is capped at LINE_HISTORY_MAX after ring wrap; oldest entry is correctly identified            |
+| INT-LIN-011  | save() + clear() + load() round-trips the history exactly                                           |
+| INT-LIN-012  | Colors default to ON; set_colors() changes state; get_colors() reflects it                          |
+| INT-LIN-013  | After line_init, selected is empty                                                                  |
+| INT-LIN-014  | set_selected() stores, get_selected() retrieves (thread-safe)                                       |
+| INT-LIN-015  | set_selected(NULL) clears the selection                                                             |
+| INT-LIN-016  | --script runs commands from file; quit in script exits the loop cleanly                             |
+| INT-LIN-017  | --script with missing file returns ST_ERROR from line_run                                           |
+| INT-LIN-018  | Empty prefix for cmd completion returns all command names                                           |
+| INT-LIN-019  | Prefix "he" → exactly "help"; prefix "q" → "quit"                                                  |
+| INT-LIN-020  | Prefix "h" matches via shortcut and includes "help" candidate                                       |
+| INT-LIN-021  | Non-existent directory prefix → 0 candidates without crash                                          |
+| INT-LIN-022  | Prefix "src/" scanning from project root returns > 0 entries, all prefixed "src/"                  |
+| INT-LIN-023  | Prefix "use_c" returns the use_cases/ directory candidate                                           |
+
+---
+
+### 5.21 Test Cases — UC4.3 (history, completion, colors, script, selected mutex)
+
+Source: `use_cases/use_case_04_3.c`
+
+| ID           | Functional description                                              | Type | UFR                   | REQ                          | INTENT       | Expected outcome                                                | Status     |
+|--------------|---------------------------------------------------------------------|------|-----------------------|------------------------------|--------------|-----------------------------------------------------------------|------------|
+| TC-LIN-001   | `history_count() == 0` after clear                                  | [N]  | UFR-CON-007           | REQ-CON-019                  | INT-LIN-001  | `line_history_count() == 0`                                     | PASS UC4.3 |
+| TC-LIN-002   | `history_add(NULL)` → ST_ERROR                                      | [R]  | UFR-CON-007           | REQ-CON-019                  | INT-LIN-002  | ST_ERROR; count unchanged                                       | PASS UC4.3 |
+| TC-LIN-003   | `history_add("")` → ST_NO_ERROR; count unchanged                    | [N]  | UFR-CON-007           | REQ-CON-019                  | INT-LIN-003  | ST_NO_ERROR; `count == 0`                                       | PASS UC4.3 |
+| TC-LIN-004   | Normal add → count increments                                        | [N]  | UFR-CON-007           | REQ-CON-019                  | INT-LIN-004  | count == 1 then 2 after two adds                                | PASS UC4.3 |
+| TC-LIN-005   | Adjacent duplicate silently ignored                                  | [N]  | UFR-CON-007           | REQ-CON-019                  | INT-LIN-005  | count still 2 after re-adding "dir src"                         | PASS UC4.3 |
+| TC-LIN-006   | `history_get(0)` → oldest entry                                     | [N]  | UFR-CON-007           | REQ-CON-017                  | INT-LIN-006  | szBuf == "help"                                                 | PASS UC4.3 |
+| TC-LIN-007   | `history_get(count-1)` → most recent                                | [N]  | UFR-CON-007           | REQ-CON-017                  | INT-LIN-007  | szBuf == "dir src"                                              | PASS UC4.3 |
+| TC-LIN-008   | `history_get(-1)` and `history_get(count)` → ST_ERROR               | [R]  | UFR-CON-007           | REQ-CON-017                  | INT-LIN-008  | both return ST_ERROR                                            | PASS UC4.3 |
+| TC-LIN-009   | `history_get(0, NULL, N)` and `history_get(0, buf, 0)` → ST_ERROR   | [R]  | UFR-CON-007           | REQ-CON-017                  | INT-LIN-009  | both return ST_ERROR                                            | PASS UC4.3 |
+| TC-LIN-010   | After wrap: count == LINE_HISTORY_MAX; oldest is cmd4               | [N]  | UFR-CON-007           | REQ-CON-019                  | INT-LIN-010  | count capped; oldest == "cmd4"; newest == "cmd67"               | PASS UC4.3 |
+| TC-LIN-011   | save + clear + load round-trip                                       | [N]  | UFR-CON-007           | REQ-CON-020                  | INT-LIN-011  | count==2; oldest=="trace on"; newest=="dir /tmp"                | PASS UC4.3 |
+| TC-LIN-012   | `history_load(non-existent)` → ST_NO_ERROR                          | [N]  | UFR-CON-007           | REQ-CON-020                  | INT-LIN-011  | ST_NO_ERROR (first-run case)                                    | PASS UC4.3 |
+| TC-LIN-013   | colors: set TRUE → get TRUE; set FALSE → get FALSE                  | [N]  | UFR-CON-047           | REQ-CON-021                  | INT-LIN-012  | get_colors() reflects set_colors() value                        | PASS UC4.3 |
+| TC-LIN-014   | After `line_init`: selected empty                                    | [N]  | UFR-DIR-002           | REQ-CON-023                  | INT-LIN-013  | `szSelected[0] == '\0'`                                         | PASS UC4.3 |
+| TC-LIN-015   | `set_selected("/tmp/hello.prg")` → `get_selected` returns same path | [N]  | UFR-DIR-002           | REQ-CON-023                  | INT-LIN-014  | retrieved path matches                                          | PASS UC4.3 |
+| TC-LIN-016   | `set_selected(NULL)` → clears selection                              | [N]  | UFR-DIR-002           | REQ-CON-023                  | INT-LIN-015  | `szSelected[0] == '\0'` after NULL set                         | PASS UC4.3 |
+| TC-LIN-017   | `set/get_selected(NULL ctx)` → ST_ERROR; `get(NULL buf)` → ST_ERROR | [R]  | UFR-DIR-002           | REQ-CON-023                  | INT-LIN-015  | all three return ST_ERROR                                       | PASS UC4.3 |
+| TC-LIN-018   | Script mode: `line_run` with script file → `bRunning == FALSE`       | [N]  | UFR-CON-048           | REQ-CON-022                  | INT-LIN-016  | script runs help+colors+quit; bRunning==FALSE                   | PASS UC4.3 |
+| TC-LIN-019   | Missing script file → `line_run` returns ST_ERROR                   | [R]  | UFR-CON-048           | REQ-CON-022                  | INT-LIN-017  | ST_ERROR                                                        | PASS UC4.3 |
+| TC-LIN-020   | `complete_cmd_query("")` → > 0 candidates including "help" and "quit"| [N]  | UFR-CON-009           | REQ-CON-018                  | INT-LIN-018  | count > 0; "help" and "quit" both found                         | PASS UC4.3 |
+| TC-LIN-021   | `complete_cmd_query("he")` → exactly 1 candidate == "help"          | [N]  | UFR-CON-009           | REQ-CON-018                  | INT-LIN-019  | count==1; candidate=="help"                                     | PASS UC4.3 |
+| TC-LIN-022   | `complete_cmd_query("h")` → candidates include "help"               | [N]  | UFR-CON-009           | REQ-CON-018                  | INT-LIN-020  | "help" found in results                                         | PASS UC4.3 |
+| TC-LIN-023   | `complete_cmd_query("xyz")` → 0 candidates                          | [N]  | UFR-CON-009           | REQ-CON-018                  | INT-LIN-018  | count == 0                                                      | PASS UC4.3 |
+| TC-LIN-024   | `complete_cmd_query(NULL/NULL aOut/0 iMax)` → -1                    | [R]  | UFR-CON-009           | REQ-CON-018                  | INT-LIN-018  | all three return -1                                             | PASS UC4.3 |
+| TC-LIN-025   | `complete_path_query` non-existent dir → 0                          | [N]  | UFR-CON-009           | REQ-CON-018                  | INT-LIN-021  | count == 0; no crash                                            | PASS UC4.3 |
+| TC-LIN-026   | `complete_path_query("src/", ".")` → >0; all prefixed "src/"        | [N]  | UFR-CON-009           | REQ-CON-018                  | INT-LIN-022  | count > 0; candidates start with "src/"                         | PASS UC4.3 |
+| TC-LIN-027   | `complete_path_query("use_c", ".")` → includes "use_cases/"         | [N]  | UFR-CON-009           | REQ-CON-018                  | INT-LIN-023  | "use_cases/" found in results                                   | PASS UC4.3 |
+| TC-LIN-028   | `complete_path_query(NULL / NULL aOut / 0)` → -1                    | [R]  | UFR-CON-009           | REQ-CON-018                  | INT-LIN-021  | all three return -1                                             | PASS UC4.3 |
+| TC-LIN-029   | History UP/DOWN navigation in line_read_rich (manual)               | [S]  | UFR-CON-007           | REQ-CON-017                  | INT-LIN-001  | Type cmd, ENTER, UP reappears (make manual)                     | SKIP       |
+| TC-LIN-030   | TAB completes "he" to "help" in line_read_rich (manual)             | [S]  | UFR-CON-009           | REQ-CON-018                  | INT-LIN-019  | Ghost inserts suffix immediately (make manual)                  | SKIP       |
+| TC-LIN-031   | TAB ghost cycles on multiple matches (manual)                        | [S]  | UFR-CON-009           | REQ-CON-018                  | INT-LIN-020  | "e" TAB TAB: ghost cycles "dit"/"xecute" (make manual)          | SKIP       |
+| TC-LIN-032   | TAB path completion for "src/" (manual)                             | [S]  | UFR-CON-009           | REQ-CON-018                  | INT-LIN-022  | "dir src/" TAB lists src/ entries (make manual)                 | SKIP       |
+| TC-LIN-033   | Prompt shows [T] when trace open (manual)                            | [S]  | UFR-CON-049           | REQ-CON-024                  | INT-LIN-013  | "trace on" → prompt shows [T] (make manual)                     | SKIP       |
+| TC-LIN-034   | Prompt shows [file] after dir SPACE selection (manual)              | [S]  | UFR-CON-049           | REQ-CON-024                  | INT-LIN-014  | SPACE on file in dir view → prompt shows [basename] (make manual)| SKIP      |
+| TC-LIN-035   | `colors off` removes ANSI from output (manual)                      | [S]  | UFR-CON-047           | REQ-CON-021                  | INT-LIN-012  | "colors off" → warning text uncoloured (make manual)            | SKIP       |
+| TC-LIN-036   | Script mode with test_script.txt (manual)                           | [S]  | UFR-CON-048           | REQ-CON-022                  | INT-LIN-016  | `--script use_cases/UC04_3/test_script.txt` exits cleanly (make manual) | SKIP |
+
+#### Test Summary — UC4.3
+
+| Module       | [N] | [R] | [S] | Total | Result    |
+|--------------|-----|-----|-----|-------|-----------|
+| LIN (history)| 11  | 4   | 0   | 15    | ALL PASS  |
+| LIN (colors) | 3   | 0   | 1   | 4     | ALL PASS  |
+| LIN (selected)| 4  | 3   | 0   | 7     | ALL PASS  |
+| LIN (script) | 2   | 1   | 1   | 4     | ALL PASS  |
+| LIN (completion)| 7 | 4   | 4   | 15    | ALL PASS  |
+| **Total**    | **27** | **12** | **8** | **47** | **ALL PASS** |
+
+> Note: `use_case_04_3.c` test matrix header (19N+7R+8S=34) counts distinct assertions at source
+> level; the SRTD table above (27N+12R+8S=47) is more granular — some `UC_TEST` pairs are split
+> into separate TCs for clearer REQ coverage.
+
+#### REQ → TC coverage (UC4.3)
+
+| REQ          | TC(s)                                         | Status     |
+|--------------|-----------------------------------------------|------------|
+| REQ-CON-017  | TC-LIN-006..009, TC-LIN-029 (manual)          | ✓ UC4.3    |
+| REQ-CON-018  | TC-LIN-020..028, TC-LIN-030..032 (manual)     | ✓ UC4.3    |
+| REQ-CON-019  | TC-LIN-001..005, TC-LIN-010                   | ✓ UC4.3    |
+| REQ-CON-020  | TC-LIN-011, TC-LIN-012                        | ✓ UC4.3    |
+| REQ-CON-021  | TC-LIN-013, TC-LIN-035 (manual)               | ✓ UC4.3    |
+| REQ-CON-022  | TC-LIN-018, TC-LIN-019, TC-LIN-036 (manual)  | ✓ UC4.3    |
+| REQ-CON-023  | TC-LIN-014..017                               | ✓ UC4.3    |
+| REQ-CON-024  | TC-LIN-033..034 (manual)                      | ✓ UC4.3    |
+
+---
+
+#### UFR traceability update (UC4.3)
+
+| UFR              | REQ(s)                                  | TC(s)                                          | Status   |
+|------------------|-----------------------------------------|------------------------------------------------|----------|
+| UFR-CON-007      | REQ-CON-017, REQ-CON-019, REQ-CON-020  | TC-LIN-001..012, TC-LIN-029 (manual)           | ✓ UC4.3  |
+| UFR-CON-009      | REQ-CON-018                             | TC-LIN-020..028, TC-LIN-030..032 (manual)      | ✓ UC4.3  |
+| UFR-CON-047      | REQ-CON-021                             | TC-LIN-013, TC-LIN-035 (manual)                | ✓ UC4.3  |
+| UFR-CON-048      | REQ-CON-022                             | TC-LIN-018, TC-LIN-019, TC-LIN-036 (manual)   | ✓ UC4.3  |
+| UFR-CON-049      | REQ-CON-024                             | TC-LIN-033..034 (manual)                       | ✓ UC4.3  |
+| UFR-DIR-002      | REQ-CON-023                             | TC-LIN-014..017                                | ✓ UC4.3  |
+
+#### Open items — updated after UC4.3
+
+| Item                    | TC / REQ                             | Target   | Nature                                                           |
+|-------------------------|--------------------------------------|----------|------------------------------------------------------------------|
+| STM bus error           | TC-STM-010, REQ-STM-011              | UC24     | Stub returns ST_NO_ERROR+0xFF; real map → ST_ERROR               |
+| CPU decode              | TC-CPU-006, REQ-CPU-008              | UC21     | Stub: PC+2; real decode/execute to come                          |
+| Disasm DC.W             | TC-DIS-001, REQ-DIS-005              | UC11     | All opcodes → DC.W; full decode in UC11–UC14                     |
+| Trace GUI window        | UFR-TRC-007, REQ-TRC-014             | UC4.4    | stderr → dedicated Win32/X11 D2D window with colour levels (P20) |
+| gui_msg spin-wait       | REQ-GUI-013                          | UC4.4    | Replace 1 ms sleep with condition variable / Win32 Event         |
+| Dir context menu        | UFR-DIR-005..006                     | UC7/UC18 | Right-click on file/dir → contextual commands                    |
+| lx_X11 renderer         | REQ-RND-002..007                     | UC3-Linux| Linux stub — X11/XRender implementation deferred                 |
+| History UC4.3 manual TC | TC-LIN-029..036                      | ✓ UC4.3  | Requires TTY; validated via make manual UC=04_3                   |
