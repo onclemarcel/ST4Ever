@@ -2,22 +2,22 @@
  * use_case_04_4.c - UC4.4: GUI trace window (D2D append-only scroll view).
  *
  * TEST MATRIX - UC4.4:
- *   [N] Nominal    :  4 tests - trace_init/open/close lifecycle,
- *                               view state after open, window title,
- *                               shutdown while open
+ *   [N] Nominal    :  8 tests - gui_init; trace_init/open/close lifecycle;
+ *                               is_open state; log entries while open;
+ *                               shutdown while open; reinit after shutdown
  *   [R] Robustness :  2 tests - double open (idempotent), double close
  *   [S] Skipped    :  8 tests - run make manual UC=04_4
  *                               (window visible, log lines appear,
- *                                scroll wheel / PgUp/PgDn / Home/End,
- *                                auto-scroll on new lines,
- *                                ESC closes window,
  *                                colors per log level,
- *                                stderr still receives output,
+ *                                auto-scroll on new lines,
+ *                                scroll wheel / PgUp/PgDn / Home/End,
+ *                                ESC closes window,
+ *                                terminal free of log output when window open,
  *                                window closes on trace_close)
  *
  * Traceability:
- *   INT-TRC-020..030 → TC-TRC-017..028 → REQ-TRC-017..022
- *   UFR-CON-004 (trace open/close), UFR-CON-031 (trace off filter)
+ *   INT-TRC-020..026 → TC-TRC-018..026 → REQ-TRC-017..022
+ *   UFR-TRC-007 (trace GUI window), UFR-CON-030..032 (trace commands)
  *
  * NOTE: This UC is heavily GUI-driven.  The automated tests only cover
  * the headless-safe portions (init/open/close state, no window creation).
@@ -59,8 +59,9 @@ int main(void)
             iState == (int)ST_FALSE);
 
     /*
-     * INTENT[INT-TRC-022 → TC-TRC-019 → REQ-TRC-003 → UFR-CON-004]:
-     * trace_open() opens the GUI window; trace_is_open() returns ST_TRUE.
+     * INTENT[INT-TRC-022 → TC-TRC-020 → REQ-TRC-017 → UFR-TRC-007]:
+     * trace_open() opens the D2D GUI window; trace_is_open() returns ST_TRUE.
+     * The window shall not steal keyboard focus from the console.
      */
     printf("--- trace_open opens GUI window ---\n");
     UC_CHECK("[N] trace_open() succeeds", trace_open());
@@ -73,11 +74,12 @@ int main(void)
     platform_sleep_ms(200);
 
     /*
-     * INTENT[INT-TRC-023 → TC-TRC-020 → REQ-TRC-017 → UFR-CON-004]:
-     * Log entries emitted while the window is open must not crash and
-     * must reach the GUI view.  Only the headless-verifiable side-effects
-     * (no crash, is_open still true) are checked here; visual validation
-     * is in the [S] tests.
+     * INTENT[INT-TRC-023 → TC-TRC-021 → REQ-TRC-018,REQ-TRC-019 → UFR-TRC-007]:
+     * Log entries emitted while the window is open must not crash and must
+     * reach the GUI ring buffer.  The headless-verifiable side-effect is that
+     * is_open() remains TRUE; visual ring-buffer content is in the [S] tests.
+     * ADAPTED UC4.4: trace_log() no longer writes to stderr when bOpen==TRUE
+     * and the GUI view is live (terminal stays clean).
      */
     printf("--- log entries while window open ---\n");
     LOG_INFO("UC4.4 test: LOG_INFO entry");
@@ -92,9 +94,10 @@ int main(void)
             iState == (int)ST_TRUE);
 
     /*
-     * INTENT[INT-TRC-024 → TC-TRC-021 → REQ-TRC-004 → UFR-CON-004]:
+     * INTENT[INT-TRC-024 → TC-TRC-022 → REQ-TRC-017 → UFR-TRC-007]:
      * Double trace_open() is idempotent: a second call while already
-     * open must return ST_NO_ERROR and leave the window open.
+     * open must return ST_NO_ERROR and leave the window open without
+     * creating a second window.
      */
     printf("--- double open (robustness) ---\n");
     UC_CHECK("[R] second trace_open() idempotent (ST_NO_ERROR)",
@@ -105,9 +108,9 @@ int main(void)
             iState == (int)ST_TRUE);
 
     /*
-     * INTENT[INT-TRC-025 → TC-TRC-022 → REQ-TRC-004 → UFR-CON-004]:
-     * trace_close() closes the GUI window; trace_is_open() returns
-     * ST_FALSE.  A second trace_close() must also return ST_NO_ERROR.
+     * INTENT[INT-TRC-025 → TC-TRC-023,TC-TRC-024 → REQ-TRC-006,REQ-TRC-007]:
+     * trace_close() closes the GUI window; trace_is_open() returns ST_FALSE.
+     * A second trace_close() must also return ST_NO_ERROR (idempotent).
      */
     printf("--- trace_close / double close ---\n");
     UC_CHECK("[N] trace_close() succeeds", trace_close());
@@ -120,9 +123,10 @@ int main(void)
              trace_close());
 
     /*
-     * INTENT[INT-TRC-026 → TC-TRC-023 → REQ-TRC-001 → UFR-CON-004]:
-     * trace_shutdown() closes the log file and resets state cleanly.
-     * Re-calling trace_init() after shutdown must succeed.
+     * INTENT[INT-TRC-026 → TC-TRC-025,TC-TRC-026 → REQ-TRC-012 → UFR-TRC-004]:
+     * trace_shutdown() closes the log file, joins the GUI thread if open,
+     * and resets state cleanly.  Calling trace_shutdown() while the window
+     * is open must close it without requiring an explicit trace_close().
      */
     printf("--- shutdown / reinit ---\n");
     UC_CHECK("[N] trace_shutdown() succeeds", trace_shutdown());
@@ -190,8 +194,10 @@ int main(void)
     TEST_MANUAL("[S] Home/End keys",
                 "Does Home go to oldest line, End back to newest?");
 
-    TEST_MANUAL("[S] stderr still receives output",
-                "Are log lines visible in the terminal alongside the window?");
+    /* ADAPTED UC4.4: trace_log() suppresses stderr when GUI view is live.
+     * Terminal must be CLEAN (no log output) while the window is open. */
+    TEST_MANUAL("[S] Terminal clean — stderr suppressed when window open",
+                "Is the terminal free of log lines while the trace window is open?");
 
     TEST_MANUAL("[S] ESC closes trace window",
                 "Does pressing ESC inside the trace window close it?");

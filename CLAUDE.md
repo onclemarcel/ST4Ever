@@ -14,7 +14,7 @@
 - 2026-06-01: fix dir.c 4 warnings `-Wformat-truncation` (szPat+3, iPathLen check, szLine+320)
 - 2026-06-01: fix focus-retour — `hPrevFgWnd` dans `win_wnd_state_t`, restauration dans `WM_DESTROY` (focus revient au terminal source à la fermeture des vues GUI)
 - 2026-06-01: UC4.3 validé — historique ↑↓ circulaire + ~/.st4ever_history + TAB completion (commandes/chemins) + ghost text DIM + prompt contextuel [T][file] + colors on/off (c_*() runtime) + --script batch + mutex ptSelectedMutex + line_set/get_selected() + CON_KEY_TAB
-- 2026-06-01: UC4.4 codé — fenêtre GUI_WND_TRACE D2D (trace_view_t ring buffer + mutex + auto-scroll) ; trace_log() append → gui_invalidate() avec garde réentrante ; suppression TODO(UC3)/TODO(UC3.3) ; ST_APP_VERSION 0.4.4
+- 2026-06-01: UC4.4 validé — fenêtre GUI_WND_TRACE D2D (trace_view_t ring buffer + mutex + auto-scroll) ; trace_log() append → gui_invalidate() avec garde réentrante ; suppression TODO(UC3)/TODO(UC3.3) ; ST_APP_VERSION 0.4.4
 - 2026-06-01: P26 appliqué — `trace` (toggle-open) active LOG_TRACE off par défaut ; `trace on` obligatoire pour activer LOG_TRACE ; `trace off` inchangé
 - 2026-06-01: fix focus — fenêtre trace n'accroche plus le focus (read-only) ; `win_gui.c` : bloc P16 conditionné à `eType != GUI_WND_TRACE`
 - 2026-06-01: fix stderr — `trace_log()` et `trace_flush_compact()` ne passent plus par stderr ; terminal propre dès que `bOpen=TRUE` ; diagnostic via `st4ever_trace.log` ; `trace_level_ansi()` + macros ANSI supprimées (dead code)
@@ -541,8 +541,8 @@ Les étapes de développement fonctionnelles sont formalisées en Use Cases, per
 | UC4.1 | UX dir + make manual | `gui_request_close()` non-bloquant + ESC/←/→/ESPACE séparés de ENTER + filtre `.*` + `dir -a` + focus auto + `TEST_MANUAL` + `make manual` | ✓ VALIDÉ 2026-05-31 |
 | UC4.2 | raw input | `console.h` (CON_KEY_*) + pipe/VT100 mintty (R21) + Win32 cmd.exe + `line_read_rich()` : insert/←/→/Home/End/Del/Backspace, CTRL shortcuts, ESC + `make manual UC=XX` | ✓ VALIDÉ 2026-06-01 |
 | UC4.3 | complétion + historique + extras | Historique ↑↓ circulaire + `~/.st4ever_history` + tab-completion commandes/chemins + ghost-text DIM + prompt contextuel `[T][file]` + `colors on/off` + `--script file` + mutex `ptSelectedMutex` + `line_set/get_selected()` | ✓ VALIDÉ 2026-06-01 |
-| UC4.4 | trace view GUI | Fenêtre `GUI_WND_TRACE` D2D : scroll texte append-only, couleurs par niveau ; `trace.c` ring buffer + mutex + garde réentrante ; suppression TODO(UC3)/TODO(UC3.3) | ⚙ EN COURS 2026-06-01 |
-| UC5 | `where`, `info`, `history` | Répertoire courant + état sélection (where) ; dashboard global état application : cwd, fichier sélectionné, trace, disque monté, binaire chargé (info) ; **P8** : `SetConsoleTitleA` statut automatique ; **P21** : touche `H` toggle hidden dans vue dir ; **P22** : F5 refresh vue dir ; **P23bis** : TAB préfixe commun avant cycle ghost ; **P24** : `colors auto` via `isatty()` au démarrage ; **P25** : commande `history [N]` | affichage path + dashboard + titre console |
+| UC4.4 | trace view GUI | Fenêtre `GUI_WND_TRACE` D2D : scroll texte append-only, couleurs par niveau ; `trace.c` ring buffer + mutex + garde réentrante ; suppression TODO(UC3)/TODO(UC3.3) | ✓ VALIDÉ 2026-06-01 |
+| UC5 | `where`, `info`, `history` | Répertoire courant + état sélection (where) ; dashboard global état application : cwd, fichier sélectionné, trace, disque monté, binaire chargé (info) ; **P8** : `SetConsoleTitleA` statut automatique ; **P21** : touche `H` toggle hidden dans vue dir ; **P22** : F5 refresh vue dir ; **P23bis** : TAB préfixe commun avant cycle ghost ; **P24** : `colors auto` via `isatty()` au démarrage ; **P25** : commande `history [N]` ; **P27** : `trace clear` ; **P28** : `trace level trace\|info\|error` filtre vue | affichage path + dashboard + titre console |
 | UC5-bis | prefs | Module `prefs.c` : lecture/écriture `%APPDATA%\ST4Ever\prefs.ini` ; mémorisation position/taille fenêtres par type (P7) — **optionnel**, après UC5 | save/restore position fenêtre dir |
 | UC6 | plateforme | Abstraction fichiers : open/read/write/stat/mkdir, listing répertoire | tests lecture/écriture |
 | UC7 | `load` | Chargement fichier texte/binaire, détection type, buffer mémoire ; indicateur visuel sélection active dans vue `dir` (P11 : couleur secondaire sur ligne sélectionnée, ≠ highlight navigation) | load .txt, .bin, .PRG stub |
@@ -1039,7 +1039,7 @@ Les étapes de développement fonctionnelles sont formalisées en Use Cases, per
 - UC5 : P21 (touche `H` toggle hidden dans vue dir) et P22 (F5 refresh) touchent `dir_handle_key()` — même scope que UC5 `where`/`info`.
 - UC18 : P10 (historique navigation dir ALT+←/→) + P14 (sélection multiple CTRL+ESPACE) toujours en attente de `mount` context.
 
-### 6.9 Use Case 04.4 (UC4.4) — ⚙ EN COURS (2026-06-01)
+### 6.9 Use Case 04.4 (UC4.4) — ✓ VALIDÉ (2026-06-01)
 
 **Périmètre fonctionnel implémenté :**
 - `trace_view_t` (interne `trace.c`) : ring buffer 200 lignes × `(ST_MAX_MSG + 64)` octets heap, mutex `ptMutex`, auto-scroll `bAutoScroll`.
@@ -1242,6 +1242,18 @@ Sans arg : 10 dernières numérotées. Avec arg N : N dernières. Nouvelle `line
 **P26 — `trace` (toggle-open) : LOG_TRACE off par défaut** → **ACCEPTÉ — APPLIQUÉ UC4.4**
 
 Avis Claude : ACCEPTÉ — sans ce filtre, chaque `platform_mutex_lock/unlock` dans la boucle de rendu génère une rafale de LOG_TRACE à chaque repaint (vu lors de UC4.4 comme cause du stack overflow). L'utilisateur doit utiliser `trace on` explicitement pour activer LOG_TRACE. Sémantique résultante : `trace` = "ouvre la console pour voir INFO/ERROR/TODO" ; `trace on` = "débogage détaillé avec TRACE". `trace off` inchangé (P19).
+
+---
+
+### Arbitrage UC4.4 (2026-06-01)
+
+**P27 — `trace clear` : vider le ring buffer GUI** → **ACCEPTÉ — UC5**
+
+Avis Claude : ACCEPTÉ, faible coût. Sous-commande `trace clear` : efface le ring buffer `aszLines[]`, remet `iHead/iCount/iScrollOff` à zéro, `gui_invalidate()`. Même scope que `line_cmd_trace()` et `trace_view_t`. UC5 est le bon endroit puisque c'est le dernier UC console/trace.
+
+**P28 — Filtre de niveau minimal dans la vue trace (indépendant du filtre fichier)** → **ACCEPTÉ — UC5**
+
+Avis Claude : ACCEPTÉ — la valeur est réelle : `trace level info` cache les lignes TRACE dans la fenêtre GUI sans les supprimer du fichier log (utile pour voir INFO/ERROR en live sans bruit TRACE). Coût moyen : champ `eMinLevel` dans `trace_view_t` + filtre dans `trace_render()` + cas dans `line_cmd_trace()` (`trace level trace|info|error`). Cohérent avec P26 (TRACE off par défaut). Planifié UC5 pour rester groupé avec les autres améliorations trace/console.
 
 ## 8. Licence & attribution
 Pas de redistribution prévue à ce jour

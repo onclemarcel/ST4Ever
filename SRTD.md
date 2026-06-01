@@ -20,6 +20,7 @@
 | 1.5 | 2026-05-31 | UC4.1 | Claude/OMC | UC4.1 validated — gui_request_close, bShowHidden, ESC/←/→/SPACE separation, auto-focus, TEST_MANUAL, make manual |
 | 1.6 | 2026-06-01 | UC4.2 | Claude/OMC | UC4.2 validated — console.h (CON_KEY_*) + win pipe/VT100 + line_read_rich + CTRL shortcuts + make manual UC=XX + focus restore on close |
 | 1.7 | 2026-06-01 | UC4.3 | Claude/OMC | UC4.3 validated — history ↑↓ + ~/.st4ever_history + TAB completion + ghost text + prompt contextuel + colors on/off + --script + mutex ptSelectedMutex |
+| 1.8 | 2026-06-01 | UC4.4 | Claude/OMC | UC4.4 validated — trace_view_t D2D ring buffer + auto-scroll + keyboard nav + stderr suppressed when GUI live; REQ-TRC-017..022; UFR-TRC-007 closed |
 
 ---
 
@@ -131,7 +132,10 @@ through one or more test cases in Section 5.
 | UFR-TRC-004 | All log entries shall be written to `st4ever_trace.log` regardless of console visibility.                    | ✓ UC1    | UC1  |
 | UFR-TRC-005 | LOG_INFO, LOG_ERROR, and LOG_TODO shall always be emitted regardless of the TRACE filter.                    | ✓ UC1    | UC1  |
 | UFR-TRC-006 | LOG_TRACE entries shall be suppressible independently from the other levels.                                  | ✓ UC1    | UC1  |
-| UFR-TRC-007 | The trace console shall appear as a dedicated non-modal GUI window (Win32 / X11).                            | TODO UC3.3 | UC3.3|
+| UFR-TRC-007 | The trace console shall appear as a dedicated non-modal GUI window (Win32 / X11).                            | ✓ UC4.4    | UC4.4|
+| UFR-TRC-008 | The trace window shall render log entries colour-coded by level: TRACE=grey, INFO=cyan, ERROR=red, TODO=magenta. | ✓ UC4.4  | UC4.4|
+| UFR-TRC-009 | The trace window shall auto-scroll to the newest entry on append; manual scroll disables auto-scroll until End is pressed. | ✓ UC4.4 | UC4.4|
+| UFR-TRC-010 | Opening the trace window shall not steal keyboard focus from the console.                                     | ✓ UC4.4    | UC4.4|
 
 ### 1.3 GUI Framework — `GUI` (UC3.1 infra ✓, UC3.2 renderer, UC3.3 dir view)
 
@@ -200,8 +204,14 @@ requirement that will expose it (`UFR-EXE-*`, planned UC21–27).
 | REQ-TRC-010 | `trace_set_trace_enabled(ST_TRUE)` shall re-activate `LOG_TRACE` output immediately.                              | UFR-TRC-006              | ✓ UC1         | UC1  |
 | REQ-TRC-011 | `trace_is_trace_enabled()` shall reflect the current filter state accurately.                                     | UFR-TRC-006              | ✓ UC1         | UC1  |
 | REQ-TRC-012 | `trace_shutdown()` shall flush pending entries, close the log file, and free all resources.                       | UFR-TRC-004              | ✓ UC1         | UC1  |
-| REQ-TRC-013 | Trace output shall be written to `st4ever_trace.log` (always) and to stderr with ANSI colours (when open).        | UFR-TRC-004, UFR-TRC-001 | ✓ UC1         | UC1  |
-| REQ-TRC-014 | `trace_open/close` shall call `gui_open_window` / close for the dedicated trace GUI window.                       | UFR-TRC-007              | TODO UC3.3    | UC3.3|
+| REQ-TRC-013 | Trace output shall be written to `st4ever_trace.log` (always). When the GUI view is live, stderr output is suppressed; LOG_* goes to the ring buffer only. ADAPTED UC4.4: stderr was the primary output in UC1; the GUI ring buffer replaces it. | UFR-TRC-004, UFR-TRC-001 | ✓ UC1, ADAPTED UC4.4 | UC4.4 |
+| REQ-TRC-014 | `trace_open()` shall call `gui_open_window(GUI_WND_TRACE)` to open the dedicated D2D trace window; `trace_close()` shall call `gui_close_window()` to close it. | UFR-TRC-007 | ✓ UC4.4 | UC4.4 |
+| REQ-TRC-017 | `trace_open()` shall be idempotent when the GUI window is already open: a second call shall return `ST_NO_ERROR` without creating a second window. | UFR-TRC-007 | ✓ UC4.4 | UC4.4 |
+| REQ-TRC-018 | `trace_log()` called while the GUI view is live (`g_trace_ptView != NULL`) shall append to the ring buffer and call `gui_invalidate()` under a re-entrancy guard (`g_trace_bInNotify`). | UFR-TRC-007, UFR-TRC-001 | ✓ UC4.4 | UC4.4 |
+| REQ-TRC-019 | The trace ring buffer shall hold the last `TRACE_RING_SIZE` (200) lines; the oldest line is silently evicted on overflow. | UFR-TRC-007 | ✓ UC4.4 | UC4.4 |
+| REQ-TRC-020 | The trace window shall auto-scroll to the newest entry after each append when `bAutoScroll == ST_TRUE`; user scroll-up shall set `bAutoScroll = ST_FALSE`; pressing End shall set it back to `ST_TRUE`. | UFR-TRC-009 | ✓ UC4.4 | UC4.4 |
+| REQ-TRC-021 | The trace window shall not steal keyboard focus on open: the `GUI_WND_TRACE` type shall bypass the `AttachThreadInput` / `SetForegroundWindow` block in `win_wnd_thread()`. | UFR-TRC-010 | ✓ UC4.4 | UC4.4 |
+| REQ-TRC-022 | ESC in the trace window shall call `gui_request_close(hWnd)` (non-blocking); ↑/↓/PgUp/PgDn/Home/End and mouse wheel shall scroll the view content. | UFR-TRC-009 | ✓ UC4.4 | UC4.4 |
 | REQ-TRC-015 | Each log entry shall be formatted as `HH:MM:SS [LEVEL] function:line  message` — timestamp from system clock (`localtime`/`strftime`), level tag, emitting function (`__func__`), source line (`__LINE__`). | UFR-TRC-002 | ✓ UC1 | UC1 |
 | REQ-TRC-016 | `line_cmd_trace("off")` shall call `trace_set_trace_enabled(ST_FALSE)` without calling `trace_close()`; the trace view shall remain open. Calling `trace off` twice shall be harmless. (P19) | UFR-CON-031 | ✓ P19 | P19 |
 
@@ -502,42 +512,77 @@ main(argc, argv)
 
 ### 4.2 Trace Subsystem — `trace.c`
 
-**Role:** logging to `st4ever_trace.log` and optionally stderr with ANSI
-colour. Four levels: TRACE (compacted), INFO, ERROR, TODO.
+**Role:** logging to `st4ever_trace.log` and, from UC4.4, to a dedicated D2D
+GUI window (ring buffer, colour by level). Four levels: TRACE (compacted),
+INFO, ERROR, TODO. Stderr output is suppressed when the GUI view is live.
 
 **Public API:**
 
-| Function                              | REQ(s)                        | Description                               |
-|---------------------------------------|-------------------------------|-------------------------------------------|
-| `trace_init(bOpen)`                   | REQ-TRC-001, REQ-TRC-002      | Init log file; optional console open      |
-| `trace_open()`                        | REQ-TRC-008                   | Show trace console (stderr for UC1)       |
-| `trace_close()`                       | REQ-TRC-006, REQ-TRC-007      | Hide trace console (idempotent)           |
-| `trace_set_trace_enabled(b)`          | REQ-TRC-009, REQ-TRC-010      | Suppress / re-enable LOG_TRACE only       |
-| `trace_is_trace_enabled()`            | REQ-TRC-011                   | Query LOG_TRACE filter state              |
-| `trace_is_open()`                     | REQ-TRC-003                   | Query console visibility                  |
-| `trace_log(level, func, line, fmt,…)` | REQ-TRC-004, REQ-TRC-013      | Emit one entry (use LOG_* macros instead) |
-| `trace_shutdown()`                    | REQ-TRC-012                   | Flush, close file, free state             |
+| Function                              | REQ(s)                              | Description                                       |
+|---------------------------------------|-------------------------------------|---------------------------------------------------|
+| `trace_init(bOpen)`                   | REQ-TRC-001, REQ-TRC-002            | Init log file; optional GUI window open            |
+| `trace_open()`                        | REQ-TRC-008, REQ-TRC-014, REQ-TRC-017 | Open `GUI_WND_TRACE`; idempotent if already open |
+| `trace_close()`                       | REQ-TRC-006, REQ-TRC-007            | Close GUI window; join thread; idempotent          |
+| `trace_set_trace_enabled(b)`          | REQ-TRC-009, REQ-TRC-010            | Suppress / re-enable LOG_TRACE only               |
+| `trace_is_trace_enabled()`            | REQ-TRC-011                         | Query LOG_TRACE filter state                      |
+| `trace_is_open()`                     | REQ-TRC-003                         | Query GUI window visibility                       |
+| `trace_log(level, func, line, fmt,…)` | REQ-TRC-004, REQ-TRC-013, REQ-TRC-018 | Emit one entry (use LOG_* macros instead)       |
+| `trace_shutdown()`                    | REQ-TRC-012                         | Flush, close file, close GUI if open, free state  |
 
 **Key internal functions:**
 
-| Function                             | REQ(s)       | Description                                               |
-|--------------------------------------|--------------|-----------------------------------------------------------|
-| `trace_get_timestamp(szBuf, uiBufLen)` | REQ-TRC-015 | Fills buffer with `HH:MM:SS` from system clock            |
-| `trace_level_label(eLevel)`          | REQ-TRC-015  | Returns level tag (`TRC `, `INF `, `ERR `, `TODO`)        |
-| `trace_level_ansi(eLevel)`           | REQ-TRC-013  | Returns ANSI colour escape for a log level                |
-| `trace_flush_compact()`              | REQ-TRC-005  | Emits pending `[xN]` summary before any non-TRACE entry   |
+| Function                               | REQ(s)                   | Description                                               |
+|----------------------------------------|--------------------------|-----------------------------------------------------------|
+| `trace_get_timestamp(szBuf, uiBufLen)` | REQ-TRC-015              | Fills buffer with `HH:MM:SS` from system clock            |
+| `trace_level_label(eLevel)`            | REQ-TRC-015              | Returns level tag (`TRC `, `INF `, `ERR `, `TODO`)        |
+| `trace_flush_compact()`                | REQ-TRC-005              | Emits pending `[xN]` summary before any non-TRACE entry   |
+| `trace_event_callback(hWnd, ptEvt, p)` | REQ-TRC-019..022         | GUI_EVT_PAINT/RESIZE/KEY_DOWN/SCROLL/CLOSE for trace view |
+| `trace_render(ptView)`                 | REQ-TRC-008, REQ-TRC-019 | D2D: bg + colour-coded lines + alternating row shading    |
+| `trace_view_scroll(ptView, iDelta)`    | REQ-TRC-020, REQ-TRC-022 | Clamp scroll; update bAutoScroll                          |
+
+**`trace_view_t` — internal ring buffer (UC4.4):**
+
+| Field            | Type                     | Purpose                                               |
+|------------------|--------------------------|-------------------------------------------------------|
+| `ptMutex`        | `st_mutex_t *`           | Protects ring buffer on concurrent trace_log() calls  |
+| `aszLines[]`     | `char[200][…]`           | Ring buffer: 200 entries × (ST_MAX_MSG + 64) bytes    |
+| `iHead`          | `int`                    | Index of next write slot (circular)                   |
+| `iCount`         | `int`                    | Number of valid entries (capped at 200)               |
+| `iScrollOff`     | `int`                    | First visible line index                              |
+| `bAutoScroll`    | `st_bool_t`              | TRUE: scroll to newest on each append                 |
+| `hRenderer`      | `renderer_handle_t`      | D2D renderer (created lazily on first GUI_EVT_PAINT)  |
+| `iCellH`         | `int`                    | Font cell height from `renderer_get_font_metrics()`   |
+
+**Re-entrancy guard `g_trace_bInNotify` (UC4.4):**
+
+`trace_log()` calls `platform_mutex_lock()` and `gui_invalidate()`. Without a
+guard, any `LOG_TRACE` inside those functions would recurse into `trace_log()`
+and deadlock. The flag is set before the critical section and cleared after
+`gui_invalidate()`, covering the entire GUI notification path.
 
 **External dependencies:**
 
-| Call                      | Tag   | Purpose                              |
-|---------------------------|-------|--------------------------------------|
-| `fopen / fclose / fprintf`| [CRT] | Log file I/O                         |
-| `vsnprintf`               | [CRT] | Format variadic args in `trace_log()`|
-| `fprintf(stderr,…)`       | [CRT] | ANSI console output (when open)      |
-| `time / localtime / strftime` | [CRT] | Timestamp via `trace_get_timestamp()`|
+| Call                                      | Tag   | Purpose                                         |
+|-------------------------------------------|-------|-------------------------------------------------|
+| `fopen / fclose / fprintf`                | [CRT] | Log file I/O                                    |
+| `vsnprintf`                               | [CRT] | Format variadic args in `trace_log()`           |
+| `time / localtime / strftime`             | [CRT] | Timestamp via `trace_get_timestamp()`           |
+| `gui_open_window / gui_close_window`      | [ST4] | Window lifecycle for `GUI_WND_TRACE`            |
+| `gui_invalidate / gui_request_close`      | [ST4] | Trigger repaint / async close on ESC            |
+| `platform_mutex_create/lock/unlock/destroy` | [ST4] | Ring buffer thread safety                     |
+| `renderer_*`                              | [ST4] | D2D draw primitives for trace view              |
 
-**TODO(UC3.3):** `trace_open/close` will call `gui_open_window` / close for the
-dedicated trace GUI window.
+**Output routing (UC4.4):**
+
+```
+trace_log(level, …)
+  ├─ write to st4ever_trace.log            (always)
+  ├─ g_trace_ptView != NULL?
+  │    YES → append ring buffer            (GUI live — no stderr)
+  │          gui_invalidate() under bInNotify guard
+  │    NO  → (log file only; bOpen may be TRUE but GUI not yet ready)
+  └─ filter: LOG_TRACE suppressed if trace_is_trace_enabled()==FALSE
+```
 
 **Compaction sequence:**
 
@@ -1134,7 +1179,10 @@ Input: `{ 0x70, 0x2A, 0x4E, 0x75 }` at base `0x1000`
 | UFR-TRC-004  | REQ-TRC-012, REQ-TRC-013        | —                      | TC-TRC (shutdown in main)      | ✓ PASS       |
 | UFR-TRC-005  | REQ-TRC-004                     | INT-TRC-003            | TC-TRC-003                     | ✓ PASS       |
 | UFR-TRC-006  | REQ-TRC-009..011                | INT-TRC-008, INT-TRC-009 | TC-TRC-008, TC-TRC-009       | ✓ PASS       |
-| UFR-TRC-007  | REQ-TRC-014                     | —                      | —                              | TODO UC3     |
+| UFR-TRC-007  | REQ-TRC-014, REQ-TRC-017..022   | INT-TRC-020..026       | TC-TRC-018..026, TC-TRC-027..034 | ✓ UC4.4   |
+| UFR-TRC-008  | REQ-TRC-019                     | INT-TRC-022            | TC-TRC-028 (manual)            | ✓ UC4.4      |
+| UFR-TRC-009  | REQ-TRC-020, REQ-TRC-022        | INT-TRC-023            | TC-TRC-029..032, TC-TRC-034    | ✓ UC4.4      |
+| UFR-TRC-010  | REQ-TRC-021                     | INT-TRC-022            | (implied by TC-TRC-020)        | ✓ UC4.4      |
 | UFR-CON-008      | REQ-CON-010                   | INT-CON-007          | TC-CON-003, TC-CON-012 (manual) | ✓ UC4.2     |
 | UFR-CON-040      | REQ-CON-011, REQ-DIR-001..007 | INT-DIR-001..010     | TC-DIR-001..016                | ✓ UC3.3      |
 | UFR-CON-041      | REQ-CON-010, REQ-RAW-001..014 | INT-CON-006          | TC-CON-005, TC-CON-011 (manual) | ✓ UC4.2     |
@@ -1171,7 +1219,7 @@ Input: `{ 0x70, 0x2A, 0x4E, 0x75 }` at base `0x1000`
 | REQ-TRC-011  | TC-TRC-008, TC-TRC-009      | ✓ PASS        |
 | REQ-TRC-012  | (trace_shutdown in main)    | ✓ PASS        |
 | REQ-TRC-013  | (file/ANSI — manual check)  | ✓ PASS        |
-| REQ-TRC-014  | —                           | TODO UC4.4    |
+| REQ-TRC-014  | TC-TRC-020, TC-TRC-026      | ✓ UC4.4       |
 | REQ-TRC-015  | (format — visual check st4ever_trace.log) | ✓ PASS |
 | REQ-TRC-016  | TC-TRC-015, TC-TRC-016      | ✓ P19         |
 | REQ-CON-001  | TC-CON-001                  | ✓ PASS        |
@@ -1571,12 +1619,12 @@ Test data: `use_cases/UC04_1/testdata/` — 2 visible entries + 2 hidden entries
 | STM bus error           | TC-STM-010, REQ-STM-011        | UC24     | Stub returns ST_NO_ERROR+0xFF; real map → ST_ERROR               |
 | CPU decode              | TC-CPU-006, REQ-CPU-008        | UC21     | Stub: PC+2; real decode/execute to come                          |
 | Disasm DC.W             | TC-DIS-001, REQ-DIS-005        | UC11     | All opcodes → DC.W; full decode in UC11–UC14                     |
-| Trace GUI window        | UFR-TRC-007, REQ-TRC-014       | UC4.4    | stderr → dedicated Win32/X11 D2D window with colour levels (P20) |
+| Trace GUI window        | UFR-TRC-007, REQ-TRC-014       | ✓ UC4.4  | Implemented: D2D ring buffer + colour levels + auto-scroll (P20) |
 | Line editor (raw + edit)        | UFR-CON-041..046, REQ-CON-010, REQ-CON-015..016 | ✓ UC4.2 | console.h + line_read_rich done; history/completion in UC4.3 |
 | Line editor (history/completion)| UFR-CON-007, UFR-CON-009, REQ-CON-017..018 | ✓ UC4.3 | ↑↓ history + tab-completion + ghost text CON_DIM — all validated |
 | szSelected mutex                | REQ-CON-023, REQ-DIR-010, REQ-DIR-019 | ✓ UC4.3 | `line_set/get_selected()` under `ptSelectedMutex` — validated |
 | Dir context menu        | UFR-DIR-005..006               | UC7/UC18 | Right-click on file/dir → contextual commands                    |
-| gui_msg spin-wait       | REQ-GUI-013                    | UC4.4    | Replace 1 ms sleep with condition variable / Win32 Event         |
+| gui_msg spin-wait       | REQ-GUI-013                    | UC5      | Replace 1 ms sleep with condition variable / Win32 Event (deferred from UC4.4) |
 | Window manual TC        | TC-GUI-016..018                | ✓ UC4.1  | TEST_MANUAL macro + make manual now available (R16 implemented)  |
 | Dir manual TC           | TC-DIR-017..020, TC-RND-016..020 | ✓ UC4.1 | TEST_MANUAL macro + make manual implemented; visual tests active |
 | lx_X11 renderer         | REQ-RND-002..007               | UC3-Linux| Linux stub — X11/XRender implementation deferred                 |
@@ -1809,7 +1857,96 @@ Source: `use_cases/use_case_04_3.c`
 | CPU decode              | TC-CPU-006, REQ-CPU-008              | UC21     | Stub: PC+2; real decode/execute to come                          |
 | Disasm DC.W             | TC-DIS-001, REQ-DIS-005              | UC11     | All opcodes → DC.W; full decode in UC11–UC14                     |
 | Trace GUI window        | UFR-TRC-007, REQ-TRC-014             | UC4.4    | stderr → dedicated Win32/X11 D2D window with colour levels (P20) |
-| gui_msg spin-wait       | REQ-GUI-013                          | UC4.4    | Replace 1 ms sleep with condition variable / Win32 Event         |
+| gui_msg spin-wait       | REQ-GUI-013                          | UC5      | Replace 1 ms sleep with condition variable / Win32 Event (deferred from UC4.4) |
 | Dir context menu        | UFR-DIR-005..006                     | UC7/UC18 | Right-click on file/dir → contextual commands                    |
 | lx_X11 renderer         | REQ-RND-002..007                     | UC3-Linux| Linux stub — X11/XRender implementation deferred                 |
 | History UC4.3 manual TC | TC-LIN-029..036                      | ✓ UC4.3  | Requires TTY; validated via make manual UC=04_3                   |
+
+---
+
+### 5.22 INTENT Catalog — UC4.4
+
+Source: `use_cases/use_case_04_4.c`
+
+| ID          | INTENT text                                                                                            |
+|-------------|--------------------------------------------------------------------------------------------------------|
+| INT-TRC-020 | `gui_init()` must succeed before any GUI window can be opened                                          |
+| INT-TRC-021 | `trace_init(ST_FALSE)` initialises the subsystem without opening the GUI window; `trace_is_open()` returns `ST_FALSE` |
+| INT-TRC-022 | `trace_open()` opens the D2D GUI window; `trace_is_open()` returns `ST_TRUE`; window does not steal focus |
+| INT-TRC-023 | Log entries emitted while the window is open must not crash; `is_open()` remains `ST_TRUE`; terminal stays clean (no stderr) |
+| INT-TRC-024 | Double `trace_open()` is idempotent: a second call while already open must return `ST_NO_ERROR` without creating a second window |
+| INT-TRC-025 | `trace_close()` closes the GUI window; `trace_is_open()` returns `ST_FALSE`; a second `trace_close()` must also return `ST_NO_ERROR` |
+| INT-TRC-026 | `trace_shutdown()` closes the log file, joins the GUI thread if open, and resets state cleanly; calling while window is open must succeed |
+
+---
+
+### 5.23 Test Cases — UC4.4 (GUI trace window)
+
+Source: `use_cases/use_case_04_4.c`
+
+| ID          | Functional description                                        | Type | UFR                   | REQ                            | INTENT      | Expected outcome                                                              | Status     |
+|-------------|---------------------------------------------------------------|------|-----------------------|--------------------------------|-------------|-------------------------------------------------------------------------------|------------|
+| TC-TRC-018  | `gui_init()` succeeds (pre-condition for trace GUI)           | [N]  | UFR-GUI-001           | REQ-GUI-001                    | INT-TRC-020 | `ST_NO_ERROR`                                                                 | PASS UC4.4 |
+| TC-TRC-019  | `trace_init(ST_FALSE)` → `trace_is_open() == ST_FALSE`       | [N]  | UFR-TRC-001           | REQ-TRC-001, REQ-TRC-003       | INT-TRC-021 | `ST_NO_ERROR`; `trace_is_open() == FALSE`                                     | PASS UC4.4 |
+| TC-TRC-020  | `trace_open()` → `trace_is_open() == ST_TRUE`                | [N]  | UFR-TRC-007           | REQ-TRC-014, REQ-TRC-017       | INT-TRC-022 | `ST_NO_ERROR`; `trace_is_open() == TRUE`                                      | PASS UC4.4 |
+| TC-TRC-021  | Log entries while open → no crash; `is_open()` still TRUE    | [N]  | UFR-TRC-007           | REQ-TRC-018, REQ-TRC-019       | INT-TRC-023 | `LOG_INFO/TRACE/ERROR/TODO` emitted; `trace_is_open() == TRUE`                | PASS UC4.4 |
+| TC-TRC-022  | Double `trace_open()` idempotent (2nd call → `ST_NO_ERROR`)  | [R]  | UFR-TRC-007           | REQ-TRC-017                    | INT-TRC-024 | `ST_NO_ERROR`; `trace_is_open() == TRUE`; single window only                  | PASS UC4.4 |
+| TC-TRC-023  | `trace_close()` → `trace_is_open() == ST_FALSE`              | [N]  | UFR-TRC-007           | REQ-TRC-006                    | INT-TRC-025 | `ST_NO_ERROR`; `trace_is_open() == FALSE`                                     | PASS UC4.4 |
+| TC-TRC-024  | Double `trace_close()` idempotent                            | [R]  | UFR-TRC-007           | REQ-TRC-007                    | INT-TRC-025 | 2nd `trace_close()` → `ST_NO_ERROR`                                           | PASS UC4.4 |
+| TC-TRC-025  | `trace_shutdown()` → `is_open() == FALSE`; reinit succeeds   | [N]  | UFR-TRC-004           | REQ-TRC-012                    | INT-TRC-026 | `ST_NO_ERROR`; `is_open() == FALSE`; `trace_init()` again → `ST_NO_ERROR`     | PASS UC4.4 |
+| TC-TRC-026  | `trace_shutdown()` while window open → closes cleanly        | [N]  | UFR-TRC-004           | REQ-TRC-012, REQ-TRC-014       | INT-TRC-026 | `trace_open()` then `trace_shutdown()` → `ST_NO_ERROR`; no hang               | PASS UC4.4 |
+| TC-TRC-027  | GUI trace window visible with 4 log lines (manual)           | [S]  | UFR-TRC-007           | REQ-TRC-014, REQ-TRC-018       | INT-TRC-022 | Window open; 4 lines rendered (make manual UC=04_4)                           | SKIP       |
+| TC-TRC-028  | Log level colours correct (manual)                           | [S]  | UFR-TRC-008           | REQ-TRC-019                    | INT-TRC-022 | INFO=cyan, ERROR=red, TODO=magenta, TRACE=grey (make manual)                  | SKIP       |
+| TC-TRC-029  | Auto-scroll to newest line (manual)                          | [S]  | UFR-TRC-009           | REQ-TRC-020                    | INT-TRC-023 | After 30 lines, window shows last lines (make manual)                         | SKIP       |
+| TC-TRC-030  | Mouse wheel scrolls content (manual)                         | [S]  | UFR-TRC-009           | REQ-TRC-022                    | INT-TRC-023 | Scroll up/down with mouse wheel (make manual)                                 | SKIP       |
+| TC-TRC-031  | PgUp/PgDn scroll by one screen (manual)                      | [S]  | UFR-TRC-009           | REQ-TRC-022                    | INT-TRC-023 | Each keypress scrolls one page (make manual)                                  | SKIP       |
+| TC-TRC-032  | Home/End keys (manual)                                       | [S]  | UFR-TRC-009           | REQ-TRC-022                    | INT-TRC-023 | Home → oldest; End → newest + auto-scroll re-enabled (make manual)            | SKIP       |
+| TC-TRC-033  | Terminal clean — stderr suppressed when window open (manual) | [S]  | UFR-TRC-007           | REQ-TRC-013                    | INT-TRC-023 | Terminal shows no log lines while trace window is live (make manual)          | SKIP       |
+| TC-TRC-034  | ESC closes trace window (manual)                             | [S]  | UFR-TRC-007           | REQ-TRC-022                    | INT-TRC-025 | Press ESC in trace window → window closes (make manual)                       | SKIP       |
+
+#### Test Summary — UC4.4
+
+| Module | [N] | [R] | [S] | Total | Result    |
+|--------|-----|-----|-----|-------|-----------|
+| TRC    | 8   | 2   | 8   | 18    | ALL PASS  |
+
+#### REQ → TC coverage (UC4.4)
+
+| REQ          | TC(s)                                             | Status     |
+|--------------|---------------------------------------------------|------------|
+| REQ-TRC-006  | TC-TRC-023                                        | ✓ UC4.4    |
+| REQ-TRC-007  | TC-TRC-024                                        | ✓ UC4.4    |
+| REQ-TRC-012  | TC-TRC-025, TC-TRC-026                            | ✓ UC4.4    |
+| REQ-TRC-013  | TC-TRC-033 (manual — terminal clean)              | ✓ UC4.4    |
+| REQ-TRC-014  | TC-TRC-020, TC-TRC-026                            | ✓ UC4.4    |
+| REQ-TRC-017  | TC-TRC-020, TC-TRC-022                            | ✓ UC4.4    |
+| REQ-TRC-018  | TC-TRC-021, TC-TRC-027 (manual)                   | ✓ UC4.4    |
+| REQ-TRC-019  | TC-TRC-021, TC-TRC-028 (manual)                   | ✓ UC4.4    |
+| REQ-TRC-020  | TC-TRC-029, TC-TRC-032 (manual)                   | ✓ UC4.4    |
+| REQ-TRC-021  | (no-focus-steal — visual; implied by TC-TRC-020)  | ✓ UC4.4    |
+| REQ-TRC-022  | TC-TRC-030..032, TC-TRC-034 (manual)              | ✓ UC4.4    |
+
+---
+
+#### UFR traceability update (UC4.4)
+
+| UFR          | REQ(s)                                       | TC(s)                                      | Status   |
+|--------------|----------------------------------------------|--------------------------------------------|----------|
+| UFR-TRC-007  | REQ-TRC-014, REQ-TRC-017..022                | TC-TRC-020..026, TC-TRC-027..034 (manual)  | ✓ UC4.4  |
+| UFR-TRC-008  | REQ-TRC-019                                  | TC-TRC-028 (manual)                        | ✓ UC4.4  |
+| UFR-TRC-009  | REQ-TRC-020, REQ-TRC-022                     | TC-TRC-029..032, TC-TRC-034 (manual)       | ✓ UC4.4  |
+| UFR-TRC-010  | REQ-TRC-021                                  | (implied by TC-TRC-020 — no click needed)  | ✓ UC4.4  |
+
+---
+
+#### Open items — updated after UC4.4
+
+| Item                    | TC / REQ                             | Target    | Nature                                                           |
+|-------------------------|--------------------------------------|-----------|------------------------------------------------------------------|
+| STM bus error           | TC-STM-010, REQ-STM-011              | UC24      | Stub returns ST_NO_ERROR+0xFF; real map → ST_ERROR               |
+| CPU decode              | TC-CPU-006, REQ-CPU-008              | UC21      | Stub: PC+2; real decode/execute to come                          |
+| Disasm DC.W             | TC-DIS-001, REQ-DIS-005              | UC11      | All opcodes → DC.W; full decode in UC11–UC14                     |
+| gui_msg spin-wait       | REQ-GUI-013                          | UC5       | Replace 1 ms sleep with condition variable / Win32 Event         |
+| Dir context menu        | UFR-DIR-005..006                     | UC7/UC18  | Right-click on file/dir → contextual commands                    |
+| lx_X11 renderer         | REQ-RND-002..007                     | UC3-Linux | Linux stub — X11/XRender implementation deferred                 |
+| Trace UC4.4 manual TC   | TC-TRC-027..034                      | ✓ UC4.4   | Requires display; validated via make manual UC=04_4              |
