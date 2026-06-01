@@ -60,6 +60,7 @@ typedef struct
     int                 iCellW;
     int                 iCellH;
     st_mutex_t         *ptMutex;     /* protects aLines / iHead / iCount */
+    log_level_t         eViewMinLevel; /* P28: GUI display filter level  */
 } trace_view_t;
 
 /* D2D colour palette for the trace window */
@@ -86,6 +87,9 @@ static int         g_trace_iCompactCount                     = 0;
 /* GUI trace window state */
 static trace_view_t *g_trace_ptView       = NULL;
 static gui_window_t  g_trace_hWnd         = NULL;
+
+/* P28: persistent display filter — survives close/reopen cycles */
+static log_level_t   g_trace_eViewMinLevel = LOG_LEVEL_TRACE;
 
 /* Re-entrancy guard: prevents gui_invalidate → LOG_TRACE → gui_invalidate
  * infinite loop.  Only blocks the invalidate call, not the append. */
@@ -275,15 +279,15 @@ static void trace_render(trace_view_t *ptView)
     iHeadSnapshot = ptView->iHead;
     platform_mutex_unlock(ptView->ptMutex);
 
-    for (iRow = 0; iRow < iVisRows; iRow++)
-    {
-        iLineIdx = ptView->iScrollOff + iRow;
-        if (iLineIdx < 0 || iLineIdx >= iSnapshot)
-        {
-            break;
-        }
+    /* iRow = screen row; iLineIdx = ring-buffer index (walks forward,
+     * skipping lines filtered out by eViewMinLevel — P28). */
+    iRow     = 0;
+    iLineIdx = ptView->iScrollOff;
 
+    while (iRow < iVisRows && iLineIdx < iSnapshot)
+    {
         iAbsIdx = (iHeadSnapshot + iLineIdx) % TRACE_VIEW_MAX_LINES;
+        iLineIdx++;
 
         /* Copy under mutex to avoid tearing */
         if (platform_mutex_lock(ptView->ptMutex) != ST_NO_ERROR)
@@ -296,10 +300,16 @@ static void trace_render(trace_view_t *ptView)
         eLevel = ptView->aLines[iAbsIdx].eLevel;
         platform_mutex_unlock(ptView->ptMutex);
 
+        /* P28: skip lines below the view minimum level */
+        if (eLevel < ptView->eViewMinLevel)
+        {
+            continue;
+        }
+
         fY = (float)(iRow * ptView->iCellH);
 
         /* Subtle row highlight for readability (alternating) */
-        if ((iLineIdx & 1) == 0)
+        if ((iRow & 1) == 0)
         {
             tLine = (renderer_rect_t)RENDERER_RECT(0, (int)fY,
                                                     ptView->iWndWidth,
@@ -317,6 +327,7 @@ static void trace_render(trace_view_t *ptView)
                            trace_level_color(eLevel),
                            RENDERER_FONT_MONO,
                            RENDERER_ALIGN_LEFT);
+        iRow++;
     }
 
     renderer_end_draw(ptView->hRenderer);
@@ -529,7 +540,8 @@ st_error_t trace_open(void)
         return ST_ERROR;
     }
     memset(ptView, 0, sizeof(trace_view_t));
-    ptView->bAutoScroll = ST_TRUE;
+    ptView->bAutoScroll   = ST_TRUE;
+    ptView->eViewMinLevel = g_trace_eViewMinLevel; /* P28: persistent filter */
 
     eResult = platform_mutex_create(&ptView->ptMutex);
     if (eResult != ST_NO_ERROR)
@@ -728,6 +740,56 @@ void trace_log(log_level_t  eLevel,
 
         g_trace_bInNotify = 0;
     }
+}
+
+st_error_t trace_clear(void)
+{
+    if (g_trace_ptView == NULL)
+    {
+        return ST_NO_ERROR; /* no window open — no-op */
+    }
+
+    if (platform_mutex_lock(g_trace_ptView->ptMutex) == ST_NO_ERROR)
+    {
+        g_trace_ptView->iHead      = 0;
+        g_trace_ptView->iCount     = 0;
+        g_trace_ptView->iScrollOff = 0;
+        platform_mutex_unlock(g_trace_ptView->ptMutex);
+    }
+
+    if (g_trace_hWnd != NULL && !g_trace_bInNotify)
+    {
+        g_trace_bInNotify = 1;
+        gui_invalidate(g_trace_hWnd);
+        g_trace_bInNotify = 0;
+    }
+
+    LOG_INFO("trace: buffer cleared");
+    return ST_NO_ERROR;
+}
+
+st_error_t trace_set_view_level(log_level_t eMinLevel)
+{
+    g_trace_eViewMinLevel = eMinLevel;
+
+    if (g_trace_ptView != NULL)
+    {
+        g_trace_ptView->eViewMinLevel = eMinLevel;
+        if (g_trace_hWnd != NULL && !g_trace_bInNotify)
+        {
+            g_trace_bInNotify = 1;
+            gui_invalidate(g_trace_hWnd);
+            g_trace_bInNotify = 0;
+        }
+    }
+
+    LOG_INFO("trace: view level set to %d", (int)eMinLevel);
+    return ST_NO_ERROR;
+}
+
+log_level_t trace_get_view_level(void)
+{
+    return g_trace_eViewMinLevel;
 }
 
 st_error_t trace_shutdown(void)

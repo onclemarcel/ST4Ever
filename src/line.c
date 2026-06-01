@@ -15,6 +15,11 @@
  *        CTRL conflict resolution: TAB reserved for completion
  *        (CMD_IMAGE via "i"/"image" only); ENTER reserved for
  *        commit (CMD_MOUNT via "m"/"mount" only).
+ * UC5:   where (cwd + selection), info (dashboard), history [N].
+ *        P8:  line_update_console_title() — SetConsoleTitleA/OSC.
+ *        P23bis: TAB inserts longest common prefix before cycling.
+ *        P24: g_line_bColors = isatty(stdout) at line_init().
+ *        trace clear (P27), trace level <lvl> (P28) sub-commands.
  */
 
 #include "line.h"
@@ -30,6 +35,9 @@
 #include <errno.h>
 
 #ifdef ST_PLATFORM_WINDOWS
+    #define WIN32_LEAN_AND_MEAN
+    #include <windows.h>
+    #include <io.h>       /* _isatty, _fileno */
     #include <direct.h>
     #include <dirent.h>
     #include <sys/stat.h>
@@ -44,7 +52,8 @@
  * ANSI colour helpers — runtime-toggled via g_line_bColors
  * ------------------------------------------------------------------ */
 
-static st_bool_t g_line_bColors = ST_TRUE;
+/* P24: initialised to ST_FALSE; line_init() sets it via isatty(). */
+static st_bool_t g_line_bColors = ST_FALSE;
 
 static inline const char *c_reset(void)
 {
@@ -77,6 +86,59 @@ static inline const char *c_cyan(void)
 static inline const char *c_gray(void)
 {
     return g_line_bColors ? "\033[90m" : "";
+}
+
+/* Forward declaration — defined in the string helpers section below */
+static const char *line_path_basename(const char *szPath);
+
+/* ------------------------------------------------------------------
+ * Console title update (P8)
+ * ------------------------------------------------------------------ */
+
+void line_update_console_title(const line_context_t *ptCtx)
+{
+    char        szTitle[256];
+    char        szSel[ST_MAX_PATH];
+    const char *pBase;
+    const char *pCwd;
+    int         iRet;
+
+    pCwd      = (ptCtx != NULL) ? ptCtx->szCwd : "";
+    szSel[0]  = '\0';
+
+    if (ptCtx != NULL)
+    {
+        line_get_selected(ptCtx, szSel, sizeof(szSel));
+    }
+
+    if (szSel[0] != '\0')
+    {
+        pBase = line_path_basename(szSel);
+        iRet = snprintf(szTitle, sizeof(szTitle),
+                        "%s %s | %s | sel: %s%s",
+                        ST_APP_NAME, ST_APP_VERSION, pCwd,
+                        pBase ? pBase : szSel,
+                        trace_is_open() ? " | [T]" : "");
+    }
+    else
+    {
+        iRet = snprintf(szTitle, sizeof(szTitle),
+                        "%s %s | %s%s",
+                        ST_APP_NAME, ST_APP_VERSION, pCwd,
+                        trace_is_open() ? " | [T]" : "");
+    }
+
+    if (iRet < 0)
+    {
+        return; /* snprintf error */
+    }
+
+#ifdef ST_PLATFORM_WINDOWS
+    SetConsoleTitleA(szTitle);
+#else
+    printf("\033]0;%s\007", szTitle);
+    fflush(stdout);
+#endif
 }
 
 /* ------------------------------------------------------------------
@@ -162,6 +224,14 @@ static const cmd_entry_t g_line_aCmds[] =
     { "colors",  "c", CMD_COLORS,
       "colors [on|off]",
       "Enable or disable ANSI colour output" },
+
+    { "info",    "n", CMD_INFO,
+      "info",
+      "Show application status dashboard" },
+
+    { "history", "y", CMD_HISTORY,
+      "history [N]",
+      "Show last N history entries (default 10)" },
 };
 
 /* ------------------------------------------------------------------
@@ -908,11 +978,62 @@ static st_error_t line_cmd_trace(const parsed_cmd_t *ptParsed,
         line_print_msg("Trace: LOG_TRACE filtered  "
                        "(use 'trace' to close the view)");
     }
+    else if (strcmp(szArg, "clear") == 0)
+    {
+        /* P27: clear the GUI ring buffer */
+        if (ptParsed->iArgc > 2)
+        {
+            line_print_warning(
+                "trace clear: ignoring extra arguments");
+        }
+        trace_clear();
+        line_print_msg("Trace: buffer cleared.");
+    }
+    else if (strcmp(szArg, "level") == 0)
+    {
+        /* P28: set GUI display filter level */
+        const char  *szLevel;
+        log_level_t  eNewLevel;
+
+        if (ptParsed->iArgc < 3)
+        {
+            line_print_warning(
+                "trace level: expected trace|info|error");
+            return ST_NO_ERROR;
+        }
+
+        szLevel = ptParsed->aszArgv[2];
+
+        if (strcmp(szLevel, "trace") == 0)
+        {
+            eNewLevel = LOG_LEVEL_TRACE;
+        }
+        else if (strcmp(szLevel, "info") == 0)
+        {
+            eNewLevel = LOG_LEVEL_INFO;
+        }
+        else if (strcmp(szLevel, "error") == 0)
+        {
+            eNewLevel = LOG_LEVEL_ERROR;
+        }
+        else
+        {
+            line_print_warning(
+                "trace level: unknown level '%s'  "
+                "- use: trace|info|error",
+                szLevel);
+            return ST_NO_ERROR;
+        }
+
+        trace_set_view_level(eNewLevel);
+        line_print_msg("Trace: view level set to '%s'", szLevel);
+    }
     else
     {
         line_print_warning(
             "trace: unknown argument '%s'  "
-            "- use: trace | trace on | trace off",
+            "- use: trace | trace on | trace off | "
+            "trace clear | trace level trace|info|error",
             szArg);
     }
 
@@ -1034,6 +1155,181 @@ static st_error_t line_cmd_colors(const parsed_cmd_t *ptParsed,
     return ST_NO_ERROR;
 }
 
+static st_error_t line_cmd_where(const parsed_cmd_t *ptParsed,
+                                  line_context_t     *ptCtx)
+{
+    char szSel[ST_MAX_PATH];
+
+    LOG_TRACE("ptParsed=%p ptCtx=%p",
+              (void *)ptParsed, (void *)ptCtx);
+
+    if (ptParsed == NULL || ptCtx == NULL)
+    {
+        LOG_ERROR("NULL parameter");
+        return ST_ERROR;
+    }
+
+    if (ptParsed->iArgc > 1)
+    {
+        line_print_warning("where: ignoring extra arguments");
+    }
+
+    line_print_msg("Working directory : %s%s%s",
+                   c_cyan(), ptCtx->szCwd, c_reset());
+
+    szSel[0] = '\0';
+    line_get_selected(ptCtx, szSel, sizeof(szSel));
+
+    if (szSel[0] != '\0')
+    {
+        line_print_msg("Selected          : %s%s%s",
+                       c_green(), szSel, c_reset());
+    }
+    else
+    {
+        line_print_msg("Selected          : %s(none)%s",
+                       c_gray(), c_reset());
+    }
+
+    LOG_INFO("where: cwd='%s' sel='%s'", ptCtx->szCwd, szSel);
+    return ST_NO_ERROR;
+}
+
+static st_error_t line_cmd_info(const parsed_cmd_t *ptParsed,
+                                 line_context_t     *ptCtx)
+{
+    char szSel[ST_MAX_PATH];
+
+    LOG_TRACE("ptParsed=%p ptCtx=%p",
+              (void *)ptParsed, (void *)ptCtx);
+
+    if (ptParsed == NULL || ptCtx == NULL)
+    {
+        LOG_ERROR("NULL parameter");
+        return ST_ERROR;
+    }
+
+    if (ptParsed->iArgc > 1)
+    {
+        line_print_warning("info: ignoring extra arguments");
+    }
+
+    szSel[0] = '\0';
+    line_get_selected(ptCtx, szSel, sizeof(szSel));
+
+    printf("\n");
+    printf("%s%s  === ST4Ever %s Status ===\n%s",
+           c_bold(), c_cyan(), ST_APP_VERSION, c_reset());
+
+    line_print_msg("Working dir  : %s%s%s",
+                   c_cyan(), ptCtx->szCwd, c_reset());
+
+    if (szSel[0] != '\0')
+    {
+        line_print_msg("Selected     : %s%s%s",
+                       c_green(), szSel, c_reset());
+    }
+    else
+    {
+        line_print_msg("Selected     : %s(none)%s",
+                       c_gray(), c_reset());
+    }
+
+    line_print_msg("Trace        : %s%s%s%s",
+                   trace_is_open() ? c_green() : c_gray(),
+                   trace_is_open() ? "open" : "closed",
+                   trace_is_open()
+                       ? (trace_is_trace_enabled()
+                              ? "  [LOG_TRACE on]"
+                              : "  [LOG_TRACE off]")
+                       : "",
+                   c_reset());
+
+    line_print_msg("Colors       : %s%s%s",
+                   g_line_bColors ? c_green() : c_gray(),
+                   g_line_bColors ? "on" : "off",
+                   c_reset());
+
+    line_print_msg("History      : %d entr%s",
+                   line_history_count(),
+                   line_history_count() == 1 ? "y" : "ies");
+
+    /* Stubs — future UCs */
+    line_print_msg("Disk mounted : %s(none)%s", c_gray(), c_reset());
+    line_print_msg("Binary       : %s(none)%s", c_gray(), c_reset());
+
+    printf("\n");
+
+    LOG_INFO("info: displayed dashboard");
+    return ST_NO_ERROR;
+}
+
+static st_error_t line_cmd_history(const parsed_cmd_t *ptParsed,
+                                    line_context_t     *ptCtx)
+{
+    int  iCount;
+    int  iN;
+    int  iStart;
+    int  iVirt;
+    char szEntry[ST_MAX_CMD];
+
+    LOG_TRACE("ptParsed=%p ptCtx=%p",
+              (void *)ptParsed, (void *)ptCtx);
+
+    ST_UNUSED(ptCtx);
+
+    if (ptParsed == NULL || ptCtx == NULL)
+    {
+        LOG_ERROR("NULL parameter");
+        return ST_ERROR;
+    }
+
+    iCount = line_history_count();
+    iN     = 10; /* default: last 10 entries */
+
+    if (ptParsed->iArgc > 1)
+    {
+        iN = atoi(ptParsed->aszArgv[1]);
+        if (iN <= 0)
+        {
+            line_print_warning("history: invalid count '%s'",
+                               ptParsed->aszArgv[1]);
+            return ST_NO_ERROR;
+        }
+    }
+
+    if (ptParsed->iArgc > 2)
+    {
+        line_print_warning("history: ignoring extra arguments");
+    }
+
+    if (iCount == 0)
+    {
+        line_print_msg("(no history)");
+        return ST_NO_ERROR;
+    }
+
+    if (iN > iCount)
+    {
+        iN = iCount;
+    }
+
+    iStart = iCount - iN;
+
+    for (iVirt = iStart; iVirt < iCount; iVirt++)
+    {
+        if (line_history_get(iVirt, szEntry, sizeof(szEntry))
+                == ST_NO_ERROR)
+        {
+            printf("  %s%3d%s  %s\n",
+                   c_gray(), iVirt + 1, c_reset(), szEntry);
+        }
+    }
+
+    LOG_INFO("history: displayed %d/%d entries", iN, iCount);
+    return ST_NO_ERROR;
+}
+
 static st_error_t line_cmd_stub(const parsed_cmd_t *ptParsed,
                                  line_context_t     *ptCtx)
 {
@@ -1077,10 +1373,12 @@ static const cmd_handler_fn g_line_aHandlers[CMD_COUNT] =
     /* CMD_IMAGE      */ line_cmd_stub,
     /* CMD_MOUNT      */ line_cmd_stub,
     /* CMD_UMOUNT     */ line_cmd_stub,
-    /* CMD_WHERE      */ line_cmd_stub,
+    /* CMD_WHERE      */ line_cmd_where,
     /* CMD_TRACE      */ line_cmd_trace,
     /* CMD_EXECUTE    */ line_cmd_stub,
     /* CMD_COLORS     */ line_cmd_colors,
+    /* CMD_INFO       */ line_cmd_info,
+    /* CMD_HISTORY    */ line_cmd_history,
 };
 
 static st_error_t line_dispatch(const parsed_cmd_t *ptParsed,
@@ -1503,6 +1801,61 @@ static st_error_t line_read_rich(line_context_t *ptCtx,
                     continue;
                 }
 
+                /* P23bis: insert longest common prefix before cycling */
+                {
+                    size_t uiCommonLen;
+                    size_t uiLen0;
+                    int    iCIdx;
+
+                    uiLen0      = strlen(aaCompleteCands[0]);
+                    uiCommonLen = uiLen0;
+
+                    for (iCIdx = 1; iCIdx < iCompleteCount; iCIdx++)
+                    {
+                        size_t uiLenC;
+                        size_t uiPos;
+
+                        uiLenC = strlen(aaCompleteCands[iCIdx]);
+                        if (uiLenC < uiCommonLen)
+                        {
+                            uiCommonLen = uiLenC;
+                        }
+                        for (uiPos = 0; uiPos < uiCommonLen; uiPos++)
+                        {
+                            if (aaCompleteCands[0][uiPos]
+                            !=  aaCompleteCands[iCIdx][uiPos])
+                            {
+                                uiCommonLen = uiPos;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (uiCommonLen > uiCompletePrefixLen)
+                    {
+                        const char *szComSuffix;
+                        size_t      uiSuffLen;
+
+                        szComSuffix = aaCompleteCands[0]
+                                     + uiCompletePrefixLen;
+                        uiSuffLen   = uiCommonLen
+                                     - uiCompletePrefixLen;
+
+                        if (uiLen + uiSuffLen < ST_MAX_CMD - 1)
+                        {
+                            memmove(szBuf + uiCursor + uiSuffLen,
+                                    szBuf + uiCursor,
+                                    uiLen - uiCursor + 1);
+                            memcpy(szBuf + uiCursor,
+                                   szComSuffix, uiSuffLen);
+                            uiLen    += uiSuffLen;
+                            uiCursor += uiSuffLen;
+                            /* Update prefix so ghost suffix is correct */
+                            uiCompletePrefixLen = uiCommonLen;
+                        }
+                    }
+                }
+
                 /* Multiple candidates: enter completion mode */
                 iCompleteCur = 0;
             }
@@ -1754,6 +2107,13 @@ st_error_t line_init(line_context_t *ptCtx)
     memset(ptCtx, 0, sizeof(line_context_t));
     ptCtx->bRunning = ST_TRUE;
 
+    /* P24: auto-detect ANSI capability based on stdout TTY status */
+#ifdef ST_PLATFORM_WINDOWS
+    g_line_bColors = _isatty(_fileno(stdout)) ? ST_TRUE : ST_FALSE;
+#else
+    g_line_bColors = isatty(STDOUT_FILENO) ? ST_TRUE : ST_FALSE;
+#endif
+
     pCwd = getcwd(ptCtx->szCwd, ST_MAX_PATH);
     if (pCwd == NULL)
     {
@@ -1815,6 +2175,9 @@ st_error_t line_run(line_context_t *ptCtx)
            c_reset());
 
     LOG_INFO("console loop starting");
+
+    /* P8: set initial console title */
+    line_update_console_title(ptCtx);
 
     /* -- Switch to raw mode for the rich line editor ----------- */
     bRawMode = ST_FALSE;
@@ -1879,6 +2242,9 @@ st_error_t line_run(line_context_t *ptCtx)
             LOG_ERROR("line_dispatch returned error for '%s'", szInput);
             /* Non-fatal: log and continue */
         }
+
+        /* P8: refresh console title after each command (state may change) */
+        line_update_console_title(ptCtx);
     }
 
     /* -- Restore terminal mode --------------------------------- */

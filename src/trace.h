@@ -143,6 +143,37 @@ void trace_log(log_level_t  eLevel,
                ...);
 
 /*
+ * trace_clear() - Erase all lines from the GUI ring buffer.
+ *
+ * The log file is not affected.  Safe to call when the trace window
+ * is closed (no-op).
+ *
+ * Returns:
+ *   ST_NO_ERROR always.
+ */
+st_error_t trace_clear(void);
+
+/*
+ * trace_set_view_level() - Set the minimum log level shown in the GUI
+ * trace window (P28 display filter).
+ *
+ * Entries below eMinLevel are still appended to the ring buffer and
+ * written to the log file; they are simply not rendered.
+ *
+ * Parameters:
+ *   eMinLevel [in] : Minimum visible level (LOG_LEVEL_TRACE..TODO).
+ *
+ * Returns:
+ *   ST_NO_ERROR always.
+ */
+st_error_t trace_set_view_level(log_level_t eMinLevel);
+
+/*
+ * trace_get_view_level() - Return the current GUI display filter level.
+ */
+log_level_t trace_get_view_level(void);
+
+/*
  * trace_shutdown() - Flush pending entries, close log file, free state.
  *
  * Safe to call if trace_init() was never called.

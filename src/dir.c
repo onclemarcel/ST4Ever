@@ -62,6 +62,16 @@ static dir_node_t *dir_node_create(void);
 static void        dir_node_free_tree(dir_node_t *ptNode);
 static st_error_t  dir_node_load_children(dir_node_t *ptNode,
                                            st_bool_t   bShowHidden);
+static void        dir_node_reload_children(dir_node_t *ptNode,
+                                             st_bool_t   bShowHidden);
+static void        dir_collect_expanded(dir_node_t *ptNode,
+                                         char       (*aaszPaths)[ST_MAX_PATH],
+                                         int        *piCount,
+                                         int         iMaxPaths);
+static void        dir_reexpand_path(dir_node_t *ptRoot,
+                                      const char *szPath,
+                                      st_bool_t   bShowHidden);
+static void        dir_refresh_tree(dir_view_t *ptView);
 
 static void dir_flat_rebuild(dir_view_t *ptView);
 static void dir_flat_rebuild_rec(dir_view_t *ptView,
@@ -295,6 +305,194 @@ static st_error_t dir_node_load_children(dir_node_t *ptNode,
 
     ptNode->bChildrenLoaded = ST_TRUE;
     return ST_NO_ERROR;
+}
+
+/*
+ * dir_node_reload_children() - Free and rescan a node's direct children.
+ *
+ * Used by P21 (hidden toggle) and P22 (F5 refresh).  The node is left
+ * expanded only if it was already expanded; children come back with
+ * bExpanded=ST_FALSE so sub-trees collapse implicitly.
+ */
+static void dir_node_reload_children(dir_node_t *ptNode,
+                                      st_bool_t   bShowHidden)
+{
+    dir_node_t *ptChild;
+    dir_node_t *ptNext;
+
+    if (ptNode == NULL)
+    {
+        return;
+    }
+
+    /* Free all existing children (recursively) */
+    ptChild = ptNode->ptFirstChild;
+    while (ptChild != NULL)
+    {
+        ptNext = ptChild->ptNextSibling;
+        dir_node_free_tree(ptChild);
+        ptChild = ptNext;
+    }
+    ptNode->ptFirstChild    = NULL;
+    ptNode->bChildrenLoaded = ST_FALSE;
+
+    /* Rescan */
+    dir_node_load_children(ptNode, bShowHidden);
+}
+
+/*
+ * dir_collect_expanded() - DFS walk: collect szPath of every expanded dir.
+ *
+ * Called before reloading the tree so we can restore expansion state.
+ * Only expanded dirs (bExpanded==ST_TRUE) with loaded children are stored.
+ */
+static void dir_collect_expanded(dir_node_t *ptNode,
+                                   char       (*aaszPaths)[ST_MAX_PATH],
+                                   int        *piCount,
+                                   int         iMaxPaths)
+{
+    dir_node_t *ptChild;
+
+    if (ptNode == NULL || aaszPaths == NULL
+    ||  piCount == NULL || iMaxPaths <= 0)
+    {
+        return;
+    }
+
+    for (ptChild = ptNode->ptFirstChild;
+         ptChild != NULL;
+         ptChild = ptChild->ptNextSibling)
+    {
+        if (!ptChild->bIsDir || !ptChild->bExpanded
+        ||  !ptChild->bChildrenLoaded)
+        {
+            continue;
+        }
+
+        if (*piCount < iMaxPaths)
+        {
+            strncpy(aaszPaths[*piCount], ptChild->szPath, ST_MAX_PATH - 1);
+            aaszPaths[*piCount][ST_MAX_PATH - 1] = '\0';
+            (*piCount)++;
+        }
+
+        /* Recurse into expanded subtrees */
+        dir_collect_expanded(ptChild, aaszPaths, piCount, iMaxPaths);
+    }
+}
+
+/*
+ * dir_reexpand_path() - Navigate the refreshed tree and expand one path.
+ *
+ * Splits szPath into components relative to ptRoot->szPath and walks
+ * down the tree, loading children and setting bExpanded=ST_TRUE at
+ * each level.  Silently stops if a component is not found (the dir
+ * was deleted or renamed during the refresh).
+ */
+static void dir_reexpand_path(dir_node_t *ptRoot,
+                                const char *szPath,
+                                st_bool_t   bShowHidden)
+{
+    const char *pRel;
+    const char *pStart;
+    const char *pSep;
+    char        szComp[ST_MAX_PATH];
+    size_t      uiLen;
+    dir_node_t *ptNode;
+    dir_node_t *ptChild;
+
+    if (ptRoot == NULL || szPath == NULL) return;
+
+    uiLen = strlen(ptRoot->szPath);
+    if (strncmp(szPath, ptRoot->szPath, uiLen) != 0) return;
+
+    pRel = szPath + uiLen;
+    if (*pRel == '/' || *pRel == '\\') pRel++;
+
+    ptNode = ptRoot;
+    pStart = pRel;
+
+    while (*pStart != '\0')
+    {
+        /* Advance to next path separator or end */
+        pSep = pStart;
+        while (*pSep != '\0' && *pSep != '/' && *pSep != '\\')
+        {
+            pSep++;
+        }
+
+        uiLen = (size_t)(pSep - pStart);
+        if (uiLen == 0 || uiLen >= ST_MAX_PATH)
+        {
+            break;
+        }
+
+        memcpy(szComp, pStart, uiLen);
+        szComp[uiLen] = '\0';
+
+        /* Find child with matching name */
+        ptChild = NULL;
+        for (ptChild = ptNode->ptFirstChild;
+             ptChild != NULL;
+             ptChild = ptChild->ptNextSibling)
+        {
+            if (ptChild->bIsDir && strcmp(ptChild->szName, szComp) == 0)
+            {
+                break;
+            }
+        }
+
+        if (ptChild == NULL) break; /* dir deleted or renamed */
+
+        if (ptChild->bChildrenLoaded == ST_FALSE)
+        {
+            dir_node_load_children(ptChild, bShowHidden);
+        }
+        ptChild->bExpanded = ST_TRUE;
+
+        ptNode = ptChild;
+        pStart = (*pSep != '\0') ? pSep + 1 : pSep;
+    }
+}
+
+/*
+ * dir_refresh_tree() - Reload root children while preserving expansion state.
+ *
+ * Phase 1: collect all currently expanded paths (DFS).
+ * Phase 2: reload root's direct children (frees old tree).
+ * Phase 3: re-expand each saved path by navigating the new tree.
+ *
+ * Expanded dirs that no longer exist after the reload are silently
+ * ignored (dir_reexpand_path is a no-op when a component is missing).
+ */
+#define DIR_REFRESH_MAX_EXP  256  /* max expanded dirs to remember     */
+
+static void dir_refresh_tree(dir_view_t *ptView)
+{
+    static char aaszExpanded[DIR_REFRESH_MAX_EXP][ST_MAX_PATH];
+    int         iExpCount;
+    int         iIdx;
+
+    if (ptView == NULL || ptView->ptRoot == NULL)
+    {
+        return;
+    }
+
+    /* Phase 1: save expanded paths */
+    iExpCount = 0;
+    dir_collect_expanded(ptView->ptRoot, aaszExpanded,
+                          &iExpCount, DIR_REFRESH_MAX_EXP);
+
+    /* Phase 2: reload root's direct children */
+    dir_node_reload_children(ptView->ptRoot, ptView->bShowHidden);
+
+    /* Phase 3: re-expand previously expanded dirs */
+    for (iIdx = 0; iIdx < iExpCount; iIdx++)
+    {
+        dir_reexpand_path(ptView->ptRoot,
+                           aaszExpanded[iIdx],
+                           ptView->bShowHidden);
+    }
 }
 
 /* ==================================================================
@@ -833,7 +1031,42 @@ static void dir_handle_key(dir_view_t  *ptView,
         gui_request_close(hWnd);
         break;
 
+    case GUI_KEY_F5:
+        /* P22: F5 = refresh while preserving current expansion state */
+        dir_refresh_tree(ptView);
+        dir_flat_rebuild(ptView);
+        ptView->iScrollOffset = 0;
+        if (ptView->iSelectedFlat >= ptView->iFlatCount)
+        {
+            ptView->iSelectedFlat = ptView->iFlatCount - 1;
+        }
+        bRedraw = ST_TRUE;
+        LOG_INFO("dir: refreshed '%s' (%d entries)",
+                 ptView->szRootPath, ptView->iFlatCount);
+        break;
+
     default:
+        /* P21: 'H'/'h' toggles hidden file visibility */
+        if (eKey >= GUI_KEY_PRINTABLE)
+        {
+            char cChar;
+            cChar = (char)((int)eKey - (int)GUI_KEY_PRINTABLE);
+            if (cChar == 'H' || cChar == 'h')
+            {
+                ptView->bShowHidden =
+                    (ptView->bShowHidden == ST_TRUE)
+                    ? ST_FALSE : ST_TRUE;
+
+                dir_node_reload_children(ptView->ptRoot,
+                                          ptView->bShowHidden);
+                dir_flat_rebuild(ptView);
+                ptView->iScrollOffset = 0;
+                ptView->iSelectedFlat = -2;
+                bRedraw = ST_TRUE;
+                LOG_INFO("dir: hidden files %s",
+                         ptView->bShowHidden ? "shown" : "hidden");
+            }
+        }
         break;
     }
 

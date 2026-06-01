@@ -53,6 +53,8 @@ typedef enum cmd_id_s
     CMD_TRACE,          /* t | trace   | CTRL+T                      */
     CMD_EXECUTE,        /* x | execute | CTRL+X                      */
     CMD_COLORS,         /* c | colors  on|off (toggle ANSI output)   */
+    CMD_INFO,           /* (none) | info      (application dashboard)*/
+    CMD_HISTORY,        /* (none) | history [N]                      */
     CMD_COUNT           /* Sentinel - must be last                   */
 } cmd_id_t;
 
@@ -293,6 +295,22 @@ int line_complete_path_query(const char *szPrefix,
                               const char *szCwd,
                               char       (*aOut)[ST_MAX_PATH],
                               int         iMaxOut);
+
+/* ------------------------------------------------------------------
+ * API — console title
+ * ------------------------------------------------------------------ */
+
+/*
+ * line_update_console_title() - Refresh the terminal window title.
+ *
+ * Format: "ST4Ever vX.Y.Z | <cwd> [| sel: <file>] [| T]"
+ * On Windows: SetConsoleTitleA(); on Linux: ANSI OSC 0 escape.
+ * Safe to call with ptCtx == NULL (shows minimal title).
+ *
+ * Parameters:
+ *   ptCtx [in] : Console context (may be NULL before line_init).
+ */
+void line_update_console_title(const line_context_t *ptCtx);
 
 /* ------------------------------------------------------------------
  * API — ANSI colour toggle

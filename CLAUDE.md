@@ -19,6 +19,7 @@
 - 2026-06-01: fix focus — fenêtre trace n'accroche plus le focus (read-only) ; `win_gui.c` : bloc P16 conditionné à `eType != GUI_WND_TRACE`
 - 2026-06-01: fix stderr — `trace_log()` et `trace_flush_compact()` ne passent plus par stderr ; terminal propre dès que `bOpen=TRUE` ; diagnostic via `st4ever_trace.log` ; `trace_level_ansi()` + macros ANSI supprimées (dead code)
 - 2026-06-01: R22 appliqué — purge LOG_TRACE des primitives récurrentes ; §6.9 UC4.4 ajouté avec contrats comportementaux (END key fix, stderr supprimé, focus non volé) (mutex lock/unlock/create/destroy, renderer draw/begin/end, gui invalidate/get_size/msg_post/get, win_gui invalidate/get_size/get_native_handle/set_title) ; LOG_TRACE cantonné aux fonctions UX et cycle de vie
+- 2026-06-01: UC5 validé — `where`/`info`/`history [N]` + P8 console title (`SetConsoleTitleA`) + P21 `H` dir hidden-toggle + P22 F5 refresh + P23bis TAB common prefix avant cycle ghost + P24 `colors auto` via `isatty()` + P27 `trace clear` + P28 `trace level trace|info|error` ; `CMD_INFO`/`CMD_HISTORY` ; `trace_clear()`/`trace_set_view_level()` ; `line_update_console_title()` ; ST_APP_VERSION 0.5.0
 
 ## 1. Contexte du projet
 
@@ -52,10 +53,13 @@ Chaque commande est accessible par son nom complet, son alias monogramme et un r
 
 | Commande | Alias | CTRL       | UC      | Comportement résumé |
 |----------|-------|------------|---------|---------------------|
-| `help`   | `h`   | CTRL+H     | ✓ UC1   | Liste toutes les commandes avec synopsis ; ignore les arguments (warning) |
-| `quit`   | `q`   | CTRL+Q / C | ✓ UC1   | Ferme toutes les vues et quitte proprement ; ignore les arguments (warning) |
-| `trace`  | `t`   | CTRL+T     | ✓ UC2   | Sans arg : toggle open/close. **Ouverture : LOG_TRACE off par défaut** (P26). `on` : ouvre + active LOG_TRACE. `off` : filtre LOG_TRACE uniquement — **la vue reste ouverte** (P19). Détails §6.2 |
-| `colors` | `c`   | —          | ✓ UC4.3 | Sans arg : toggle on/off. `on` : active les codes ANSI. `off` : désactive (utile terminal sans VT100 ou redirection fichier). Détails §6.8 |
+| `help`    | `h`   | CTRL+H     | ✓ UC1   | Liste toutes les commandes avec synopsis ; ignore les arguments (warning) |
+| `quit`    | `q`   | CTRL+Q / C | ✓ UC1   | Ferme toutes les vues et quitte proprement ; ignore les arguments (warning) |
+| `trace`   | `t`   | CTRL+T     | ✓ UC2   | Sans arg : toggle open/close. **Ouverture : LOG_TRACE off par défaut** (P26). `on` : ouvre + active LOG_TRACE. `off` : filtre LOG_TRACE uniquement — **la vue reste ouverte** (P19). `clear` : vide le ring buffer GUI. `level trace\|info\|error` : filtre d'affichage GUI. Détails §6.2, §6.9, §6.10 |
+| `colors`  | `c`   | —          | ✓ UC4.3 | Sans arg : toggle on/off. `on` : active les codes ANSI. `off` : désactive (utile terminal sans VT100 ou redirection fichier). Auto-détecté via `isatty()` au démarrage (P24). Détails §6.8 |
+| `where`   | `w`   | CTRL+W     | ✓ UC5   | Affiche le répertoire de travail courant et le fichier sélectionné via `dir`. Détails §6.10 |
+| `info`    | `n`   | —          | ✓ UC5   | Dashboard complet : cwd, sélection, état trace (ouvert/LOG_TRACE), colors, historique, disque monté (stub), binaire chargé (stub). Détails §6.10 |
+| `history` | `y`   | —          | ✓ UC5   | Sans arg : 10 dernières commandes numérotées. Avec `N` : les N dernières. Détails §6.10 |
 
 **Commandes à implémenter — spécification détaillée dans les sous-sections ci-dessous :**
 
@@ -542,7 +546,7 @@ Les étapes de développement fonctionnelles sont formalisées en Use Cases, per
 | UC4.2 | raw input | `console.h` (CON_KEY_*) + pipe/VT100 mintty (R21) + Win32 cmd.exe + `line_read_rich()` : insert/←/→/Home/End/Del/Backspace, CTRL shortcuts, ESC + `make manual UC=XX` | ✓ VALIDÉ 2026-06-01 |
 | UC4.3 | complétion + historique + extras | Historique ↑↓ circulaire + `~/.st4ever_history` + tab-completion commandes/chemins + ghost-text DIM + prompt contextuel `[T][file]` + `colors on/off` + `--script file` + mutex `ptSelectedMutex` + `line_set/get_selected()` | ✓ VALIDÉ 2026-06-01 |
 | UC4.4 | trace view GUI | Fenêtre `GUI_WND_TRACE` D2D : scroll texte append-only, couleurs par niveau ; `trace.c` ring buffer + mutex + garde réentrante ; suppression TODO(UC3)/TODO(UC3.3) | ✓ VALIDÉ 2026-06-01 |
-| UC5 | `where`, `info`, `history` | Répertoire courant + état sélection (where) ; dashboard global état application : cwd, fichier sélectionné, trace, disque monté, binaire chargé (info) ; **P8** : `SetConsoleTitleA` statut automatique ; **P21** : touche `H` toggle hidden dans vue dir ; **P22** : F5 refresh vue dir ; **P23bis** : TAB préfixe commun avant cycle ghost ; **P24** : `colors auto` via `isatty()` au démarrage ; **P25** : commande `history [N]` ; **P27** : `trace clear` ; **P28** : `trace level trace\|info\|error` filtre vue | affichage path + dashboard + titre console |
+| UC5 | `where`, `info`, `history` | Répertoire courant + état sélection (where) ; dashboard global état application : cwd, fichier sélectionné, trace, disque monté, binaire chargé (info) ; **P8** : `SetConsoleTitleA` statut automatique ; **P21** : touche `H` toggle hidden dans vue dir ; **P22** : F5 refresh vue dir ; **P23bis** : TAB préfixe commun avant cycle ghost ; **P24** : `colors auto` via `isatty()` au démarrage ; **P25** : commande `history [N]` ; **P27** : `trace clear` ; **P28** : `trace level trace\|info\|error` filtre vue | ✓ VALIDÉ 2026-06-01 |
 | UC5-bis | prefs | Module `prefs.c` : lecture/écriture `%APPDATA%\ST4Ever\prefs.ini` ; mémorisation position/taille fenêtres par type (P7) — **optionnel**, après UC5 | save/restore position fenêtre dir |
 | UC6 | plateforme | Abstraction fichiers : open/read/write/stat/mkdir, listing répertoire | tests lecture/écriture |
 | UC7 | `load` | Chargement fichier texte/binaire, détection type, buffer mémoire ; indicateur visuel sélection active dans vue `dir` (P11 : couleur secondaire sur ligne sélectionnée, ≠ highlight navigation) | load .txt, .bin, .PRG stub |
@@ -1101,6 +1105,80 @@ Les étapes de développement fonctionnelles sont formalisées en Use Cases, per
 - UC5 : P21/P22 touchent `dir_handle_key()` — même scope que UC5.
 - UC18 : P10/P14 toujours en attente de `mount` context.
 
+### 6.10 Use Case 05 (UC5) — ✓ VALIDÉ (2026-06-01)
+
+**Périmètre fonctionnel implémenté :**
+- `src/line.h` : `CMD_INFO`, `CMD_HISTORY` dans `cmd_id_t` ; déclaration `line_update_console_title()`.
+- `src/line.c` :
+  - **P24** : `g_line_bColors = _isatty/_fileno(stdout)` dans `line_init()` — ANSI activé si TTY, désactivé si pipe/fichier.
+  - **P8** : `line_update_console_title(ptCtx)` — `SetConsoleTitleA()` (Windows) / OSC `\033]0;...\007` (Linux). Format `ST4Ever vX.Y.Z | cwd [| sel: file] [| T]`. Appelé dans `line_run()` au démarrage et après chaque dispatch.
+  - **`line_cmd_where()`** : affiche cwd + fichier sélectionné courant (via `line_get_selected()`). Dispatch `CMD_WHERE`.
+  - **`line_cmd_info()`** : dashboard complet — cwd, sélection, trace (ouvert/fermé + LOG_TRACE on/off), colors, history count, disk/binary (stubs). Dispatch `CMD_INFO`.
+  - **`line_cmd_history([N])`** : affiche les N dernières commandes numérotées (défaut 10). `atoi()` sur l'arg. Dispatch `CMD_HISTORY`.
+  - **`trace clear`** (P27) dans `line_cmd_trace()` : appel `trace_clear()`.
+  - **`trace level <trace|info|error>`** (P28) dans `line_cmd_trace()` : appel `trace_set_view_level()`.
+  - **P23bis** dans `line_read_rich()` : sur N candidats au premier TAB, calcule le plus long préfixe commun et l'insère dans le buffer avant de passer en mode ghost cycle.
+  - Commandes `info` (shortcut `n`) et `history` (shortcut `y`) dans la command table.
+- `src/trace.h` : `trace_clear()`, `trace_set_view_level(eMinLevel)`, `trace_get_view_level()`.
+- `src/trace.c` :
+  - Champ `eViewMinLevel` dans `trace_view_t` ; global `g_trace_eViewMinLevel` (persistant entre close/reopen).
+  - `trace_clear()` : efface ring buffer (lock/reset iHead/iCount/iScrollOff/unlock + gui_invalidate). No-op si vue non ouverte.
+  - `trace_set_view_level()` : met à jour global + vue si ouverte + gui_invalidate.
+  - `trace_render()` : boucle réécrite pour skiper les lignes `< eViewMinLevel` (filtre P28 rendu-seul, ring buffer inchangé).
+- `src/dir.c` :
+  - `dir_node_reload_children()` : libère les enfants d'un nœud + reset bChildrenLoaded + rescanne avec bShowHidden. Utilisée par P21 et P22.
+  - **P21** `H`/`h` dans `dir_handle_key()` (case `default`, `eKey >= GUI_KEY_PRINTABLE`) : toggle `bShowHidden` + reload + rebuild flat + reset sélection/scroll.
+  - **P22** `GUI_KEY_F5` dans `dir_handle_key()` : reload root children + rebuild flat (conserve sélection si valide).
+
+**Tests R14/R15 appliqués :**
+- `use_cases/use_case_05.c` : TEST MATRIX **31N + 4R + 9S = 44 tests**, 0 failure
+  - [N] : `trace_get/set_view_level` round-trip ; `trace_clear` no-op ; `line_init` P24 ; `line_update_console_title` non-crash ; commandes dans completion table ; trace level round-trip after init ; history add/get/count ; TAB candidates pour `h`/`he`/`info`/`hist`/vide ; `line_shutdown`
+  - [R] : `trace_set_view_level(999)` no-crash ; `trace_clear` deux fois à vide ; `console_title(NULL)` ; `history_get` sur ring vide
+  - [S] : `make manual UC=05` (console title, H dir, F5 refresh, TAB live, trace clear/level GUI, where/info output, P24 pipe)
+
+**Contrats comportementaux validés :**
+
+*Module `line_cmd_where`*
+- Affiche `szCwd` et `szSelected` (via `line_get_selected()`) en console.
+- Args superflus → warning, traitement normal.
+
+*Module `line_cmd_info`*
+- Dashboard : cwd, sélection, trace (open/closed + LOG_TRACE), colors, history count, disk (stub), binary (stub).
+
+*Module `line_cmd_history`*
+- Sans arg : 10 derniers. Avec arg N : `min(N, count)` derniers. Arg non-entier → warning + return ST_NO_ERROR. Historique vide → "(no history)".
+
+*Module `line_update_console_title`*
+- `NULL` ctx : format minimal (pas de crash). Avec ctx : format complet incluant cwd, sélection, trace.
+- Windows : `SetConsoleTitleA()`. Linux : OSC escape.
+
+*Module `trace_clear()`*
+- Vue non ouverte → `ST_NO_ERROR` (no-op). Vue ouverte : lock, reset iHead/iCount/iScrollOff=0, unlock, `gui_invalidate`. Log file non affecté.
+
+*Module `trace_set_view_level(eMinLevel)` / `trace_get_view_level()`*
+- Persistant : survit à `trace_close()/trace_open()` via `g_trace_eViewMinLevel`.
+- Filtre display uniquement : le ring buffer et le log file ne sont pas altérés.
+- `trace_render()` : skipe les lignes `eLevel < eViewMinLevel` (pas de "trou" dans l'affichage — le row counter avance uniquement sur les lignes affichées).
+
+*P21 dir `H`/`h`*
+- Toggle `bShowHidden` : reload root children avec nouveau filtre. Les sous-arborescences déjà expandées sont implicitement collapsées (nouveaux enfants = `bExpanded=ST_FALSE`). Sélection remise à `-2`, scroll à 0.
+
+*P22 dir F5*
+- Reload root children (même `bShowHidden`). Sélection préservée si index encore valide, sinon ramenée au dernier valid.
+
+*P23bis TAB common prefix*
+- Sur N>1 candidats : calcule le plus long préfixe commun de tous les candidats à partir de `uiCompletePrefixLen`. Insère le suffixe commun dans le buffer si > 0 chars. Met à jour `uiCompletePrefixLen`. Puis entre en mode ghost cycle normalement.
+- Exemple : `h` → candidats `help`/`history` → préfixe commun = `h` (déjà tapé, rien à insérer) → ghost cycle direct.
+- Exemple : `col` → candidat unique `colors` → insertion immédiate (branch 1-candidat, inchangé).
+
+*P24 colors auto*
+- `line_init()` : `g_line_bColors = isatty(stdout)`. `colors on/off` reste disponible pour forcer.
+
+**Points d'attention pour les UCs suivants :**
+- UC6 : abstraction fichiers — `line_cmd_where()` pourra enrichir son affichage avec des infos stat sur la sélection.
+- UC7 : `line_cmd_info()` rempira les stubs "disk mounted" et "binary loaded" au fur et à mesure des UCs.
+- UC18 : P10 (historique navigation dir) + P14 (sélection multiple) toujours en attente de `mount` context.
+
 ## 7. Propositions d'améliorations
 
 *Claude et Tonton Marcel déposent ici leurs propositions UX/fonctionnelles au fil des UCs. Avant de clore un UC, les propositions sont passées en revue ensemble : celles agréées sont planifiées dans le tableau section 6 et retirées d'ici. **Un UC est clos quand §7 ne contient plus de propositions non arbitrées pour cet UC.***
@@ -1247,13 +1325,19 @@ Avis Claude : ACCEPTÉ — sans ce filtre, chaque `platform_mutex_lock/unlock` d
 
 ### Arbitrage UC4.4 (2026-06-01)
 
-**P27 — `trace clear` : vider le ring buffer GUI** → **ACCEPTÉ — UC5**
+**P27 — `trace clear` : vider le ring buffer GUI** → **ACCEPTÉ — IMPLÉMENTÉ UC5**
 
 Avis Claude : ACCEPTÉ, faible coût. Sous-commande `trace clear` : efface le ring buffer `aszLines[]`, remet `iHead/iCount/iScrollOff` à zéro, `gui_invalidate()`. Même scope que `line_cmd_trace()` et `trace_view_t`. UC5 est le bon endroit puisque c'est le dernier UC console/trace.
 
-**P28 — Filtre de niveau minimal dans la vue trace (indépendant du filtre fichier)** → **ACCEPTÉ — UC5**
+**P28 — Filtre de niveau minimal dans la vue trace (indépendant du filtre fichier)** → **ACCEPTÉ — IMPLÉMENTÉ UC5**
 
 Avis Claude : ACCEPTÉ — la valeur est réelle : `trace level info` cache les lignes TRACE dans la fenêtre GUI sans les supprimer du fichier log (utile pour voir INFO/ERROR en live sans bruit TRACE). Coût moyen : champ `eMinLevel` dans `trace_view_t` + filtre dans `trace_render()` + cas dans `line_cmd_trace()` (`trace level trace|info|error`). Cohérent avec P26 (TRACE off par défaut). Planifié UC5 pour rester groupé avec les autres améliorations trace/console.
+
+---
+
+### Arbitrage UC5 (2026-06-01)
+
+*Toutes les propositions P21–P28 planifiées pour UC5 ont été implémentées et validées dans ce UC. Aucune proposition UC5 ouverte en §7 — UC5 est clos.*
 
 ## 8. Licence & attribution
 Pas de redistribution prévue à ce jour
