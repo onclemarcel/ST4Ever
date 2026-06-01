@@ -1,0 +1,2 @@
+Hello from ST4Ever UC07!
+This is a plain text fixture for load tests.

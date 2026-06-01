@@ -19,6 +19,8 @@
 #include "trace.h"
 #include "line.h"
 #include "gui.h"
+#include "ST.h"
+#include "load.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -68,6 +70,7 @@ int main(int argc, char *argv[])
     st_bool_t       bTraceAtStart;
     st_error_t      eResult;
     line_context_t  tLineCtx;
+    st_machine_t    tMachine;
     int             iArg;
     int             iExitCode;
     char            szScriptFile[ST_MAX_PATH];
@@ -148,13 +151,30 @@ int main(int argc, char *argv[])
         LOG_ERROR("gui_init() failed - GUI views will not open");
     }
 
-    /* ---- 5. Console init & run ----------------------------------- */
+    /* ---- 5. ST machine + load module ----------------------------- */
+    eResult = st_init(&tMachine, NULL);
+    if (eResult != ST_NO_ERROR)
+    {
+        LOG_ERROR("st_init() failed");
+        iExitCode = 1;
+        goto shutdown_gui;
+    }
+
+    eResult = load_init(&tMachine);
+    if (eResult != ST_NO_ERROR)
+    {
+        LOG_ERROR("load_init() failed");
+        iExitCode = 1;
+        goto shutdown_st;
+    }
+
+    /* ---- 6. Console init & run ----------------------------------- */
     eResult = line_init(&tLineCtx);
     if (eResult != ST_NO_ERROR)
     {
         LOG_ERROR("line_init() failed");
         iExitCode = 1;
-        goto shutdown_gui;
+        goto shutdown_load;
     }
 
     /* Restore --script path (line_init() zeroes the context) */
@@ -178,7 +198,21 @@ int main(int argc, char *argv[])
         LOG_ERROR("line_shutdown() failed");
     }
 
-    /* ---- 6. Ordered shutdown ------------------------------------- */
+    /* ---- 7. Ordered shutdown ------------------------------------- */
+shutdown_load:
+    eResult = load_shutdown();
+    if (eResult != ST_NO_ERROR)
+    {
+        LOG_ERROR("load_shutdown() failed");
+    }
+
+shutdown_st:
+    eResult = st_shutdown(&tMachine);
+    if (eResult != ST_NO_ERROR)
+    {
+        LOG_ERROR("st_shutdown() failed");
+    }
+
 shutdown_gui:
     eResult = gui_shutdown();
     if (eResult != ST_NO_ERROR)

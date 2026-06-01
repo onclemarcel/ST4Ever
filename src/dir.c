@@ -48,11 +48,12 @@
  * Colour palette (static to avoid repeated compound-literal allocs)
  * ------------------------------------------------------------------ */
 
-static const renderer_color_t g_dir_clrBg   = {0.09f, 0.09f, 0.14f, 1.0f};
-static const renderer_color_t g_dir_clrSel  = {0.20f, 0.30f, 0.65f, 1.0f};
-static const renderer_color_t g_dir_clrDir  = {0.00f, 0.85f, 0.85f, 1.0f};
-static const renderer_color_t g_dir_clrFile = {0.80f, 0.80f, 0.80f, 1.0f};
-static const renderer_color_t g_dir_clrDD   = {0.95f, 0.90f, 0.10f, 1.0f};
+static const renderer_color_t g_dir_clrBg      = {0.09f, 0.09f, 0.14f, 1.0f};
+static const renderer_color_t g_dir_clrSel     = {0.20f, 0.30f, 0.65f, 1.0f};
+static const renderer_color_t g_dir_clrLastSel = {0.04f, 0.28f, 0.10f, 1.0f};
+static const renderer_color_t g_dir_clrDir     = {0.00f, 0.85f, 0.85f, 1.0f};
+static const renderer_color_t g_dir_clrFile    = {0.80f, 0.80f, 0.80f, 1.0f};
+static const renderer_color_t g_dir_clrDD      = {0.95f, 0.90f, 0.10f, 1.0f};
 
 /* ------------------------------------------------------------------
  * Forward declarations (internal helpers)
@@ -790,6 +791,10 @@ static void dir_activate_sel(dir_view_t *ptView, gui_window_t hWnd)
         if (ptView->ptLineCtx != NULL)
         {
             line_set_selected(ptView->ptLineCtx, ptNode->szPath);
+            /* P11: record last-selected for secondary visual indicator */
+            strncpy(ptView->szLastSelected, ptNode->szPath,
+                    ST_MAX_PATH - 1);
+            ptView->szLastSelected[ST_MAX_PATH - 1] = '\0';
             LOG_INFO("dir: selected '%s'", ptNode->szPath);
         }
     }
@@ -810,6 +815,7 @@ static void dir_render(dir_view_t *ptView)
     int               iY;
     int               iEntryIdx;
     st_bool_t         bSelected;
+    st_bool_t         bLastSel;
     dir_flat_entry_t *ptEntry;
 
     if (ptView->hRenderer == NULL || ptView->iCellH <= 0) return;
@@ -826,11 +832,33 @@ static void dir_render(dir_view_t *ptView)
     {
         iY        = (iRow - ptView->iScrollOffset) * ptView->iCellH;
         bSelected = ST_FALSE;
+        bLastSel  = ST_FALSE;
 
         if (iRow == 0 && ptView->iSelectedFlat == -1)
             bSelected = ST_TRUE;
         else if (iRow > 0 && ptView->iSelectedFlat == (iRow - 1))
             bSelected = ST_TRUE;
+
+        /* P11: secondary background for last committed selection */
+        if (iRow > 0 && ptView->szLastSelected[0] != '\0')
+        {
+            ptEntry = &ptView->aptFlat[iRow - 1];
+            if (strcmp(ptEntry->ptNode->szPath,
+                       ptView->szLastSelected) == 0)
+            {
+                bLastSel = ST_TRUE;
+            }
+        }
+
+        if (bLastSel == ST_TRUE)
+        {
+            tRect.fX = 0.0f;
+            tRect.fY = (float)iY;
+            tRect.fW = (float)ptView->iWndWidth;
+            tRect.fH = (float)ptView->iCellH;
+            renderer_fill_rect(ptView->hRenderer, &tRect,
+                               &g_dir_clrLastSel);
+        }
 
         if (bSelected == ST_TRUE)
         {
@@ -980,6 +1008,10 @@ static void dir_handle_key(dir_view_t  *ptView,
                 /* UC4.3: mutex-safe accessor */
                 line_set_selected(ptView->ptLineCtx,
                                   ptNode->szPath);
+                /* P11: record last-selected for secondary indicator */
+                strncpy(ptView->szLastSelected, ptNode->szPath,
+                        ST_MAX_PATH - 1);
+                ptView->szLastSelected[ST_MAX_PATH - 1] = '\0';
                 LOG_INFO("dir: SPACE selected '%s'",
                          ptNode->szPath);
             }

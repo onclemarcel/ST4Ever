@@ -25,6 +25,8 @@
 #include "line.h"
 #include "console.h"
 #include "dir.h"
+#include "load.h"
+#include "file.h"
 #include "trace.h"
 
 #include <stdio.h>
@@ -1155,6 +1157,118 @@ static st_error_t line_cmd_colors(const parsed_cmd_t *ptParsed,
     return ST_NO_ERROR;
 }
 
+static st_error_t line_cmd_load(const parsed_cmd_t *ptParsed,
+                                 line_context_t     *ptCtx)
+{
+    char        szPath[ST_MAX_PATH];
+    char        szSel[ST_MAX_PATH];
+    file_stat_t tStat;
+    st_error_t  eResult;
+    int         i;
+    const load_state_t *ptState;
+
+    LOG_TRACE("ptParsed=%p ptCtx=%p",
+              (void *)ptParsed, (void *)ptCtx);
+
+    if (ptParsed == NULL || ptCtx == NULL)
+    {
+        LOG_ERROR("NULL parameter");
+        return ST_ERROR;
+    }
+
+    szPath[0] = '\0';
+
+    /* Collect first non-option argument as path */
+    for (i = 1; i < ptParsed->iArgc; i++)
+    {
+        if (ptParsed->aszArgv[i][0] != '-')
+        {
+            strncpy(szPath, ptParsed->aszArgv[i], ST_MAX_PATH - 1);
+            szPath[ST_MAX_PATH - 1] = '\0';
+            break;
+        }
+    }
+
+    /* Fall back to the dir-selected path when no explicit argument */
+    if (szPath[0] == '\0')
+    {
+        szSel[0] = '\0';
+        line_get_selected(ptCtx, szSel, sizeof(szSel));
+        if (szSel[0] != '\0')
+        {
+            strncpy(szPath, szSel, ST_MAX_PATH - 1);
+            szPath[ST_MAX_PATH - 1] = '\0';
+        }
+    }
+
+    if (szPath[0] == '\0')
+    {
+        line_print_msg("No file selected. Provide a path or select a "
+                       "file with 'dir'.");
+        return ST_NO_ERROR;
+    }
+
+    /* Stat the target to provide user-friendly rejection messages */
+    memset(&tStat, 0, sizeof(tStat));
+    eResult = file_stat(szPath, &tStat);
+    if (eResult != ST_NO_ERROR)
+    {
+        line_print_error("Cannot stat '%s'.", szPath);
+        return ST_NO_ERROR;
+    }
+
+    if (!tStat.bExists)
+    {
+        line_print_error("'%s': file not found.", szPath);
+        return ST_NO_ERROR;
+    }
+
+    if (tStat.bIsDir)
+    {
+        line_print_warning("'%s' is a directory. Use 'mount' to work "
+                            "with directories.", szPath);
+        return ST_NO_ERROR;
+    }
+
+    if (strcmp(tStat.szExt, "st")  == 0
+     || strcmp(tStat.szExt, "msa") == 0
+     || strcmp(tStat.szExt, "stx") == 0)
+    {
+        line_print_warning("'%s' is a disk image. Use 'mount' to work "
+                            "with disk images.", szPath);
+        return ST_NO_ERROR;
+    }
+
+    /* Attempt load into emulated ST RAM */
+    eResult = load_file(szPath);
+    if (eResult != ST_NO_ERROR)
+    {
+        line_print_error("Failed to load '%s'. See trace for details.",
+                         szPath);
+        return ST_NO_ERROR;
+    }
+
+    ptState = load_get_state();
+    if (ptState->eType == LOAD_TYPE_PRG)
+    {
+        line_print_msg("Loaded PRG '%s' at ST:0x%06X (%u bytes, "
+                       "fixup deferred to UC15).",
+                       szPath,
+                       (unsigned)ptState->uiLoadAddr,
+                       (unsigned)ptState->uiSize);
+    }
+    else
+    {
+        line_print_msg("Loaded '%s' at ST:0x%06X (%u bytes).",
+                       szPath,
+                       (unsigned)ptState->uiLoadAddr,
+                       (unsigned)ptState->uiSize);
+    }
+
+    line_update_console_title(ptCtx);
+    return ST_NO_ERROR;
+}
+
 static st_error_t line_cmd_where(const parsed_cmd_t *ptParsed,
                                   line_context_t     *ptCtx)
 {
@@ -1256,7 +1370,29 @@ static st_error_t line_cmd_info(const parsed_cmd_t *ptParsed,
 
     /* Stubs — future UCs */
     line_print_msg("Disk mounted : %s(none)%s", c_gray(), c_reset());
-    line_print_msg("Binary       : %s(none)%s", c_gray(), c_reset());
+
+    {
+        const load_state_t *ptLoadState = load_get_state();
+        if (ptLoadState->bLoaded)
+        {
+            const char *szType;
+            szType = (ptLoadState->eType == LOAD_TYPE_PRG)
+                     ? "PRG-stub" : "binary";
+            line_print_msg("Binary       : %s%s%s (%s, ST:0x%06X, "
+                           "%u bytes)",
+                           c_green(),
+                           line_path_basename(ptLoadState->szPath),
+                           c_reset(),
+                           szType,
+                           (unsigned)ptLoadState->uiLoadAddr,
+                           (unsigned)ptLoadState->uiSize);
+        }
+        else
+        {
+            line_print_msg("Binary       : %s(none)%s",
+                           c_gray(), c_reset());
+        }
+    }
 
     printf("\n");
 
@@ -1368,7 +1504,7 @@ static const cmd_handler_fn g_line_aHandlers[CMD_COUNT] =
     /* CMD_HELP       */ line_cmd_help,
     /* CMD_QUIT       */ line_cmd_quit,
     /* CMD_DIR        */ line_cmd_dir,
-    /* CMD_LOAD       */ line_cmd_stub,
+    /* CMD_LOAD       */ line_cmd_load,
     /* CMD_EDIT       */ line_cmd_stub,
     /* CMD_IMAGE      */ line_cmd_stub,
     /* CMD_MOUNT      */ line_cmd_stub,

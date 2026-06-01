@@ -21,6 +21,7 @@
 - 2026-06-01: R22 appliqué — purge LOG_TRACE des primitives récurrentes ; §6.9 UC4.4 ajouté avec contrats comportementaux (END key fix, stderr supprimé, focus non volé) (mutex lock/unlock/create/destroy, renderer draw/begin/end, gui invalidate/get_size/msg_post/get, win_gui invalidate/get_size/get_native_handle/set_title) ; LOG_TRACE cantonné aux fonctions UX et cycle de vie
 - 2026-06-01: UC5 validé — `where`/`info`/`history [N]` + P8 console title (`SetConsoleTitleA`) + P21 `H` dir hidden-toggle + P22 F5 refresh + P23bis TAB common prefix avant cycle ghost + P24 `colors auto` via `isatty()` + P27 `trace clear` + P28 `trace level trace|info|error` ; `CMD_INFO`/`CMD_HISTORY` ; `trace_clear()`/`trace_set_view_level()` ; `line_update_console_title()` ; ST_APP_VERSION 0.5.0
 - 2026-06-01: UC6 validé — `src/file.h` + `src/file.c` : `file_stat`, `file_open/read/write/close`, `file_mkdir`, `file_list_dir` (callback) ; CRT + POSIX portable ; ST_APP_VERSION 0.6.0
+- 2026-06-01: UC7 validé — `src/load.h` + `src/load.c` : détection type, chargement binaire raw + PRG stub (magic 0x601A, .text+.data) + fixup TODO(UC15) ; `line_cmd_load()` ; `line_cmd_info()` live ; P11 `szLastSelected` + `g_dir_clrLastSel` (vert sombre) dans `dir_render()` ; `st_machine_t` + `load_init/shutdown` dans `main.c` ; ST_APP_VERSION 0.7.0
 
 ## 1. Contexte du projet
 
@@ -550,7 +551,7 @@ Les étapes de développement fonctionnelles sont formalisées en Use Cases, per
 | UC5 | `where`, `info`, `history` | Répertoire courant + état sélection (where) ; dashboard global état application : cwd, fichier sélectionné, trace, disque monté, binaire chargé (info) ; **P8** : `SetConsoleTitleA` statut automatique ; **P21** : touche `H` toggle hidden dans vue dir ; **P22** : F5 refresh vue dir ; **P23bis** : TAB préfixe commun avant cycle ghost ; **P24** : `colors auto` via `isatty()` au démarrage ; **P25** : commande `history [N]` ; **P27** : `trace clear` ; **P28** : `trace level trace\|info\|error` filtre vue | ✓ VALIDÉ 2026-06-01 |
 | UC5-bis | prefs | Module `prefs.c` : lecture/écriture `%APPDATA%\ST4Ever\prefs.ini` ; mémorisation position/taille fenêtres par type (P7) — **différé après UC10** : les types de vues (edit hex, edit txt, disassembly) doivent être stables avant de persister leurs positions | save/restore position fenêtre dir/edit |
 | UC6 | plateforme | Abstraction fichiers : open/read/write/stat/mkdir, listing répertoire | ✓ VALIDÉ 2026-06-01 |
-| UC7 | `load` | Chargement fichier texte/binaire, détection type, buffer mémoire ; indicateur visuel sélection active dans vue `dir` (P11 : couleur secondaire sur ligne sélectionnée, ≠ highlight navigation) | load .txt, .bin, .PRG stub |
+| UC7 | `load` | Chargement fichier texte/binaire, détection type, buffer mémoire ; indicateur visuel sélection active dans vue `dir` (P11 : couleur secondaire sur ligne sélectionnée, ≠ highlight navigation) | ✓ VALIDÉ 2026-06-01 |
 | UC8 | `edit` texte | Vue éditeur texte Win32/GDI + X11 : scroll, numéros de ligne, sauvegarde | édition + save .S et .TXT |
 | UC9 | `edit` hex | Vue hex/ASCII Win32/GDI + X11 : adresses, scroll, édition octets | navigation + modification |
 | UC10 | `edit` | Vue intégrée hex+ASCII+désasm en colonnes synchronisées | sync curseur entre vues |
@@ -1230,11 +1231,85 @@ Les étapes de développement fonctionnelles sont formalisées en Use Cases, per
 - `bShowHidden=FALSE` : entrées `.*` filtrées
 
 **Points d'attention pour les UCs suivants :**
-- UC7 : `line_cmd_load()` utilisera `file_stat()` pour détecter le type (dir → message, image → message, fichier → chargement) + `file_open/read/close` pour lire le contenu.
 - UC8-10 : `edit` utilisera `file_open(FILE_MODE_READ)` + `file_open(FILE_MODE_WRITE)` pour chargement et sauvegarde.
 - UC16 : image `.st` = `file_open(READ)` + `file_read` de 737 280 octets exact.
 - UC18 : `file_list_dir` alimentera la vue mount (listing du répertoire monté).
 - `file_stat` n'est pas récursif : pas d'équivalent `stat64` nécessaire pour l'instant (fichiers PRG/ST restent < 4 Go).
+
+### 6.12 Use Case 07 (UC7) — ✓ VALIDÉ (2026-06-01)
+
+**Périmètre fonctionnel implémenté :**
+- `src/load.h` (nouveau) : `load_type_t` (NONE/BINARY/PRG), `load_state_t` (bLoaded, eType, szPath, uiLoadAddr, uiSize), API `load_init/shutdown/file/get_state`.
+- `src/load.c` (nouveau) : implémentation portable CRT+file.h :
+  - `load_init(ptMachine)` : attache le module à un `st_machine_t`, remet l'état à zéro.
+  - `load_file(szPath)` : `file_stat()` → rejet dir/image (ST_ERROR) ; `.prg/.ttp/.tos` → `load_do_prg()` ; sinon → `load_do_raw()`.
+  - `load_do_raw()` : lecture streaming par blocs 4 Ko, copie verbatim dans `aRam[ST_LOAD_BASE..]`.
+  - `load_do_prg()` : lecture header 28 octets, validation magic `0x601A`, lecture `.text`+`.data` (`uiTextSize + uiDataSize` octets) à `ST_LOAD_BASE`. `LOG_TODO(UC15)` pour les fixups. Charge de contenu = 0 byte sur `.data` = no-op.
+  - `load_get_state()` : pointeur read-only vers `g_load_tState` — valide jusqu'à `load_shutdown()`.
+  - `load_shutdown()` : remet machine pointer à NULL + remet état à zéro.
+  - Constantes : `ST_LOAD_BASE = 0x0800` (après table de vecteurs 68000), `ST_LOAD_MAX_SIZE = ST_RAM_SIZE - ST_LOAD_BASE`, `ST_PRG_MAGIC = 0x601A`, `ST_PRG_HEADER_SIZE = 28`.
+- `src/dir.h` : champ `szLastSelected[ST_MAX_PATH]` ajouté à `dir_view_t` (P11).
+- `src/dir.c` :
+  - `g_dir_clrLastSel = {0.04f, 0.28f, 0.10f, 1.0f}` (vert sombre) ajouté aux constantes couleur.
+  - `dir_activate_sel()` (ENTER sur fichier) et handler SPACE : après `line_set_selected()`, copient aussi `ptNode->szPath` dans `ptView->szLastSelected`.
+  - `dir_render()` : boucle augmentée — pour `iRow > 0`, compare `aptFlat[iRow-1].ptNode->szPath` à `szLastSelected` ; si égal, `renderer_fill_rect(…, &g_dir_clrLastSel)` avant le fond de sélection nav (vert sous le bleu, vert seul sinon). Séquence : fond vert sombre (P11) → fond bleu nav (si sélectionné) → texte.
+- `src/line.c` :
+  - `#include "load.h"` et `#include "file.h"` ajoutés.
+  - `line_cmd_load()` (nouveau) : collecte chemin depuis l'argument ou `line_get_selected()` ; si vide → message "use dir" ; `file_stat()` → rejet dir ("use mount") / image ("use mount") avec `line_print_warning()` ; sinon `load_file()` + affichage résultat (type, adresse ST, taille). `line_update_console_title()` après succès.
+  - Dispatch table : `CMD_LOAD → line_cmd_load` (remplace `line_cmd_stub`).
+  - `line_cmd_info()` : stub "Binary : (none)" remplacé par appel `load_get_state()` → affiche nom (basename), type (binary/PRG-stub), adresse ST et taille si `bLoaded=TRUE`.
+- `src/main.c` : `st_machine_t tMachine` + `st_init(&tMachine, NULL)` + `load_init(&tMachine)` au démarrage ; `load_shutdown()` + `st_shutdown(&tMachine)` à l'arrêt ; labels goto mis à jour (`shutdown_load`, `shutdown_st`).
+- `src/common.h` : `ST_APP_VERSION` → `"0.7.0"`.
+- `use_cases/UC07/` : fixtures `hello.txt` (~48 octets), `hello.bin` (16 octets 0x00..0x0F), `bad_magic.prg` (magic 0xDEAD), `test.st` (extension uniquement).
+
+**Tests R14/R15 appliqués :**
+- `use_cases/use_case_07.c` : TEST MATRIX **19N + 8R + 4S = 31 tests**, 0 failure.
+  - [N] : lifecycle load_init/shutdown ; get_state bLoaded/eType après init ; chargement binary (adresse, taille, contenu RAM) ; chargement txt (type BINARY, contenu RAM[0]=='H') ; chargement PRG hello.prg (type PRG, uiSize=4, RAM[0]=0x70/[1]=0x2A) ; remplacement état par nouveau load ; rejet dir/image ; état inchangé après PRG raté ; get_state != NULL après shutdown
+  - [R] : `load_init(NULL)` → ST_ERROR ; `load_file` sans init → ST_ERROR ; `load_file(NULL)` → ST_ERROR ; fichier inexistant → ST_ERROR ; bad PRG magic → ST_ERROR ; double shutdown idempotent
+  - [S] : 4 tests visuels P11 (`make manual UC=07`)
+
+**Contrats comportementaux validés :**
+
+*Module `load_init/shutdown`*
+- `load_init(NULL)` → `ST_ERROR`
+- `load_init(ptMachine)` → `ST_NO_ERROR` + état remis à zéro (bLoaded=FALSE, eType=NONE)
+- Idempotence : `load_shutdown()` deux fois → `ST_NO_ERROR` (no-op sur machine pointer déjà NULL)
+- `load_get_state()` toujours safe (jamais NULL) : retourne le pointeur vers `g_load_tState`
+
+*Module `load_file`*
+- `load_file(NULL)` → `ST_ERROR`
+- `load_file(...)` sans `load_init()` préalable → `ST_ERROR`
+- Fichier inexistant → `ST_ERROR` + `LOG_ERROR`
+- Répertoire → `ST_ERROR` + `LOG_ERROR` ("use mount")
+- Extension `.st`/`.msa`/`.stx` → `ST_ERROR` + `LOG_ERROR` ("use mount")
+- Extension `.prg`/`.ttp`/`.tos` → `load_do_prg()` : validation magic 0x601A + chargement `.text`+`.data` à `ST_LOAD_BASE`
+- Bad magic (≠ 0x601A) → `ST_ERROR` ; état précédent préservé (pas de reset partiel)
+- Tous les autres → `load_do_raw()` : copie verbatim à `ST_LOAD_BASE`
+- Fichier trop grand (> `ST_LOAD_MAX_SIZE`) → `ST_ERROR`
+- Succès : `g_load_tState.bLoaded=TRUE`, `eType`, `szPath`, `uiLoadAddr=ST_LOAD_BASE`, `uiSize` mis à jour
+
+*P11 — indicateur sélection active dans `dir_render()`*
+- `szLastSelected` mis à jour uniquement sur ENTER (via `dir_activate_sel()`) ou SPACE sur un fichier
+- Répertoires et ".." ne mettent jamais à jour `szLastSelected`
+- Fond vert sombre (`g_dir_clrLastSel`) dessiné pour la rangée dont `szPath == szLastSelected`
+- Fond bleu nav (`g_dir_clrSel`) superposé si la même rangée a aussi le curseur → bleu prime visuellement
+- `szLastSelected` vide (`[0]=='\0'`) → aucun fond vert (comportement initial)
+
+*`line_cmd_load`*
+- Sans argument et `szSelected` vide → message "select a file with dir", `ST_NO_ERROR`
+- Argument fourni → utilisé en priorité sur `szSelected`
+- Dir → `line_print_warning("use mount")`, `ST_NO_ERROR`
+- Image disque → `line_print_warning("use mount")`, `ST_NO_ERROR`
+- Erreur de stat → `line_print_error`, `ST_NO_ERROR` (erreur non fatale pour la boucle console)
+- Succès binary → message avec adresse ST et taille ; succès PRG → message avec mention "(fixup deferred to UC15)"
+- `line_update_console_title()` appelé après chaque succès
+
+**Points d'attention pour les UCs suivants :**
+- UC8-10 : `edit` utilisera `load_get_state()` pour savoir si un fichier est déjà chargé et proposer de l'éditer directement en mémoire émulée.
+- UC15 : `load_do_prg()` TODO(UC15) — parser la table de fixups (bitstream : 0x00=fin, 0x01=sauter 254 octets, sinon offset depuis dernier fixup appliqué aux longwords en .text/.data).
+- UC24 : `ST_LOAD_BASE = 0x0800` est en dur ; UC24 devra allouer la première zone libre au-dessus des variables TOS selon la memory map réelle.
+- UC25 : `execute` démarrera depuis `load_get_state()->uiLoadAddr` comme PC initial (si eType == LOAD_TYPE_PRG).
+- `line_cmd_info()` stub "Disk mounted" reste à remplir lors de UC18 (`mount`).
 
 ## 7. Propositions d'améliorations
 

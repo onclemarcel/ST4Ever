@@ -1,56 +1,56 @@
-20:49:56 [TRC ] gui_open_window:158  ptDesc=000000b689fff950 phWnd=0000029473620080
-20:49:56 [TRC ] gui_platform_window_create:470  ptWnd=00000294736cc640
-20:49:56 [TRC ] platform_thread_create:128  pptThread=00000294736cc668 pfnEntry=00007ff705270fb8 pArg=00000294736cc640
-20:49:56 [INF ] platform_thread_create:166  thread created (HANDLE=000000000000022c)
-20:49:56 [TRC ] renderer_create:27  hWnd=00000294736cc640 phCtx=0000029473620088
-20:49:56 [TRC ] renderer_platform_create:188  ptCtx=00000294736c9520 hWnd=00000294736cc640
-20:49:56 [INF ] renderer_platform_create:322  D2D renderer created: mono cell=7.1x15.2
-20:49:56 [INF ] renderer_create:55  renderer created for window 00000294736cc640
-20:49:56 [INF ] gui_platform_window_create:526  platform window created: HWND=0000000000a50664
-20:49:56 [INF ] gui_open_window:205  window opened: title='ST4Ever - Trace'
-20:49:56 [INF ] trace_open:577  Trace console opened
-20:49:56 [INF ] main:163  Manual test: INFO line — should appear in CYAN
-20:49:56 [ERR ] main:164  Manual test: ERROR line — should appear in RED
-20:49:56 [TODO] main:165  Manual test: TODO line — should appear in MAGENTA
-20:49:56 [TRC ] main:166  Manual test: TRACE line — should appear in GRAY
-20:49:56 [INF ] main:180  Scroll test line 1 of 30
-20:49:56 [INF ] main:180  Scroll test line 2 of 30
-20:49:56 [INF ] main:180  Scroll test line 3 of 30
-20:49:56 [INF ] main:180  Scroll test line 4 of 30
-20:49:56 [INF ] main:180  Scroll test line 5 of 30
-20:49:56 [INF ] main:180  Scroll test line 6 of 30
-20:49:56 [INF ] main:180  Scroll test line 7 of 30
-20:49:56 [INF ] main:180  Scroll test line 8 of 30
-20:49:56 [INF ] main:180  Scroll test line 9 of 30
-20:49:56 [INF ] main:180  Scroll test line 10 of 30
-20:49:56 [INF ] main:180  Scroll test line 11 of 30
-20:49:56 [INF ] main:180  Scroll test line 12 of 30
-20:49:56 [INF ] main:180  Scroll test line 13 of 30
-20:49:56 [INF ] main:180  Scroll test line 14 of 30
-20:49:56 [INF ] main:180  Scroll test line 15 of 30
-20:49:56 [INF ] main:180  Scroll test line 16 of 30
-20:49:56 [INF ] main:180  Scroll test line 17 of 30
-20:49:56 [INF ] main:180  Scroll test line 18 of 30
-20:49:56 [INF ] main:180  Scroll test line 19 of 30
-20:49:56 [INF ] main:180  Scroll test line 20 of 30
-20:49:56 [INF ] main:180  Scroll test line 21 of 30
-20:49:56 [INF ] main:180  Scroll test line 22 of 30
-20:49:56 [INF ] main:180  Scroll test line 23 of 30
-20:49:56 [INF ] main:180  Scroll test line 24 of 30
-20:49:56 [INF ] main:180  Scroll test line 25 of 30
-20:49:56 [INF ] main:180  Scroll test line 26 of 30
-20:49:56 [INF ] main:180  Scroll test line 27 of 30
-20:49:56 [INF ] main:180  Scroll test line 28 of 30
-20:49:56 [INF ] main:180  Scroll test line 29 of 30
-20:49:56 [INF ] main:180  Scroll test line 30 of 30
-20:49:56 [INF ] trace_close:590  Trace console closed
-20:49:56 [TRC ] gui_close_window:214  hWnd=00000294736cc640
-20:49:56 [TRC ] gui_platform_window_close:534  ptWnd=00000294736cc640
-20:49:56 [TRC ] platform_thread_join:174  ptThread=00000294736c95c0
-20:49:56 [TRC ] renderer_destroy:198  phCtx=0000029473620088
-20:49:56 [TRC ] renderer_platform_destroy:329  ptCtx=00000294736c9520
-20:49:56 [INF ] renderer_destroy:211  renderer destroyed
-20:49:56 [INF ] win_wnd_thread:424  window thread exiting: 'ST4Ever - Trace'
-20:49:56 [TRC ] platform_thread_destroy:195  pptThread=00000294736cc668
-20:49:56 [INF ] gui_close_window:240  window closed
-20:49:56 [INF ] trace_shutdown:804  ST4Ever 0.5.0 shutting down - trace closing
+21:05:18 [TRC ] gui_open_window:158  ptDesc=0000007ae05ff8e0 phWnd=000002046c400080
+21:05:18 [TRC ] gui_platform_window_create:470  ptWnd=000002046c4ac870
+21:05:18 [TRC ] platform_thread_create:128  pptThread=000002046c4ac898 pfnEntry=00007ff6d3122008 pArg=000002046c4ac870
+21:05:18 [INF ] platform_thread_create:166  thread created (HANDLE=0000000000000358)
+21:05:18 [TRC ] renderer_create:27  hWnd=000002046c4ac870 phCtx=000002046c400088
+21:05:18 [TRC ] renderer_platform_create:188  ptCtx=000002046c4a9490 hWnd=000002046c4ac870
+21:05:18 [INF ] renderer_platform_create:322  D2D renderer created: mono cell=7.1x15.2
+21:05:18 [INF ] renderer_create:55  renderer created for window 000002046c4ac870
+21:05:18 [INF ] gui_platform_window_create:526  platform window created: HWND=0000000000f006aa
+21:05:18 [INF ] gui_open_window:205  window opened: title='ST4Ever - Trace'
+21:05:18 [INF ] trace_open:577  Trace console opened
+21:05:18 [INF ] main:163  Manual test: INFO line — should appear in CYAN
+21:05:18 [ERR ] main:164  Manual test: ERROR line — should appear in RED
+21:05:18 [TODO] main:165  Manual test: TODO line — should appear in MAGENTA
+21:05:18 [TRC ] main:166  Manual test: TRACE line — should appear in GRAY
+21:05:18 [INF ] main:180  Scroll test line 1 of 30
+21:05:18 [INF ] main:180  Scroll test line 2 of 30
+21:05:18 [INF ] main:180  Scroll test line 3 of 30
+21:05:18 [INF ] main:180  Scroll test line 4 of 30
+21:05:18 [INF ] main:180  Scroll test line 5 of 30
+21:05:18 [INF ] main:180  Scroll test line 6 of 30
+21:05:18 [INF ] main:180  Scroll test line 7 of 30
+21:05:18 [INF ] main:180  Scroll test line 8 of 30
+21:05:18 [INF ] main:180  Scroll test line 9 of 30
+21:05:18 [INF ] main:180  Scroll test line 10 of 30
+21:05:18 [INF ] main:180  Scroll test line 11 of 30
+21:05:18 [INF ] main:180  Scroll test line 12 of 30
+21:05:18 [INF ] main:180  Scroll test line 13 of 30
+21:05:18 [INF ] main:180  Scroll test line 14 of 30
+21:05:18 [INF ] main:180  Scroll test line 15 of 30
+21:05:18 [INF ] main:180  Scroll test line 16 of 30
+21:05:18 [INF ] main:180  Scroll test line 17 of 30
+21:05:18 [INF ] main:180  Scroll test line 18 of 30
+21:05:18 [INF ] main:180  Scroll test line 19 of 30
+21:05:18 [INF ] main:180  Scroll test line 20 of 30
+21:05:18 [INF ] main:180  Scroll test line 21 of 30
+21:05:18 [INF ] main:180  Scroll test line 22 of 30
+21:05:18 [INF ] main:180  Scroll test line 23 of 30
+21:05:18 [INF ] main:180  Scroll test line 24 of 30
+21:05:18 [INF ] main:180  Scroll test line 25 of 30
+21:05:18 [INF ] main:180  Scroll test line 26 of 30
+21:05:18 [INF ] main:180  Scroll test line 27 of 30
+21:05:18 [INF ] main:180  Scroll test line 28 of 30
+21:05:18 [INF ] main:180  Scroll test line 29 of 30
+21:05:18 [INF ] main:180  Scroll test line 30 of 30
+21:05:18 [INF ] trace_close:590  Trace console closed
+21:05:18 [TRC ] gui_close_window:214  hWnd=000002046c4ac870
+21:05:18 [TRC ] gui_platform_window_close:534  ptWnd=000002046c4ac870
+21:05:18 [TRC ] platform_thread_join:174  ptThread=000002046c4a94c0
+21:05:18 [TRC ] renderer_destroy:198  phCtx=000002046c400088
+21:05:18 [TRC ] renderer_platform_destroy:329  ptCtx=000002046c4a9490
+21:05:18 [INF ] renderer_destroy:211  renderer destroyed
+21:05:18 [INF ] win_wnd_thread:424  window thread exiting: 'ST4Ever - Trace'
+21:05:18 [TRC ] platform_thread_destroy:195  pptThread=000002046c4ac898
+21:05:18 [INF ] gui_close_window:240  window closed
+21:05:18 [INF ] trace_shutdown:804  ST4Ever 0.7.0 shutting down - trace closing

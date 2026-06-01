@@ -115,6 +115,9 @@ typedef struct dir_view_s
     int               iCellH;               /* Monospace cell height  */
     st_bool_t         bShowHidden;           /* Show '.*' entries (P15)*/
     char              szRootPath[ST_MAX_PATH];
+    char              szLastSelected[ST_MAX_PATH]; /* P11: last file   */
+                                                   /* committed via    */
+                                                   /* ENTER or SPACE   */
 } dir_view_t;
 
 /* ------------------------------------------------------------------
