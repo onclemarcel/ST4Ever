@@ -547,7 +547,7 @@ Les étapes de développement fonctionnelles sont formalisées en Use Cases, per
 | UC4.3 | complétion + historique + extras | Historique ↑↓ circulaire + `~/.st4ever_history` + tab-completion commandes/chemins + ghost-text DIM + prompt contextuel `[T][file]` + `colors on/off` + `--script file` + mutex `ptSelectedMutex` + `line_set/get_selected()` | ✓ VALIDÉ 2026-06-01 |
 | UC4.4 | trace view GUI | Fenêtre `GUI_WND_TRACE` D2D : scroll texte append-only, couleurs par niveau ; `trace.c` ring buffer + mutex + garde réentrante ; suppression TODO(UC3)/TODO(UC3.3) | ✓ VALIDÉ 2026-06-01 |
 | UC5 | `where`, `info`, `history` | Répertoire courant + état sélection (where) ; dashboard global état application : cwd, fichier sélectionné, trace, disque monté, binaire chargé (info) ; **P8** : `SetConsoleTitleA` statut automatique ; **P21** : touche `H` toggle hidden dans vue dir ; **P22** : F5 refresh vue dir ; **P23bis** : TAB préfixe commun avant cycle ghost ; **P24** : `colors auto` via `isatty()` au démarrage ; **P25** : commande `history [N]` ; **P27** : `trace clear` ; **P28** : `trace level trace\|info\|error` filtre vue | ✓ VALIDÉ 2026-06-01 |
-| UC5-bis | prefs | Module `prefs.c` : lecture/écriture `%APPDATA%\ST4Ever\prefs.ini` ; mémorisation position/taille fenêtres par type (P7) — **optionnel**, après UC5 | save/restore position fenêtre dir |
+| UC5-bis | prefs | Module `prefs.c` : lecture/écriture `%APPDATA%\ST4Ever\prefs.ini` ; mémorisation position/taille fenêtres par type (P7) — **différé après UC10** : les types de vues (edit hex, edit txt, disassembly) doivent être stables avant de persister leurs positions | save/restore position fenêtre dir/edit |
 | UC6 | plateforme | Abstraction fichiers : open/read/write/stat/mkdir, listing répertoire | tests lecture/écriture |
 | UC7 | `load` | Chargement fichier texte/binaire, détection type, buffer mémoire ; indicateur visuel sélection active dans vue `dir` (P11 : couleur secondaire sur ligne sélectionnée, ≠ highlight navigation) | load .txt, .bin, .PRG stub |
 | UC8 | `edit` texte | Vue éditeur texte Win32/GDI + X11 : scroll, numéros de ligne, sauvegarde | édition + save .S et .TXT |
@@ -1217,9 +1217,9 @@ Séparer les tests automatiques (`make tests`) des tests visuels (`make manual`)
 
 Chaque vue GUI affiche dans sa barre de titre le contexte courant (`ST4Ever - Dir: C:\demos\`, `ST4Ever - Edit: ENCHANT.PRG [hex]`…). Convention posée en R18 §5, appliquée dès UC3.3 et systématisée dans chaque UC de vue suivant.
 
-**P7 — Mémorisation position/taille des fenêtres** → **ACCEPTÉ — UC5-bis (optionnel, après UC5)**
+**P7 — Mémorisation position/taille des fenêtres** → **ACCEPTÉ — UC5-bis (différé après UC10)**
 
-Architecture conservée : console terminal + vues GUI (voir décision D1 ci-dessous). Module `prefs.c` (fichier INI `%APPDATA%\ST4Ever\prefs.ini`) différé après UC5, quand les vues principales seront stables.
+Architecture conservée : console terminal + vues GUI (voir décision D1 ci-dessous). Module `prefs.c` (fichier INI `%APPDATA%\ST4Ever\prefs.ini`) différé après UC10 : les types de vues edit (hex, txt, disassembly) doivent être stables avant que leurs positions/tailles soient pertinentes à persister. Implémenter `prefs.c` sur une fenêtre `dir` seule serait prématuré — l'API doit couvrir d'emblée tous les types `GUI_WND_*`.
 
 **P8 — Indicateur d'état dans la barre de titre de la console** → **ACCEPTÉ — UC5**
 

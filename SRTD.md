@@ -21,6 +21,7 @@
 | 1.6 | 2026-06-01 | UC4.2 | Claude/OMC | UC4.2 validated — console.h (CON_KEY_*) + win pipe/VT100 + line_read_rich + CTRL shortcuts + make manual UC=XX + focus restore on close |
 | 1.7 | 2026-06-01 | UC4.3 | Claude/OMC | UC4.3 validated — history ↑↓ + ~/.st4ever_history + TAB completion + ghost text + prompt contextuel + colors on/off + --script + mutex ptSelectedMutex |
 | 1.8 | 2026-06-01 | UC4.4 | Claude/OMC | UC4.4 validated — trace_view_t D2D ring buffer + auto-scroll + keyboard nav + stderr suppressed when GUI live; REQ-TRC-017..022; UFR-TRC-007 closed |
+| 1.9 | 2026-06-01 | UC5   | Claude/OMC | UC5 validated — where/info/history [N]; P8 console title; P21 H-key hidden toggle; P22 F5 refresh + state-preserve; P23bis TAB common prefix; P24 colors isatty; P27 trace clear; P28 trace level; REQ-TRC-023..026; REQ-CON-025..031; REQ-DIR-021..022 |
 
 ---
 
@@ -118,7 +119,12 @@ through one or more test cases in Section 5.
 | UFR-CON-060 | `edit <file>` shall open the appropriate editor view for the file type.                          | TODO UC8-10 | UC8  |
 | UFR-CON-070 | `mount [path]` shall emulate an Atari ST floppy drive A:\ from the given directory.             | TODO UC18   | UC18 |
 | UFR-CON-071 | `umount` shall eject the emulated floppy, offering to save a disk image if modified.             | TODO UC19   | UC19 |
-| UFR-CON-080 | `where` shall display the current working directory and the currently selected file/directory.   | TODO UC5    | UC5  |
+| UFR-CON-080 | `where` shall display the current working directory and the currently selected file/directory.   | ✓ UC5       | UC5  |
+| UFR-CON-081 | `info` shall display a status dashboard: cwd, selected file, trace state, colors state, history count, mounted disk, loaded binary. | ✓ UC5 | UC5 |
+| UFR-CON-082 | `history [N]` shall display the last N command history entries numbered in order (default N=10). | ✓ UC5       | UC5  |
+| UFR-CON-083 | The OS window/terminal title bar shall be updated automatically after each command to reflect the current cwd, selection, and trace state. (P8) | ✓ UC5 | UC5 |
+| UFR-CON-084 | On Tab with multiple completion candidates, the longest common prefix shall be inserted into the input buffer before cycling ghost text candidates. (P23bis) | ✓ UC5 | UC5 |
+| UFR-CON-085 | ANSI colour output shall be auto-enabled or auto-disabled based on `isatty(stdout)` at startup; `colors on/off` shall remain available to override. (P24) | ✓ UC5 | UC5 |
 | UFR-CON-090 | `execute <file>` shall open the full execution engine with all linked views.                     | TODO UC25   | UC25 |
 | UFR-CON-091 | `image` shall create a `.st` or `.msa` disk image from the mounted floppy content.              | TODO UC20   | UC20 |
 
@@ -136,6 +142,8 @@ through one or more test cases in Section 5.
 | UFR-TRC-008 | The trace window shall render log entries colour-coded by level: TRACE=grey, INFO=cyan, ERROR=red, TODO=magenta. | ✓ UC4.4  | UC4.4|
 | UFR-TRC-009 | The trace window shall auto-scroll to the newest entry on append; manual scroll disables auto-scroll until End is pressed. | ✓ UC4.4 | UC4.4|
 | UFR-TRC-010 | Opening the trace window shall not steal keyboard focus from the console.                                     | ✓ UC4.4    | UC4.4|
+| UFR-TRC-011 | `trace clear` shall erase all lines from the GUI trace window ring buffer without affecting the log file. (P27) | ✓ UC5    | UC5  |
+| UFR-TRC-012 | `trace level <trace\|info\|error>` shall set a display filter on the GUI trace window; lines below the filter level shall be hidden without being removed from the ring buffer or the log file. (P28) | ✓ UC5 | UC5 |
 
 ### 1.3 GUI Framework — `GUI` (UC3.1 infra ✓, UC3.2 renderer, UC3.3 dir view)
 
@@ -163,6 +171,8 @@ through one or more test cases in Section 5.
 | UFR-DIR-008 | ESC key shall close the directory view without requiring console-thread action.                              | ✓ UC4.1  | UC4.1 |
 | UFR-DIR-009 | LEFT arrow key shall collapse an expanded directory node; RIGHT arrow key shall expand a collapsed directory node (loading children lazily if needed). | ✓ UC4.1 | UC4.1 |
 | UFR-DIR-010 | SPACE shall update the default selection without modifying the expand/collapse state; ENTER shall activate the node (expand/collapse/navigate). | ✓ UC4.1 | UC4.1 |
+| UFR-DIR-011 | The `H` key shall toggle the visibility of hidden files (entries starting with `.`) in the currently open directory view, reloading the root children with the new filter. (P21) | ✓ UC5 | UC5 |
+| UFR-DIR-012 | The F5 key shall refresh the directory listing from disk while preserving the current expansion state: directories that were expanded before the refresh shall remain expanded afterwards; deleted directories are silently dropped. (P22) | ✓ UC5 | UC5 |
 
 ### 1.5 Editor Views — `EDT` (TODO UC8–10)
 
@@ -214,6 +224,10 @@ requirement that will expose it (`UFR-EXE-*`, planned UC21–27).
 | REQ-TRC-022 | ESC in the trace window shall call `gui_request_close(hWnd)` (non-blocking); ↑/↓/PgUp/PgDn/Home/End and mouse wheel shall scroll the view content. | UFR-TRC-009 | ✓ UC4.4 | UC4.4 |
 | REQ-TRC-015 | Each log entry shall be formatted as `HH:MM:SS [LEVEL] function:line  message` — timestamp from system clock (`localtime`/`strftime`), level tag, emitting function (`__func__`), source line (`__LINE__`). | UFR-TRC-002 | ✓ UC1 | UC1 |
 | REQ-TRC-016 | `line_cmd_trace("off")` shall call `trace_set_trace_enabled(ST_FALSE)` without calling `trace_close()`; the trace view shall remain open. Calling `trace off` twice shall be harmless. (P19) | UFR-CON-031 | ✓ P19 | P19 |
+| REQ-TRC-023 | `trace_clear()` shall lock the ring buffer mutex, reset `iHead`, `iCount`, and `iScrollOff` to 0, unlock, and call `gui_invalidate()`. If the trace window is not open, it shall return `ST_NO_ERROR` immediately (no-op). The log file shall not be affected. | UFR-TRC-011 | ✓ UC5 | UC5 |
+| REQ-TRC-024 | `trace_set_view_level(eMinLevel)` shall update the global `g_trace_eViewMinLevel` and the `eViewMinLevel` field of the active `trace_view_t` (if open), then call `gui_invalidate()`. The filter shall apply to rendering only; the ring buffer and log file receive all entries regardless of level. | UFR-TRC-012 | ✓ UC5 | UC5 |
+| REQ-TRC-025 | `trace_get_view_level()` shall return the current `g_trace_eViewMinLevel` value. The global default is `LOG_LEVEL_TRACE` (show all). The level shall persist across `trace_close()` / `trace_open()` cycles: `trace_open()` shall copy `g_trace_eViewMinLevel` into the new `trace_view_t.eViewMinLevel`. | UFR-TRC-012 | ✓ UC5 | UC5 |
+| REQ-TRC-026 | In `trace_render()`, for each line in the ring buffer, if `eLevel < ptView->eViewMinLevel` the line shall be skipped without consuming a screen row. The screen row counter shall advance only for lines that pass the filter. | UFR-TRC-012 | ✓ UC5 | UC5 |
 
 ### 2.2 Console Line Reader — `line.h` / `line.c`
 
@@ -234,13 +248,20 @@ requirement that will expose it (`UFR-EXE-*`, planned UC21–27).
 | REQ-CON-015  | `line_run()` shall fall back to plain `fgets()` input when `console_set_raw()` returns `ST_ERROR` (non-TTY: CI, pipes). | UFR-CON-001 | ✓ UC4.2 | UC4.2 |
 | REQ-CON-016  | `line_run()` shall call `console_restore()` after the main loop when raw mode was active.             | UFR-CON-001              | ✓ UC4.2  | UC4.2 |
 | REQ-CON-017  | `line_read_rich()` shall browse history with ↑/↓: UP stores the current edit buffer in `szSavedInput` and fetches entries from most-recent toward oldest; DOWN moves toward newest; pressing DOWN past the newest restores `szSavedInput`. | UFR-CON-007 | ✓ UC4.3 | UC4.3 |
-| REQ-CON-018  | TAB on the first word shall call `line_complete_cmd_query()`; TAB on subsequent words shall call `line_complete_path_query()`. One candidate → immediate suffix insertion. Multiple candidates → ghost text cycle. Any non-TAB key clears ghost. | UFR-CON-009 | ✓ UC4.3 | UC4.3 |
+| REQ-CON-018  | TAB on the first word shall call `line_complete_cmd_query()`; TAB on subsequent words shall call `line_complete_path_query()`. One candidate → immediate suffix insertion. Multiple candidates → P23bis: first TAB inserts the longest common prefix of all candidates; subsequent TABs cycle ghost text. Any non-TAB key clears ghost. | UFR-CON-009, UFR-CON-084 | ✓ UC4.3, P23bis UC5 | UC5 |
 | REQ-CON-019  | `line_history_add()` shall silently ignore empty strings and exact duplicates of the most-recent entry. The ring buffer is capped at `LINE_HISTORY_MAX` (64); the oldest entry is evicted when full. | UFR-CON-007 | ✓ UC4.3 | UC4.3 |
 | REQ-CON-020  | `line_init()` shall call `line_history_load(NULL)` to restore history from `$HOME/.st4ever_history`; `line_shutdown()` shall call `line_history_save(NULL)` to persist it. A missing file on load shall return `ST_NO_ERROR` (first-run case). | UFR-CON-007 | ✓ UC4.3 | UC4.3 |
 | REQ-CON-021  | `line_cmd_colors()` shall toggle `g_line_bColors` when called without argument; `colors on/off` shall force the value. All ANSI output shall be gated by `c_*()` static-inline functions that return `""` when colors are disabled. | UFR-CON-047 | ✓ UC4.3 | UC4.3 |
 | REQ-CON-022  | When `szScriptFile[0] != '\0'`, `line_run()` shall open the file and dispatch each non-blank, non-comment line through `line_parse_cmd()` + `line_dispatch()` without entering raw mode. A missing file shall return `ST_ERROR`. | UFR-CON-048 | ✓ UC4.3 | UC4.3 |
 | REQ-CON-023  | `line_set_selected(ptCtx, szPath)` and `line_get_selected(ptCtx, szBuf, uiBufLen)` shall acquire `ptCtx->ptSelectedMutex` before accessing `szSelected`; `set_selected(ptCtx, NULL)` shall clear the field. | UFR-DIR-002 | ✓ UC4.3 | UC4.3 |
 | REQ-CON-024  | `line_build_prompt()` shall prepend `[T]` when `trace_is_open() == ST_TRUE` and `[basename]` when `szSelected` is non-empty; both are included, neither, or just one depending on state. | UFR-CON-049 | ✓ UC4.3 | UC4.3 |
+| REQ-CON-025  | `line_cmd_where()` shall print `ptCtx->szCwd` and the result of `line_get_selected()` to stdout; if no file is selected, it shall print `(none)`. Extra arguments shall trigger a warning and be ignored. | UFR-CON-080 | ✓ UC5 | UC5 |
+| REQ-CON-026  | `line_cmd_info()` shall print a dashboard covering: cwd, selected file, trace state (open/closed + LOG_TRACE on/off), colors state (on/off), history entry count, mounted disk (stub: "(none)"), and loaded binary (stub: "(none)"). Extra arguments shall trigger a warning. | UFR-CON-081 | ✓ UC5 | UC5 |
+| REQ-CON-027  | `line_cmd_history([N])` shall print the last `min(N, count)` history entries numbered from 1. Without an argument, N defaults to 10. A non-positive or non-numeric N shall produce a warning and no output. If history is empty, it shall print `(no history)`. | UFR-CON-082 | ✓ UC5 | UC5 |
+| REQ-CON-028  | `line_update_console_title(ptCtx)` shall update the OS window/terminal title to `"ST4Ever vX.Y.Z \| cwd [\| sel: basename] [\| T]"`. On Windows it shall call `SetConsoleTitleA()`; on Linux it shall emit ANSI OSC `\033]0;...\007`. A NULL `ptCtx` shall not crash (minimal title with no cwd). The function shall be called at `line_run()` start and after every `line_dispatch()` call. | UFR-CON-083 | ✓ UC5 | UC5 |
+| REQ-CON-029  | `line_init()` shall detect stdout TTY status via `_isatty(_fileno(stdout))` (Windows) or `isatty(STDOUT_FILENO)` (Linux) and set `g_line_bColors` accordingly: `ST_TRUE` for a live terminal, `ST_FALSE` for a pipe or file. `colors on/off` shall remain available to override. | UFR-CON-085 | ✓ UC5 | UC5 |
+| REQ-CON-030  | `line_cmd_trace()` shall accept the sub-command `clear` (calls `trace_clear()`, prints confirmation) and `level <trace\|info\|error>` (calls `trace_set_view_level()`, prints confirmation). Unknown first arguments shall produce a warning listing all valid sub-commands. | UFR-TRC-011, UFR-TRC-012 | ✓ UC5 | UC5 |
+| REQ-CON-031  | `line_complete_cmd_query()` shall include `"info"` and `"history"` in its candidate set, matching on both the full name and the single-letter shortcut (`"n"` and `"y"` respectively). | UFR-CON-009 | ✓ UC5 | UC5 |
 
 ### 2.3 ST Machine Emulator — `ST.h` / `ST.c`
 
@@ -354,6 +375,8 @@ requirement that will expose it (`UFR-EXE-*`, planned UC21–27).
 | REQ-DIR-018  | LEFT arrow on an expanded directory node shall collapse it and rebuild the flat list; on a collapsed directory or a file: no-op. RIGHT arrow on a collapsed directory shall lazy-load children if needed, expand it, and rebuild the flat list; on an expanded directory or a file: no-op. | UFR-DIR-009 | ✓ UC4.1 | UC4.1 |
 | REQ-DIR-019  | SPACE on `iSelectedFlat >= 0` shall write the node's full path to `ptLineCtx->szSelected` without modifying expand/collapse state; SPACE on the `..` row (`iSelectedFlat == -1`) shall be a no-op. | UFR-DIR-010 | ✓ UC4.1 | UC4.1 |
 | REQ-DIR-020  | After `ShowWindow()`, the Win32 window thread shall call `SetForegroundWindow()` and `SetFocus()` so the view receives keyboard input immediately. | UFR-GUI-007 | ✓ UC4.1 | UC4.1 |
+| REQ-DIR-021  | In `dir_handle_key()`, the `H`/`h` printable key shall toggle `ptView->bShowHidden`, call `dir_node_reload_children(ptRoot, bShowHidden)`, rebuild the flat list, and reset `iSelectedFlat = -2` and `iScrollOffset = 0`. (P21) | UFR-DIR-011 | ✓ UC5 | UC5 |
+| REQ-DIR-022  | In `dir_handle_key()`, `GUI_KEY_F5` shall call `dir_refresh_tree()`, which: (1) collects all currently-expanded dir paths via DFS into a stack-local array (max 256); (2) reloads the root's direct children; (3) for each saved path, navigates the new tree component-by-component, loading children and setting `bExpanded=ST_TRUE` at each level; missing components (dir deleted) are silently ignored. The flat list is rebuilt and the existing selection is clamped to valid range. (P22) | UFR-DIR-012 | ✓ UC5 | UC5 |
 
 ---
 
@@ -528,6 +551,9 @@ INFO, ERROR, TODO. Stderr output is suppressed when the GUI view is live.
 | `trace_is_open()`                     | REQ-TRC-003                         | Query GUI window visibility                       |
 | `trace_log(level, func, line, fmt,…)` | REQ-TRC-004, REQ-TRC-013, REQ-TRC-018 | Emit one entry (use LOG_* macros instead)       |
 | `trace_shutdown()`                    | REQ-TRC-012                         | Flush, close file, close GUI if open, free state  |
+| `trace_clear()`                       | REQ-TRC-023                         | Reset ring buffer; invalidate view; no-op if not open |
+| `trace_set_view_level(eMinLevel)`     | REQ-TRC-024, REQ-TRC-025            | Set GUI display filter; persist in global; invalidate |
+| `trace_get_view_level()`              | REQ-TRC-025                         | Return current `g_trace_eViewMinLevel`            |
 
 **Key internal functions:**
 
@@ -550,6 +576,7 @@ INFO, ERROR, TODO. Stderr output is suppressed when the GUI view is live.
 | `iCount`         | `int`                    | Number of valid entries (capped at 200)               |
 | `iScrollOff`     | `int`                    | First visible line index                              |
 | `bAutoScroll`    | `st_bool_t`              | TRUE: scroll to newest on each append                 |
+| `eViewMinLevel`  | `log_level_t`            | P28 display filter: lines below this level not rendered; default LOG_LEVEL_TRACE (show all) |
 | `hRenderer`      | `renderer_handle_t`      | D2D renderer (created lazily on first GUI_EVT_PAINT)  |
 | `iCellH`         | `int`                    | Font cell height from `renderer_get_font_metrics()`   |
 
@@ -625,6 +652,7 @@ handler.  Owns `line_context_t` (cwd, current selection, running flag).
 | `line_get_colors()`                               | REQ-CON-021                     | Query current ANSI color state                                     |
 | `line_set_selected(ptCtx, szPath)`                | REQ-CON-023                     | Thread-safe write under mutex; NULL clears the field               |
 | `line_get_selected(ptCtx, szBuf, uiBufLen)`       | REQ-CON-023                     | Thread-safe read under mutex                                       |
+| `line_update_console_title(ptCtx)`                | REQ-CON-028                     | SetConsoleTitleA (Win) / OSC escape (Linux); NULL-safe             |
 
 **Key internal functions:**
 
@@ -637,6 +665,9 @@ handler.  Owns `line_context_t` (cwd, current selection, running flag).
 | `line_cmd_quit()`                  | REQ-CON-007                         | Set `bRunning = FALSE`                                                   |
 | `line_cmd_trace()`                 | REQ-CON-008                         | Call `trace_open/close/toggle` (full impl UC2)                           |
 | `line_cmd_colors()`                | REQ-CON-021                         | Toggle or force `g_line_bColors`; warn on unknown arg                    |
+| `line_cmd_where()`                 | REQ-CON-025                         | Print cwd + selected file (or "(none)")                                  |
+| `line_cmd_info()`                  | REQ-CON-026                         | Print full status dashboard                                              |
+| `line_cmd_history()`               | REQ-CON-027                         | Print last N history entries (default 10); warn on bad N                 |
 | `line_cmd_stub()`                  | REQ-CON-009                         | LOG_TODO + "not yet implemented" for all other commands                  |
 | `line_run_script(ptCtx)`           | REQ-CON-022                         | Open `szScriptFile`, parse+dispatch each line; `#` and blanks skipped    |
 | `line_redraw(ptCtx, szBuf, uiLen, uiCur, szGhost)` | REQ-CON-010              | `\r\033[2K` + prompt + buffer + ghost DIM + `\033[ND` cursor reposition  |
@@ -667,18 +698,32 @@ handler.  Owns `line_context_t` (cwd, current selection, running flag).
 `c_*()` static-inline ANSI helpers gate all colour output; `ptSelectedMutex` protects
 `szSelected` from concurrent window-thread writes; `line_run_script()` branch in `line_run()`.
 
-**Command dispatch sequence:**
+**UC5 additions:** `CMD_WHERE` / `CMD_INFO` / `CMD_HISTORY` dispatched to real handlers;
+`line_update_console_title()` public — `SetConsoleTitleA` (Win) / OSC escape (Linux) — called
+at loop start and after every dispatch; `g_line_bColors` initialised via `isatty()` in
+`line_init()` (P24); TAB P23bis: common-prefix insertion block before ghost cycle in
+`line_read_rich()`; `trace clear` and `trace level` sub-commands in `line_cmd_trace()`.
+
+**Command dispatch sequence (UC5):**
 
 ```
 line_run()
-  ├─ printf("ST4> ")              [CRT]
-  ├─ fgets(szBuf)                 [CRT]
-  ├─ line_parse_cmd()  → parsed_cmd_t  (tokenise + match cmd token)
-  ├─ line_dispatch()   → g_line_aHandlers[eCmd]
-  │    ├─ CMD_HELP    → line_cmd_help()
-  │    ├─ CMD_QUIT    → line_cmd_quit() → bRunning=FALSE → loop exits
-  │    ├─ CMD_TRACE   → line_cmd_trace()
-  │    └─ CMD_*       → line_cmd_stub()  LOG_TODO + warning
+  ├─ line_update_console_title()   [ST4]  P8: set initial title
+  ├─ console_set_raw()             [ST4]  switch to raw mode (or fgets fallback)
+  └─ loop while bRunning:
+       ├─ line_read_rich() / fgets [ST4/CRT]  read + edit line
+       ├─ line_parse_cmd()         → parsed_cmd_t  (tokenise + match cmd token)
+       ├─ line_dispatch()          → g_line_aHandlers[eCmd]
+       │    ├─ CMD_HELP    → line_cmd_help()
+       │    ├─ CMD_QUIT    → line_cmd_quit()  → bRunning=FALSE → loop exits
+       │    ├─ CMD_TRACE   → line_cmd_trace() [on|off|clear|level]
+       │    ├─ CMD_WHERE   → line_cmd_where()
+       │    ├─ CMD_INFO    → line_cmd_info()
+       │    ├─ CMD_HISTORY → line_cmd_history()
+       │    ├─ CMD_DIR     → line_cmd_dir()
+       │    ├─ CMD_COLORS  → line_cmd_colors()
+       │    └─ CMD_*       → line_cmd_stub()  LOG_TODO + warning
+       └─ line_update_console_title() [ST4]  P8: refresh after each cmd
 ```
 
 ---
@@ -944,13 +989,17 @@ keyboard/mouse/scroll event handling. Opens as a `GUI_WND_DIR` window via
 | `dir_build_prefix(ptEntry, szBuf, uiMax)`                       | —            | ASCII connector from `uiLastMask`: `\-- ` / `+-- ` / `\|   ` / `    ` |
 | `dir_render(ptView)`                                            | —            | D2D: bg + selection rect + `..` row (yellow) + flat entries      |
 | `dir_event_callback(hWnd, ptEvent, pCtx)`                       | REQ-DIR-008..013 | GUI_EVT_PAINT / RESIZE / KEY_DOWN / MOUSE_DOWN / SCROLL / CLOSE |
-| `dir_handle_key(ptView, eKey)`                                  | REQ-DIR-012, REQ-DIR-017..019 | ↑↓ PgUp/PgDn Home End ENTER SPACE ESC ←/→ → selection, scroll, expand/collapse, close |
+| `dir_handle_key(ptView, eKey)`                                  | REQ-DIR-012, REQ-DIR-017..019, REQ-DIR-021..022 | ↑↓ PgUp/PgDn Home End ENTER SPACE ESC ←/→ F5 H/h → selection, scroll, expand/collapse, close, refresh, hidden toggle |
 | `dir_handle_click(ptView, iX, iY)`                              | REQ-DIR-008  | Left-click: select + toggle expand/collapse on dirs              |
 | `dir_handle_scroll(ptView, iDelta)`                             | REQ-DIR-013  | Clamp `iScrollOffset`                                            |
 | `dir_activate_sel(ptView)`                                      | REQ-DIR-008..010 | `..` → navigate up; dir → toggle; file → set szSelected      |
 | `dir_navigate_up(ptView)`                                       | REQ-DIR-009  | Free tree, reload from parent path, rebuild flat list            |
 | `dir_scroll_to_sel(ptView)`                                     | REQ-DIR-012  | Ensure selected row is within visible range                      |
 | `dir_get_parent_path(szIn, szOut, uiMax)`                       | —            | Strip last component; special-case Windows drive root `"C:\"`   |
+| `dir_node_reload_children(ptNode, bShowHidden)`                 | REQ-DIR-021, REQ-DIR-022 | Free all children, reset bChildrenLoaded=FALSE, rescan via dir_node_load_children |
+| `dir_collect_expanded(ptNode, aaszPaths, piCount, iMax)`        | REQ-DIR-022  | DFS: append szPath of every expanded+loaded dir to aaszPaths     |
+| `dir_reexpand_path(ptRoot, szPath, bShowHidden)`                | REQ-DIR-022  | Navigate tree by path components from root; load + expand each level; stop silently on missing component |
+| `dir_refresh_tree(ptView)`                                      | REQ-DIR-022  | Phase 1: collect expanded paths. Phase 2: reload root children. Phase 3: re-expand via dir_reexpand_path for each saved path |
 
 **Flat list data model:**
 
@@ -996,6 +1045,9 @@ until dir_close() is called.
 ```
 
 **UC4.3:** `dir.c` calls `line_set_selected()` (thread-safe) instead of writing `szSelected` directly. Mutex owned by `line_context_t.ptSelectedMutex` (created in `line_init`, destroyed in `line_shutdown`).
+
+**UC5:** `H`/`h` key toggles `bShowHidden` + reload (P21). F5 calls `dir_refresh_tree()` which preserves expansion state across the reload (P22): DFS collect → reload root → re-expand by path navigation. Max 256 expanded paths saved on the stack (`DIR_REFRESH_MAX_EXP`).
+
 **TODO(UC7/UC18):** right-click context menu on file / directory.
 
 ---
@@ -1950,3 +2002,128 @@ Source: `use_cases/use_case_04_4.c`
 | Dir context menu        | UFR-DIR-005..006                     | UC7/UC18  | Right-click on file/dir → contextual commands                    |
 | lx_X11 renderer         | REQ-RND-002..007                     | UC3-Linux | Linux stub — X11/XRender implementation deferred                 |
 | Trace UC4.4 manual TC   | TC-TRC-027..034                      | ✓ UC4.4   | Requires display; validated via make manual UC=04_4              |
+
+---
+
+### 5.24 INTENT Catalog — UC5
+
+Source: `use_cases/use_case_05.c`
+
+| ID           | INTENT text                                                                                                          |
+|--------------|----------------------------------------------------------------------------------------------------------------------|
+| INT-CON-050  | `trace_get_view_level()` returns `LOG_LEVEL_TRACE` initially (show all); `trace_set_view_level()` changes it         |
+| INT-CON-051  | `trace_set_view_level()` persists across close/reopen; `trace_get_view_level()` reflects the set value               |
+| INT-CON-052  | `trace_clear()` when trace window is not open returns `ST_NO_ERROR` immediately (no-op); safe to call twice          |
+| INT-CON-053  | `line_init()` sets `g_line_bColors` via `isatty(stdout)` — result is a valid `st_bool_t`; P24 auto-detect           |
+| INT-CON-054  | `line_update_console_title(NULL)` does not crash; `line_update_console_title(&tCtx)` does not crash                  |
+| INT-CON-055  | `where`/`info`/`history`/`trace` appear in `line_complete_cmd_query()` results — proves they are registered in the command table |
+| INT-CON-056  | `trace_set_view_level(LOG_LEVEL_ERROR)` → `trace_get_view_level() == LOG_LEVEL_ERROR`; round-trip consistent          |
+| INT-CON-057  | `line_history_count() >= 0` after init; `== 0` after clear; add entry → count == 1; get(0) retrieves "where"         |
+| INT-CON-058  | `line_history_get(0,…)` on empty ring (after clear) returns `ST_ERROR`                                               |
+| INT-CON-059  | `line_complete_cmd_query("h",…)` returns ≥ 2 candidates (at minimum "help" and "history")                           |
+| INT-CON-060  | `line_complete_cmd_query("he",…)` returns exactly 1 candidate == "help" (single match → immediate insert behavior)   |
+| INT-CON-061  | `line_complete_cmd_query("info",…)` and `("hist",…)` each return exactly 1 candidate — new commands are reachable   |
+| INT-CON-062  | `line_shutdown()` → `ST_NO_ERROR`; `bRunning == ST_FALSE`                                                            |
+
+---
+
+### 5.25 Test Cases — UC5 (where, info, history, console title, trace clear/level, TAB prefix, dir H/F5)
+
+Source: `use_cases/use_case_05.c`
+
+| ID           | Functional description                                                                      | Type | UFR                        | REQ                           | INTENT       | Expected outcome                                                              | Status   |
+|--------------|---------------------------------------------------------------------------------------------|------|----------------------------|-------------------------------|--------------|-------------------------------------------------------------------------------|----------|
+| TC-TRC-035   | `trace_get_view_level()` returns `LOG_LEVEL_TRACE` initially                                | [N]  | UFR-TRC-012                | REQ-TRC-025                   | INT-CON-050  | `eLevel == LOG_LEVEL_TRACE`                                                   | PASS UC5 |
+| TC-TRC-036   | `trace_set_view_level(INFO)` → `ST_NO_ERROR`                                               | [N]  | UFR-TRC-012                | REQ-TRC-024                   | INT-CON-050  | `ST_NO_ERROR`                                                                 | PASS UC5 |
+| TC-TRC-037   | `trace_get_view_level()` == `LOG_LEVEL_INFO` after set                                     | [N]  | UFR-TRC-012                | REQ-TRC-025                   | INT-CON-051  | `eLevel == LOG_LEVEL_INFO`                                                    | PASS UC5 |
+| TC-TRC-038   | `trace_set_view_level(TRACE)` restores default                                             | [N]  | UFR-TRC-012                | REQ-TRC-024                   | INT-CON-051  | `ST_NO_ERROR`; `get_view_level() == LOG_LEVEL_TRACE`                          | PASS UC5 |
+| TC-TRC-039   | `trace_set_view_level(999)` (invalid) → no crash                                           | [R]  | UFR-TRC-012                | REQ-TRC-024                   | INT-CON-050  | `ST_NO_ERROR`; no crash or undefined behaviour                                | PASS UC5 |
+| TC-TRC-040   | `trace_clear()` when window closed → `ST_NO_ERROR`                                        | [N]  | UFR-TRC-011                | REQ-TRC-023                   | INT-CON-052  | `ST_NO_ERROR`                                                                 | PASS UC5 |
+| TC-TRC-041   | `trace_clear()` twice when closed → `ST_NO_ERROR` (idempotent)                            | [R]  | UFR-TRC-011                | REQ-TRC-023                   | INT-CON-052  | `ST_NO_ERROR`                                                                 | PASS UC5 |
+| TC-CON-101   | `line_init()` → `ST_NO_ERROR`; `bRunning == TRUE`; `szCwd` non-empty                      | [N]  | UFR-CON-001, UFR-CON-085   | REQ-CON-001..003, REQ-CON-029 | INT-CON-053  | init succeeds; `g_line_bColors` is a valid `st_bool_t`                        | PASS UC5 |
+| TC-CON-102   | `line_update_console_title(NULL)` → no crash                                              | [R]  | UFR-CON-083                | REQ-CON-028                   | INT-CON-054  | No crash or error                                                             | PASS UC5 |
+| TC-CON-103   | `line_update_console_title(&tCtx)` → no crash                                             | [N]  | UFR-CON-083                | REQ-CON-028                   | INT-CON-054  | No crash or error                                                             | PASS UC5 |
+| TC-CON-104   | `complete_cmd_query("where")` → 1 match "where"                                           | [N]  | UFR-CON-080                | REQ-CON-025, REQ-CON-031      | INT-CON-055  | count==1; aOut[0]=="where"                                                    | PASS UC5 |
+| TC-CON-105   | `complete_cmd_query("info")` → 1 match "info"                                             | [N]  | UFR-CON-081                | REQ-CON-026, REQ-CON-031      | INT-CON-055  | count==1; aOut[0]=="info"                                                     | PASS UC5 |
+| TC-CON-106   | `complete_cmd_query("history")` → 1 match "history"                                       | [N]  | UFR-CON-082                | REQ-CON-027, REQ-CON-031      | INT-CON-055  | count==1; aOut[0]=="history"                                                  | PASS UC5 |
+| TC-CON-107   | `complete_cmd_query("trace")` → 1 match "trace"                                           | [N]  | UFR-CON-030..032           | REQ-CON-008                   | INT-CON-055  | count==1; aOut[0]=="trace"                                                    | PASS UC5 |
+| TC-TRC-042   | `trace_set_view_level(ERROR)` then `get_view_level() == ERROR`                             | [N]  | UFR-TRC-012                | REQ-TRC-024, REQ-TRC-025      | INT-CON-056  | round-trip consistent                                                         | PASS UC5 |
+| TC-CON-108   | `line_history_count() >= 0` after init; `== 0` after clear                                | [N]  | UFR-CON-082                | REQ-CON-027                   | INT-CON-057  | count ≥ 0 then == 0                                                           | PASS UC5 |
+| TC-CON-109   | `history_add("where")` → count == 1; `history_get(0)` → "where"                          | [N]  | UFR-CON-082                | REQ-CON-027                   | INT-CON-057  | count==1; entry=="where"                                                      | PASS UC5 |
+| TC-CON-110   | `history_get(0,…)` on empty ring → `ST_ERROR`                                             | [R]  | UFR-CON-082                | REQ-CON-027                   | INT-CON-058  | `ST_ERROR`                                                                    | PASS UC5 |
+| TC-CON-111   | `complete_cmd_query("")` → count > 0                                                       | [N]  | UFR-CON-009, UFR-CON-084   | REQ-CON-018, REQ-CON-031      | INT-CON-059  | at least all registered commands returned                                     | PASS UC5 |
+| TC-CON-112   | `complete_cmd_query("h")` → ≥ 2 candidates (help, history)                                | [N]  | UFR-CON-009, UFR-CON-084   | REQ-CON-018                   | INT-CON-059  | count ≥ 2; P23bis: common prefix "h" already at cursor                        | PASS UC5 |
+| TC-CON-113   | `complete_cmd_query("he")` → exactly 1 candidate "help"                                   | [N]  | UFR-CON-009                | REQ-CON-018                   | INT-CON-060  | count==1; aOut[0]=="help"                                                     | PASS UC5 |
+| TC-CON-114   | `complete_cmd_query("info")` → 1 candidate; `("hist")` → 1 candidate "history"            | [N]  | UFR-CON-081, UFR-CON-082   | REQ-CON-026, REQ-CON-027      | INT-CON-061  | count==1 each; new commands reachable                                         | PASS UC5 |
+| TC-CON-115   | `line_shutdown()` → `ST_NO_ERROR`; `bRunning == FALSE`                                    | [N]  | UFR-CON-001                | REQ-CON-004, REQ-CON-005      | INT-CON-062  | `ST_NO_ERROR`; `bRunning == FALSE`                                            | PASS UC5 |
+| TC-CON-116   | Console title bar updated correctly (manual)                                               | [S]  | UFR-CON-083                | REQ-CON-028                   | INT-CON-054  | Title bar shows "ST4Ever v0.5.0 \| cwd" (make manual)                        | SKIP     |
+| TC-CON-117   | `history [3]` prints last 3 commands numbered (manual)                                    | [S]  | UFR-CON-082                | REQ-CON-027                   | INT-CON-057  | 3 entries shown in order (make manual)                                        | SKIP     |
+| TC-CON-118   | TAB common prefix live: `h` + TAB inserts "h" (already at cursor) then ghost (manual)     | [S]  | UFR-CON-084                | REQ-CON-018                   | INT-CON-059  | First TAB with "h" → no insertion (prefix already typed); ghost cycle (make manual) | SKIP |
+| TC-CON-119   | TAB single candidate: `he` + TAB inserts "lp" immediately (manual)                        | [S]  | UFR-CON-009                | REQ-CON-018                   | INT-CON-060  | "help" completed without ghost (make manual)                                  | SKIP     |
+| TC-DIR-050   | `H` key in dir view toggles hidden files (manual)                                          | [S]  | UFR-DIR-011                | REQ-DIR-021                   | INT-CON-055  | H pressed: hidden entries appear/disappear; root reloaded (make manual)       | SKIP     |
+| TC-DIR-051   | F5 refreshes listing and preserves expansion state (manual)                               | [S]  | UFR-DIR-012                | REQ-DIR-022                   | INT-CON-055  | Expanded dirs remain open after F5; new files appear (make manual)            | SKIP     |
+| TC-TRC-043   | `trace level info` hides LOG_TRACE rows in GUI trace window (manual)                      | [S]  | UFR-TRC-012                | REQ-TRC-024, REQ-TRC-026      | INT-CON-050  | TRACE rows not rendered; INFO/ERROR visible (make manual)                     | SKIP     |
+| TC-TRC-044   | `trace clear` empties the GUI trace window (manual)                                        | [S]  | UFR-TRC-011                | REQ-TRC-023                   | INT-CON-052  | Window becomes blank after "trace clear" (make manual)                        | SKIP     |
+| TC-CON-120   | `colors auto` off when stdout piped: no ANSI codes in output file (manual)                | [S]  | UFR-CON-085                | REQ-CON-029                   | INT-CON-053  | `ST4Ever > out.txt`: out.txt contains no ESC sequences (make manual)          | SKIP     |
+
+#### Test Summary — UC5
+
+| Module         | [N] | [R] | [S] | Total | Result    |
+|----------------|-----|-----|-----|-------|-----------|
+| TRC (view level + clear) | 7 | 2 | 2 | 11 | ALL PASS |
+| CON (init, title, cmds, history, completion, shutdown) | 16 | 2 | 5 | 23 | ALL PASS |
+| DIR (H key, F5) | 0 | 0 | 2 | 2 | SKIP (manual) |
+| **Total**      | **23** | **4** | **9** | **36** | **ALL PASS** |
+
+> Note: `use_case_05.c` test matrix header (31N+4R+9S=44) counts UC_TEST assertions at source level; the
+> SRTD table (23N+4R+9S=36) is more concise, grouping some compound assertions into single TCs.
+
+#### REQ → TC coverage (UC5)
+
+| REQ          | TC(s)                                          | Status   |
+|--------------|------------------------------------------------|----------|
+| REQ-TRC-023  | TC-TRC-040, TC-TRC-041, TC-TRC-044 (manual)   | ✓ UC5    |
+| REQ-TRC-024  | TC-TRC-036, TC-TRC-038, TC-TRC-039, TC-TRC-042, TC-TRC-043 (manual) | ✓ UC5 |
+| REQ-TRC-025  | TC-TRC-035, TC-TRC-037, TC-TRC-042            | ✓ UC5    |
+| REQ-TRC-026  | TC-TRC-043 (manual)                            | ✓ UC5    |
+| REQ-CON-025  | TC-CON-104 (completion table proves dispatch)  | ✓ UC5    |
+| REQ-CON-026  | TC-CON-105 (completion table proves dispatch)  | ✓ UC5    |
+| REQ-CON-027  | TC-CON-106, TC-CON-108..110, TC-CON-117 (manual) | ✓ UC5 |
+| REQ-CON-028  | TC-CON-102, TC-CON-103, TC-CON-116 (manual)   | ✓ UC5    |
+| REQ-CON-029  | TC-CON-101, TC-CON-120 (manual)                | ✓ UC5    |
+| REQ-CON-030  | TC-TRC-043, TC-TRC-044 (manual — trace sub-cmds) | ✓ UC5 |
+| REQ-CON-031  | TC-CON-104..107                                | ✓ UC5    |
+| REQ-DIR-021  | TC-DIR-050 (manual)                            | ✓ UC5    |
+| REQ-DIR-022  | TC-DIR-051 (manual)                            | ✓ UC5    |
+
+---
+
+#### UFR traceability update (UC5)
+
+| UFR              | REQ(s)                                   | TC(s)                                                  | Status   |
+|------------------|------------------------------------------|--------------------------------------------------------|----------|
+| UFR-CON-080      | REQ-CON-025                              | TC-CON-104, (where output — manual)                    | ✓ UC5    |
+| UFR-CON-081      | REQ-CON-026                              | TC-CON-105, (info output — manual)                     | ✓ UC5    |
+| UFR-CON-082      | REQ-CON-027                              | TC-CON-106, TC-CON-108..110, TC-CON-117 (manual)       | ✓ UC5    |
+| UFR-CON-083      | REQ-CON-028                              | TC-CON-102..103, TC-CON-116 (manual)                   | ✓ UC5    |
+| UFR-CON-084      | REQ-CON-018                              | TC-CON-111..113, TC-CON-118..119 (manual)              | ✓ UC5    |
+| UFR-CON-085      | REQ-CON-029                              | TC-CON-101, TC-CON-120 (manual)                        | ✓ UC5    |
+| UFR-TRC-011      | REQ-TRC-023                              | TC-TRC-040..041, TC-TRC-044 (manual)                   | ✓ UC5    |
+| UFR-TRC-012      | REQ-TRC-024, REQ-TRC-025, REQ-TRC-026   | TC-TRC-035..039, TC-TRC-042, TC-TRC-043 (manual)       | ✓ UC5    |
+| UFR-DIR-011      | REQ-DIR-021                              | TC-DIR-050 (manual)                                    | ✓ UC5    |
+| UFR-DIR-012      | REQ-DIR-022                              | TC-DIR-051 (manual)                                    | ✓ UC5    |
+
+---
+
+#### Open items — updated after UC5
+
+| Item                    | TC / REQ                             | Target    | Nature                                                           |
+|-------------------------|--------------------------------------|-----------|------------------------------------------------------------------|
+| STM bus error           | TC-STM-010, REQ-STM-011              | UC24      | Stub returns ST_NO_ERROR+0xFF; real map → ST_ERROR               |
+| CPU decode              | TC-CPU-006, REQ-CPU-008              | UC21      | Stub: PC+2; real decode/execute to come                          |
+| Disasm DC.W             | TC-DIS-001, REQ-DIS-005              | UC11      | All opcodes → DC.W; full decode in UC11–UC14                     |
+| gui_msg spin-wait       | REQ-GUI-013                          | UC6+      | Replace 1 ms sleep with condition variable / Win32 Event; deferred |
+| Dir context menu        | UFR-DIR-005..006                     | UC7/UC18  | Right-click on file/dir → contextual commands                    |
+| lx_X11 renderer         | REQ-RND-002..007                     | UC3-Linux | Linux stub — X11/XRender implementation deferred                 |
+| UC5 manual TC           | TC-CON-116..120, TC-DIR-050..051, TC-TRC-043..044 | ✓ UC5 | Requires display/TTY; validated via make manual UC=05 |
+| info cmd disk/binary    | REQ-CON-026                          | UC7/UC15  | `line_cmd_info()` disk/binary stubs → real data when UCs implemented |

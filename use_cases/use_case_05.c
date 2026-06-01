@@ -25,10 +25,14 @@
  *                                where/info output correct in terminal)
  *
  * Traceability:
- *   INT-CON-050..070 → TC-CON-050..070 → REQ-CON-050..065
- *   UFR-CON-040 (where), UFR-CON-041 (info), UFR-CON-042 (history)
- *   UFR-TRC-023 (trace clear), UFR-TRC-024 (trace level)
- *   UFR-DIR-010 (F5 refresh), UFR-DIR-011 (H hidden toggle)
+ *   INT-CON-050..062 → TC-TRC-035..044, TC-CON-101..120, TC-DIR-050..051
+ *   UFR-CON-080 (where), UFR-CON-081 (info), UFR-CON-082 (history [N])
+ *   UFR-CON-083 (P8 console title), UFR-CON-084 (P23bis TAB prefix)
+ *   UFR-CON-085 (P24 colors auto), REQ-CON-025..031
+ *   UFR-TRC-011 (P27 trace clear), UFR-TRC-012 (P28 trace level)
+ *   REQ-TRC-023..026
+ *   UFR-DIR-011 (P21 H hidden toggle), UFR-DIR-012 (P22 F5 preserve)
+ *   REQ-DIR-021..022
  */
 
 #include "use_cases.h"
@@ -49,10 +53,10 @@ int main(void)
     /* ----------------------------------------------------------------
      * BLOCK 1 — trace_get/set_view_level (no GUI needed)
      * ----------------------------------------------------------------
-     * INTENT[INT-TRC-030 → TC-TRC-030 → REQ-TRC-023 → UFR-TRC-024]:
+     * INTENT[INT-CON-050 → TC-TRC-035..039 → REQ-TRC-024..025 → UFR-TRC-012]:
      * trace_get_view_level() returns LOG_LEVEL_TRACE initially (show all).
      * trace_set_view_level() changes the display filter without affecting
-     * the ring buffer or log file.
+     * the ring buffer or log file. Persists across open/close cycles.
      */
     printf("--- trace view level (P28) ---\n");
 
@@ -84,7 +88,7 @@ int main(void)
     /* ----------------------------------------------------------------
      * BLOCK 2 — trace_clear() without an open window
      * ----------------------------------------------------------------
-     * INTENT[INT-TRC-031 → TC-TRC-031 → REQ-TRC-023 → UFR-TRC-023]:
+     * INTENT[INT-CON-052 → TC-TRC-040..041 → REQ-TRC-023 → UFR-TRC-011]:
      * trace_clear() is a no-op (ST_NO_ERROR) when the trace window is
      * not open.  It must not crash or return ST_ERROR.
      */
@@ -99,7 +103,7 @@ int main(void)
     /* ----------------------------------------------------------------
      * BLOCK 3 — line_init() with P24 colors-auto
      * ----------------------------------------------------------------
-     * INTENT[INT-CON-050 → TC-CON-050 → REQ-CON-050 → UFR-CON-040]:
+     * INTENT[INT-CON-053 → TC-CON-101 → REQ-CON-001..003, REQ-CON-029 → UFR-CON-001, UFR-CON-085]:
      * line_init() calls isatty(stdout): in CI / test mode stdout is
      * usually a pipe, so g_line_bColors is expected ST_FALSE.
      * We only verify that it is a valid st_bool_t value (no UB).
@@ -121,7 +125,7 @@ int main(void)
     /* ----------------------------------------------------------------
      * BLOCK 4 — line_update_console_title()
      * ----------------------------------------------------------------
-     * INTENT[INT-CON-051 → TC-CON-051 → REQ-CON-051 → UFR-CON-041]:
+     * INTENT[INT-CON-054 → TC-CON-102..103, TC-CON-116 → REQ-CON-028 → UFR-CON-083]:
      * line_update_console_title() must not crash with NULL or with a
      * valid context.  Visual check of the title bar is manual.
      */
@@ -140,7 +144,7 @@ int main(void)
     /* ----------------------------------------------------------------
      * BLOCK 5 — command table: where / info / history in completion
      * ----------------------------------------------------------------
-     * INTENT[INT-CON-052 → TC-CON-052 → REQ-CON-052 → UFR-CON-040]:
+     * INTENT[INT-CON-055 → TC-CON-104..107 → REQ-CON-025..027, REQ-CON-031 → UFR-CON-080..082]:
      * line_complete_cmd_query() uses the same command table as the
      * dispatcher.  A command present in the table will appear as a
      * completion candidate for its prefix.  This indirectly proves
@@ -167,9 +171,9 @@ int main(void)
     /* ----------------------------------------------------------------
      * BLOCK 6 — trace view-level set/get round-trip after init
      * ----------------------------------------------------------------
-     * INTENT[INT-TRC-032 → TC-TRC-032 → REQ-TRC-023 → UFR-TRC-023]:
+     * INTENT[INT-CON-056 → TC-TRC-042 → REQ-TRC-024..025 → UFR-TRC-012]:
      * After line_init, trace_set_view_level and get_view_level must
-     * be consistent.
+     * be consistent (persistent global, not tied to view lifecycle).
      */
     printf("\n--- trace view level round-trip ---\n");
 
@@ -185,10 +189,11 @@ int main(void)
     /* ----------------------------------------------------------------
      * BLOCK 7 — history command: content and count
      * ----------------------------------------------------------------
-     * INTENT[INT-CON-053 → TC-CON-053 → REQ-CON-053 → UFR-CON-042]:
+     * INTENT[INT-CON-057..058 → TC-CON-108..110, TC-CON-117 → REQ-CON-027 → UFR-CON-082]:
      * After line_init loads history from disk, line_history_count()
      * returns a non-negative count.  Adding an entry bumps the count.
      * line_history_get() retrieves the last added entry.
+     * get() on an empty ring returns ST_ERROR.
      */
     printf("\n--- history command (P25) ---\n");
 
@@ -221,7 +226,7 @@ int main(void)
     /* ----------------------------------------------------------------
      * BLOCK 8 — TAB common-prefix (P23bis) via line_complete_cmd_query
      * ----------------------------------------------------------------
-     * INTENT[INT-CON-054 → TC-CON-054 → REQ-CON-054 → UFR-CON-043]:
+     * INTENT[INT-CON-059..061 → TC-CON-111..114, TC-CON-118..119 → REQ-CON-018 → UFR-CON-009, UFR-CON-084]:
      * When N>1 candidates share a common prefix beyond the typed prefix,
      * the first TAB must insert the longest common prefix.
      * Tested indirectly: query returns candidate list; the live-editor
@@ -268,6 +273,8 @@ int main(void)
     /* ----------------------------------------------------------------
      * BLOCK 9 — line_shutdown
      * ----------------------------------------------------------------
+     * INTENT[INT-CON-062 → TC-CON-115 → REQ-CON-004..005 → UFR-CON-001]:
+     * line_shutdown() must return ST_NO_ERROR and set bRunning=FALSE.
      */
     printf("\n--- line_shutdown ---\n");
 
@@ -277,8 +284,11 @@ int main(void)
             tCtx.bRunning == ST_FALSE);
 
     /* ----------------------------------------------------------------
-     * BLOCK 10 — manual-only tests (P21, P22, P28 GUI, P24 piped)
+     * BLOCK 10 — manual-only tests (P21, P22, P27, P28 GUI, P24 piped)
      * ----------------------------------------------------------------
+     * INTENT[INT-CON-053..062 → TC-DIR-050..051, TC-TRC-043..044, TC-CON-116..120]:
+     * Visual / TTY-dependent behaviours not automatable headless.
+     * Run 'make manual UC=05' to validate interactively.
      */
     printf("\n--- manual-only (dir H, F5, trace P28, colors P24) ---\n");
 
