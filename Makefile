@@ -77,9 +77,18 @@ UC_TARGETS := $(patsubst $(UC_DIR)/%.c, $(TDIR)/%$(EXE), $(UC_FILES))
 # -----------------------------------------------------------------------------
 # Manual test directory (same use_case_NN.c compiled with -DST_MANUAL_TEST)
 # UC4: make manual runs interactive visual validation tests.
+#
+# Optional: make manual UC=04_2  →  build + run only use_case_04_2
+#           make manual           →  build + run all (default)
 # -----------------------------------------------------------------------------
 MDIR           := manual
 MANUAL_TARGETS := $(patsubst $(UC_DIR)/%.c, $(MDIR)/%$(EXE), $(UC_FILES))
+
+ifdef UC
+MANUAL_RUN := $(MDIR)/use_case_$(UC)$(EXE)
+else
+MANUAL_RUN := $(MANUAL_TARGETS)
+endif
 
 # -----------------------------------------------------------------------------
 # Top-level targets
@@ -153,15 +162,18 @@ $(MDIR)/%$(EXE): $(UC_DIR)/%.c $(LIB_OBJS)
 	$(CC) $(CFLAGS) -DST_MANUAL_TEST $< $(LIB_OBJS) -o $@ $(LDFLAGS)
 	@echo "  --> $@"
 
-manual: all $(MANUAL_TARGETS)
+manual: all $(MANUAL_RUN)
 	@echo ""
 	@echo "================================================================"
 	@echo " ST4Ever - Manual Validation Tests"
 	@echo " Answer y/n for each visual/interactive test."
 	@echo " (must be run from the project root directory)"
+ifdef UC
+	@echo " Running UC=$(UC) only  (make manual for all)"
+endif
 	@echo "================================================================"
 	@FAILS=0; \
-	for t in $(MANUAL_TARGETS); do \
+	for t in $(MANUAL_RUN); do \
 	    echo ""; \
 	    echo "  Running: $$t"; \
 	    echo "  --------"; \

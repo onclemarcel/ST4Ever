@@ -19,6 +19,7 @@
 /* ST4Ever portable layer */
 #include "../src/common.h"
 #include "../src/trace.h"
+#include "../src/console.h"
 #include "../src/line.h"
 #include "../src/gui.h"
 #include "../src/renderer.h"

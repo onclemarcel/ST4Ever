@@ -10,6 +10,7 @@
 - 2026-05-31: UC4 découpé en UC4.1/UC4.2/UC4.3 (contexte window limité ; raw input isolé en UC4.2 ; complétion/historique en UC4.3)
 - 2026-05-31: UC4.1 validé — gui_request_close + ESC/←/→/ESPACE + bShowHidden + dir -a + focus auto + TEST_MANUAL + make manual
 - 2026-05-31: P19 appliqué — `trace off` ne ferme plus la vue ; filtre LOG_TRACE seulement
+- 2026-06-01: UC4.2 validé — console.h (CON_KEY_*) + pipe/VT100 mintty + Win32 cmd.exe + line_read_rich (insert/edit/CTRL shortcuts) + make manual UC=XX
 
 ## 1. Contexte du projet
 
@@ -485,6 +486,15 @@ Règle : **un UC n'est clos que lorsque les deux phases sont complètes** et §7
 
 Exemples : `"0.3.3"` après UC3.3, `"0.4.0"` après UC4. La mise à jour version fait partie du checklist de clôture Phase 2 (R19). Claude ne clôt pas un UC sans avoir mis à jour `ST_VERSION`.
 
+**R21 — Stratégie raw-mode Windows : détection runtime pipe/console** *(établie UC4.2, 2026-06-01)*
+
+MINGW64 (le compilateur du projet) ne fournit pas `termios.h`. La stratégie "termios-first" de R5 est remplacée par une détection runtime via `GetFileType(GetStdHandle(STD_INPUT_HANDLE))` dans `win/win_console.c` :
+
+- `FILE_TYPE_PIPE` (mintty/MSYS2) : stdin est un pipe anonyme Windows. Mintty délivre les octets un par un au fil de la frappe sans buffering ligne côté OS — aucune configuration raw-mode n'est requise. Lecture via `ReadFile()` ; timeout ESC via `PeekNamedPipe()` en polling 5 ms / 50 ms max ; décodage VT100 dans `console_decode_csi()`.
+- `FILE_TYPE_CHAR` (cmd.exe) : `SetConsoleMode` sans `ENABLE_PROCESSED_INPUT` / `LINE_INPUT` / `ECHO_INPUT` + `ReadConsoleInputA()` (VK codes pré-décodés, pas de parsing VT100).
+
+Sur Linux, `termios` reste la stratégie unique (dans `linux/lx_console.c`). Cette règle s'applique à tout futur code d'entrée console Windows.
+
 
 ## 6. Use Cases
 
@@ -498,7 +508,7 @@ Les étapes de développement fonctionnelles sont formalisées en Use Cases, per
 | UC3.2 | GUI render | win_D2D.c (Direct2D COM pur C) + renderer.c portable | ✓ VALIDÉ 2026-05-30 |
 | UC3.3 | `dir` | dir.c : scan FS + arbre + rendu D2D + clavier/souris/scroll/sélection + line_cmd_dir | ✓ VALIDÉ 2026-05-31 |
 | UC4.1 | UX dir + make manual | `gui_request_close()` non-bloquant + ESC/←/→/ESPACE séparés de ENTER + filtre `.*` + `dir -a` + focus auto + `TEST_MANUAL` + `make manual` | ✓ VALIDÉ 2026-05-31 |
-| UC4.2 | raw input | `win_console_set_raw()` + `win_console_read_key()` + termios-first (MSYS2) + `line_read_rich()` : édition char-à-char, ←/→/Home/End/Del/Backspace, CTRL+C/D/Q | raw line editor |
+| UC4.2 | raw input | `console.h` (CON_KEY_*) + pipe/VT100 mintty (R21) + Win32 cmd.exe + `line_read_rich()` : insert/←/→/Home/End/Del/Backspace, CTRL shortcuts, ESC + `make manual UC=XX` | ✓ VALIDÉ 2026-06-01 |
 | UC4.4 | trace view GUI | Fenêtre `GUI_WND_TRACE` D2D : scroll texte append-only, couleurs par niveau ; `trace.c` → `gui_msg_queue_t` → thread fenêtre ; suppression TODO(UC3.3) de trace.h/trace.c | trace view remplace stderr |
 | UC4.3 | complétion + historique + extras | Historique ↑↓ circulaire + `~/.st4ever_history` + tab-completion + ghost-text + prompt contextuel + `colors on/off` + `--script file` | line editor complet |
 | UC5 | `where`, `info` | Répertoire courant + état sélection (where) ; dashboard global état application : cwd, fichier sélectionné, trace, disque monté, binaire chargé (info) ; **P8** : `SetConsoleTitleA` statut automatique ; **P21** : touche `H` toggle hidden dans vue dir ; **P22** : F5 refresh vue dir | affichage path + dashboard + titre console |
@@ -825,6 +835,82 @@ Les étapes de développement fonctionnelles sont formalisées en Use Cases, per
 - UC4.2 : `line_read_rich()` remplace `fgets()` dans `line_run()` — affichage temps réel du buffer avec `\r\033[2K` (effacer ligne + réafficher)
 - UC4.3 : mutex sur `line_context_t.szSelected` (write depuis thread fenêtre, note déjà dans UC3.3) — à ajouter avec le module d'historique
 - SRTD.md §4.8–§4.10 (`gui.c`, `win_gui.c`/`win_D2D.c`, `dir.c`) à rédiger en Phase 2 complète (UC3+UC4.1 ensemble, différé par accord)
+
+### 6.7 Use Case 04.2 (UC4.2) — VALIDÉ (2026-06-01)
+
+**Périmètre fonctionnel implémenté :**
+- `src/console.h` (nouveau) : constantes `CON_KEY_*` (codes de contrôle 0x01–0x7F, touches étendues ≥ 0x200, `CON_KEY_EOF = -1`). API portable `console_set_raw()`, `console_restore()`, `console_read_key()`.
+- `win/win_console.c` : détection runtime `GetFileType(STD_INPUT_HANDLE)` (R21) :
+  - `FILE_TYPE_PIPE` (mintty/MSYS2) : aucune configuration raw-mode nécessaire ; `ReadFile()` octet par octet + `PeekNamedPipe()` (polling 5 ms, timeout 50 ms) pour détecter la fin d'une séquence VT100 ; décodage CSI/SS3 dans `console_decode_csi()` (buffer `szSeq[]`, terminé à l'octet final ≥ 0x40) ; 0x7F normalisé en `CON_KEY_BACKSPACE`.
+  - `FILE_TYPE_CHAR` (cmd.exe) : `SetConsoleMode` sans `ENABLE_PROCESSED_INPUT/LINE_INPUT/ECHO_INPUT` + `ReadConsoleInputA()` (VK codes pré-décodés, pas de parsing VT100 nécessaire).
+  - Aucune dépendance à `termios.h` (non disponible avec MINGW64).
+- `linux/lx_console.c` : termios pur — `tcgetattr`/`tcsetattr(TCSANOW)`, `c_lflag &= ~(ECHO|ICANON|ISIG|IEXTEN)`, `read()` bloquant + `select()` 50 ms pour le timeout ESC ; même décodage CSI/SS3 que le chemin pipe Windows.
+- `src/line.c` — nouvelles fonctions :
+  - `line_redraw(szBuf, uiLen, uiCursor)` : `\r\033[2K` + `LINE_PROMPT` + `fwrite(szBuf)` + `\033[ND` (repositionnement curseur). Marqueur `TODO(UC4.3)` pour le ghost text.
+  - `line_shortcut(szBuf, szCmd)` : remplit le buffer avec le nom de commande, redessine la ligne, émet `\n`, retourne `ST_NO_ERROR` — donne un retour visuel avant dispatch.
+  - `line_read_rich(ptCtx, szBuf)` : boucle sur `console_read_key()` ; traite insert (0x20–0x7E), ←/→/Home/End, Backspace/Delete, ESC clear, CTRL+C (cancel ou quit), CTRL+Q/H/T/D/L/E/U/W/X (shortcuts immédiats), TAB/↑↓ no-op (UC4.3) ; retourne `ST_ERROR` sur EOF.
+  - `line_run()` : appel `console_set_raw()` avant la boucle, fallback `fgets()` transparent si `ST_ERROR` (non-TTY : CI, pipe), `console_restore()` après la boucle.
+  - `CON_DIM "\033[2m"` macro ajoutée (pour le ghost text UC4.3, par opposition à la couleur vive de la saisie en cours).
+- `Makefile` : variable `UC` optionnelle — `make manual UC=04_2` compile et exécute uniquement `use_case_04_2`, `make manual` exécute tout. Variable `MANUAL_RUN` conditionnelle ; en-tête `Running UC=XX only (make manual for all)`.
+- `use_cases/use_case_04_2.c` : TEST MATRIX **4N + 2R + 8S = 14 tests**, 0 failure.
+
+**Architecture notable (Windows) :**
+- MINGW64 ne fournit pas `termios.h`. La stratégie R5 est réinterprétée : mintty pipe ≡ "termios-like" (octets arrivant au fil de la frappe sans buffering ligne OS) ; la détection `GetFileType` remplace la tentative `tcgetattr`. Ce constat est formalisé en R21.
+
+**Tests R14/R15 appliqués :**
+- `use_cases/use_case_04_2.c` : TEST MATRIX **4N + 2R + 8S = 14 tests**, 0 failure
+  - [N] `CON_KEY_*` ranges (contrôle 0x01-0x1F, BACKSPACE 0x7F, étendues ≥ 0x200)
+  - [N] `console_set_raw/restore` roundtrip quand stdin est un TTY
+  - [N] `console_restore()` second appel → ST_NO_ERROR
+  - [R] `console_read_key(NULL)` → ST_ERROR
+  - [R] `console_restore()` sans set_raw → ST_NO_ERROR (idempotent)
+  - [S] 8 tests visuels : frappe, curseur ←/→, Home/End, Backspace, Delete, ESC, CTRL+Q, CTRL+T
+
+**Contrats comportementaux validés :**
+
+*Module `console` (console.h / win_console.c + lx_console.c)*
+- `console_set_raw()` idempotent : double appel → `ST_NO_ERROR` + LOG_INFO (no-op)
+- Sur `FILE_TYPE_PIPE` (mintty) : `ST_NO_ERROR`, aucun changement de mode — le pipe livre déjà les octets un par un
+- Sur `FILE_TYPE_CHAR` (cmd.exe) : `ST_NO_ERROR` après `SetConsoleMode` raw
+- Sur stdin non-TTY (fichier, pipe redirigé en CI) : `ST_ERROR` → `line_run()` bascule en `fgets()`
+- `console_restore()` idempotent : sans `set_raw` préalable → `ST_NO_ERROR` (no-op)
+- `console_restore()` chemin pipe : `ST_NO_ERROR` (rien à restaurer)
+- `console_restore()` chemin console : `ST_NO_ERROR` après `SetConsoleMode(g_dwOrigConMode)`
+- `console_read_key(NULL)` → `ST_ERROR`
+- `console_read_key()` sans raw mode actif → `ST_ERROR` + `*piKey = CON_KEY_EOF`
+- 0x7F → `CON_KEY_BACKSPACE` (normalisé en entrée, chemin pipe)
+- 0x08 → `CON_KEY_CTRL_H` (distinct de BACKSPACE sur mintty)
+- `\033[A/B/C/D/H/F` → UP/DOWN/RIGHT/LEFT/HOME/END
+- `\033[1~/3~/4~/5~/6~` → HOME/DELETE/END/PAGE_UP/PAGE_DOWN
+- `\033[15~` → F5 ; `\033[11~` → F1 ; `\033OA..D` → UP/DOWN/RIGHT/LEFT (SS3)
+- Bare ESC (rien dans les 50 ms) → `CON_KEY_ESC`
+- EOF / erreur `ReadFile` → `ST_ERROR` + `*piKey = CON_KEY_EOF`
+
+*Module `line_read_rich` (line.c)*
+- Printable 0x20–0x7E : insertion à `uiCursor`, shift droit, `uiCursor++`
+- `CON_KEY_BACKSPACE` sur `uiCursor > 0` : supprime l'octet avant le curseur
+- `CON_KEY_DELETE` sur `uiCursor < uiLen` : supprime l'octet au curseur
+- `CON_KEY_LEFT/RIGHT` : borné à `[0, uiLen]`, no-op en limite
+- `CON_KEY_HOME/END` : `uiCursor → 0 / uiLen`
+- `CON_KEY_ESC` : buffer vidé, redraw prompt vide, pas de retour (continue la saisie)
+- `CON_KEY_CTRL_C` non-vide : clear buffer (annulation) ; vide : `→ "quit"`
+- `CON_KEY_CTRL_Q` : `→ "quit"` systématiquement
+- CTRL shortcuts (H/T/D/L/E/U/W/X) : `line_shortcut()` — affiche la commande dans le prompt + `\n` + retourne `ST_NO_ERROR`
+- `CON_KEY_UP/DOWN` : no-op silencieux (historique UC4.3)
+- TAB (0x09) : no-op silencieux (complétion UC4.3 — 1er mot = commande, mots suivants = fichier/répertoire, ghost text `CON_DIM`)
+- ENTER (0x0D) / LF (0x0A) : commit + `printf("\n")` + return `ST_NO_ERROR`
+- EOF : `printf("\n")` + return `ST_ERROR`
+
+*Module `line_run` (raw mode)*
+- `console_set_raw()` appelé avant la boucle principale
+- Si `ST_ERROR` (non-TTY) : fallback `fgets()` transparent, sans régression UC1/UC2
+- `console_restore()` appelé après la boucle (chemin raw uniquement)
+
+**Points d'attention pour les UCs suivants :**
+- UC4.3 : résoudre CTRL+I = TAB = 0x09 (conflit shortcut CMD_IMAGE vs complétion). Résolution envisagée : TAB toujours = complétion ; CMD_IMAGE reste accessible via `"i"` ou `"image"`.
+- UC4.3 : résoudre CTRL+M = 0x0D = CR = ENTER (conflit shortcut CMD_MOUNT vs validation). CMD_MOUNT reste accessible via `"m"` ou `"mount"`.
+- UC4.3 : ajouter mutex sur `line_context_t.szSelected` (write depuis thread fenêtre dir, read potentiel depuis `line_read_rich`) — à intégrer avec le module d'historique.
+- UC4.4 : `console_restore()` doit être appelé avant l'affichage initial de la fenêtre trace GUI pour éviter interférence entre mode raw et stdout.
 
 ## 7. Propositions d'améliorations
 
