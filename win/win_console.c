@@ -208,18 +208,18 @@ static int console_decode_csi(void)
 /*
  * console_read_key_pipe() - Read one key via the mintty pipe.
  * Decodes VT100 sequences from raw byte stream.
+ * Times out after 200 ms → CON_KEY_TIMEOUT (prompt refresh).
  */
 static st_error_t console_read_key_pipe(int *piKey)
 {
     unsigned char byte1;
     unsigned char byte2;
-    DWORD         dwRead;
 
-    /* Blocking read of the first byte */
-    if (!ReadFile(g_hStdin, &byte1, 1, &dwRead, NULL) || dwRead != 1)
+    /* Timed read: allows prompt refresh on CON_KEY_TIMEOUT */
+    if (console_read_byte_timeout_pipe(&byte1, 200) != 0)
     {
-        *piKey = CON_KEY_EOF;
-        return ST_ERROR;
+        *piKey = CON_KEY_TIMEOUT;
+        return ST_NO_ERROR;
     }
 
     /* Mintty sends 0x7F for BACKSPACE, 0x08 for CTRL+H */
@@ -284,12 +284,29 @@ static st_error_t console_read_key_win32(int *piKey)
 {
     INPUT_RECORD tRecord;
     DWORD        dwRead;
+    DWORD        dwWait;
     BOOL         bResult;
     WORD         wVK;
     char         cAscii;
 
     for (;;)
     {
+        /* Wait up to 200 ms — returns CON_KEY_TIMEOUT so that
+         * line_read_rich() can refresh the contextual prompt. */
+        dwWait = WaitForSingleObject(g_hStdin, 200);
+        if (dwWait == WAIT_TIMEOUT)
+        {
+            *piKey = CON_KEY_TIMEOUT;
+            return ST_NO_ERROR;
+        }
+        if (dwWait != WAIT_OBJECT_0)
+        {
+            LOG_ERROR("WaitForSingleObject failed: result=%lu err=%lu",
+                      dwWait, GetLastError());
+            *piKey = CON_KEY_EOF;
+            return ST_ERROR;
+        }
+
         bResult = ReadConsoleInputA(g_hStdin, &tRecord, 1, &dwRead);
         if (!bResult)
         {

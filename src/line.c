@@ -1,18 +1,20 @@
 /*
  * line.c - ST4Ever console line reader and command dispatcher
  *
- * UC1: basic fgets() input loop with help, quit and trace handlers.
- *      All other commands dispatch to line_cmd_stub() which logs
- *      LOG_TODO and prints a "not yet implemented" message.
- * UC2: full trace on/off/toggle logic in line_cmd_trace().
- * UC4.2: rich line editor via console_set_raw() + console_read_key().
- *        line_read_rich() replaces fgets(); falls back to fgets() when
- *        stdin is not a TTY (CI, piped input).
- *        CTRL shortcuts dispatch commands without ENTER.
- *        ←/→/Home/End editing, Backspace/Delete.
- * TODO(UC4.3): history ↑↓ + tab-completion (command / path) +
- *              ghost text (dim colour, first-word = command,
- *              further words = file/dir completion).
+ * UC1:   fgets() loop, help/quit/trace stubs.
+ * UC2:   Full trace on/off/toggle in line_cmd_trace().
+ * UC4.2: Rich editor via console_set_raw() + console_read_key().
+ *        line_read_rich(): cursor, deletion, CTRL shortcuts, ESC.
+ * UC4.3: History UP/DOWN circular ring + ~/.st4ever_history.
+ *        TAB completion: commands (1st word) and paths (rest).
+ *        Ghost text: dim suffix shown at cursor.
+ *        Contextual prompt: [T] and [selection] indicators.
+ *        colors on/off: runtime ANSI toggle via c_*() functions.
+ *        --script: batch mode via line_run_script().
+ *        Mutex-protected szSelected via line_set/get_selected().
+ *        CTRL conflict resolution: TAB reserved for completion
+ *        (CMD_IMAGE via "i"/"image" only); ENTER reserved for
+ *        commit (CMD_MOUNT via "m"/"mount" only).
  */
 
 #include "line.h"
@@ -25,26 +27,57 @@
 #include <string.h>
 #include <stdarg.h>
 #include <ctype.h>
+#include <errno.h>
 
 #ifdef ST_PLATFORM_WINDOWS
     #include <direct.h>
+    #include <dirent.h>
+    #include <sys/stat.h>
     #define getcwd _getcwd
 #else
     #include <unistd.h>
+    #include <dirent.h>
+    #include <sys/stat.h>
 #endif
 
 /* ------------------------------------------------------------------
- * ANSI colour codes
+ * ANSI colour helpers — runtime-toggled via g_line_bColors
  * ------------------------------------------------------------------ */
 
-#define CON_RESET   "\033[0m"
-#define CON_BOLD    "\033[1m"
-#define CON_DIM     "\033[2m"    /* Dim/halfline (UC4.3 ghost text)    */
-#define CON_GREEN   "\033[92m"
-#define CON_YELLOW  "\033[93m"
-#define CON_RED     "\033[91m"
-#define CON_CYAN    "\033[96m"
-#define CON_GRAY    "\033[90m"
+static st_bool_t g_line_bColors = ST_TRUE;
+
+static inline const char *c_reset(void)
+{
+    return g_line_bColors ? "\033[0m"  : "";
+}
+static inline const char *c_bold(void)
+{
+    return g_line_bColors ? "\033[1m"  : "";
+}
+static inline const char *c_dim(void)
+{
+    return g_line_bColors ? "\033[2m"  : "";
+}
+static inline const char *c_green(void)
+{
+    return g_line_bColors ? "\033[92m" : "";
+}
+static inline const char *c_yellow(void)
+{
+    return g_line_bColors ? "\033[93m" : "";
+}
+static inline const char *c_red(void)
+{
+    return g_line_bColors ? "\033[91m" : "";
+}
+static inline const char *c_cyan(void)
+{
+    return g_line_bColors ? "\033[96m" : "";
+}
+static inline const char *c_gray(void)
+{
+    return g_line_bColors ? "\033[90m" : "";
+}
 
 /* ------------------------------------------------------------------
  * Module-level state
@@ -53,12 +86,19 @@
 static dir_view_t *g_line_ptDirView = NULL;
 
 /* ------------------------------------------------------------------
- * Prompt string and visible prompt length
+ * History ring buffer
  * ------------------------------------------------------------------ */
 
-#define LINE_PROMPT         CON_GREEN ST_APP_NAME CON_RESET "> "
-/* Visible characters printed by LINE_PROMPT (without ANSI codes) */
-#define LINE_PROMPT_VIS_LEN (sizeof(ST_APP_NAME) - 1 + 2)   /* "ST4Ever> " */
+static char g_line_aHistory[LINE_HISTORY_MAX][ST_MAX_CMD];
+static int  g_line_iHistCount = 0;   /* valid entries, 0..LINE_HISTORY_MAX */
+static int  g_line_iHistHead  = 0;   /* next write slot                    */
+
+/* Map virtual index (0=oldest, count-1=newest) to physical slot. */
+static int line_hist_phys(int iVirt)
+{
+    return (g_line_iHistHead - g_line_iHistCount + iVirt
+            + LINE_HISTORY_MAX) % LINE_HISTORY_MAX;
+}
 
 /* ------------------------------------------------------------------
  * Command table
@@ -66,11 +106,11 @@ static dir_view_t *g_line_ptDirView = NULL;
 
 typedef struct cmd_entry_s
 {
-    const char *szFull;     /* Full command name (e.g. "help")       */
-    const char *szShort;    /* Single-letter shortcut (e.g. "h")     */
-    cmd_id_t    eId;        /* Matching CMD_* identifier              */
-    const char *szSynopsis; /* One-line usage hint for `help`         */
-    const char *szHelp;     /* Short description for `help`           */
+    const char *szFull;
+    const char *szShort;
+    cmd_id_t    eId;
+    const char *szSynopsis;
+    const char *szHelp;
 } cmd_entry_t;
 
 static const cmd_entry_t g_line_aCmds[] =
@@ -85,11 +125,11 @@ static const cmd_entry_t g_line_aCmds[] =
 
     { "dir",     "d", CMD_DIR,
       "dir [-a] [path]",
-      "Open a directory tree view (defaults to current dir)" },
+      "Open a directory tree view (defaults to cwd)" },
 
     { "load",    "l", CMD_LOAD,
       "load [file]",
-      "Load a file into the emulated ST memory" },
+      "Load a file into emulated ST memory" },
 
     { "edit",    "e", CMD_EDIT,
       "edit [file]",
@@ -97,7 +137,7 @@ static const cmd_entry_t g_line_aCmds[] =
 
     { "image",   "i", CMD_IMAGE,
       "image [path]",
-      "Create a .st or .msa disk image from a directory" },
+      "Create a .st/.msa disk image from a directory" },
 
     { "mount",   "m", CMD_MOUNT,
       "mount [path]",
@@ -105,7 +145,7 @@ static const cmd_entry_t g_line_aCmds[] =
 
     { "umount",  "u", CMD_UMOUNT,
       "umount",
-      "Unmount the ST floppy A:\\ (optionally save image)" },
+      "Unmount the ST floppy A:\\ (save image if changed)" },
 
     { "where",   "w", CMD_WHERE,
       "where",
@@ -118,15 +158,16 @@ static const cmd_entry_t g_line_aCmds[] =
     { "execute", "x", CMD_EXECUTE,
       "execute [file]",
       "Execute an Atari ST binary (.PRG .TTP .TOS)" },
+
+    { "colors",  "c", CMD_COLORS,
+      "colors [on|off]",
+      "Enable or disable ANSI colour output" },
 };
 
 /* ------------------------------------------------------------------
- * Internal: helpers
+ * Internal: string helpers
  * ------------------------------------------------------------------ */
 
-/*
- * line_trim() - Remove leading and trailing whitespace in place.
- */
 static void line_trim(char *szStr)
 {
     char  *pStart;
@@ -164,21 +205,32 @@ static void line_trim(char *szStr)
     }
 }
 
-/*
- * line_parse_cmd() - Tokenise szInput into a parsed_cmd_t.
- *
- * The first token is matched against the command table.  Subsequent
- * tokens become argv[1..N].  All pointers inside ptParsed->aszArgv
- * point into ptParsed->szArgBuf.
- *
- * Parameters:
- *   szInput  [in]  : Raw console input (not modified).
- *   ptParsed [out] : Receives the parsed result.
- *
- * Returns:
- *   ST_NO_ERROR on success.
- *   ST_ERROR    if szInput or ptParsed is NULL.
- */
+/* line_path_basename() - pointer to last path component. */
+static const char *line_path_basename(const char *szPath)
+{
+    const char *p;
+    const char *pLast;
+
+    if (szPath == NULL || szPath[0] == '\0')
+    {
+        return szPath;
+    }
+
+    pLast = szPath;
+    for (p = szPath; *p != '\0'; p++)
+    {
+        if (*p == '/' || *p == '\\')
+        {
+            pLast = p + 1;
+        }
+    }
+    return pLast;
+}
+
+/* ------------------------------------------------------------------
+ * Internal: command parser
+ * ------------------------------------------------------------------ */
+
 static st_error_t line_parse_cmd(const char   *szInput,
                                   parsed_cmd_t *ptParsed)
 {
@@ -255,6 +307,444 @@ static st_error_t line_parse_cmd(const char   *szInput,
 }
 
 /* ------------------------------------------------------------------
+ * History file path
+ * ------------------------------------------------------------------ */
+
+static st_error_t line_history_default_path(char *szOut, size_t uiMax)
+{
+    const char *szHome;
+
+#ifdef ST_PLATFORM_WINDOWS
+    szHome = getenv("HOME");           /* MSYS2 sets this    */
+    if (szHome == NULL)
+        szHome = getenv("USERPROFILE"); /* cmd.exe fallback  */
+#else
+    szHome = getenv("HOME");
+#endif
+
+    if (szHome == NULL || szHome[0] == '\0')
+    {
+        LOG_INFO("HOME not set - history file disabled");
+        return ST_ERROR;
+    }
+
+    snprintf(szOut, uiMax, "%s/.st4ever_history", szHome);
+    return ST_NO_ERROR;
+}
+
+/* ------------------------------------------------------------------
+ * Public history API
+ * ------------------------------------------------------------------ */
+
+st_error_t line_history_add(const char *szCmd)
+{
+    int    iLastPhys;
+    size_t uiCmdLen;
+
+    if (szCmd == NULL)
+    {
+        return ST_ERROR;
+    }
+
+    uiCmdLen = strlen(szCmd);
+    if (uiCmdLen == 0)
+    {
+        return ST_NO_ERROR;
+    }
+
+    /* Skip duplicate of most recent entry */
+    if (g_line_iHistCount > 0)
+    {
+        iLastPhys = line_hist_phys(g_line_iHistCount - 1);
+        if (strcmp(g_line_aHistory[iLastPhys], szCmd) == 0)
+        {
+            return ST_NO_ERROR;
+        }
+    }
+
+    strncpy(g_line_aHistory[g_line_iHistHead], szCmd, ST_MAX_CMD - 1);
+    g_line_aHistory[g_line_iHistHead][ST_MAX_CMD - 1] = '\0';
+
+    g_line_iHistHead = (g_line_iHistHead + 1) % LINE_HISTORY_MAX;
+    if (g_line_iHistCount < LINE_HISTORY_MAX)
+    {
+        g_line_iHistCount++;
+    }
+
+    return ST_NO_ERROR;
+}
+
+int line_history_count(void)
+{
+    return g_line_iHistCount;
+}
+
+st_error_t line_history_get(int iVirtIdx, char *szBuf, size_t uiLen)
+{
+    int iPhys;
+
+    if (szBuf == NULL || uiLen == 0)
+    {
+        return ST_ERROR;
+    }
+    if (iVirtIdx < 0 || iVirtIdx >= g_line_iHistCount)
+    {
+        return ST_ERROR;
+    }
+
+    iPhys = line_hist_phys(iVirtIdx);
+    strncpy(szBuf, g_line_aHistory[iPhys], uiLen - 1);
+    szBuf[uiLen - 1] = '\0';
+
+    return ST_NO_ERROR;
+}
+
+void line_history_clear(void)
+{
+    g_line_iHistCount = 0;
+    g_line_iHistHead  = 0;
+}
+
+st_error_t line_history_save(const char *szPath)
+{
+    char   szDefaultPath[ST_MAX_PATH];
+    FILE  *pFile;
+    int    iVirt;
+    int    iPhys;
+
+    if (szPath == NULL)
+    {
+        if (line_history_default_path(szDefaultPath,
+                                       sizeof(szDefaultPath)) != ST_NO_ERROR)
+        {
+            return ST_ERROR;
+        }
+        szPath = szDefaultPath;
+    }
+
+    pFile = fopen(szPath, "w");
+    if (pFile == NULL)
+    {
+        LOG_INFO("history_save: cannot open '%s': %s",
+                 szPath, strerror(errno));
+        return ST_ERROR;
+    }
+
+    for (iVirt = 0; iVirt < g_line_iHistCount; iVirt++)
+    {
+        iPhys = line_hist_phys(iVirt);
+        fprintf(pFile, "%s\n", g_line_aHistory[iPhys]);
+    }
+
+    fclose(pFile);
+    LOG_INFO("history saved to '%s' (%d entries)",
+             szPath, g_line_iHistCount);
+    return ST_NO_ERROR;
+}
+
+st_error_t line_history_load(const char *szPath)
+{
+    char   szDefaultPath[ST_MAX_PATH];
+    char   szLine[ST_MAX_CMD];
+    FILE  *pFile;
+    size_t uiLen;
+
+    if (szPath == NULL)
+    {
+        if (line_history_default_path(szDefaultPath,
+                                       sizeof(szDefaultPath)) != ST_NO_ERROR)
+        {
+            return ST_NO_ERROR; /* no HOME — not an error */
+        }
+        szPath = szDefaultPath;
+    }
+
+    pFile = fopen(szPath, "r");
+    if (pFile == NULL)
+    {
+        /* File not found is acceptable (first run) */
+        return ST_NO_ERROR;
+    }
+
+    while (fgets(szLine, sizeof(szLine), pFile) != NULL)
+    {
+        /* Strip trailing CR/LF */
+        uiLen = strlen(szLine);
+        while (uiLen > 0 &&
+               (szLine[uiLen - 1] == '\n' || szLine[uiLen - 1] == '\r'))
+        {
+            szLine[--uiLen] = '\0';
+        }
+
+        if (uiLen > 0 && szLine[0] != '#')
+        {
+            line_history_add(szLine);
+        }
+    }
+
+    fclose(pFile);
+    LOG_INFO("history loaded from '%s' (%d entries)",
+             szPath, g_line_iHistCount);
+    return ST_NO_ERROR;
+}
+
+/* ------------------------------------------------------------------
+ * Public completion query API
+ * ------------------------------------------------------------------ */
+
+int line_complete_cmd_query(const char *szPrefix,
+                             char       (*aOut)[ST_MAX_PATH],
+                             int         iMaxOut)
+{
+    size_t uiCmdCount;
+    size_t uiIdx;
+    size_t uiPrefixLen;
+    int    iCount;
+
+    if (szPrefix == NULL || aOut == NULL || iMaxOut <= 0)
+    {
+        return -1;
+    }
+
+    uiCmdCount  = ST_ARRAY_SIZE(g_line_aCmds);
+    uiPrefixLen = strlen(szPrefix);
+    iCount      = 0;
+
+    for (uiIdx = 0; uiIdx < uiCmdCount && iCount < iMaxOut; uiIdx++)
+    {
+        const cmd_entry_t *ptE = &g_line_aCmds[uiIdx];
+
+        /* Match on full name or single-letter shortcut */
+        if (strncmp(ptE->szFull,  szPrefix, uiPrefixLen) == 0
+        ||  strncmp(ptE->szShort, szPrefix, uiPrefixLen) == 0)
+        {
+            /* Always store the full name as the candidate */
+            strncpy(aOut[iCount], ptE->szFull, ST_MAX_PATH - 1);
+            aOut[iCount][ST_MAX_PATH - 1] = '\0';
+            iCount++;
+        }
+    }
+
+    return iCount;
+}
+
+/* line_split_path() - split a partial path into dir and name prefix.
+ * If no separator, szDir = "." and szName = szPath. */
+static void line_split_path(const char *szPath,
+                              char       *szDir,  size_t uiDirMax,
+                              char       *szName, size_t uiNameMax)
+{
+    const char *p;
+    const char *pLastSep;
+    size_t      uiDirLen;
+
+    pLastSep = NULL;
+    for (p = szPath; *p != '\0'; p++)
+    {
+        if (*p == '/' || *p == '\\')
+        {
+            pLastSep = p;
+        }
+    }
+
+    if (pLastSep == NULL)
+    {
+        strncpy(szDir, ".", uiDirMax - 1);
+        szDir[uiDirMax - 1] = '\0';
+        strncpy(szName, szPath, uiNameMax - 1);
+        szName[uiNameMax - 1] = '\0';
+    }
+    else
+    {
+        uiDirLen = (size_t)(pLastSep - szPath + 1); /* include sep */
+        if (uiDirLen >= uiDirMax)
+        {
+            uiDirLen = uiDirMax - 1;
+        }
+        memcpy(szDir, szPath, uiDirLen);
+        szDir[uiDirLen] = '\0';
+
+        strncpy(szName, pLastSep + 1, uiNameMax - 1);
+        szName[uiNameMax - 1] = '\0';
+    }
+}
+
+int line_complete_path_query(const char *szPrefix,
+                              const char *szCwd,
+                              char       (*aOut)[ST_MAX_PATH],
+                              int         iMaxOut)
+{
+    char           szDir[ST_MAX_PATH];
+    char           szNamePfx[ST_MAX_PATH];
+    char           szScanDir[ST_MAX_PATH];
+    char           szFullPath[ST_MAX_PATH + ST_MAX_PATH];
+    DIR           *pDir;
+    struct dirent *pEntry;
+    struct stat    tStat;
+    size_t         uiPrefixLen;
+    int            iCount;
+    int            bIsDir;
+
+    ST_UNUSED(szCwd);
+
+    if (szPrefix == NULL || aOut == NULL || iMaxOut <= 0)
+    {
+        return -1;
+    }
+
+    line_split_path(szPrefix, szDir, sizeof(szDir),
+                    szNamePfx, sizeof(szNamePfx));
+
+    /* Use szDir directly for scanning (may be "." for relative) */
+    strncpy(szScanDir, szDir, sizeof(szScanDir) - 1);
+    szScanDir[sizeof(szScanDir) - 1] = '\0';
+
+    pDir = opendir(szScanDir);
+    if (pDir == NULL)
+    {
+        return 0;
+    }
+
+    uiPrefixLen = strlen(szNamePfx);
+    iCount      = 0;
+
+    while ((pEntry = readdir(pDir)) != NULL && iCount < iMaxOut)
+    {
+        if (strcmp(pEntry->d_name, ".") == 0 ||
+            strcmp(pEntry->d_name, "..") == 0)
+        {
+            continue;
+        }
+
+        if (uiPrefixLen > 0 &&
+            strncmp(pEntry->d_name, szNamePfx, uiPrefixLen) != 0)
+        {
+            continue;
+        }
+
+        /* Build full path for stat() */
+        snprintf(szFullPath, sizeof(szFullPath),
+                 "%s%s", szScanDir, pEntry->d_name);
+
+        bIsDir = 0;
+        if (stat(szFullPath, &tStat) == 0 && S_ISDIR(tStat.st_mode))
+        {
+            bIsDir = 1;
+        }
+
+        /* Build candidate via explicit memcpy to avoid snprintf
+         * truncation warning. Skip if total length would overflow. */
+        {
+            const char *szDirPfx;
+            size_t      uiDirLen;
+            size_t      uiNameLen;
+            size_t      uiPos;
+
+            szDirPfx = (strcmp(szDir, ".") == 0) ? "" : szDir;
+            uiDirLen  = strlen(szDirPfx);
+            uiNameLen = strlen(pEntry->d_name);
+            if (uiDirLen + uiNameLen + 2 >= ST_MAX_PATH)
+            {
+                continue;
+            }
+            uiPos = 0;
+            memcpy(aOut[iCount], szDirPfx, uiDirLen);
+            uiPos += uiDirLen;
+            memcpy(aOut[iCount] + uiPos, pEntry->d_name, uiNameLen);
+            uiPos += uiNameLen;
+            if (bIsDir)
+            {
+                aOut[iCount][uiPos++] = '/';
+            }
+            aOut[iCount][uiPos] = '\0';
+        }
+
+        iCount++;
+    }
+
+    closedir(pDir);
+    return iCount;
+}
+
+/* ------------------------------------------------------------------
+ * Public colour API
+ * ------------------------------------------------------------------ */
+
+void line_set_colors(st_bool_t bColors)
+{
+    g_line_bColors = bColors;
+}
+
+st_bool_t line_get_colors(void)
+{
+    return g_line_bColors;
+}
+
+/* ------------------------------------------------------------------
+ * Thread-safe selected path accessors
+ * ------------------------------------------------------------------ */
+
+st_error_t line_set_selected(line_context_t *ptCtx,
+                               const char     *szPath)
+{
+    if (ptCtx == NULL)
+    {
+        LOG_ERROR("ptCtx is NULL");
+        return ST_ERROR;
+    }
+
+    if (ptCtx->ptSelectedMutex != NULL)
+    {
+        platform_mutex_lock(ptCtx->ptSelectedMutex);
+    }
+
+    if (szPath == NULL)
+    {
+        ptCtx->szSelected[0] = '\0';
+    }
+    else
+    {
+        strncpy(ptCtx->szSelected, szPath, ST_MAX_PATH - 1);
+        ptCtx->szSelected[ST_MAX_PATH - 1] = '\0';
+    }
+
+    if (ptCtx->ptSelectedMutex != NULL)
+    {
+        platform_mutex_unlock(ptCtx->ptSelectedMutex);
+    }
+
+    return ST_NO_ERROR;
+}
+
+st_error_t line_get_selected(const line_context_t *ptCtx,
+                               char                 *szBuf,
+                               size_t                uiLen)
+{
+    if (ptCtx == NULL || szBuf == NULL || uiLen == 0)
+    {
+        LOG_ERROR("NULL parameter or uiLen==0");
+        return ST_ERROR;
+    }
+
+    if (ptCtx->ptSelectedMutex != NULL)
+    {
+        platform_mutex_lock(
+            (st_mutex_t *)ptCtx->ptSelectedMutex);
+    }
+
+    strncpy(szBuf, ptCtx->szSelected, uiLen - 1);
+    szBuf[uiLen - 1] = '\0';
+
+    if (ptCtx->ptSelectedMutex != NULL)
+    {
+        platform_mutex_unlock(
+            (st_mutex_t *)ptCtx->ptSelectedMutex);
+    }
+
+    return ST_NO_ERROR;
+}
+
+/* ------------------------------------------------------------------
  * Command handlers
  * ------------------------------------------------------------------ */
 
@@ -264,7 +754,8 @@ static st_error_t line_cmd_help(const parsed_cmd_t *ptParsed,
     size_t uiCmdCount;
     size_t uiIdx;
 
-    LOG_TRACE("ptParsed=%p ptCtx=%p", (void *)ptParsed, (void *)ptCtx);
+    LOG_TRACE("ptParsed=%p ptCtx=%p",
+              (void *)ptParsed, (void *)ptCtx);
 
     if (ptParsed == NULL || ptCtx == NULL)
     {
@@ -280,10 +771,10 @@ static st_error_t line_cmd_help(const parsed_cmd_t *ptParsed,
     uiCmdCount = ST_ARRAY_SIZE(g_line_aCmds);
 
     printf("\n");
-    printf(CON_BOLD CON_CYAN
-           "  %s %s  -  %s\n"
-           CON_RESET "\n",
-           ST_APP_NAME, ST_APP_VERSION, ST_APP_DESC);
+    printf("%s%s  %s %s  -  %s\n%s\n",
+           c_bold(), c_cyan(),
+           ST_APP_NAME, ST_APP_VERSION, ST_APP_DESC,
+           c_reset());
 
     printf("  %-12s %-4s  %-22s  %s\n",
            "Command", "Key", "Usage", "Description");
@@ -296,22 +787,19 @@ static st_error_t line_cmd_help(const parsed_cmd_t *ptParsed,
     {
         const cmd_entry_t *ptEntry;
         ptEntry = &g_line_aCmds[uiIdx];
-        printf("  " CON_GREEN "%-12s" CON_RESET
-               " %-4s  " CON_GRAY "%-22s" CON_RESET "  %s\n",
-               ptEntry->szFull,
+        printf("  %s%-12s%s %-4s  %s%-22s%s  %s\n",
+               c_green(), ptEntry->szFull, c_reset(),
                ptEntry->szShort,
-               ptEntry->szSynopsis,
+               c_gray(), ptEntry->szSynopsis, c_reset(),
                ptEntry->szHelp);
     }
 
     printf("\n");
-    printf("  " CON_GRAY
-           "CTRL+<key> shortcuts available for all commands.\n"
-           "  Arrow keys (\xe2\x86\x90\xe2\x86\x92) move the cursor; "
-           "\xe2\x86\x91\xe2\x86\x93 navigate history (UC4.3).\n"
-           "  TAB completes commands (1st word) or paths (further words) "
-           "[UC4.3].\n"
-           CON_RESET "\n");
+    printf("  %sCTRL+<key> shortcuts available for most commands.\n"
+           "  UP/DOWN navigate history.  TAB completes commands\n"
+           "  (1st word) or file/dir paths (further words).\n"
+           "  Ghost text (dim) previews the first candidate.%s\n\n",
+           c_gray(), c_reset());
 
     LOG_INFO("help displayed");
     return ST_NO_ERROR;
@@ -320,7 +808,8 @@ static st_error_t line_cmd_help(const parsed_cmd_t *ptParsed,
 static st_error_t line_cmd_quit(const parsed_cmd_t *ptParsed,
                                  line_context_t     *ptCtx)
 {
-    LOG_TRACE("ptParsed=%p ptCtx=%p", (void *)ptParsed, (void *)ptCtx);
+    LOG_TRACE("ptParsed=%p ptCtx=%p",
+              (void *)ptParsed, (void *)ptCtx);
 
     if (ptParsed == NULL || ptCtx == NULL)
     {
@@ -336,26 +825,18 @@ static st_error_t line_cmd_quit(const parsed_cmd_t *ptParsed,
     line_print_msg("Goodbye. The Atari ST lives on...");
     ptCtx->bRunning = ST_FALSE;
 
-    LOG_INFO("quit requested - bRunning set to ST_FALSE");
+    LOG_INFO("quit requested");
     return ST_NO_ERROR;
 }
 
-/*
- * line_cmd_trace() - Open/close/toggle the trace console.
- *
- * trace          -> toggle open/closed (trace_enabled state unchanged)
- * trace on       -> open + enable LOG_TRACE
- * trace off      -> disable LOG_TRACE (view stays open — P19)
- * trace <other>  -> warning, no effect
- * Extra args     -> warning, first arg still processed
- */
 static st_error_t line_cmd_trace(const parsed_cmd_t *ptParsed,
                                   line_context_t     *ptCtx)
 {
     st_error_t  eResult;
     const char *szArg;
 
-    LOG_TRACE("ptParsed=%p ptCtx=%p", (void *)ptParsed, (void *)ptCtx);
+    LOG_TRACE("ptParsed=%p ptCtx=%p",
+              (void *)ptParsed, (void *)ptCtx);
 
     if (ptParsed == NULL || ptCtx == NULL)
     {
@@ -392,8 +873,8 @@ static st_error_t line_cmd_trace(const parsed_cmd_t *ptParsed,
 
     if (ptParsed->iArgc > 2)
     {
-        line_print_warning(
-            "trace: ignoring extra arguments after '%s'", szArg);
+        line_print_warning("trace: ignoring extra arguments after '%s'",
+                           szArg);
     }
 
     if (strcmp(szArg, "on") == 0)
@@ -435,9 +916,6 @@ static st_error_t line_cmd_trace(const parsed_cmd_t *ptParsed,
     return ST_NO_ERROR;
 }
 
-/*
- * line_cmd_dir() - Open (or refresh) the directory tree view.
- */
 static st_error_t line_cmd_dir(const parsed_cmd_t *ptParsed,
                                  line_context_t     *ptCtx)
 {
@@ -446,7 +924,8 @@ static st_error_t line_cmd_dir(const parsed_cmd_t *ptParsed,
     st_error_t  eResult;
     int         iArg;
 
-    LOG_TRACE("ptParsed=%p ptCtx=%p", (void *)ptParsed, (void *)ptCtx);
+    LOG_TRACE("ptParsed=%p ptCtx=%p",
+              (void *)ptParsed, (void *)ptCtx);
 
     if (ptParsed == NULL || ptCtx == NULL)
     {
@@ -493,9 +972,62 @@ static st_error_t line_cmd_dir(const parsed_cmd_t *ptParsed,
     }
 
     line_print_msg("Directory view opened%s%s%s.",
-                   szPath ? " for " : "",
-                   szPath ? szPath  : "",
+                   szPath ? " for "              : "",
+                   szPath ? szPath               : "",
                    bShowHidden ? " (showing hidden files)" : "");
+    return ST_NO_ERROR;
+}
+
+static st_error_t line_cmd_colors(const parsed_cmd_t *ptParsed,
+                                   line_context_t     *ptCtx)
+{
+    const char *szArg;
+
+    LOG_TRACE("ptParsed=%p ptCtx=%p",
+              (void *)ptParsed, (void *)ptCtx);
+
+    if (ptParsed == NULL || ptCtx == NULL)
+    {
+        LOG_ERROR("NULL parameter");
+        return ST_ERROR;
+    }
+
+    if (ptParsed->iArgc == 1)
+    {
+        /* Toggle */
+        g_line_bColors = (g_line_bColors == ST_TRUE)
+                         ? ST_FALSE : ST_TRUE;
+        line_print_msg("Colors: %s",
+                       g_line_bColors == ST_TRUE ? "ON" : "OFF");
+        return ST_NO_ERROR;
+    }
+
+    szArg = ptParsed->aszArgv[1];
+
+    if (ptParsed->iArgc > 2)
+    {
+        line_print_warning(
+            "colors: ignoring extra arguments after '%s'", szArg);
+    }
+
+    if (strcmp(szArg, "on") == 0)
+    {
+        g_line_bColors = ST_TRUE;
+        line_print_msg("Colors: ON");
+    }
+    else if (strcmp(szArg, "off") == 0)
+    {
+        g_line_bColors = ST_FALSE;
+        line_print_msg("Colors: OFF");
+    }
+    else
+    {
+        line_print_warning(
+            "colors: unknown argument '%s'  "
+            "- use: colors | colors on | colors off",
+            szArg);
+    }
+
     return ST_NO_ERROR;
 }
 
@@ -504,7 +1036,8 @@ static st_error_t line_cmd_stub(const parsed_cmd_t *ptParsed,
 {
     const char *szCmd;
 
-    LOG_TRACE("ptParsed=%p ptCtx=%p", (void *)ptParsed, (void *)ptCtx);
+    LOG_TRACE("ptParsed=%p ptCtx=%p",
+              (void *)ptParsed, (void *)ptCtx);
     ST_UNUSED(ptCtx);
 
     if (ptParsed == NULL)
@@ -524,7 +1057,7 @@ static st_error_t line_cmd_stub(const parsed_cmd_t *ptParsed,
 }
 
 /* ------------------------------------------------------------------
- * Dispatch table  (indexed by cmd_id_t, CMD_NONE = 0)
+ * Dispatch table  (indexed by cmd_id_t value)
  * ------------------------------------------------------------------ */
 
 typedef st_error_t (*cmd_handler_fn)(const parsed_cmd_t *,
@@ -544,13 +1077,14 @@ static const cmd_handler_fn g_line_aHandlers[CMD_COUNT] =
     /* CMD_WHERE      */ line_cmd_stub,
     /* CMD_TRACE      */ line_cmd_trace,
     /* CMD_EXECUTE    */ line_cmd_stub,
+    /* CMD_COLORS     */ line_cmd_colors,
 };
 
 static st_error_t line_dispatch(const parsed_cmd_t *ptParsed,
                                  line_context_t     *ptCtx)
 {
-    cmd_handler_fn  pfnHandler;
-    st_error_t      eResult;
+    cmd_handler_fn pfnHandler;
+    st_error_t     eResult;
 
     LOG_TRACE("eCmd=%d argc=%d",
               (int)ptParsed->eCmd, ptParsed->iArgc);
@@ -579,7 +1113,8 @@ static st_error_t line_dispatch(const parsed_cmd_t *ptParsed,
     if ((int)ptParsed->eCmd <= 0
     ||  (int)ptParsed->eCmd >= (int)CMD_COUNT)
     {
-        LOG_ERROR("command id out of range: %d", (int)ptParsed->eCmd);
+        LOG_ERROR("command id out of range: %d",
+                  (int)ptParsed->eCmd);
         return ST_ERROR;
     }
 
@@ -602,48 +1137,133 @@ static st_error_t line_dispatch(const parsed_cmd_t *ptParsed,
 }
 
 /* ------------------------------------------------------------------
- * Rich line editor (UC4.2)
+ * Rich line editor — helpers
  * ------------------------------------------------------------------ */
 
 /*
- * line_redraw() - Erase the current terminal line and redraw the
- * prompt + buffer with the cursor at uiCursor.
+ * line_build_prompt() - Build the contextual prompt string.
  *
- * Works with any buffer length and cursor position.
- * TODO(UC4.3): add szGhost parameter for dim completion ghost text.
+ * Format: ST4Ever [T][basename]>
+ * [T] shown when trace is open; [basename] when a file is selected.
  */
-static void line_redraw(const char *szBuf,
-                         size_t      uiLen,
-                         size_t      uiCursor)
+static void line_build_prompt(const line_context_t *ptCtx,
+                               char                 *szOut,
+                               size_t                uiMax)
 {
-    /* Go to column 0, erase entire line, redraw prompt + buffer */
-    printf("\r\033[2K" LINE_PROMPT);
-    if (uiLen > 0)
+    char       szSel[ST_MAX_PATH];
+    const char *pBase;
+    size_t     uiPos;
+    int        iRet;
+
+    if (ptCtx == NULL || szOut == NULL || uiMax == 0)
     {
-        fwrite(szBuf, 1, uiLen, stdout);
+        return;
     }
-    /* Move cursor left from end-of-buffer to actual insert position */
+
+    /* Base: coloured app name */
+    iRet = snprintf(szOut, uiMax, "%s%s%s%s",
+                    c_bold(), c_green(), ST_APP_NAME, c_reset());
+    uiPos = (iRet > 0 && (size_t)iRet < uiMax) ? (size_t)iRet : uiMax - 1;
+
+    /* [T] indicator when trace is open */
+    if (trace_is_open() == ST_TRUE)
+    {
+        iRet = snprintf(szOut + uiPos, uiMax - uiPos,
+                        "%s[T]%s", c_gray(), c_reset());
+        if (iRet > 0 && (size_t)iRet < uiMax - uiPos)
+        {
+            uiPos += (size_t)iRet;
+        }
+    }
+
+    /* [basename] indicator when a file is selected */
+    szSel[0] = '\0';
+    line_get_selected(ptCtx, szSel, sizeof(szSel));
+    if (szSel[0] != '\0')
+    {
+        pBase = line_path_basename(szSel);
+        if (pBase != NULL && pBase[0] != '\0')
+        {
+            iRet = snprintf(szOut + uiPos, uiMax - uiPos,
+                            "%s[%.20s]%s",
+                            c_gray(), pBase, c_reset());
+            if (iRet > 0 && (size_t)iRet < uiMax - uiPos)
+            {
+                uiPos += (size_t)iRet;
+            }
+        }
+    }
+
+    /* Closing "> " */
+    snprintf(szOut + uiPos, uiMax - uiPos, "> ");
+}
+
+/*
+ * line_redraw() - Erase the current terminal line and redraw the
+ * contextual prompt + buffer, with optional ghost text at cursor.
+ *
+ * Ghost text (szGhost) is shown in DIM colour at the cursor position
+ * to preview a completion candidate.  Pass NULL for no ghost.
+ */
+static void line_redraw(const line_context_t *ptCtx,
+                         const char           *szBuf,
+                         size_t                uiLen,
+                         size_t                uiCursor,
+                         const char           *szGhost)
+{
+    char   szPrompt[256];
+    size_t uiGhostLen;
+    size_t uiMoveBack;
+
+    line_build_prompt(ptCtx, szPrompt, sizeof(szPrompt));
+
+    /* Erase line and redraw from column 0 */
+    printf("\r\033[2K%s", szPrompt);
+
+    /* Chars before cursor */
+    if (uiCursor > 0)
+    {
+        fwrite(szBuf, 1, uiCursor, stdout);
+    }
+
+    /* Ghost text at cursor (dim) */
+    uiGhostLen = 0;
+    if (szGhost != NULL && szGhost[0] != '\0' && g_line_bColors)
+    {
+        uiGhostLen = strlen(szGhost);
+        printf("%s%s%s", c_dim(), szGhost, c_reset());
+    }
+
+    /* Chars after cursor */
     if (uiLen > uiCursor)
     {
-        printf("\033[%dD", (int)(uiLen - uiCursor));
+        fwrite(szBuf + uiCursor, 1, uiLen - uiCursor, stdout);
     }
+
+    /* Reposition cursor: move left past (remaining buf + ghost) */
+    uiMoveBack = (uiLen - uiCursor) + uiGhostLen;
+    if (uiMoveBack > 0)
+    {
+        printf("\033[%dD", (int)uiMoveBack);
+    }
+
     fflush(stdout);
 }
 
 /*
- * line_shortcut() - Fill szBuf with the shortcut command, redraw the
- * line showing the command as if the user typed it, print a newline,
- * and return ST_NO_ERROR to commit.
+ * line_shortcut() - Fill szBuf with a command name, redraw it as if
+ * the user typed it, emit newline, and return ST_NO_ERROR to commit.
  */
-static st_error_t line_shortcut(char       *szBuf,
-                                  const char *szCmd)
+static st_error_t line_shortcut(const line_context_t *ptCtx,
+                                  char                 *szBuf,
+                                  const char           *szCmd)
 {
     size_t uiLen;
 
     strncpy(szBuf, szCmd, ST_MAX_CMD - 1);
     szBuf[ST_MAX_CMD - 1] = '\0';
     uiLen = strlen(szBuf);
-    line_redraw(szBuf, uiLen, uiLen);
+    line_redraw(ptCtx, szBuf, uiLen, uiLen, NULL);
     printf("\n");
     fflush(stdout);
     return ST_NO_ERROR;
@@ -652,35 +1272,60 @@ static st_error_t line_shortcut(char       *szBuf,
 /*
  * line_read_rich() - Read one command line using the raw line editor.
  *
- * Handles printable character insertion, cursor movement (←/→/Home/
- * End), deletion (Backspace/Delete), ESC to clear, CTRL shortcuts for
- * instant command dispatch, and UP/DOWN as no-ops (UC4.3 history).
+ * Features: printable char insert, cursor movement, deletion, ESC
+ * clear, CTRL shortcuts, history UP/DOWN, TAB completion with ghost
+ * text.
  *
- * Parameters:
- *   ptCtx    [in]  : Console context (unused here; reserved for UC4.3)
- *   szBuf    [out] : Receives the committed line (null-terminated).
- *                    Empty string on ESC-then-ENTER or CTRL+C cancel.
+ * Adds the committed line to the history ring (non-empty only).
  *
  * Returns:
- *   ST_NO_ERROR  line committed; szBuf contains the command string.
+ *   ST_NO_ERROR  line committed in szBuf.
  *   ST_ERROR     stdin closed (EOF) or fatal read error.
  */
 static st_error_t line_read_rich(line_context_t *ptCtx,
                                   char           *szBuf)
 {
+    /* Editing state */
     size_t     uiLen;
     size_t     uiCursor;
     int        iKey;
     st_error_t eResult;
 
-    ST_UNUSED(ptCtx);
+    /* History browse state */
+    char  szSavedInput[ST_MAX_CMD];
+    int   iHistBrowse;    /* -1 = editing, >=0 = browsing entry idx  */
+    int   iHistCount;
+    int   iNewBrowse;
 
+    /* Completion state */
+    char       aaCompleteCands[LINE_COMPLETE_MAX][ST_MAX_PATH];
+    int        iCompleteCount;
+    int        iCompleteCur;   /* -1 = not in completion mode         */
+    size_t     uiCompletePrefixLen;
+    char       szGhost[ST_MAX_PATH];
+    char       szPrefix[ST_MAX_CMD];
+    size_t     uiTokenStart;
+    size_t     uiScanIdx;
+    st_bool_t  bIsFirstToken;
+    const char *szFull;
+    const char *szSuffix;
+    size_t     uiSuffixLen;
+
+    /* Initialise */
     uiLen    = 0;
     uiCursor = 0;
     memset(szBuf, 0, ST_MAX_CMD);
 
-    /* Show the initial empty prompt */
-    line_redraw(szBuf, uiLen, uiCursor);
+    memset(szSavedInput, 0, sizeof(szSavedInput));
+    iHistBrowse = -1;
+
+    iCompleteCount      = 0;
+    iCompleteCur        = -1;
+    uiCompletePrefixLen = 0;
+    szGhost[0]           = '\0';
+
+    /* Show initial empty prompt */
+    line_redraw(ptCtx, szBuf, uiLen, uiCursor, NULL);
 
     for (;;)
     {
@@ -692,25 +1337,47 @@ static st_error_t line_read_rich(line_context_t *ptCtx,
             return ST_ERROR;
         }
 
-        /* ---- ENTER -------------------------------------------- */
+        /* Timeout (200 ms, no keystroke): refresh prompt so that
+         * [T] and [file] indicators update without waiting for a key. */
+        if (iKey == CON_KEY_TIMEOUT)
+        {
+            line_redraw(ptCtx, szBuf, uiLen, uiCursor,
+                        iCompleteCur >= 0 ? szGhost : NULL);
+            continue;
+        }
+
+        /* Clear completion state on any key that is not TAB */
+        if (iKey != CON_KEY_TAB)
+        {
+            iCompleteCur = -1;
+            szGhost[0]   = '\0';
+        }
+
+        /* ---- ENTER ------------------------------------------ */
         if (iKey == CON_KEY_ENTER || iKey == '\n')
         {
+            if (uiLen > 0)
+            {
+                line_history_add(szBuf);
+            }
+            iHistBrowse = -1;
             printf("\n");
             fflush(stdout);
             return ST_NO_ERROR;
         }
 
-        /* ---- ESC: clear buffer --------------------------------- */
+        /* ---- ESC: clear buffer ------------------------------ */
         if (iKey == CON_KEY_ESC)
         {
             uiLen    = 0;
             uiCursor = 0;
             memset(szBuf, 0, ST_MAX_CMD);
-            line_redraw(szBuf, uiLen, uiCursor);
+            iHistBrowse = -1;
+            line_redraw(ptCtx, szBuf, uiLen, uiCursor, NULL);
             continue;
         }
 
-        /* ---- CTRL+C: cancel or quit if buffer empty ------------ */
+        /* ---- CTRL+C: cancel or quit if buffer empty --------- */
         if (iKey == CON_KEY_CTRL_C)
         {
             if (uiLen > 0)
@@ -718,81 +1385,217 @@ static st_error_t line_read_rich(line_context_t *ptCtx,
                 uiLen    = 0;
                 uiCursor = 0;
                 memset(szBuf, 0, ST_MAX_CMD);
-                line_redraw(szBuf, uiLen, uiCursor);
+                iHistBrowse = -1;
+                line_redraw(ptCtx, szBuf, uiLen, uiCursor, NULL);
             }
             else
             {
-                return line_shortcut(szBuf, "quit");
+                return line_shortcut(ptCtx, szBuf, "quit");
             }
             continue;
         }
 
-        /* ---- CTRL shortcuts: instant dispatch ------------------ */
+        /* ---- CTRL shortcuts: instant dispatch --------------- */
         if (iKey == CON_KEY_CTRL_Q)
         {
-            return line_shortcut(szBuf, "quit");
+            return line_shortcut(ptCtx, szBuf, "quit");
         }
         if (iKey == CON_KEY_CTRL_H)
         {
-            /* CON_KEY_CTRL_H = 0x08.
-             * On mintty BACKSPACE sends 0x7F so 0x08 is always CTRL+H.
-             * On terminals where BACKSPACE sends 0x08, console_read_key()
-             * normalises it to CON_KEY_BACKSPACE (0x7F) so 0x08 still
-             * reaches here as the help shortcut. */
-            return line_shortcut(szBuf, "help");
+            return line_shortcut(ptCtx, szBuf, "help");
         }
         if (iKey == CON_KEY_CTRL_T)
         {
-            return line_shortcut(szBuf, "trace");
+            return line_shortcut(ptCtx, szBuf, "trace");
         }
         if (iKey == CON_KEY_CTRL_D)
         {
-            return line_shortcut(szBuf, "dir");
+            return line_shortcut(ptCtx, szBuf, "dir");
         }
         if (iKey == CON_KEY_CTRL_L)
         {
-            return line_shortcut(szBuf, "load");
+            return line_shortcut(ptCtx, szBuf, "load");
         }
         if (iKey == CON_KEY_CTRL_E)
         {
-            return line_shortcut(szBuf, "edit");
+            return line_shortcut(ptCtx, szBuf, "edit");
         }
         if (iKey == CON_KEY_CTRL_U)
         {
-            return line_shortcut(szBuf, "umount");
+            return line_shortcut(ptCtx, szBuf, "umount");
         }
         if (iKey == CON_KEY_CTRL_W)
         {
-            return line_shortcut(szBuf, "where");
+            return line_shortcut(ptCtx, szBuf, "where");
         }
         if (iKey == CON_KEY_CTRL_X)
         {
-            return line_shortcut(szBuf, "execute");
+            return line_shortcut(ptCtx, szBuf, "execute");
         }
 
-        /* ---- TAB: no-op until UC4.3 tab-completion ------------- */
-        if (iKey == '\t')
+        /* ---- TAB: completion -------------------------------- */
+        if (iKey == CON_KEY_TAB)
         {
-            /* TODO(UC4.3): command completion on 1st word,
-             * file/dir completion on further words. Ghost text in
-             * CON_DIM colour shows the completion candidate. */
+            if (iCompleteCur == -1)
+            {
+                /* Start new completion session */
+                uiTokenStart  = 0;
+                bIsFirstToken = ST_TRUE;
+                for (uiScanIdx = 0; uiScanIdx < uiCursor; uiScanIdx++)
+                {
+                    if (szBuf[uiScanIdx] == ' ')
+                    {
+                        uiTokenStart  = uiScanIdx + 1;
+                        bIsFirstToken = ST_FALSE;
+                    }
+                }
+
+                uiCompletePrefixLen = uiCursor - uiTokenStart;
+
+                memset(szPrefix, 0, sizeof(szPrefix));
+                memcpy(szPrefix, szBuf + uiTokenStart,
+                       uiCompletePrefixLen);
+
+                if (bIsFirstToken == ST_TRUE)
+                {
+                    iCompleteCount = line_complete_cmd_query(
+                        szPrefix, aaCompleteCands,
+                        LINE_COMPLETE_MAX);
+                }
+                else
+                {
+                    iCompleteCount = line_complete_path_query(
+                        szPrefix, ptCtx->szCwd,
+                        aaCompleteCands, LINE_COMPLETE_MAX);
+                }
+
+                if (iCompleteCount <= 0)
+                {
+                    /* No candidates: ignore TAB silently */
+                    iCompleteCur = -1;
+                    line_redraw(ptCtx, szBuf, uiLen, uiCursor, NULL);
+                    continue;
+                }
+
+                if (iCompleteCount == 1)
+                {
+                    /* Unique match: insert suffix immediately */
+                    szFull     = aaCompleteCands[0];
+                    szSuffix   = szFull + uiCompletePrefixLen;
+                    uiSuffixLen = strlen(szSuffix);
+
+                    if (uiLen + uiSuffixLen < ST_MAX_CMD - 1)
+                    {
+                        memmove(szBuf + uiCursor + uiSuffixLen,
+                                szBuf + uiCursor,
+                                uiLen - uiCursor + 1);
+                        memcpy(szBuf + uiCursor,
+                               szSuffix, uiSuffixLen);
+                        uiLen    += uiSuffixLen;
+                        uiCursor += uiSuffixLen;
+                    }
+                    iCompleteCur = -1;
+                    szGhost[0]   = '\0';
+                    line_redraw(ptCtx, szBuf, uiLen, uiCursor, NULL);
+                    continue;
+                }
+
+                /* Multiple candidates: enter completion mode */
+                iCompleteCur = 0;
+            }
+            else
+            {
+                /* Cycle to next candidate */
+                iCompleteCur =
+                    (iCompleteCur + 1) % iCompleteCount;
+            }
+
+            /* Update ghost text for current candidate */
+            szFull = aaCompleteCands[iCompleteCur];
+            strncpy(szGhost, szFull + uiCompletePrefixLen,
+                    sizeof(szGhost) - 1);
+            szGhost[sizeof(szGhost) - 1] = '\0';
+
+            line_redraw(ptCtx, szBuf, uiLen, uiCursor, szGhost);
             continue;
         }
 
-        /* ---- History: no-op until UC4.3 ------------------------ */
-        if (iKey == CON_KEY_UP || iKey == CON_KEY_DOWN)
+        /* ---- History: UP (go older) ------------------------- */
+        if (iKey == CON_KEY_UP)
         {
-            /* TODO(UC4.3): circular history buffer navigation */
+            iHistCount = line_history_count();
+            if (iHistCount == 0)
+            {
+                continue;
+            }
+
+            if (iHistBrowse == -1)
+            {
+                /* Save current buffer before browsing */
+                strncpy(szSavedInput, szBuf, ST_MAX_CMD - 1);
+                szSavedInput[ST_MAX_CMD - 1] = '\0';
+                iNewBrowse = iHistCount - 1;
+            }
+            else if (iHistBrowse > 0)
+            {
+                iNewBrowse = iHistBrowse - 1;
+            }
+            else
+            {
+                continue; /* already at oldest */
+            }
+
+            iHistBrowse = iNewBrowse;
+            if (line_history_get(iHistBrowse, szBuf,
+                                  ST_MAX_CMD) == ST_NO_ERROR)
+            {
+                uiLen    = strlen(szBuf);
+                uiCursor = uiLen;
+                line_redraw(ptCtx, szBuf, uiLen, uiCursor, NULL);
+            }
             continue;
         }
 
-        /* ---- Cursor movement ----------------------------------- */
+        /* ---- History: DOWN (go newer) ----------------------- */
+        if (iKey == CON_KEY_DOWN)
+        {
+            if (iHistBrowse == -1)
+            {
+                continue; /* not browsing */
+            }
+
+            iHistCount = line_history_count();
+            if (iHistBrowse < iHistCount - 1)
+            {
+                iHistBrowse++;
+                if (line_history_get(iHistBrowse, szBuf,
+                                      ST_MAX_CMD) == ST_NO_ERROR)
+                {
+                    uiLen    = strlen(szBuf);
+                    uiCursor = uiLen;
+                    line_redraw(ptCtx, szBuf, uiLen, uiCursor, NULL);
+                }
+            }
+            else
+            {
+                /* Back to saved input */
+                iHistBrowse = -1;
+                strncpy(szBuf, szSavedInput, ST_MAX_CMD - 1);
+                szBuf[ST_MAX_CMD - 1] = '\0';
+                uiLen    = strlen(szBuf);
+                uiCursor = uiLen;
+                line_redraw(ptCtx, szBuf, uiLen, uiCursor, NULL);
+            }
+            continue;
+        }
+
+        /* ---- Cursor movement -------------------------------- */
         if (iKey == CON_KEY_LEFT)
         {
             if (uiCursor > 0)
             {
                 uiCursor--;
-                line_redraw(szBuf, uiLen, uiCursor);
+                line_redraw(ptCtx, szBuf, uiLen, uiCursor, NULL);
             }
             continue;
         }
@@ -801,24 +1604,24 @@ static st_error_t line_read_rich(line_context_t *ptCtx,
             if (uiCursor < uiLen)
             {
                 uiCursor++;
-                line_redraw(szBuf, uiLen, uiCursor);
+                line_redraw(ptCtx, szBuf, uiLen, uiCursor, NULL);
             }
             continue;
         }
         if (iKey == CON_KEY_HOME)
         {
             uiCursor = 0;
-            line_redraw(szBuf, uiLen, uiCursor);
+            line_redraw(ptCtx, szBuf, uiLen, uiCursor, NULL);
             continue;
         }
         if (iKey == CON_KEY_END)
         {
             uiCursor = uiLen;
-            line_redraw(szBuf, uiLen, uiCursor);
+            line_redraw(ptCtx, szBuf, uiLen, uiCursor, NULL);
             continue;
         }
 
-        /* ---- Deletion ------------------------------------------ */
+        /* ---- Deletion --------------------------------------- */
         if (iKey == CON_KEY_BACKSPACE)
         {
             if (uiCursor > 0)
@@ -828,7 +1631,8 @@ static st_error_t line_read_rich(line_context_t *ptCtx,
                         uiLen - uiCursor + 1);
                 uiCursor--;
                 uiLen--;
-                line_redraw(szBuf, uiLen, uiCursor);
+                iHistBrowse = -1;
+                line_redraw(ptCtx, szBuf, uiLen, uiCursor, NULL);
             }
             continue;
         }
@@ -841,12 +1645,13 @@ static st_error_t line_read_rich(line_context_t *ptCtx,
                         uiLen - uiCursor);
                 uiLen--;
                 szBuf[uiLen] = '\0';
-                line_redraw(szBuf, uiLen, uiCursor);
+                iHistBrowse  = -1;
+                line_redraw(ptCtx, szBuf, uiLen, uiCursor, NULL);
             }
             continue;
         }
 
-        /* ---- Printable character: insert at cursor ------------- */
+        /* ---- Printable character: insert at cursor ---------- */
         if (iKey >= 0x20 && iKey <= 0x7E)
         {
             if (uiLen < ST_MAX_CMD - 1)
@@ -861,7 +1666,8 @@ static st_error_t line_read_rich(line_context_t *ptCtx,
                 uiCursor++;
                 uiLen++;
                 szBuf[uiLen] = '\0';
-                line_redraw(szBuf, uiLen, uiCursor);
+                iHistBrowse  = -1;
+                line_redraw(ptCtx, szBuf, uiLen, uiCursor, NULL);
             }
             continue;
         }
@@ -871,12 +1677,68 @@ static st_error_t line_read_rich(line_context_t *ptCtx,
 }
 
 /* ------------------------------------------------------------------
- * Public API
+ * Script (batch) mode
+ * ------------------------------------------------------------------ */
+
+static st_error_t line_run_script(line_context_t *ptCtx)
+{
+    FILE         *pFile;
+    char          szInput[ST_MAX_CMD];
+    parsed_cmd_t  tParsed;
+    st_error_t    eResult;
+    size_t        uiLen;
+
+    LOG_TRACE("ptCtx=%p szScriptFile='%s'",
+              (void *)ptCtx, ptCtx->szScriptFile);
+
+    pFile = fopen(ptCtx->szScriptFile, "r");
+    if (pFile == NULL)
+    {
+        LOG_ERROR("cannot open script '%s': %s",
+                  ptCtx->szScriptFile, strerror(errno));
+        return ST_ERROR;
+    }
+
+    LOG_INFO("running script '%s'", ptCtx->szScriptFile);
+
+    while (ptCtx->bRunning == ST_TRUE
+           && fgets(szInput, sizeof(szInput), pFile) != NULL)
+    {
+        /* Strip trailing CR/LF */
+        uiLen = strlen(szInput);
+        while (uiLen > 0
+               && (szInput[uiLen - 1] == '\n'
+               ||  szInput[uiLen - 1] == '\r'))
+        {
+            szInput[--uiLen] = '\0';
+        }
+
+        /* Skip comment lines */
+        if (szInput[0] == '#' || uiLen == 0)
+        {
+            continue;
+        }
+
+        eResult = line_parse_cmd(szInput, &tParsed);
+        if (eResult == ST_NO_ERROR)
+        {
+            line_dispatch(&tParsed, ptCtx);
+        }
+    }
+
+    fclose(pFile);
+    LOG_INFO("script '%s' complete", ptCtx->szScriptFile);
+    return ST_NO_ERROR;
+}
+
+/* ------------------------------------------------------------------
+ * Public API — lifecycle
  * ------------------------------------------------------------------ */
 
 st_error_t line_init(line_context_t *ptCtx)
 {
-    char *pCwd;
+    char       *pCwd;
+    st_error_t  eResult;
 
     LOG_TRACE("ptCtx=%p", (void *)ptCtx);
 
@@ -896,6 +1758,17 @@ st_error_t line_init(line_context_t *ptCtx)
         strncpy(ptCtx->szCwd, ".", ST_MAX_PATH - 1);
         ptCtx->szCwd[ST_MAX_PATH - 1] = '\0';
     }
+
+    /* Create the mutex protecting szSelected */
+    eResult = platform_mutex_create(&ptCtx->ptSelectedMutex);
+    if (eResult != ST_NO_ERROR)
+    {
+        LOG_ERROR("platform_mutex_create failed for ptSelectedMutex");
+        return ST_ERROR;
+    }
+
+    /* Load command history from the default history file */
+    line_history_load(NULL);
 
     LOG_INFO("console initialised, cwd='%s'", ptCtx->szCwd);
     return ST_NO_ERROR;
@@ -917,22 +1790,30 @@ st_error_t line_run(line_context_t *ptCtx)
         return ST_ERROR;
     }
 
-    /* -- Banner ---------------------------------------------------- */
+    /* -- Batch / script mode ----------------------------------- */
+    if (ptCtx->szScriptFile[0] != '\0')
+    {
+        return line_run_script(ptCtx);
+    }
+
+    /* -- Banner ------------------------------------------------ */
     printf("\n");
-    printf(CON_BOLD CON_CYAN
+    printf("%s%s"
            "  +-----------------------------------------+\n"
            "  |  %-40s|\n"
            "  |  %-40s|\n"
            "  |  %-40s|\n"
            "  +-----------------------------------------+\n"
-           CON_RESET "\n",
+           "%s\n",
+           c_bold(), c_cyan(),
            ST_APP_NAME " " ST_APP_VERSION,
            ST_APP_DESC,
-           "Type 'help' for available commands.");
+           "Type 'help' for available commands.",
+           c_reset());
 
     LOG_INFO("console loop starting");
 
-    /* -- Switch to raw mode for the rich line editor --------------- */
+    /* -- Switch to raw mode for the rich line editor ----------- */
     bRawMode = ST_FALSE;
     eResult  = console_set_raw();
     if (eResult == ST_NO_ERROR)
@@ -941,11 +1822,10 @@ st_error_t line_run(line_context_t *ptCtx)
     }
     else
     {
-        /* Non-TTY context (CI, piped input): fall back to fgets() */
         LOG_INFO("stdin not a TTY - using plain fgets() input");
     }
 
-    /* -- Main loop ------------------------------------------------- */
+    /* -- Main loop --------------------------------------------- */
     while (ptCtx->bRunning == ST_TRUE)
     {
         if (bRawMode == ST_TRUE)
@@ -960,8 +1840,8 @@ st_error_t line_run(line_context_t *ptCtx)
         }
         else
         {
-            /* Plain fallback (non-TTY: piped input, automated tests) */
-            printf(LINE_PROMPT);
+            /* Plain fallback (non-TTY: CI, piped input) */
+            printf(ST_APP_NAME "> ");
             fflush(stdout);
 
             if (fgets(szInput, sizeof(szInput), stdin) == NULL)
@@ -983,7 +1863,6 @@ st_error_t line_run(line_context_t *ptCtx)
             }
         }
 
-        /* Parse and dispatch */
         eResult = line_parse_cmd(szInput, &tParsed);
         if (eResult != ST_NO_ERROR)
         {
@@ -999,7 +1878,7 @@ st_error_t line_run(line_context_t *ptCtx)
         }
     }
 
-    /* -- Restore terminal mode ------------------------------------ */
+    /* -- Restore terminal mode --------------------------------- */
     if (bRawMode == ST_TRUE)
     {
         eResult = console_restore();
@@ -1023,16 +1902,31 @@ st_error_t line_shutdown(line_context_t *ptCtx)
         return ST_ERROR;
     }
 
+    /* Close any open dir view */
     if (g_line_ptDirView != NULL)
     {
         dir_close(&g_line_ptDirView);
         g_line_ptDirView = NULL;
     }
 
+    /* Save history */
+    line_history_save(NULL);
+
+    /* Destroy the selected-path mutex */
+    if (ptCtx->ptSelectedMutex != NULL)
+    {
+        platform_mutex_destroy(&ptCtx->ptSelectedMutex);
+        ptCtx->ptSelectedMutex = NULL;
+    }
+
     memset(ptCtx, 0, sizeof(line_context_t));
     LOG_INFO("console shutdown complete");
     return ST_NO_ERROR;
 }
+
+/* ------------------------------------------------------------------
+ * Public API — console output
+ * ------------------------------------------------------------------ */
 
 void line_print_msg(const char *szFmt, ...)
 {
@@ -1059,11 +1953,11 @@ void line_print_warning(const char *szFmt, ...)
         return;
     }
 
-    printf(CON_YELLOW "  Warning: ");
+    printf("%s  Warning: ", c_yellow());
     va_start(vaArgs, szFmt);
     vprintf(szFmt, vaArgs);
     va_end(vaArgs);
-    printf(CON_RESET "\n");
+    printf("%s\n", c_reset());
 }
 
 void line_print_error(const char *szFmt, ...)
@@ -1075,9 +1969,9 @@ void line_print_error(const char *szFmt, ...)
         return;
     }
 
-    printf(CON_RED "  Error: ");
+    printf("%s  Error: ", c_red());
     va_start(vaArgs, szFmt);
     vprintf(szFmt, vaArgs);
     va_end(vaArgs);
-    printf(CON_RESET "\n");
+    printf("%s\n", c_reset());
 }

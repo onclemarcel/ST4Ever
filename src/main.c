@@ -2,16 +2,17 @@
  * main.c - ST4Ever application entry point
  *
  * Responsibilities:
- *   1. Parse command-line options (-t, -h).
+ *   1. Parse command-line options (-t, -h, --script).
  *   2. Initialise platform-specific subsystems (win_console_init).
  *   3. Initialise the trace subsystem (trace_init).
- *   4. Initialise the GUI subsystem (gui_init - stubbed UC3).
+ *   4. Initialise the GUI subsystem (gui_init).
  *   5. Initialise and run the interactive console (line_init/run).
  *   6. Perform orderly shutdown in reverse initialisation order.
  *
  * Command-line options:
- *   -t          Open the trace console at startup.
- *   -h / --help Print usage text and exit.
+ *   -t              Open the trace console at startup.
+ *   -h / --help     Print usage text and exit.
+ *   --script <file> Run commands from file (batch mode, UC4.3).
  */
 
 #include "common.h"
@@ -51,8 +52,9 @@ static void print_usage(const char *szArgv0)
 
     printf("Usage: %s [options]\n\n", szName);
     printf("Options:\n");
-    printf("  -t          Open the trace console at startup\n");
-    printf("  -h / --help Show this message and exit\n");
+    printf("  -t              Open the trace console at startup\n");
+    printf("  --script <file> Run commands from file (batch mode)\n");
+    printf("  -h / --help     Show this message and exit\n");
     printf("\n");
     printf("Once running, type 'help' for the list of commands.\n");
 }
@@ -68,9 +70,12 @@ int main(int argc, char *argv[])
     line_context_t  tLineCtx;
     int             iArg;
     int             iExitCode;
+    char            szScriptFile[ST_MAX_PATH];
 
-    bTraceAtStart = ST_FALSE;
-    iExitCode     = 0;
+    bTraceAtStart  = ST_FALSE;
+    iExitCode      = 0;
+    szScriptFile[0] = '\0';
+    memset(&tLineCtx, 0, sizeof(tLineCtx));
 
     /* ---- 1. Parse command-line options --------------------------- */
     for (iArg = 1; iArg < argc; iArg++)
@@ -78,6 +83,20 @@ int main(int argc, char *argv[])
         if (strcmp(argv[iArg], "-t") == 0)
         {
             bTraceAtStart = ST_TRUE;
+        }
+        else if (strcmp(argv[iArg], "--script") == 0)
+        {
+            if (iArg + 1 >= argc)
+            {
+                fprintf(stderr,
+                        "%s: --script requires a file argument\n",
+                        ST_APP_NAME);
+                print_usage(argv[0]);
+                return 1;
+            }
+            iArg++;
+            strncpy(szScriptFile, argv[iArg], ST_MAX_PATH - 1);
+            szScriptFile[ST_MAX_PATH - 1] = '\0';
         }
         else if (strcmp(argv[iArg], "-h")     == 0
               || strcmp(argv[iArg], "--help") == 0)
@@ -136,6 +155,14 @@ int main(int argc, char *argv[])
         LOG_ERROR("line_init() failed");
         iExitCode = 1;
         goto shutdown_gui;
+    }
+
+    /* Restore --script path (line_init() zeroes the context) */
+    if (szScriptFile[0] != '\0')
+    {
+        strncpy(tLineCtx.szScriptFile, szScriptFile,
+                ST_MAX_PATH - 1);
+        tLineCtx.szScriptFile[ST_MAX_PATH - 1] = '\0';
     }
 
     eResult = line_run(&tLineCtx);

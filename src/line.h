@@ -7,12 +7,25 @@
  *
  * Command syntax:
  *   <command> [arg1 [arg2 ...]]
- *   ^-- first word only, matched against the command table
- *              ^-- tab-completed against files/dirs (UC4)
+ *   ^-- first word only, matched against the command table.
+ *              ^-- tab-completed against files/dirs (UC4.3).
  *
- * For UC1 the input is a plain fgets() read.
- * TODO(UC4): replace with the rich line editor (history, tab-complete,
- *            pre-completion ghost text, arrow-key navigation).
+ * Rich line editor (UC4.2/UC4.3):
+ *   - cursor      : LEFT/RIGHT/Home/End
+ *   - deletion    : Backspace/Delete
+ *   - history     : UP/DOWN circular ring, persisted in
+ *                   ~/.st4ever_history between sessions
+ *   - completion  : TAB cycles commands (1st word) or paths
+ *   - ghost text  : dim completion suffix shown at cursor
+ *   - prompt      : contextual — shows trace and selection state
+ *   - colors      : ANSI output toggled by `colors on/off`
+ *   - script      : non-interactive batch mode via --script file
+ *
+ * CTRL conflict notes (UC4.3):
+ *   CTRL+I = 0x09 = TAB — TAB always drives tab-completion;
+ *     CMD_IMAGE is accessible only via "i" / "image".
+ *   CTRL+M = 0x0D = CR  — CR always drives ENTER/commit;
+ *     CMD_MOUNT is accessible only via "m" / "mount".
  */
 
 #ifndef LINE_H
@@ -33,12 +46,13 @@ typedef enum cmd_id_s
     CMD_DIR,            /* d | dir     | CTRL+D                      */
     CMD_LOAD,           /* l | load    | CTRL+L                      */
     CMD_EDIT,           /* e | edit    | CTRL+E                      */
-    CMD_IMAGE,          /* i | image   | CTRL+I                      */
-    CMD_MOUNT,          /* m | mount   | CTRL+M                      */
+    CMD_IMAGE,          /* i | image   (no CTRL+I — TAB reserved)    */
+    CMD_MOUNT,          /* m | mount   (no CTRL+M — ENTER reserved)  */
     CMD_UMOUNT,         /* u | umount  | CTRL+U                      */
     CMD_WHERE,          /* w | where   | CTRL+W                      */
     CMD_TRACE,          /* t | trace   | CTRL+T                      */
     CMD_EXECUTE,        /* x | execute | CTRL+X                      */
+    CMD_COLORS,         /* c | colors  on|off (toggle ANSI output)   */
     CMD_COUNT           /* Sentinel - must be last                   */
 } cmd_id_t;
 
@@ -46,7 +60,9 @@ typedef enum cmd_id_s
  * Parsed command
  * ------------------------------------------------------------------ */
 
-#define LINE_MAX_ARGS   8   /* Maximum number of arguments per command */
+#define LINE_MAX_ARGS     8    /* Maximum arguments per command        */
+#define LINE_HISTORY_MAX  64   /* Maximum history ring entries         */
+#define LINE_COMPLETE_MAX 32   /* Maximum completion candidates        */
 
 typedef struct parsed_cmd_s
 {
@@ -63,22 +79,25 @@ typedef struct parsed_cmd_s
 
 typedef struct line_context_s
 {
-    char      szCwd[ST_MAX_PATH];       /* Current working directory  */
-    char      szSelected[ST_MAX_PATH];  /* Path selected via `dir`    */
-    st_bool_t bRunning;                 /* ST_FALSE requests shutdown */
+    char        szCwd[ST_MAX_PATH];        /* Current working dir      */
+    char        szSelected[ST_MAX_PATH];   /* Path selected via `dir`  */
+    st_mutex_t *ptSelectedMutex;           /* Protects szSelected      */
+    char        szScriptFile[ST_MAX_PATH]; /* --script path (UC4.3)    */
+    st_bool_t   bRunning;                  /* ST_FALSE = shutdown       */
 } line_context_t;
 
 /* ------------------------------------------------------------------
- * API
+ * API — lifecycle
  * ------------------------------------------------------------------ */
 
 /*
  * line_init() - Initialise the console subsystem.
  *
- * Clears the context and captures the current working directory.
+ * Clears the context, captures cwd, creates ptSelectedMutex, and
+ * loads ~/.st4ever_history.
  *
  * Parameters:
- *   ptCtx [out] : Context structure to initialise (must not be NULL).
+ *   ptCtx [out] : Context to initialise (must not be NULL).
  *
  * Returns:
  *   ST_NO_ERROR on success.
@@ -89,54 +108,207 @@ st_error_t line_init(line_context_t *ptCtx);
 /*
  * line_run() - Start the blocking interactive console loop.
  *
- * Returns when the user issues `quit`, signals EOF, or a fatal
- * error occurs.
+ * If ptCtx->szScriptFile is non-empty, reads commands from that file
+ * and returns when exhausted (batch mode, non-interactive).
+ * Otherwise enters the interactive raw-mode loop; returns on `quit`,
+ * EOF, or fatal error.
  *
  * Parameters:
  *   ptCtx [in/out] : Initialised console context.
  *
  * Returns:
  *   ST_NO_ERROR on normal exit.
- *   ST_ERROR    on a fatal internal error.
+ *   ST_ERROR    on fatal internal error.
  */
 st_error_t line_run(line_context_t *ptCtx);
 
 /*
  * line_shutdown() - Release console resources.
  *
+ * Saves ~/.st4ever_history, closes any open dir view, destroys the
+ * ptSelectedMutex, and zeroes the context.
+ *
  * Parameters:
- *   ptCtx [in/out] : Console context (zeroed on return).
+ *   ptCtx [in/out] : Context (zeroed on return).
  *
  * Returns:
- *   ST_NO_ERROR.
+ *   ST_NO_ERROR always.
  */
 st_error_t line_shutdown(line_context_t *ptCtx);
 
-/*
- * line_print_msg() - Print a normal response message to stdout.
- *
- * Parameters:
- *   szFmt [in] : printf-style format string.
- *   ...        : Format arguments.
- */
+/* ------------------------------------------------------------------
+ * API — console output
+ * ------------------------------------------------------------------ */
+
 void line_print_msg(const char *szFmt, ...);
-
-/*
- * line_print_warning() - Print a warning message (yellow) to stdout.
- *
- * Parameters:
- *   szFmt [in] : printf-style format string.
- *   ...        : Format arguments.
- */
 void line_print_warning(const char *szFmt, ...);
+void line_print_error(const char *szFmt, ...);
+
+/* ------------------------------------------------------------------
+ * API — selected path accessor (thread-safe)
+ * ------------------------------------------------------------------ */
 
 /*
- * line_print_error() - Print an error message (red) to stdout.
+ * line_set_selected() - Update szSelected under mutex.
+ *
+ * Called from the dir-view window thread.  NULL szPath clears the
+ * selection.
  *
  * Parameters:
- *   szFmt [in] : printf-style format string.
- *   ...        : Format arguments.
+ *   ptCtx  [in/out] : Console context.
+ *   szPath [in]     : Absolute path to record (NULL = clear).
+ *
+ * Returns:
+ *   ST_NO_ERROR on success.
+ *   ST_ERROR    if ptCtx is NULL.
  */
-void line_print_error(const char *szFmt, ...);
+st_error_t line_set_selected(line_context_t *ptCtx,
+                               const char     *szPath);
+
+/*
+ * line_get_selected() - Read szSelected under mutex.
+ *
+ * Parameters:
+ *   ptCtx  [in]  : Console context.
+ *   szBuf  [out] : Receives selected path (empty string if none).
+ *   uiLen  [in]  : Buffer size (>= 1).
+ *
+ * Returns:
+ *   ST_NO_ERROR on success.
+ *   ST_ERROR    if ptCtx or szBuf is NULL, or uiLen == 0.
+ */
+st_error_t line_get_selected(const line_context_t *ptCtx,
+                               char                 *szBuf,
+                               size_t                uiLen);
+
+/* ------------------------------------------------------------------
+ * API — command history
+ * ------------------------------------------------------------------ */
+
+/*
+ * line_history_add() - Push an entry onto the history ring.
+ *
+ * Empty strings and duplicates of the previous entry are ignored.
+ *
+ * Parameters:
+ *   szCmd [in] : Command string.
+ *
+ * Returns:
+ *   ST_NO_ERROR always.
+ *   ST_ERROR    if szCmd is NULL.
+ */
+st_error_t line_history_add(const char *szCmd);
+
+/*
+ * line_history_count() - Number of stored history entries (0..MAX).
+ */
+int line_history_count(void);
+
+/*
+ * line_history_get() - Retrieve a history entry by virtual index.
+ *
+ * Virtual 0 = oldest, count-1 = most recent.
+ *
+ * Parameters:
+ *   iVirtIdx [in]  : 0..count-1.
+ *   szBuf    [out] : Receives entry string.
+ *   uiLen    [in]  : Buffer size.
+ *
+ * Returns:
+ *   ST_NO_ERROR on success.
+ *   ST_ERROR    if szBuf is NULL, uiLen==0, or iVirtIdx out of range.
+ */
+st_error_t line_history_get(int iVirtIdx, char *szBuf, size_t uiLen);
+
+/*
+ * line_history_clear() - Remove all history entries.
+ */
+void line_history_clear(void);
+
+/*
+ * line_history_save() - Write history to a file.
+ *
+ * Parameters:
+ *   szPath [in] : File path (NULL = default ~/.st4ever_history).
+ *
+ * Returns:
+ *   ST_NO_ERROR on success.
+ *   ST_ERROR    if the file cannot be written.
+ */
+st_error_t line_history_save(const char *szPath);
+
+/*
+ * line_history_load() - Load history from a file.
+ *
+ * A missing file is treated as an empty history (ST_NO_ERROR).
+ *
+ * Parameters:
+ *   szPath [in] : File path (NULL = default ~/.st4ever_history).
+ *
+ * Returns:
+ *   ST_NO_ERROR on success.
+ *   ST_ERROR    on read error.
+ */
+st_error_t line_history_load(const char *szPath);
+
+/* ------------------------------------------------------------------
+ * API — tab-completion query (testable without raw terminal)
+ * ------------------------------------------------------------------ */
+
+/*
+ * line_complete_cmd_query() - Find commands matching a prefix.
+ *
+ * Matches against full command names (e.g. "help", "quit") and
+ * their single-letter shortcuts.
+ *
+ * Parameters:
+ *   szPrefix [in]  : Prefix to match (empty string matches all).
+ *   aOut     [out] : Pointer to array of ST_MAX_PATH-char buffers.
+ *   iMaxOut  [in]  : Capacity of aOut.
+ *
+ * Returns:
+ *   Number of matches (0..iMaxOut).  -1 on invalid parameters.
+ */
+int line_complete_cmd_query(const char *szPrefix,
+                             char       (*aOut)[ST_MAX_PATH],
+                             int         iMaxOut);
+
+/*
+ * line_complete_path_query() - Find filesystem entries matching a
+ * partial path prefix.
+ *
+ * Directories get a trailing '/'.  Relative paths are resolved
+ * against szCwd.
+ *
+ * Parameters:
+ *   szPrefix [in]  : Partial path (e.g. "src/li").
+ *   szCwd    [in]  : Current working directory for relative paths.
+ *   aOut     [out] : Receives matching full paths.
+ *   iMaxOut  [in]  : Capacity of aOut.
+ *
+ * Returns:
+ *   Number of matches (0..iMaxOut).  -1 on invalid parameters.
+ */
+int line_complete_path_query(const char *szPrefix,
+                              const char *szCwd,
+                              char       (*aOut)[ST_MAX_PATH],
+                              int         iMaxOut);
+
+/* ------------------------------------------------------------------
+ * API — ANSI colour toggle
+ * ------------------------------------------------------------------ */
+
+/*
+ * line_set_colors() - Enable or disable ANSI colour sequences.
+ *
+ * Parameters:
+ *   bColors [in] : ST_TRUE = on (default), ST_FALSE = off.
+ */
+void line_set_colors(st_bool_t bColors);
+
+/*
+ * line_get_colors() - Return the current colour output state.
+ */
+st_bool_t line_get_colors(void);
 
 #endif /* LINE_H */

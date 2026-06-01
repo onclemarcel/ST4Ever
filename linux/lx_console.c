@@ -198,11 +198,11 @@ st_error_t console_read_key(int *piKey)
         return ST_ERROR;
     }
 
-    iRet = (int)read(STDIN_FILENO, &byte1, 1);
-    if (iRet <= 0)
+    /* Timed read: allows prompt refresh on CON_KEY_TIMEOUT */
+    if (console_read_byte_timeout(&byte1, 200) != 0)
     {
-        *piKey = CON_KEY_EOF;
-        return ST_ERROR;
+        *piKey = CON_KEY_TIMEOUT;
+        return ST_NO_ERROR;
     }
 
     if (byte1 == (unsigned char)g_tTermOrig.c_cc[VERASE]

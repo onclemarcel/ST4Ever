@@ -1,0 +1,5 @@
+# ST4Ever test script
+help
+colors off
+colors on
+quit

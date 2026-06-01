@@ -40,6 +40,7 @@
 #define CON_KEY_CTRL_U     0x15   /* Umount shortcut                   */
 #define CON_KEY_CTRL_W     0x17   /* Where shortcut                    */
 #define CON_KEY_CTRL_X     0x18   /* Execute shortcut                  */
+#define CON_KEY_TAB        0x09   /* Tab / CTRL+I  (completion UC4.3)  */
 #define CON_KEY_ESC        0x1B   /* ESC - clear line                  */
 #define CON_KEY_BACKSPACE  0x7F   /* Backspace (delete before cursor)  */
 
@@ -62,6 +63,12 @@
 
 /* EOF / fatal read error sentinel */
 #define CON_KEY_EOF        (-1)
+
+/* Timeout sentinel: no key within the platform poll window (200 ms).
+ * console_read_key() returns ST_NO_ERROR + CON_KEY_TIMEOUT when no
+ * keystroke arrived.  The caller (line_read_rich) uses this to
+ * refresh the contextual prompt without changing the editor state. */
+#define CON_KEY_TIMEOUT    (-2)
 
 /* ------------------------------------------------------------------
  * API
@@ -103,7 +110,8 @@ st_error_t console_restore(void);
  *                 Set to CON_KEY_EOF on stdin close or fatal error.
  *
  * Returns:
- *   ST_NO_ERROR  key decoded; *piKey is valid.
+ *   ST_NO_ERROR  key decoded; *piKey is a printable char, CON_KEY_*,
+ *                or CON_KEY_TIMEOUT (no keystroke within 200 ms).
  *   ST_ERROR     read failure; *piKey set to CON_KEY_EOF.
  */
 st_error_t console_read_key(int *piKey);

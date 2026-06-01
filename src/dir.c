@@ -588,13 +588,10 @@ static void dir_activate_sel(dir_view_t *ptView, gui_window_t hWnd)
     }
     else
     {
-        /* File: update console selection */
+        /* File: update console selection (mutex-safe, UC4.3) */
         if (ptView->ptLineCtx != NULL)
         {
-            strncpy(ptView->ptLineCtx->szSelected,
-                    ptNode->szPath,
-                    ST_MAX_PATH - 1);
-            ptView->ptLineCtx->szSelected[ST_MAX_PATH - 1] = '\0';
+            line_set_selected(ptView->ptLineCtx, ptNode->szPath);
             LOG_INFO("dir: selected '%s'", ptNode->szPath);
         }
     }
@@ -782,11 +779,11 @@ static void dir_handle_key(dir_view_t  *ptView,
             ptNode = ptView->aptFlat[ptView->iSelectedFlat].ptNode;
             if (ptView->ptLineCtx != NULL)
             {
-                strncpy(ptView->ptLineCtx->szSelected,
-                        ptNode->szPath,
-                        ST_MAX_PATH - 1);
-                ptView->ptLineCtx->szSelected[ST_MAX_PATH - 1] = '\0';
-                LOG_INFO("dir: SPACE selected '%s'", ptNode->szPath);
+                /* UC4.3: mutex-safe accessor */
+                line_set_selected(ptView->ptLineCtx,
+                                  ptNode->szPath);
+                LOG_INFO("dir: SPACE selected '%s'",
+                         ptNode->szPath);
             }
         }
         break;

@@ -1,0 +1,2 @@
+trace on
+dir /tmp

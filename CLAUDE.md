@@ -13,6 +13,7 @@
 - 2026-06-01: UC4.2 validé — console.h (CON_KEY_*) + pipe/VT100 mintty + Win32 cmd.exe + line_read_rich (insert/edit/CTRL shortcuts) + make manual UC=XX
 - 2026-06-01: fix dir.c 4 warnings `-Wformat-truncation` (szPat+3, iPathLen check, szLine+320)
 - 2026-06-01: fix focus-retour — `hPrevFgWnd` dans `win_wnd_state_t`, restauration dans `WM_DESTROY` (focus revient au terminal source à la fermeture des vues GUI)
+- 2026-06-01: UC4.3 validé — historique ↑↓ circulaire + ~/.st4ever_history + TAB completion (commandes/chemins) + ghost text DIM + prompt contextuel [T][file] + colors on/off (c_*() runtime) + --script batch + mutex ptSelectedMutex + line_set/get_selected() + CON_KEY_TAB
 
 ## 1. Contexte du projet
 
@@ -48,7 +49,8 @@ Chaque commande est accessible par son nom complet, son alias monogramme et un r
 |----------|-------|------------|---------|---------------------|
 | `help`   | `h`   | CTRL+H     | ✓ UC1   | Liste toutes les commandes avec synopsis ; ignore les arguments (warning) |
 | `quit`   | `q`   | CTRL+Q / C | ✓ UC1   | Ferme toutes les vues et quitte proprement ; ignore les arguments (warning) |
-| `trace`  | `t`   | CTRL+T     | ✓ UC2   | Sans arg : toggle open/close. `on` : ouvre + active LOG_TRACE. `off` : désactive + ferme. Détails §6.2 |
+| `trace`  | `t`   | CTRL+T     | ✓ UC2   | Sans arg : toggle open/close. `on` : ouvre + active LOG_TRACE. `off` : filtre LOG_TRACE uniquement — **la vue reste ouverte** (P19, ADAPTED §6.2). Détails §6.2 |
+| `colors` | `c`   | —          | ✓ UC4.3 | Sans arg : toggle on/off. `on` : active les codes ANSI. `off` : désactive (utile terminal sans VT100 ou redirection fichier). Détails §6.8 |
 
 **Commandes à implémenter — spécification détaillée dans les sous-sections ci-dessous :**
 
@@ -470,12 +472,11 @@ Règles :
 
 Chaque UC suit deux phases distinctes avant clôture :
 
-- **Phase 1 — Implémentation** : modifications sources/includes/Makefile, `make tests` **0 warning, 0 failure**, `make manual` validé. Claude rend la main à Tonton Marcel pour relecture et validation fonctionnelle.
-- **Phase 2 — Documentation** : 
-  - mise à jour CLAUDE.md (§4 pratiques, §5 recommandations, §6 tableau + sous-section UC validé)
-  - mise à jour traçabilité dans `use_cases_XX.c` (INTENT, ADAPTED, TEST MATRIX)
-  - mise à jour SRTD.md (UFRs, REQs, Tables fonctions, Tests, Matrices, Open Items) en conséquence des nouveaux contrats fonctionnels de CLAUDE.md (§6.x) et des modifications des `use_cases_XX.c`.
-  - Analyse des nouvelles propositions d'amélioration par Onclemarcel, si besoin et proposition amélioration UX par Claude, si approprié suite à la phase d'implémentation de l'UC.
+- **Phase 1 — Implémentation** : modifications sources/includes/Makefile, `make tests` **0 warning, 0 failure**, mise à jour CLAUDE.md (§0 historique, §1.1 si commande validée, §4 pratiques, §5 recommandations, §6 tableau + sous-section §6.x UC validé, `ST_APP_VERSION`). Claude rend la main à Tonton Marcel pour relecture, passage des tests manuels (`make manual`) et validation fonctionnelle.
+- **Phase 2 — Documentation** :
+  - Mise à jour traçabilité dans `use_cases_XX.c` (INTENT, ADAPTED, TEST MATRIX).
+  - Mise à jour SRTD.md (UFRs, REQs, Tables fonctions, Tests, Matrices, Open Items) en conséquence des nouveaux contrats fonctionnels de CLAUDE.md §6.x et des modifications des `use_cases_XX.c`.
+  - Analyse des nouvelles propositions d'amélioration par Onclemarcel ; propositions UX par Claude si approprié.
 
 Règle : **un UC n'est clos que lorsque les deux phases sont complètes** et §7 ne contient plus de propositions non arbitrées pour ce UC. Claude initie la Phase 2 sans demande explicite dès que Phase 1 est validée par Tonton Marcel.
 
@@ -511,8 +512,8 @@ Les étapes de développement fonctionnelles sont formalisées en Use Cases, per
 | UC3.3 | `dir` | dir.c : scan FS + arbre + rendu D2D + clavier/souris/scroll/sélection + line_cmd_dir | ✓ VALIDÉ 2026-05-31 |
 | UC4.1 | UX dir + make manual | `gui_request_close()` non-bloquant + ESC/←/→/ESPACE séparés de ENTER + filtre `.*` + `dir -a` + focus auto + `TEST_MANUAL` + `make manual` | ✓ VALIDÉ 2026-05-31 |
 | UC4.2 | raw input | `console.h` (CON_KEY_*) + pipe/VT100 mintty (R21) + Win32 cmd.exe + `line_read_rich()` : insert/←/→/Home/End/Del/Backspace, CTRL shortcuts, ESC + `make manual UC=XX` | ✓ VALIDÉ 2026-06-01 |
+| UC4.3 | complétion + historique + extras | Historique ↑↓ circulaire + `~/.st4ever_history` + tab-completion commandes/chemins + ghost-text DIM + prompt contextuel `[T][file]` + `colors on/off` + `--script file` + mutex `ptSelectedMutex` + `line_set/get_selected()` | ✓ VALIDÉ 2026-06-01 |
 | UC4.4 | trace view GUI | Fenêtre `GUI_WND_TRACE` D2D : scroll texte append-only, couleurs par niveau ; `trace.c` → `gui_msg_queue_t` → thread fenêtre ; suppression TODO(UC3.3) de trace.h/trace.c | trace view remplace stderr |
-| UC4.3 | complétion + historique + extras | Historique ↑↓ circulaire + `~/.st4ever_history` + tab-completion + ghost-text + prompt contextuel + `colors on/off` + `--script file` | line editor complet |
 | UC5 | `where`, `info` | Répertoire courant + état sélection (where) ; dashboard global état application : cwd, fichier sélectionné, trace, disque monté, binaire chargé (info) ; **P8** : `SetConsoleTitleA` statut automatique ; **P21** : touche `H` toggle hidden dans vue dir ; **P22** : F5 refresh vue dir | affichage path + dashboard + titre console |
 | UC5-bis | prefs | Module `prefs.c` : lecture/écriture `%APPDATA%\ST4Ever\prefs.ini` ; mémorisation position/taille fenêtres par type (P7) — **optionnel**, après UC5 | save/restore position fenêtre dir |
 | UC6 | plateforme | Abstraction fichiers : open/read/write/stat/mkdir, listing répertoire | tests lecture/écriture |
@@ -914,10 +915,102 @@ Les étapes de développement fonctionnelles sont formalisées en Use Cases, per
 - `win_gui.c` — focus non restauré à la fermeture des vues depuis mintty : ajout de `hPrevFgWnd` dans `win_wnd_state_t`, stocké lors du `AttachThreadInput` à l'ouverture, restauré via `SetForegroundWindow(hPrevFgWnd)` dans `WM_DESTROY` (avec garde `IsWindow`). Fonctionne depuis mintty, VS Code et PowerShell.
 
 **Points d'attention pour les UCs suivants :**
-- UC4.3 : résoudre CTRL+I = TAB = 0x09 (conflit shortcut CMD_IMAGE vs complétion). Résolution envisagée : TAB toujours = complétion ; CMD_IMAGE reste accessible via `"i"` ou `"image"`.
-- UC4.3 : résoudre CTRL+M = 0x0D = CR = ENTER (conflit shortcut CMD_MOUNT vs validation). CMD_MOUNT reste accessible via `"m"` ou `"mount"`.
-- UC4.3 : ajouter mutex sur `line_context_t.szSelected` (write depuis thread fenêtre dir, read potentiel depuis `line_read_rich`) — à intégrer avec le module d'historique.
+- ~~UC4.3 : CTRL+I = TAB = 0x09 conflit CMD_IMAGE~~ **RÉSOLU UC4.3** — TAB = complétion ; CMD_IMAGE via `"i"`/`"image"` uniquement (commenté dans `line.h` enum).
+- ~~UC4.3 : CTRL+M = CR = ENTER conflit CMD_MOUNT~~ **RÉSOLU UC4.3** — ENTER = commit ; CMD_MOUNT via `"m"`/`"mount"` uniquement (commenté dans `line.h` enum).
+- ~~UC4.3 : mutex szSelected~~ **RÉSOLU UC4.3** — `ptSelectedMutex` créé dans `line_init`, `line_set/get_selected()` dans `line.h`; dir.c utilise `line_set_selected()`.
 - UC4.4 : `console_restore()` doit être appelé avant l'affichage initial de la fenêtre trace GUI pour éviter interférence entre mode raw et stdout.
+
+### 6.8 Use Case 04.3 (UC4.3) — VALIDÉ (2026-06-01)
+
+**Périmètre fonctionnel implémenté :**
+- `src/console.h` : ajout de `CON_KEY_TAB 0x09` (constante nommée pour TAB/CTRL+I).
+- `src/line.h` : `CMD_COLORS` ajouté à `cmd_id_t` (alias `"c"`, pas de CTRL) ; `LINE_HISTORY_MAX 64` et `LINE_COMPLETE_MAX 32` ; `ptSelectedMutex *st_mutex_t` et `szScriptFile[ST_MAX_PATH]` dans `line_context_t` ; API publique history (`line_history_add/count/get/clear/save/load`), completion query (`line_complete_cmd_query`, `line_complete_path_query`), colors (`line_set/get_colors`), selected accessor (`line_set/get_selected`). Note CTRL conflicts dans les commentaires enum.
+- `src/line.c` — refonte UC4.3 :
+  - **`c_*()`** : fonctions `static inline` remplacent les macros `CON_*` compile-time. Toutes les sorties console passent par `c_green()`, `c_yellow()`, etc., qui retournent `""` quand `g_line_bColors == ST_FALSE`.
+  - **Historique** : ring buffer `g_line_aHistory[64][ST_MAX_CMD]` + `g_line_iHistHead/Count`. `line_history_add()` ignore les doublons du dernier. Persistence via `line_history_save/load(NULL)` → `$HOME/.st4ever_history` (MSYS2 `$HOME` ; fallback `%USERPROFILE%` sur cmd.exe). `line_history_load()` appelé dans `line_init()` ; `line_history_save()` dans `line_shutdown()`.
+  - **TAB completion** dans `line_read_rich()` : premier mot → `line_complete_cmd_query` ; mots suivants → `line_complete_path_query` (POSIX `opendir/readdir/stat`, disponible via MinGW). 1 candidat = insertion immédiate du suffixe. N candidats = ghost text DIM + cycle TAB. Toute touche non-TAB efface le ghost.
+  - **Ghost text** : `line_redraw()` (nouvelle signature : `ptCtx, szBuf, uiLen, uiCursor, szGhost`) — le texte fantôme est émis en `c_dim()` entre les chars avant et après curseur, puis `\033[ND` recule d'autant. Ghost = `NULL` quand inactif.
+  - **Prompt contextuel** : `line_build_prompt()` construit `APP_NAME [T][basename]> ` dynamiquement — `[T]` si `trace_is_open()`, `[basename]` si `szSelected` non vide (basename extrait par `line_path_basename()`). Verrouillage bref via `line_get_selected()`.
+  - **History navigation** dans `line_read_rich()` : `iHistBrowse=-1` (édition courante). UP sauvegarde dans `szSavedInput`, `iHistBrowse = count-1` (plus récent). UP répété descend vers l'ancien. DOWN remonte ; quand `iHistBrowse` dépasse `count-1`, restaure `szSavedInput`. ENTER ajoute l'entrée à l'historique (`line_history_add`).
+  - **`line_cmd_colors()`** : sans arg = toggle ; `on`/`off` = forçage ; arg inconnu = warning.
+  - **`line_run_script()`** : ouvre `szScriptFile`, lit ligne par ligne (strip CR/LF, saute `#`), dispatch via `line_parse_cmd + line_dispatch`. `line_run()` vérifie `szScriptFile[0] != '\0'` et branche vers script ou boucle interactive.
+  - **`line_set/get_selected()`** : lock/unlock de `ptCtx->ptSelectedMutex` autour de `strncpy`. `line_init()` crée le mutex via `platform_mutex_create` ; `line_shutdown()` le détruit via `platform_mutex_destroy`.
+- `src/dir.c` : 2 appels directs `strncpy(ptLineCtx->szSelected, ...)` remplacés par `line_set_selected(ptLineCtx, ptNode->szPath)` (ENTER sur fichier + SPACE sur fichier). Commenté `UC4.3`.
+- `src/main.c` : option `--script <file>` parsée dans la boucle argv. Chemin sauvegardé dans `szScriptFile[ST_MAX_PATH]` avant `line_init()` (qui zeroe le contexte), puis recopié dans `tLineCtx.szScriptFile` après `line_init()`.
+- `src/common.h` : `ST_APP_VERSION` → `"0.4.3"` (R20).
+
+**Architecture notable UC4.3 :**
+- Le ring buffer d'historique est **global** à `line.c` (pas dans `line_context_t`) pour éviter la sérialisation à l'init ; il persiste entre les appels à `line_init/shutdown` (utile pour les tests). `line_history_clear()` remet à zéro sans désallouer.
+- Les fonctions `c_*()` sont `static inline` : coût nul en production, comportement runtime correct. Elles peuvent retourner `""` même dans `line_build_prompt()`, ce qui donne un prompt sans couleur mais lisible.
+- `line_complete_path_query()` utilise `opendir/readdir` (POSIX) disponible via MinGW sans `<windows.h>` dans `src/`. Compatible avec la règle de portabilité maximale de `src/`.
+- La longueur visible du prompt n'impacte pas le positionnement curseur : `line_redraw()` émet `\r\033[2K`, réécrit prompt + buffer, puis recule de `(uiLen - uiCursor) + ghost_len` chars — invariant par rapport à la longueur dynamique du prompt.
+
+**Tests R14/R15 appliqués :**
+- `use_cases/use_case_04_3.c` : TEST MATRIX **19N + 7R + 8S = 34 tests**, 0 failure
+  - [N] history add/get/count/dup-filter/clear, ring wrap, oldest/newest après wrap
+  - [N] save + clear + load round-trip ; load fichier inexistant → ST_NO_ERROR (premier lancement)
+  - [N] colors set/get toggle
+  - [N] line_init mutex creation, set/get_selected, clear via NULL, line_shutdown
+  - [N] script mode : `line_run` + `szScriptFile` → `quit` → `bRunning == ST_FALSE`
+  - [N] `line_complete_cmd_query` : préfixe vide (tous), "he" → "help", "q" → "quit", "h" → "help" via shortcut, "xyz" → 0
+  - [N] `line_complete_path_query` : dir inexistant → 0, "src/" → >0, résultats préfixés "src/", "use_c" → inclut "use_cases/"
+  - [R] NULL params (history_add/get, set/get_selected, complete queries), bounds (history_get out-of-range), script file manquant → ST_ERROR
+  - [S] 8 tests visuels : `make manual UC=04_3`
+
+**Contrats comportementaux validés :**
+
+*Module `line_history_*`*
+- `line_history_add(NULL)` → `ST_ERROR`
+- `line_history_add("")` → `ST_NO_ERROR`, pas d'ajout (chaîne vide ignorée)
+- Doublon du dernier élément → `ST_NO_ERROR`, pas d'ajout
+- Ring wrap à `LINE_HISTORY_MAX` : les plus anciens sont écrasés, `count` reste plafonné à `LINE_HISTORY_MAX`
+- `line_history_get(iVirt, NULL, N)` et `(..., szBuf, 0)` → `ST_ERROR`
+- `line_history_get(iVirt < 0 ou >= count)` → `ST_ERROR`
+- `line_history_save(NULL)` → écrit dans `$HOME/.st4ever_history`
+- `line_history_load(NULL)` → charge depuis `$HOME/.st4ever_history` ; fichier absent → `ST_NO_ERROR` (zéro entrées)
+- `line_history_clear()` : `count = 0`, `head = 0` — ne désalloue rien
+- `line_init()` appelle `line_history_load(NULL)` — accumulation possible entre sessions
+- `line_shutdown()` appelle `line_history_save(NULL)`
+
+*Module `line_set/get_selected` (thread-safe)*
+- `line_set_selected(NULL, ...)` → `ST_ERROR` ; `line_get_selected(NULL, ...)` → `ST_ERROR`
+- `line_set_selected(ptCtx, NULL)` → efface `szSelected` (chaîne vide) sous mutex
+- `line_get_selected(ptCtx, NULL, N)` et `(..., szBuf, 0)` → `ST_ERROR`
+- Après `line_init()` : `szSelected[0] == '\0'`
+- `dir.c` appelle `line_set_selected()` au lieu d'écrire directement — protégé par `ptSelectedMutex`
+- `ptSelectedMutex` créé dans `line_init()`, détruit dans `line_shutdown()`
+
+*Module TAB completion*
+- `line_complete_cmd_query(NULL, ...)`, `(..., NULL, ...)`, `(..., ..., 0)` → `-1`
+- `line_complete_cmd_query("", ...)` → tous les noms complets de commandes
+- Préfixe match sur `szFull` ET `szShort` ; candidat retourné = toujours `szFull`
+- `line_complete_path_query` : dir inexistant → 0 ; entrées `.`/`..` filtrées ; répertoires suffixés `/`
+- Longueurs combinées > `ST_MAX_PATH` : entrée sautée silencieusement (pas de crash)
+- Dans `line_read_rich()` : 1 candidat → insertion immédiate du suffixe, pas de ghost ; N candidats → ghost text DIM, cycle TAB ; toute touche non-TAB efface le ghost et remet `iCompleteCur = -1`
+
+*Module `line_cmd_colors`*
+- `colors` sans arg : toggle `g_line_bColors` ; message `Colors: ON/OFF`
+- `colors on` / `colors off` : force ; arg inconnu → warning, pas de changement
+- `c_*()` retournent `""` quand `g_line_bColors == ST_FALSE` → tous les printf perdent leurs codes ANSI sans modification des appelants
+
+*Module `line_run_script`*
+- Déclenché si `ptCtx->szScriptFile[0] != '\0'` dans `line_run()`
+- Fichier manquant → `ST_ERROR` + `LOG_ERROR`
+- Lignes commençant par `#` ou vides → ignorées
+- `quit` dans le script → `ptCtx->bRunning = ST_FALSE`, fin de la boucle script
+- Pas de mode raw, pas de banner : exécution silencieuse des commandes
+
+*Prompt contextuel*
+- Format : `APP_NAME[T][basename]> ` avec couleurs si actives
+- `[T]` visible uniquement si `trace_is_open() == ST_TRUE`
+- `[basename]` visible uniquement si `szSelected` non vide (basename = après dernier `/` ou `\`)
+- Rebuild à chaque `line_redraw()` — pas de cache — cohérent par conception
+
+**Points d'attention pour les UCs suivants :**
+- UC4.4 : `console_restore()` doit être appelé avant l'ouverture de la fenêtre trace GUI.
+- UC5 : `line_cmd_where()` pourra utiliser `line_get_selected()` pour afficher le fichier sélectionné courant.
+- UC5 : P21 (touche `H` toggle hidden dans vue dir) et P22 (F5 refresh) touchent `dir_handle_key()` — même scope que UC5 `where`/`info`.
+- UC18 : P10 (historique navigation dir ALT+←/→) + P14 (sélection multiple CTRL+ESPACE) toujours en attente de `mount` context.
 
 ## 7. Propositions d'améliorations
 
