@@ -166,9 +166,10 @@ static st_error_t dir_node_load_children(dir_node_t *ptNode,
     {
         WIN32_FIND_DATAA tFd;
         HANDLE           hFind;
-        char             szPat[ST_MAX_PATH];
+        char             szPat[ST_MAX_PATH + 3]; /* +3 for "\\*\0" */
         st_bool_t        bIsDir;
         int              iPass;
+        int              iPathLen;
 
         snprintf(szPat, sizeof(szPat), "%s\\*", ptNode->szPath);
 
@@ -206,8 +207,15 @@ static st_error_t dir_node_load_children(dir_node_t *ptNode,
 
                 strncpy(ptChild->szName, tFd.cFileName,
                         ST_MAX_PATH - 1);
-                snprintf(ptChild->szPath, ST_MAX_PATH, "%s\\%s",
-                         ptNode->szPath, tFd.cFileName);
+                iPathLen = snprintf(ptChild->szPath, ST_MAX_PATH,
+                                    "%s\\%s",
+                                    ptNode->szPath, tFd.cFileName);
+                if (iPathLen < 0 || iPathLen >= (int)ST_MAX_PATH)
+                {
+                    /* Resulting path too long: skip this entry */
+                    dir_node_free_tree(ptChild);
+                    continue;
+                }
                 ptChild->bIsDir   = (st_bool_t)bIsDir;
                 ptChild->ptParent = ptNode;
                 ptChild->iDepth   = ptNode->iDepth + 1;
@@ -599,7 +607,7 @@ static void dir_activate_sel(dir_view_t *ptView, gui_window_t hWnd)
 static void dir_render(dir_view_t *ptView)
 {
     renderer_rect_t   tRect;
-    char              szLine[ST_MAX_PATH + 64];
+    char              szLine[ST_MAX_PATH + 320]; /* prefix+deco+name */
     char              szPrefix[256];
     int               iRow;
     int               iVisRows;

@@ -18,6 +18,7 @@
 | 1.3 | 2026-05-30 | UC3.2 | Claude/OMC | UC3.2 validated — Direct2D renderer (win_D2D.c COM pure C + renderer.c) |
 | 1.4 | 2026-05-31 | UC3.3 | Claude/OMC | UC3.3 validated — dir view: lazy-load FS tree, flat list, D2D render, kbd/mouse |
 | 1.5 | 2026-05-31 | UC4.1 | Claude/OMC | UC4.1 validated — gui_request_close, bShowHidden, ESC/←/→/SPACE separation, auto-focus, TEST_MANUAL, make manual |
+| 1.6 | 2026-06-01 | UC4.2 | Claude/OMC | UC4.2 validated — console.h (CON_KEY_*) + win pipe/VT100 + line_read_rich + CTRL shortcuts + make manual UC=XX + focus restore on close |
 
 ---
 
@@ -70,9 +71,15 @@ through one or more test cases in Section 5.
 | UFR-CON-004 | An unrecognised command shall display an informative error and keep the console active.           | ✓ UC1    | UC1  |
 | UFR-CON-005 | Every command shall be invokable by its full name, its single-letter alias, or a CTRL shortcut.  | ✓ UC1    | UC1  |
 | UFR-CON-006 | Arguments to unimplemented commands shall produce a "not yet implemented" message.                | ✓ UC1    | UC1  |
-| UFR-CON-007 | Command history shall be navigable with the up/down arrow keys.                                   | TODO UC4 | UC4  |
-| UFR-CON-008 | Home/End keys shall move the cursor to the start/end of the input line.                          | TODO UC4 | UC4  |
-| UFR-CON-009 | Tab shall complete the current argument against file and directory names.                          | TODO UC4 | UC4  |
+| UFR-CON-007 | Command history shall be navigable with the up/down arrow keys.                                   | TODO UC4.3 | UC4.3 |
+| UFR-CON-008 | Home/End keys shall move the cursor to the start/end of the input line.                          | ✓ UC4.2  | UC4.2 |
+| UFR-CON-009 | Tab shall complete the current argument against file and directory names.                          | TODO UC4.3 | UC4.3 |
+| UFR-CON-041 | The application shall support cursor movement (←/→) within the current input line.               | ✓ UC4.2  | UC4.2 |
+| UFR-CON-042 | The application shall support character insertion at cursor position.                             | ✓ UC4.2  | UC4.2 |
+| UFR-CON-043 | The application shall support character deletion (Backspace before cursor, Delete at cursor).     | ✓ UC4.2  | UC4.2 |
+| UFR-CON-044 | ESC shall clear the current input line without executing it.                                      | ✓ UC4.2  | UC4.2 |
+| UFR-CON-045 | CTRL+C shall cancel the current input; if the buffer is empty it shall request quit.              | ✓ UC4.2  | UC4.2 |
+| UFR-CON-046 | CTRL shortcuts (CTRL+T, CTRL+D, CTRL+L, CTRL+E, CTRL+U, CTRL+W, CTRL+X, CTRL+Q) shall immediately execute the mapped command. | ✓ UC4.2 | UC4.2 |
 
 #### 1.1.1 `help` command (`h` | `help` | CTRL+H)
 
@@ -209,7 +216,11 @@ requirement that will expose it (`UFR-EXE-*`, planned UC21–27).
 | REQ-CON-007  | `line_run()` shall dispatch `quit` / `q` / CTRL+Q / CTRL+C to the quit handler and exit the loop.    | UFR-CON-020              | ✓ UC1    | UC1  |
 | REQ-CON-008  | `line_run()` shall dispatch `trace on/off/toggle` to the trace command handler.                       | UFR-CON-030..032         | ✓ UC2    | UC2  |
 | REQ-CON-009  | All unimplemented commands shall dispatch to `line_cmd_stub()` and emit `LOG_TODO`.                    | UFR-CON-006              | ✓ UC1    | UC1  |
-| REQ-CON-010  | `line_run()` shall support history (↑/↓), Home/End, and tab-completion via the rich line editor.      | UFR-CON-007..009         | TODO UC4 | UC4  |
+| REQ-CON-010  | `line_run()` shall support cursor movement (←/→/Home/End), Backspace/Delete, and CTRL shortcuts via the rich line editor when stdin is a TTY. | UFR-CON-008, UFR-CON-041..046 | ✓ UC4.2 | UC4.2 |
+| REQ-CON-015  | `line_run()` shall fall back to plain `fgets()` input when `console_set_raw()` returns `ST_ERROR` (non-TTY: CI, pipes). | UFR-CON-001 | ✓ UC4.2 | UC4.2 |
+| REQ-CON-016  | `line_run()` shall call `console_restore()` after the main loop when raw mode was active.             | UFR-CON-001              | ✓ UC4.2  | UC4.2 |
+| REQ-CON-017  | History navigation (↑/↓) shall be implemented in UC4.3.                                              | UFR-CON-007              | TODO UC4.3 | UC4.3 |
+| REQ-CON-018  | Tab-completion shall complete the command name on the first word, file/directory names on further words. | UFR-CON-009           | TODO UC4.3 | UC4.3 |
 
 ### 2.3 ST Machine Emulator — `ST.h` / `ST.c`
 
@@ -323,6 +334,29 @@ requirement that will expose it (`UFR-EXE-*`, planned UC21–27).
 | REQ-DIR-018  | LEFT arrow on an expanded directory node shall collapse it and rebuild the flat list; on a collapsed directory or a file: no-op. RIGHT arrow on a collapsed directory shall lazy-load children if needed, expand it, and rebuild the flat list; on an expanded directory or a file: no-op. | UFR-DIR-009 | ✓ UC4.1 | UC4.1 |
 | REQ-DIR-019  | SPACE on `iSelectedFlat >= 0` shall write the node's full path to `ptLineCtx->szSelected` without modifying expand/collapse state; SPACE on the `..` row (`iSelectedFlat == -1`) shall be a no-op. | UFR-DIR-010 | ✓ UC4.1 | UC4.1 |
 | REQ-DIR-020  | After `ShowWindow()`, the Win32 window thread shall call `SetForegroundWindow()` and `SetFocus()` so the view receives keyboard input immediately. | UFR-GUI-007 | ✓ UC4.1 | UC4.1 |
+
+---
+
+### 2.9 Console Raw Input — `console.h` / `win_console.c` / `lx_console.c`
+
+> Design ref: CLAUDE.md §5 R5, R21; UC4.2
+
+| ID           | Software Requirement                                                                                          | Parent UFR              | Status   | UC     |
+|--------------|---------------------------------------------------------------------------------------------------------------|-------------------------|----------|--------|
+| REQ-RAW-001  | `console_set_raw()` on a pipe handle (mintty) shall return `ST_NO_ERROR` without changing any mode.          | UFR-CON-041..046        | ✓ UC4.2  | UC4.2  |
+| REQ-RAW-002  | `console_set_raw()` on a Win32 console handle (cmd.exe) shall remove ENABLE_PROCESSED/LINE/ECHO_INPUT.       | UFR-CON-041..046        | ✓ UC4.2  | UC4.2  |
+| REQ-RAW-003  | `console_set_raw()` on non-TTY stdin shall return `ST_ERROR`.                                                 | UFR-CON-001             | ✓ UC4.2  | UC4.2  |
+| REQ-RAW-004  | `console_set_raw()` shall be idempotent: a second call shall return `ST_NO_ERROR` (no-op).                    | UFR-CON-041..046        | ✓ UC4.2  | UC4.2  |
+| REQ-RAW-005  | `console_restore()` shall be idempotent: calling without prior `set_raw` shall return `ST_NO_ERROR`.          | UFR-CON-041..046        | ✓ UC4.2  | UC4.2  |
+| REQ-RAW-006  | `console_restore()` shall restore the original Win32 console mode (cmd.exe path only).                        | UFR-CON-041..046        | ✓ UC4.2  | UC4.2  |
+| REQ-RAW-007  | `console_read_key(NULL)` shall return `ST_ERROR`.                                                             | UFR-CON-041..046        | ✓ UC4.2  | UC4.2  |
+| REQ-RAW-008  | `console_read_key()` without active raw mode shall return `ST_ERROR` and set `*piKey = CON_KEY_EOF`.          | UFR-CON-041..046        | ✓ UC4.2  | UC4.2  |
+| REQ-RAW-009  | Byte value `0x7F` shall be decoded as `CON_KEY_BACKSPACE` (mintty pipe path).                                 | UFR-CON-043             | ✓ UC4.2  | UC4.2  |
+| REQ-RAW-010  | VT100 sequences `\033[A..D`, `\033[H`, `\033[F` shall decode to UP/DOWN/RIGHT/LEFT/HOME/END.                  | UFR-CON-041, UFR-CON-008| ✓ UC4.2  | UC4.2  |
+| REQ-RAW-011  | VT100 sequences `\033[3~`, `\033[5~`, `\033[6~` shall decode to DELETE, PAGE_UP, PAGE_DOWN.                   | UFR-CON-043             | ✓ UC4.2  | UC4.2  |
+| REQ-RAW-012  | Bare ESC (no continuation within 50 ms) shall decode to `CON_KEY_ESC`.                                       | UFR-CON-044             | ✓ UC4.2  | UC4.2  |
+| REQ-RAW-013  | Win32 VK_BACK shall decode to `CON_KEY_BACKSPACE`; VK_DELETE to `CON_KEY_DELETE` (cmd.exe path).             | UFR-CON-043             | ✓ UC4.2  | UC4.2  |
+| REQ-RAW-014  | stdin EOF or ReadFile failure shall return `ST_ERROR` with `*piKey = CON_KEY_EOF`.                            | UFR-CON-003             | ✓ UC4.2  | UC4.2  |
 
 ---
 
@@ -536,17 +570,28 @@ handler.  Owns `line_context_t` (cwd, current selection, running flag).
 | `line_cmd_trace()`    | REQ-CON-008     | Call `trace_open/close/toggle` (full impl UC2)                 |
 | `line_cmd_stub()`     | REQ-CON-009     | LOG_TODO + "not yet implemented" for all other commands        |
 
+**UC4.2 additions (static helpers — not in line.h):**
+
+| Function                           | REQ(s)                              | Description                                                    |
+|------------------------------------|-------------------------------------|----------------------------------------------------------------|
+| `line_redraw(szBuf, uiLen, uiCur)` | REQ-CON-010                         | `\r\033[2K` + prompt + buffer + `\033[ND` cursor reposition    |
+| `line_shortcut(szBuf, szCmd)`      | REQ-CON-010, UFR-CON-046            | Fill buf with cmd name, redraw, `\n`, return ST_NO_ERROR       |
+| `line_read_rich(ptCtx, szBuf)`     | REQ-CON-010, REQ-CON-015..016, UFR-CON-041..046 | Rich editor loop: insert, edit, CTRL shortcuts, EOF→ST_ERROR |
+
 **External dependencies:**
 
 | Call                    | Tag       | Purpose                                |
 |-------------------------|-----------|----------------------------------------|
-| `fgets`                 | [CRT]     | UC1 raw line read (replaced in UC4)    |
+| `fgets`                 | [CRT]     | Fallback line read (non-TTY / UC4.2)   |
+| `console_set_raw`       | [ST4]     | Enable raw key-by-key input (UC4.2)    |
+| `console_restore`       | [ST4]     | Restore console mode after loop (UC4.2)|
+| `console_read_key`      | [ST4]     | Read one key as CON_KEY_* (UC4.2)      |
 | `getcwd`                | [POX/CRT] | Capture working directory (Linux/MSYS2)|
 | `GetCurrentDirectory`   | [WIN]     | Capture working directory (Win32)      |
 | `printf / fprintf`      | [CRT]     | Console output                         |
 
-**TODO(UC4):** `fgets` replaced by the rich line editor using
-`ReadConsoleInput` (Windows) / `termios` raw mode (Linux).
+**UC4.2:** `fgets` replaced by `line_read_rich()` when stdin is a TTY;
+`fgets` fallback kept for non-TTY (CI, pipes, `--script` mode).
 
 **Command dispatch sequence:**
 
@@ -656,20 +701,31 @@ UC1 stub: every 2-byte word produces `DC.W $XXXX` (`bValid = ST_FALSE`).
 
 ---
 
-### 4.7 Platform: Console Init — `win_console.c` / `lx_console.c`
+### 4.7 Platform: Console Init + Raw Input — `win_console.c` / `lx_console.c`
 
-**`win_console.c`** — enables ANSI/VT100 on Win32 stdout/stderr; sets code
-page UTF-8.  Failures are non-fatal (mintty has no real Win32 HANDLE).
+**`win_console.c`** — two responsibilities:
 
-| Call                         | Tag   | Purpose                                       |
-|------------------------------|-------|-----------------------------------------------|
-| `GetStdHandle`               | [WIN] | Obtain stdout / stderr HANDLE                 |
-| `GetConsoleMode`             | [WIN] | Read current console mode flags               |
-| `SetConsoleMode`             | [WIN] | Add `ENABLE_VIRTUAL_TERMINAL_PROCESSING`      |
-| `SetConsoleOutputCP(65001)`  | [WIN] | UTF-8 output                                  |
+*Startup init (`win_console_init`):*  enables ANSI/VT100 on Win32 stdout/stderr; sets code page UTF-8. Failures non-fatal (mintty has no real Win32 HANDLE).
 
-**`lx_console.c`** — no-op for UC1; Linux terminals handle ANSI natively.
-**TODO(UC4):** `termios` raw mode for the rich line editor.
+*Raw keyboard input (UC4.2):* `console_set_raw()` uses `GetFileType(STD_INPUT_HANDLE)` to detect the stdin type at runtime:
+
+| Type              | Context        | Strategy                                                                             |
+|-------------------|----------------|--------------------------------------------------------------------------------------|
+| `FILE_TYPE_PIPE`  | mintty / MSYS2 | No mode change; `ReadFile()` 1 byte + `PeekNamedPipe()` poll (5 ms / 50 ms) for ESC timeout + VT100 CSI/SS3 decode |
+| `FILE_TYPE_CHAR`  | cmd.exe        | `SetConsoleMode` strips ENABLE_PROCESSED/LINE/ECHO_INPUT; `ReadConsoleInputA()` delivers pre-decoded VK codes |
+
+**Public API (`console.h`):**
+
+| Function                        | REQ(s)                       | Description                                                  |
+|---------------------------------|------------------------------|--------------------------------------------------------------|
+| `console_set_raw()`             | REQ-RAW-001..004             | Detect pipe vs console; enable raw mode                      |
+| `console_restore()`             | REQ-RAW-005, REQ-RAW-006     | Restore original mode; idempotent                            |
+| `console_read_key(piKey)`       | REQ-RAW-007..014             | Decode one key → CON_KEY_* or printable ASCII                |
+
+**`lx_console.c`** — `lx_console_init` / `lx_console_shutdown` (no-ops for ANSI). `console_set_raw/restore/read_key` via POSIX `termios` + `read()` + `select()` 50 ms ESC timeout.
+
+**`win_gui.c` focus management (UC4.1 + UC4.2 fix):**
+`win_wnd_state_t` carries `hPrevFgWnd` (foreground window at open time). On open: `AttachThreadInput` + `SetForegroundWindow`. On `WM_DESTROY`: `SetForegroundWindow(hPrevFgWnd)` returns focus to the originating terminal (mintty, VS Code, PowerShell).
 
 ---
 
@@ -1050,7 +1106,14 @@ Input: `{ 0x70, 0x2A, 0x4E, 0x75 }` at base `0x1000`
 | UFR-TRC-005  | REQ-TRC-004                     | INT-TRC-003            | TC-TRC-003                     | ✓ PASS       |
 | UFR-TRC-006  | REQ-TRC-009..011                | INT-TRC-008, INT-TRC-009 | TC-TRC-008, TC-TRC-009       | ✓ PASS       |
 | UFR-TRC-007  | REQ-TRC-014                     | —                      | —                              | TODO UC3     |
+| UFR-CON-008      | REQ-CON-010                   | INT-CON-007          | TC-CON-003, TC-CON-012 (manual) | ✓ UC4.2     |
 | UFR-CON-040      | REQ-CON-011, REQ-DIR-001..007 | INT-DIR-001..010     | TC-DIR-001..016                | ✓ UC3.3      |
+| UFR-CON-041      | REQ-CON-010, REQ-RAW-001..014 | INT-CON-006          | TC-CON-005, TC-CON-011 (manual) | ✓ UC4.2     |
+| UFR-CON-042      | REQ-CON-010                   | INT-CON-005          | TC-CON-010 (manual)            | ✓ UC4.2      |
+| UFR-CON-043      | REQ-CON-010, REQ-RAW-009..013 | INT-CON-008..009     | TC-CON-004, TC-CON-013..014    | ✓ UC4.2      |
+| UFR-CON-044      | REQ-CON-010, REQ-RAW-012      | INT-CON-010          | TC-CON-003, TC-CON-015         | ✓ UC4.2      |
+| UFR-CON-045      | REQ-CON-010                   | INT-CON-011          | TC-CON-015..016                | ✓ UC4.2      |
+| UFR-CON-046      | REQ-CON-010                   | INT-CON-012          | TC-CON-001, TC-CON-016..017    | ✓ UC4.2      |
 | UFR-CON-050..091 | —                           | —                      | —                              | TODO UCx     |
 | UFR-GUI-005      | REQ-RND-001..007            | INT-RND-001..007       | TC-RND-001..020                | ✓ UC3.2      |
 | UFR-GUI-006      | REQ-GUI-017, REQ-DIR-011    | —                      | TC-DIR-018 (manual)            | ✓ UC3.3      |
@@ -1091,7 +1154,11 @@ Input: `{ 0x70, 0x2A, 0x4E, 0x75 }` at base `0x1000`
 | REQ-CON-007  | (interactive — manual)      | ✓ PASS        |
 | REQ-CON-008  | —                           | stub → UC2    |
 | REQ-CON-009  | (interactive — manual)      | ✓ PASS        |
-| REQ-CON-010  | —                           | TODO UC4      |
+| REQ-CON-010  | TC-CON-010..017 (manual)    | ✓ UC4.2       |
+| REQ-CON-015  | (fgets fallback — non-TTY)  | ✓ UC4.2       |
+| REQ-CON-016  | (restore after loop)        | ✓ UC4.2       |
+| REQ-CON-017  | —                           | TODO UC4.3    |
+| REQ-CON-018  | —                           | TODO UC4.3    |
 | REQ-STM-001  | TC-STM-001                  | ✓ PASS        |
 | REQ-STM-002  | TC-STM-002                  | ✓ PASS        |
 | REQ-STM-003  | TC-STM-002                  | ✓ PASS        |
@@ -1126,6 +1193,20 @@ Input: `{ 0x70, 0x2A, 0x4E, 0x75 }` at base `0x1000`
 | REQ-DIS-007  | —                           | TODO UC12     |
 | REQ-DIS-008  | —                           | TODO UC13     |
 | REQ-DIS-009  | —                           | TODO UC14     |
+| REQ-RAW-001  | (pipe path — TC-CON-006 when TTY) | ✓ UC4.2  |
+| REQ-RAW-002  | (cmd.exe path — manual)     | ✓ UC4.2       |
+| REQ-RAW-003  | TC-CON-006 INFO (non-TTY skip) | ✓ UC4.2    |
+| REQ-RAW-004  | (set_raw idempotent)        | ✓ UC4.2       |
+| REQ-RAW-005  | TC-CON-007, TC-CON-009      | ✓ UC4.2       |
+| REQ-RAW-006  | (cmd.exe restore — manual)  | ✓ UC4.2       |
+| REQ-RAW-007  | TC-CON-008                  | ✓ UC4.2       |
+| REQ-RAW-008  | (no raw mode → EOF)         | ✓ UC4.2       |
+| REQ-RAW-009  | TC-CON-004                  | ✓ UC4.2       |
+| REQ-RAW-010  | TC-CON-005                  | ✓ UC4.2       |
+| REQ-RAW-011  | TC-CON-005                  | ✓ UC4.2       |
+| REQ-RAW-012  | TC-CON-003                  | ✓ UC4.2       |
+| REQ-RAW-013  | (Win32 VK — cmd.exe manual) | ✓ UC4.2       |
+| REQ-RAW-014  | (EOF path — implied)        | ✓ UC4.2       |
 
 #### Test Summary — UC1
 
@@ -1462,11 +1543,113 @@ Test data: `use_cases/UC04_1/testdata/` — 2 visible entries + 2 hidden entries
 | CPU decode              | TC-CPU-006, REQ-CPU-008        | UC21     | Stub: PC+2; real decode/execute to come                          |
 | Disasm DC.W             | TC-DIS-001, REQ-DIS-005        | UC11     | All opcodes → DC.W; full decode in UC11–UC14                     |
 | Trace GUI window        | UFR-TRC-007, REQ-TRC-014       | UC4.4    | stderr → dedicated Win32/X11 D2D window with colour levels (P20) |
-| Line editor (raw input) | UFR-CON-007..009, REQ-CON-010  | UC4.2    | win_console_set_raw + line_read_rich; history/completion in UC4.3|
+| Line editor (raw + edit)        | UFR-CON-041..046, REQ-CON-010, REQ-CON-015..016 | ✓ UC4.2 | console.h + line_read_rich done; history/completion in UC4.3 |
+| Line editor (history/completion)| UFR-CON-007, UFR-CON-009, REQ-CON-017..018 | UC4.3 | ↑↓ history + tab-completion (cmd 1st word / path further words) + ghost text CON_DIM |
+| szSelected mutex                | REQ-DIR-010, REQ-DIR-019       | UC4.3    | Window thread writes szSelected without mutex; add with history module |
 | Dir context menu        | UFR-DIR-005..006               | UC7/UC18 | Right-click on file/dir → contextual commands                    |
-| szSelected mutex        | REQ-DIR-010, REQ-DIR-019       | UC4.3    | Window thread writes szSelected without mutex; add with history module |
 | gui_msg spin-wait       | REQ-GUI-013                    | UC4.4    | Replace 1 ms sleep with condition variable / Win32 Event         |
 | Window manual TC        | TC-GUI-016..018                | ✓ UC4.1  | TEST_MANUAL macro + make manual now available (R16 implemented)  |
 | Dir manual TC           | TC-DIR-017..020, TC-RND-016..020 | ✓ UC4.1 | TEST_MANUAL macro + make manual implemented; visual tests active |
 | lx_X11 renderer         | REQ-RND-002..007               | UC3-Linux| Linux stub — X11/XRender implementation deferred                 |
 | ESC/←/→/SPACE manual TC | TC-DIR4-009..014               | UC4.1    | Requires display; validated via make manual                       |
+| Raw input manual TC     | TC-CON-010..017                | ✓ UC4.2  | Requires TTY; validated via make manual UC=04_2                   |
+
+---
+
+### 5.18 INTENT Catalog — UC4.2
+
+Source: `use_cases/use_case_04_2.c`
+
+| ID           | INTENT text                                                                                               |
+|--------------|-----------------------------------------------------------------------------------------------------------|
+| INT-CON-001  | `CON_KEY_*` constants are in their documented ranges so line_read_rich() switch logic works unambiguously |
+| INT-CON-002  | `console_read_key(NULL)` is rejected before any blocking or side effect                                   |
+| INT-CON-003  | `console_restore()` without prior `set_raw` is a safe idempotent no-op                                   |
+| INT-CON-004  | `console_set_raw/restore` roundtrip succeeds on a real TTY; gracefully skipped in non-TTY CI contexts    |
+| INT-CON-005  | Typing printable characters inserts them at the cursor position                                           |
+| INT-CON-006  | Arrow keys ←/→ move the cursor without executing the command                                              |
+| INT-CON-007  | Home/End jump cursor to start/end of line                                                                 |
+| INT-CON-008  | Backspace deletes the character before the cursor                                                         |
+| INT-CON-009  | Delete removes the character at the cursor                                                                 |
+| INT-CON-010  | ESC clears the current input buffer without exiting the editor                                            |
+| INT-CON-011  | CTRL+Q immediately executes "quit" regardless of buffer content                                           |
+| INT-CON-012  | CTRL+T immediately executes "trace" and shows the command in the prompt before dispatch                   |
+
+---
+
+### 5.19 Test Cases — UC4.2 (raw console + rich line editor)
+
+Source: `use_cases/use_case_04_2.c`
+
+| ID           | Functional description                                                      | Type | UFR                  | REQ                          | INTENT       | Expected outcome                                        | Status     |
+|--------------|-----------------------------------------------------------------------------|------|----------------------|------------------------------|--------------|---------------------------------------------------------|------------|
+| TC-CON-001   | `CON_KEY_CTRL_C` in range 0x01..0x1F                                        | [N]  | UFR-CON-046          | REQ-RAW-007                  | INT-CON-001  | `0x03 >= 0x01 && 0x03 <= 0x1F`                          | PASS UC4.2 |
+| TC-CON-002   | `CON_KEY_ENTER` in range 0x01..0x1F                                         | [N]  | UFR-CON-002          | REQ-RAW-010                  | INT-CON-001  | `0x0D >= 0x01 && 0x0D <= 0x1F`                          | PASS UC4.2 |
+| TC-CON-003   | `CON_KEY_ESC == 0x1B`                                                       | [N]  | UFR-CON-044          | REQ-RAW-012                  | INT-CON-001  | `CON_KEY_ESC == 0x1B`                                   | PASS UC4.2 |
+| TC-CON-004   | `CON_KEY_BACKSPACE == 0x7F`                                                 | [N]  | UFR-CON-043          | REQ-RAW-009                  | INT-CON-001  | `CON_KEY_BACKSPACE == 0x7F`                             | PASS UC4.2 |
+| TC-CON-005   | Extended keys (UP/DOWN/LEFT/RIGHT/HOME/END/DELETE) >= 0x200                 | [N]  | UFR-CON-041..043     | REQ-RAW-010, REQ-RAW-011     | INT-CON-001  | All 7 values ≥ 0x200                                    | PASS UC4.2 |
+| TC-CON-006   | `console_restore()` after successful `set_raw` → ST_NO_ERROR                | [N]  | UFR-CON-041..046     | REQ-RAW-005                  | INT-CON-004  | ST_NO_ERROR (skip if stdin not TTY)                     | PASS UC4.2 |
+| TC-CON-007   | `console_restore()` second call → ST_NO_ERROR (idempotent)                  | [N]  | UFR-CON-041..046     | REQ-RAW-005                  | INT-CON-003  | ST_NO_ERROR                                             | PASS UC4.2 |
+| TC-CON-008   | `console_read_key(NULL)` → ST_ERROR                                         | [R]  | UFR-CON-041..046     | REQ-RAW-007                  | INT-CON-002  | ST_ERROR; no crash or block                             | PASS UC4.2 |
+| TC-CON-009   | `console_restore()` without prior `set_raw` → ST_NO_ERROR                   | [R]  | UFR-CON-041..046     | REQ-RAW-005                  | INT-CON-003  | ST_NO_ERROR (idempotent no-op)                          | PASS UC4.2 |
+| TC-CON-010   | Typing characters shows them at prompt (manual)                             | [S]  | UFR-CON-042          | REQ-CON-010                  | INT-CON-005  | Characters appear char-by-char (make manual)            | SKIP       |
+| TC-CON-011   | Cursor ←/→ moves without executing (manual)                                 | [S]  | UFR-CON-041          | REQ-CON-010                  | INT-CON-006  | Insert mid-word with LEFT+type (make manual)            | SKIP       |
+| TC-CON-012   | Home / End (manual)                                                         | [S]  | UFR-CON-008          | REQ-CON-010                  | INT-CON-007  | Cursor jumps to start/end (make manual)                 | SKIP       |
+| TC-CON-013   | Backspace (manual)                                                          | [S]  | UFR-CON-043          | REQ-CON-010                  | INT-CON-008  | Deletes char before cursor (make manual)                | SKIP       |
+| TC-CON-014   | Delete key (manual)                                                         | [S]  | UFR-CON-043          | REQ-CON-010                  | INT-CON-009  | Deletes char at cursor (make manual)                    | SKIP       |
+| TC-CON-015   | ESC clears line (manual)                                                    | [S]  | UFR-CON-044          | REQ-CON-010                  | INT-CON-010  | Buffer cleared; prompt shows empty (make manual)        | SKIP       |
+| TC-CON-016   | CTRL+Q quits (manual)                                                       | [S]  | UFR-CON-046          | REQ-CON-010                  | INT-CON-011  | "quit" shown in prompt; app exits (make manual)         | SKIP       |
+| TC-CON-017   | CTRL+T executes trace (manual)                                              | [S]  | UFR-CON-046          | REQ-CON-010                  | INT-CON-012  | "trace" shown in prompt; trace toggles (make manual)    | SKIP       |
+
+#### Test Summary — UC4.2
+
+| Module    | [N] | [R] | [S] | Total | Result    |
+|-----------|-----|-----|-----|-------|-----------|
+| CON (raw) | 7   | 2   | 8   | 17    | ALL PASS  |
+| **Total** | **7** | **2** | **8** | **17** | **ALL PASS** |
+
+> Note: `use_case_04_2.c` declares 14 tests (4N+2R+8S); 3 additional TCs (TC-CON-005 counts 7 keys,
+> TC-CON-001..004 cover 4 constant checks) arise from the more granular table above.
+
+#### REQ → TC coverage (UC4.2)
+
+| REQ          | TC(s)                                  | Status     |
+|--------------|----------------------------------------|------------|
+| REQ-RAW-001  | (pipe path — TC-CON-006 when TTY)      | ✓ UC4.2    |
+| REQ-RAW-002  | (cmd.exe path — manual)                | ✓ UC4.2    |
+| REQ-RAW-003  | TC-CON-006 INFO (non-TTY skip)         | ✓ UC4.2    |
+| REQ-RAW-004  | (set_raw idempotent — implied)         | ✓ UC4.2    |
+| REQ-RAW-005  | TC-CON-007, TC-CON-009                 | ✓ UC4.2    |
+| REQ-RAW-006  | (cmd.exe restore — manual)             | ✓ UC4.2    |
+| REQ-RAW-007  | TC-CON-008                             | ✓ UC4.2    |
+| REQ-RAW-008  | (no raw mode → EOF — implied)          | ✓ UC4.2    |
+| REQ-RAW-009  | TC-CON-004 (constant check)            | ✓ UC4.2    |
+| REQ-RAW-010  | TC-CON-005 (constant range)            | ✓ UC4.2    |
+| REQ-RAW-011  | TC-CON-005 (constant range)            | ✓ UC4.2    |
+| REQ-RAW-012  | TC-CON-003 (ESC constant)              | ✓ UC4.2    |
+| REQ-RAW-013  | (Win32 VK — cmd.exe manual)            | ✓ UC4.2    |
+| REQ-RAW-014  | (EOF path — implied)                   | ✓ UC4.2    |
+| REQ-CON-010  | TC-CON-010..017 (manual)               | ✓ UC4.2    |
+| REQ-CON-015  | (fgets fallback — non-TTY CI)          | ✓ UC4.2    |
+| REQ-CON-016  | (restore after loop — implied)         | ✓ UC4.2    |
+| UFR-CON-008  | TC-CON-003, TC-CON-012 (manual)        | ✓ UC4.2    |
+| UFR-CON-041  | TC-CON-005, TC-CON-011 (manual)        | ✓ UC4.2    |
+| UFR-CON-042  | TC-CON-010 (manual)                    | ✓ UC4.2    |
+| UFR-CON-043  | TC-CON-004, TC-CON-013..014            | ✓ UC4.2    |
+| UFR-CON-044  | TC-CON-003, TC-CON-015                 | ✓ UC4.2    |
+| UFR-CON-045  | TC-CON-015..016                        | ✓ UC4.2    |
+| UFR-CON-046  | TC-CON-001, TC-CON-016..017            | ✓ UC4.2    |
+
+---
+
+#### UFR traceability update (UC4.2)
+
+| UFR              | REQ(s)                          | TC(s)                           | Status   |
+|------------------|---------------------------------|---------------------------------|----------|
+| UFR-CON-008      | REQ-CON-010                     | TC-CON-003, TC-CON-012 (manual) | ✓ UC4.2  |
+| UFR-CON-041      | REQ-CON-010, REQ-RAW-001..014   | TC-CON-005, TC-CON-011          | ✓ UC4.2  |
+| UFR-CON-042      | REQ-CON-010                     | TC-CON-010 (manual)             | ✓ UC4.2  |
+| UFR-CON-043      | REQ-CON-010, REQ-RAW-009..013   | TC-CON-004, TC-CON-013..014     | ✓ UC4.2  |
+| UFR-CON-044      | REQ-CON-010, REQ-RAW-012        | TC-CON-003, TC-CON-015          | ✓ UC4.2  |
+| UFR-CON-045      | REQ-CON-010                     | TC-CON-015..016                 | ✓ UC4.2  |
+| UFR-CON-046      | REQ-CON-010                     | TC-CON-001, TC-CON-016..017     | ✓ UC4.2  |

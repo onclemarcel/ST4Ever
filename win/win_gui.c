@@ -73,9 +73,10 @@ static void win_default_size(gui_wnd_type_t eType,
 
 typedef struct
 {
-    HWND                 hWnd;   /* Win32 window handle               */
-    HANDLE               hReady; /* CreateEvent, signaled on ready    */
-    struct gui_window_s *ptWnd;  /* back-pointer to portable record   */
+    HWND                 hWnd;       /* Win32 window handle             */
+    HANDLE               hReady;    /* CreateEvent, signaled on ready  */
+    struct gui_window_s *ptWnd;     /* back-pointer to portable record */
+    HWND                 hPrevFgWnd; /* foreground window before open  */
 } win_wnd_state_t;
 
 /* ------------------------------------------------------------------
@@ -187,7 +188,7 @@ static LRESULT CALLBACK win_wnd_proc(HWND   hWnd,
         DestroyWindow(hWnd);
         return 0;
 
-    /* Window destroyed: notify view, exit message loop */
+    /* Window destroyed: notify view, restore focus, exit message loop */
     case WM_DESTROY:
         if (ptWnd != NULL)
         {
@@ -198,6 +199,15 @@ static LRESULT CALLBACK win_wnd_proc(HWND   hWnd,
                 ptWnd->tDesc.pfnEvent((gui_window_t)ptWnd, &tEvt,
                                        ptWnd->tDesc.pUserCtx);
             }
+        }
+        /* Return focus to whatever window had it before we opened.
+         * Our thread currently owns the foreground so SetForegroundWindow
+         * succeeds without AttachThreadInput. */
+        if (ptState != NULL
+        &&  ptState->hPrevFgWnd != NULL
+        &&  IsWindow(ptState->hPrevFgWnd))
+        {
+            SetForegroundWindow(ptState->hPrevFgWnd);
         }
         PostQuitMessage(0);
         return 0;
@@ -332,6 +342,9 @@ static void win_wnd_thread(void *pArg)
     int                  iW;
     int                  iH;
     MSG                  tMsg;
+    HWND                 hFgWnd;
+    DWORD                dwFgThread;
+    DWORD                dwMyThread;
 
     /* COM must be initialised per thread for DirectWrite (UC3.2+) */
     CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
@@ -374,9 +387,29 @@ static void win_wnd_thread(void *pArg)
     ptWnd->bOpen = ST_TRUE;
     ShowWindow(ptState->hWnd, SW_SHOWNORMAL);
     UpdateWindow(ptState->hWnd);
-    /* P16: grab focus so arrow keys work immediately without alt-tab */
-    SetForegroundWindow(ptState->hWnd);
-    SetFocus(ptState->hWnd);
+    /* P16: grab focus so arrow keys work immediately without alt-tab.
+     * AttachThreadInput synchronises input queues so SetForegroundWindow
+     * succeeds even when the caller (e.g. mintty) owns the foreground.
+     * Without this, SetForegroundWindow is silently ignored by Windows
+     * when the calling process did not receive the last input event. */
+    hFgWnd    = GetForegroundWindow();
+    dwFgThread = GetWindowThreadProcessId(hFgWnd, NULL);
+    dwMyThread = GetCurrentThreadId();
+
+    ptState->hPrevFgWnd = hFgWnd;   /* saved for restore on close */
+
+    if (hFgWnd != NULL && dwFgThread != dwMyThread)
+    {
+        AttachThreadInput(dwMyThread, dwFgThread, TRUE);
+        SetForegroundWindow(ptState->hWnd);
+        SetFocus(ptState->hWnd);
+        AttachThreadInput(dwMyThread, dwFgThread, FALSE);
+    }
+    else
+    {
+        SetForegroundWindow(ptState->hWnd);
+        SetFocus(ptState->hWnd);
+    }
     SetEvent(ptState->hReady); /* signal creating thread: HWND is live */
 
     while (GetMessage(&tMsg, NULL, 0, 0) > 0)

@@ -11,6 +11,8 @@
 - 2026-05-31: UC4.1 validé — gui_request_close + ESC/←/→/ESPACE + bShowHidden + dir -a + focus auto + TEST_MANUAL + make manual
 - 2026-05-31: P19 appliqué — `trace off` ne ferme plus la vue ; filtre LOG_TRACE seulement
 - 2026-06-01: UC4.2 validé — console.h (CON_KEY_*) + pipe/VT100 mintty + Win32 cmd.exe + line_read_rich (insert/edit/CTRL shortcuts) + make manual UC=XX
+- 2026-06-01: fix dir.c 4 warnings `-Wformat-truncation` (szPat+3, iPathLen check, szLine+320)
+- 2026-06-01: fix focus-retour — `hPrevFgWnd` dans `win_wnd_state_t`, restauration dans `WM_DESTROY` (focus revient au terminal source à la fermeture des vues GUI)
 
 ## 1. Contexte du projet
 
@@ -366,7 +368,7 @@ Chaque `use_case_XX.c` valide l'**intention fonctionnelle** du UC, pas les déta
 
 3. **Macro `TEST_SKIP` pour tests incompatibles headless** : quand un test UC antérieur suppose un stub mais que l'implémentation réelle requiert un display ou une ressource système (ex : `gui_init` ouvre une vraie fenêtre en UC3), protéger via `#ifdef ST_TEST_LEVEL_UCNN` — le Makefile définit `-DST_TEST_LEVEL_UC01` lors de la compilation de `use_case_01`. La variante `TEST_SKIP("raison")` log le skip sans échouer.
 
-4. **Règle absolue** : `make tests` doit passer entièrement (0 = all passed) avant tout commit d'un nouveau UC. Les tests skippés sont acceptables ; les tests en échec bloquent.
+4. **Règle absolue** : `make tests` doit passer entièrement (**0 warning, 0 failure**) avant tout commit d'un nouveau UC. Les tests skippés sont acceptables ; les tests en échec ou les warnings de compilation bloquent.
 
 5. **Ne jamais supprimer un test** : si un comportement antérieur est définitivement remplacé, remplacer l'assertion par un `TEST_SKIP` avec l'explication, pour conserver la traçabilité de l'intention originale.
 
@@ -468,7 +470,7 @@ Règles :
 
 Chaque UC suit deux phases distinctes avant clôture :
 
-- **Phase 1 — Implémentation** : modifications sources/includes/Makefile, `make tests` 0 failure, `make manual` validé. Claude rend la main à Tonton Marcel pour relecture et validation fonctionnelle.
+- **Phase 1 — Implémentation** : modifications sources/includes/Makefile, `make tests` **0 warning, 0 failure**, `make manual` validé. Claude rend la main à Tonton Marcel pour relecture et validation fonctionnelle.
 - **Phase 2 — Documentation** : 
   - mise à jour CLAUDE.md (§4 pratiques, §5 recommandations, §6 tableau + sous-section UC validé)
   - mise à jour traçabilité dans `use_cases_XX.c` (INTENT, ADAPTED, TEST MATRIX)
@@ -905,6 +907,11 @@ Les étapes de développement fonctionnelles sont formalisées en Use Cases, per
 - `console_set_raw()` appelé avant la boucle principale
 - Si `ST_ERROR` (non-TTY) : fallback `fgets()` transparent, sans régression UC1/UC2
 - `console_restore()` appelé après la boucle (chemin raw uniquement)
+
+**Anomalies découvertes et résolues (post-validation UC4.2) :**
+
+- `dir.c` — 4 warnings `-Wformat-truncation` corrigés : `szPat[ST_MAX_PATH+3]` (place pour `\\*\0`), `iPathLen` vérifié sur `snprintf(szPath)` + `dir_node_free_tree` + `continue` si overflow, `szLine[ST_MAX_PATH+320]` (couvre prefix 255 + déco 4 + nom 511 + `/\0`).
+- `win_gui.c` — focus non restauré à la fermeture des vues depuis mintty : ajout de `hPrevFgWnd` dans `win_wnd_state_t`, stocké lors du `AttachThreadInput` à l'ouverture, restauré via `SetForegroundWindow(hPrevFgWnd)` dans `WM_DESTROY` (avec garde `IsWindow`). Fonctionne depuis mintty, VS Code et PowerShell.
 
 **Points d'attention pour les UCs suivants :**
 - UC4.3 : résoudre CTRL+I = TAB = 0x09 (conflit shortcut CMD_IMAGE vs complétion). Résolution envisagée : TAB toujours = complétion ; CMD_IMAGE reste accessible via `"i"` ou `"image"`.
