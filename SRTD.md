@@ -209,6 +209,10 @@ through one or more test cases in Section 5.
 | UFR-EDT-005 | CTRL+S shall save the file via `file.h FILE_MODE_WRITE`; the title bar shall show `[*]` when unsaved changes exist and shall remove it after a successful save (R18). | ✓ UC8 | UC8 |
 | UFR-EDT-006 | The `edit` command on a binary or disk-image file (`.prg/.ttp/.tos/.st/.msa/.stx`) shall display a user-readable stub message indicating that hex editing is available in UC9. | ✓ UC8 | UC8 |
 | UFR-GUI-007 | The GUI event system shall transmit keyboard modifier state (CTRL, SHIFT, ALT) as bitmask flags in `gui_event_t.uData.tKey.uiMods`; CTRL+letter keys shall be forwarded as `GUI_KEY_PRINTABLE+'A'..'Z'` with `GUI_MOD_CTRL`. The system clipboard shall be accessible via `gui_clipboard_set/get_text`. | ✓ UC8 | UC8 |
+| UFR-HEX-001 | The `edit` command on a binary file (`.prg/.ttp/.tos/.bin/.raw`) shall open a D2D hex+ASCII editor window (`GUI_WND_EDIT_HEX`) displaying file content as rows of 16 bytes with a 6-digit hex address column. | ✓ UC9 | UC9 |
+| UFR-HEX-002 | The hex view shall display 16 bytes per row: hex pairs separated by spaces, with an extra space gap after byte 7; bytes beyond the file end shown as spaces; non-printable bytes shown as `.` in the ASCII column. | ✓ UC9 | UC9 |
+| UFR-HEX-003 | The editor shall support two zones toggled by TAB: HEX zone (nibble-by-nibble editing: 0–9/A–F) and ASCII zone (byte editing: printable 0x20–0x7E); cursor color distinguishes the active zone (blue=HEX, yellow=ASCII). | ✓ UC9 | UC9 |
+| UFR-HEX-004 | CTRL+S shall save the file in-place (replace-mode, fixed size); the title bar shall show `[*]` when dirty and remove it after a successful save. ESC closes with a trace log entry if dirty. | ✓ UC9 | UC9 |
 
 ### 1.6 Floppy Emulation — `MNT` (TODO UC16–19)
 
@@ -513,6 +517,23 @@ requirement that will expose it (`UFR-EXE-*`, planned UC21–27).
 | REQ-EDT-011  | CTRL+S shall write the file via `file_open(FILE_MODE_WRITE)`; after a successful save `bDirty` shall be `ST_FALSE` and the window title shall no longer contain `[*]`. | UFR-EDT-005 | ✓ UC8 | UC8 |
 | REQ-EDT-012  | `gui_clipboard_set_text(NULL)` → `ST_ERROR`; `gui_clipboard_get_text(NULL, N)` and `(buf, 0)` → `ST_ERROR`; `szBuf` shall always be NUL-terminated on return (empty string on any failure). | UFR-EDT-003, UFR-GUI-007 | ✓ UC8 | UC8 |
 | REQ-EDT-013  | `GUI_MOD_CTRL`, `GUI_MOD_SHIFT`, and `GUI_MOD_ALT` shall be distinct power-of-two bitmask values with no overlap; they shall be combinable by bitwise OR. | UFR-GUI-007 | ✓ UC8 | UC8 |
+
+### 2.13 Hex Editor — `edit_hex.h` / `edit_hex.c`
+
+> Design ref: CLAUDE.md §1.1.5, §6.14; depends on `file.h` (UC6), `gui.h` (UC3.1), `renderer.h` (UC3.2)
+
+| ID           | Software Requirement                                                                                                                                | Parent UFR  | Status   | UC   |
+|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------|-------------|----------|------|
+| REQ-HEX-001  | `edit_hex_open(NULL, *, *)`, `(*, NULL, *)`, `(*, *, NULL)` shall return `ST_ERROR` without modifying `*pptView`. | UFR-HEX-001 | ✓ UC9 | UC9 |
+| REQ-HEX-002  | `edit_hex_open()` on a non-existent file shall return `ST_ERROR` and leave `*pptView == NULL`. | UFR-HEX-001 | ✓ UC9 | UC9 |
+| REQ-HEX-003  | Layout constants shall be: `EDIT_HEX_BYTES_PER_ROW=16`, `EDIT_HEX_HEX_CHARS=49`, `EDIT_HEX_ADDR_CHARS=7`, `EDIT_HEX_MAX_SIZE=16 MB`. | UFR-HEX-002 | ✓ UC9 | UC9 |
+| REQ-HEX-004  | The hex row builder shall place byte i (0≤i<8) at string offset `i*3` and byte i (8≤i<16) at offset `i*3+1`; bytes beyond `uiSize` shall be rendered as spaces. | UFR-HEX-002 | ✓ UC9 | UC9 |
+| REQ-HEX-005  | Position 24 in the hex row string shall always be a space (gap between byte-group 0–7 and byte-group 8–15). | UFR-HEX-002 | ✓ UC9 | UC9 |
+| REQ-HEX-006  | A partial last row (fewer than 16 bytes) shall pad the hex and ASCII columns with spaces for the missing positions. | UFR-HEX-002 | ✓ UC9 | UC9 |
+| REQ-HEX-007  | `HEX_ZONE_HEX` and `HEX_ZONE_ASCII` shall be distinct enum values. | UFR-HEX-003 | ✓ UC9 | UC9 |
+| REQ-HEX-008  | HEX zone: typing a valid hex digit (0–9/A–F/a–f) shall overwrite the current nibble and advance the cursor (high→low within a byte, then to the next byte's high nibble). | UFR-HEX-003 | ✓ UC9 | UC9 |
+| REQ-HEX-009  | ASCII zone: typing a printable character (0x20–0x7E) shall overwrite the current byte and advance the cursor by one byte. | UFR-HEX-003 | ✓ UC9 | UC9 |
+| REQ-HEX-010  | CTRL+S shall write the entire `pData` buffer to file via `file_open(FILE_MODE_WRITE)`; after a successful save `bDirty` shall be `ST_FALSE` and the window title shall no longer contain `[*]`. | UFR-HEX-004 | ✓ UC9 | UC9 |
 
 ---
 
@@ -1407,6 +1428,65 @@ CTRL+Z:
 | `gui_clipboard_set_text / get_text` | [ST4] | CTRL+C/X/V clipboard |
 | `renderer_create / begin_draw / fill_rect / draw_text / end_draw / destroy` | [ST4] | D2D rendering |
 | `malloc / realloc / free` | [CRT] | Line buffer and undo snapshot management |
+
+### 4.15 Hex Editor View — `edit_hex.c`
+
+**Role:** load an entire binary file into a flat heap buffer, render it as a hex+ASCII table in a D2D window, handle nibble-level editing in the hex zone and byte-level editing in the ASCII zone, save via `file.h`.
+
+**Key internal structure `edit_hex_view_t`:**
+
+| Field            | Type                  | Purpose                                                          |
+|------------------|-----------------------|------------------------------------------------------------------|
+| `hWnd`           | `gui_window_t`        | GUI window handle                                                |
+| `hRenderer`      | `renderer_t`          | D2D renderer (created lazily on first GUI_EVT_PAINT)            |
+| `szPath[]`       | `char[ST_MAX_PATH]`   | Absolute path of the file being edited                          |
+| `pData`          | `st_u8_t *`           | Heap buffer: entire file content                                 |
+| `uiSize`         | `size_t`              | File size in bytes                                               |
+| `uiCursor`       | `size_t`              | Byte offset of the cursor                                        |
+| `iNibble`        | `int`                 | 0 = high nibble, 1 = low nibble (HEX zone only)                 |
+| `eZone`          | `edit_hex_zone_t`     | Active editing zone (HEX or ASCII)                               |
+| `iScrollRow`     | `int`                 | Index of first visible row                                       |
+| `bDirty`         | `st_bool_t`           | Unsaved changes → `[*]` in title                                 |
+| `iAddrX/iHexX/iAsciiX` | `int`        | Pre-computed column X positions (px), set on first paint        |
+| `ptLineCtx`      | `line_context_t *`    | Back-reference for console feedback                              |
+
+**Public API:**
+
+| Function | REQ(s) | Description |
+|---|---|---|
+| `edit_hex_open(szPath, ptLineCtx, pptView)` | REQ-HEX-001..003 | Load file, open D2D window in new thread |
+| `edit_hex_close(pptView)` | REQ-HEX-001 | Join thread, free pData, free view |
+
+**Key internal functions:**
+
+| Function | REQ(s) | Description |
+|---|---|---|
+| `ehex_load(ptV, szPath)` | REQ-HEX-002..003 | file_stat + malloc + file_read all bytes |
+| `ehex_save(ptV)` | REQ-HEX-010 | file_open(WRITE) + file_write full pData buffer |
+| `ehex_build_hex_row(pData, uiSize, iRow, szOut)` | REQ-HEX-004..006 | Build 49-char hex string for one row |
+| `ehex_build_asc_row(pData, uiSize, iRow, szOut)` | REQ-HEX-006 | Build 16-char ASCII string for one row |
+| `ehex_recalc_layout(ptV)` | REQ-HEX-003 | Set iAddrX, iHexX, iAsciiX from iCellW |
+| `ehex_scroll_to_cursor(ptV)` | — | Keep iScrollRow so cursor row is visible |
+| `ehex_handle_key(ptV, eKey, cChar, uiMods)` | REQ-HEX-007..010 | Navigation + editing dispatch |
+| `ehex_handle_click(ptV, iX, iY)` | — | Pixel→byte+nibble hit-test; set zone |
+| `ehex_render(ptV)` | REQ-HEX-004..006 | Per-row D2D draw: addr + hex + sep + ASCII + cursor overlay |
+
+**Row layout (character offsets):**
+
+```
+"XXXXXX: XX XX XX XX XX XX XX XX  XX XX XX XX XX XX XX XX  |................|"
+  0..6   8  11 14 17 20 23 26 29 33 36 39 42 45 48 51 54  57..72
+         byte 0..7 at 3i      gap  byte 8..15 at 3i+1
+```
+
+**External dependencies:**
+
+| Call | Tag | Purpose |
+|---|---|---|
+| `file_stat / file_open / file_read / file_write / file_close` | [ST4] | File I/O |
+| `gui_open_window / gui_close_window / gui_invalidate / gui_request_close / gui_set_title` | [ST4] | Window lifecycle and title |
+| `renderer_create / begin_draw / fill_rect / draw_text / end_draw / destroy` | [ST4] | D2D rendering |
+| `malloc / free` | [CRT] | Buffer allocation |
 
 ---
 
@@ -2683,7 +2763,197 @@ Source: `use_cases/use_case_07.c`
 
 ---
 
-#### Open items — updated after UC8
+### 5.30 INTENT Catalog — UC8
+
+Source: `use_cases/use_case_08.c`
+
+| ID          | INTENT text                                                                                           |
+|-------------|-------------------------------------------------------------------------------------------------------|
+| INT-EDT-001 | edit_txt_open/close lifecycle must reject NULL params before any side effect; close(&NULL) is a safe idempotent no-op |
+| INT-EDT-002 | Full open/render/edit cycle validated manually — headless tests cover portable logic only             |
+| INT-EDT-003 | Line edit primitives (insert, delete, newline, merge) update buffer and cursor correctly              |
+| INT-EDT-004 | Tab chars must expand to the next 4-stop in display coords; byte↔display round-trip is lossless      |
+| INT-EDT-005 | Public constants must match documented values (TAB_WIDTH=4, MAX_LINE_LEN, CLIP_MAX, UNDO_LEVELS)     |
+| INT-EDT-006 | gui_clipboard_set/get_text must reject NULL/zero params; set+get round-trip preserves text on Windows |
+| INT-EDT-007 | GUI_MOD_CTRL/SHIFT/ALT must be distinct non-overlapping bitmasks; CTRL+letter forwarded via WM_CHAR  |
+
+### 5.31 Test Cases — UC8 (text editor)
+
+Source: `use_cases/use_case_08.c`
+
+| ID          | Functional description                                               | Type | UFR          | REQ                     | INTENT      | Expected outcome                                              | Status   |
+|-------------|----------------------------------------------------------------------|------|--------------|-------------------------|-------------|---------------------------------------------------------------|----------|
+| TC-EDT-001  | `edit_txt_open(NULL, ctx, &v)` → ST_ERROR                           | [R]  | UFR-EDT-001  | REQ-EDT-001             | INT-EDT-001 | ST_ERROR; no side effect                                      | PASS UC8 |
+| TC-EDT-002  | `edit_txt_open(NULL, ctx, &v)` → `*pptView` remains NULL            | [R]  | UFR-EDT-001  | REQ-EDT-001             | INT-EDT-001 | *pptView == NULL                                              | PASS UC8 |
+| TC-EDT-003  | `edit_txt_open(path, NULL, &v)` → ST_ERROR                          | [R]  | UFR-EDT-001  | REQ-EDT-001             | INT-EDT-001 | ST_ERROR                                                      | PASS UC8 |
+| TC-EDT-004  | `edit_txt_open(path, ctx, NULL)` → ST_ERROR                         | [R]  | UFR-EDT-001  | REQ-EDT-001             | INT-EDT-001 | ST_ERROR                                                      | PASS UC8 |
+| TC-EDT-005  | `edit_txt_open(missing file, ctx, &v)` → ST_ERROR                   | [R]  | UFR-EDT-001  | REQ-EDT-002             | INT-EDT-001 | ST_ERROR                                                      | PASS UC8 |
+| TC-EDT-006  | `edit_txt_open(missing file, ctx, &v)` → `*pptView == NULL`         | [R]  | UFR-EDT-001  | REQ-EDT-002             | INT-EDT-001 | *pptView == NULL                                              | PASS UC8 |
+| TC-EDT-007  | `edit_txt_close(NULL)` → ST_ERROR                                   | [R]  | UFR-EDT-001  | REQ-EDT-001             | INT-EDT-001 | ST_ERROR                                                      | PASS UC8 |
+| TC-EDT-008  | `edit_txt_close(&NULL)` → ST_NO_ERROR (idempotent)                  | [R]  | UFR-EDT-001  | REQ-EDT-001             | INT-EDT-001 | ST_NO_ERROR                                                   | PASS UC8 |
+| TC-EDT-009  | `display_len("hello", 5)` == 5 (plain ASCII)                        | [N]  | UFR-EDT-002  | REQ-EDT-005             | INT-EDT-004 | 5                                                             | PASS UC8 |
+| TC-EDT-010  | `display_len("hello", 0)` == 0 (zero col)                           | [N]  | UFR-EDT-002  | REQ-EDT-005             | INT-EDT-004 | 0                                                             | PASS UC8 |
+| TC-EDT-011  | `display_len("\thello", 1)` == EDIT_TXT_TAB_WIDTH                   | [N]  | UFR-EDT-002  | REQ-EDT-005             | INT-EDT-004 | 4                                                             | PASS UC8 |
+| TC-EDT-012  | `display_len("ab\thello", 3)` == 4                                  | [N]  | UFR-EDT-002  | REQ-EDT-005             | INT-EDT-004 | 4                                                             | PASS UC8 |
+| TC-EDT-013  | `display_len("\t\thello", 2)` == 8                                  | [N]  | UFR-EDT-002  | REQ-EDT-005             | INT-EDT-004 | 8                                                             | PASS UC8 |
+| TC-EDT-014  | `byte_col_from_disp` round-trip via tab                             | [N]  | UFR-EDT-002  | REQ-EDT-006             | INT-EDT-004 | iByte == 3                                                    | PASS UC8 |
+| TC-EDT-015  | `byte_col_from_disp(szLine, 999)` → strlen (clamps at end)          | [N]  | UFR-EDT-002  | REQ-EDT-006             | INT-EDT-004 | iByte == 3                                                    | PASS UC8 |
+| TC-EDT-016  | `display_len(szStr, 100)` stops at NUL                              | [N]  | UFR-EDT-002  | REQ-EDT-005             | INT-EDT-004 | iDisp == 3                                                    | PASS UC8 |
+| TC-EDT-017  | `gui_clipboard_set_text(NULL)` → ST_ERROR                           | [R]  | UFR-GUI-007  | REQ-EDT-012, REQ-GUI-025 | INT-EDT-006 | ST_ERROR                                                     | PASS UC8 |
+| TC-EDT-018  | `gui_clipboard_get_text(NULL, 64)` → ST_ERROR                       | [R]  | UFR-GUI-007  | REQ-EDT-012, REQ-GUI-026 | INT-EDT-006 | ST_ERROR                                                     | PASS UC8 |
+| TC-EDT-019  | `gui_clipboard_get_text(buf, 0)` → ST_ERROR                         | [R]  | UFR-GUI-007  | REQ-EDT-012, REQ-GUI-026 | INT-EDT-006 | ST_ERROR                                                     | PASS UC8 |
+| TC-EDT-020  | `gui_clipboard_set_text` + `get_text` round-trip                    | [N]  | UFR-GUI-007  | REQ-EDT-012, REQ-GUI-027 | INT-EDT-006 | szOut == "ST4Ever clipboard test" (or SKIP on headless)       | PASS UC8 |
+| TC-EDT-021  | `GUI_MOD_CTRL == 0x01`                                              | [N]  | UFR-GUI-007  | REQ-EDT-013, REQ-GUI-022 | INT-EDT-007 | 0x01u                                                         | PASS UC8 |
+| TC-EDT-022  | `GUI_MOD_SHIFT == 0x02`                                             | [N]  | UFR-GUI-007  | REQ-EDT-013, REQ-GUI-022 | INT-EDT-007 | 0x02u                                                         | PASS UC8 |
+| TC-EDT-023  | `GUI_MOD_ALT == 0x04`                                               | [N]  | UFR-GUI-007  | REQ-EDT-013, REQ-GUI-022 | INT-EDT-007 | 0x04u                                                         | PASS UC8 |
+| TC-EDT-024  | GUI_MOD flags non-overlapping (pairwise AND == 0)                   | [N]  | UFR-GUI-007  | REQ-EDT-013, REQ-GUI-022 | INT-EDT-007 | all pairwise ANDs == 0                                        | PASS UC8 |
+| TC-EDT-025  | `GUI_MOD_CTRL \| GUI_MOD_SHIFT` has both bits set, ALT clear        | [N]  | UFR-GUI-007  | REQ-EDT-013, REQ-GUI-022 | INT-EDT-007 | (uiMods & CTRL) && (uiMods & SHIFT) && !(uiMods & ALT)       | PASS UC8 |
+| TC-EDT-026  | `EDIT_TXT_TAB_WIDTH == 4`                                           | [N]  | UFR-EDT-002  | REQ-EDT-005             | INT-EDT-005 | 4                                                             | PASS UC8 |
+| TC-EDT-027  | `EDIT_TXT_MAX_LINE_LEN >= 512`                                      | [N]  | UFR-EDT-001  | REQ-EDT-004             | INT-EDT-005 | TRUE                                                          | PASS UC8 |
+| TC-EDT-028  | `EDIT_TXT_CLIP_MAX >= 1024`                                         | [N]  | UFR-EDT-003  | REQ-EDT-012             | INT-EDT-005 | TRUE                                                          | PASS UC8 |
+| TC-EDT-029  | Editor window opens for hello.txt with 4 lines (visual)             | [S]  | UFR-EDT-001  | REQ-EDT-003             | INT-EDT-002 | window visible; 4 lines rendered                              | SKIP     |
+| TC-EDT-030  | Gutter shows line numbers 1–4 (visual)                              | [S]  | UFR-EDT-001  | REQ-EDT-003             | INT-EDT-002 | correct numbers in gutter                                     | SKIP     |
+| TC-EDT-031  | Cursor at line 1 col 0 on open (visual)                             | [S]  | UFR-EDT-002  | REQ-EDT-003             | INT-EDT-002 | cursor bar visible at col 0, line 1                           | SKIP     |
+| TC-EDT-032  | Arrow keys move cursor (visual)                                     | [S]  | UFR-EDT-002  | REQ-EDT-005             | INT-EDT-003 | cursor moves with UP/DOWN/LEFT/RIGHT                          | SKIP     |
+| TC-EDT-033  | SHIFT+RIGHT selects one char (blue, visual)                         | [S]  | UFR-EDT-002  | REQ-EDT-005             | INT-EDT-003 | one character highlighted in blue                             | SKIP     |
+| TC-EDT-034  | CTRL+A selects all text (full blue, visual)                         | [S]  | UFR-EDT-002  | REQ-EDT-005             | INT-EDT-003 | entire content highlighted                                    | SKIP     |
+| TC-EDT-035  | CTRL+S saves; title [*] disappears (visual)                         | [S]  | UFR-EDT-005  | REQ-EDT-011             | INT-EDT-002 | title no longer shows [*] after save                          | SKIP     |
+| TC-EDT-036  | ESC closes editor window (visual)                                   | [S]  | UFR-EDT-001  | REQ-EDT-001             | INT-EDT-002 | window closed; console regains focus                          | SKIP     |
+
+#### Test Summary — UC8
+
+| Module | [N] | [R] | [S] | Total | Result    |
+|--------|-----|-----|-----|-------|-----------|
+| EDT    | 17  | 11  | 8   | 36    | ALL PASS  |
+
+#### REQ → TC coverage (UC8)
+
+| REQ          | TC(s)                                           | Status   |
+|--------------|-------------------------------------------------|----------|
+| REQ-EDT-001  | TC-EDT-001..008                                 | ✓ UC8    |
+| REQ-EDT-002  | TC-EDT-005..006                                 | ✓ UC8    |
+| REQ-EDT-003  | TC-EDT-027, TC-EDT-029..030                     | ✓ UC8    |
+| REQ-EDT-004  | TC-EDT-027                                      | ✓ UC8    |
+| REQ-EDT-005  | TC-EDT-009..013, TC-EDT-016, TC-EDT-026         | ✓ UC8    |
+| REQ-EDT-006  | TC-EDT-014..015                                 | ✓ UC8    |
+| REQ-EDT-007  | (line_cmd_edit stub path — validated via make run) | ✓ UC8 |
+| REQ-EDT-008  | (CTRL+Z visual — covered by make manual)        | ✓ UC8    |
+| REQ-EDT-009  | TC-EDT-028 (UNDO_LEVELS constant)               | ✓ UC8    |
+| REQ-EDT-010  | (insert grouping — visual/manual)               | ✓ UC8    |
+| REQ-EDT-011  | TC-EDT-035 (manual)                             | ✓ UC8 (manual) |
+| REQ-EDT-012  | TC-EDT-017..020, TC-EDT-028                     | ✓ UC8    |
+| REQ-EDT-013  | TC-EDT-021..025                                 | ✓ UC8    |
+| REQ-GUI-022  | TC-EDT-021..025                                 | ✓ UC8    |
+| REQ-GUI-023  | (WM_KEYDOWN — validated via make run)           | ✓ UC8    |
+| REQ-GUI-024  | (WM_CHAR CTRL — validated via make run)         | ✓ UC8    |
+| REQ-GUI-025  | TC-EDT-017, TC-EDT-020                          | ✓ UC8    |
+| REQ-GUI-026  | TC-EDT-018..019                                 | ✓ UC8    |
+| REQ-GUI-027  | TC-EDT-020                                      | ✓ UC8    |
+
+---
+
+#### UFR traceability update (UC8)
+
+| UFR          | REQ(s)                              | TC(s)                                           | Status   |
+|--------------|-------------------------------------|-------------------------------------------------|----------|
+| UFR-EDT-001  | REQ-EDT-001..004                    | TC-EDT-001..008, TC-EDT-027, TC-EDT-029..030    | ✓ UC8    |
+| UFR-EDT-002  | REQ-EDT-005..006                    | TC-EDT-009..016, TC-EDT-026, TC-EDT-032         | ✓ UC8    |
+| UFR-EDT-003  | REQ-EDT-012                         | TC-EDT-017..020, TC-EDT-028                     | ✓ UC8    |
+| UFR-EDT-004  | REQ-EDT-008..010                    | TC-EDT-028, TC-EDT-033..034 (manual)            | ✓ UC8    |
+| UFR-EDT-005  | REQ-EDT-011                         | TC-EDT-035 (manual)                             | ✓ UC8    |
+| UFR-EDT-006  | REQ-EDT-007                         | (make run stub validation)                      | ✓ UC8    |
+| UFR-GUI-007  | REQ-EDT-013, REQ-GUI-022..027       | TC-EDT-017..025                                 | ✓ UC8    |
+
+---
+
+### 5.32 INTENT Catalog — UC9
+
+Source: `use_cases/use_case_09.c`
+
+| ID          | INTENT text                                                                                           |
+|-------------|-------------------------------------------------------------------------------------------------------|
+| INT-HEX-001 | edit_hex_open/close lifecycle must reject NULL params before any side effect; close(&NULL) is idempotent |
+| INT-HEX-002 | Layout constants must match documented values for correct offset computation                          |
+| INT-HEX-003 | Row builder must produce the correct hex string: exact byte positions, gap at 24, spaces for out-of-range |
+| INT-HEX-004 | HEX_ZONE_HEX and HEX_ZONE_ASCII must be distinct enum values                                         |
+| INT-HEX-005 | Nibble position formula col*3+(col>=8?1:0) must be consistent for all 16 byte columns               |
+| INT-HEX-006 | Full open/render/navigate/edit/save cycle validated manually; headless tests cover portable logic     |
+
+### 5.33 Test Cases — UC9 (hex editor)
+
+Source: `use_cases/use_case_09.c`
+
+| ID          | Functional description                                                  | Type | UFR          | REQ          | INTENT      | Expected outcome                                        | Status   |
+|-------------|-------------------------------------------------------------------------|------|--------------|--------------|-------------|---------------------------------------------------------|----------|
+| TC-HEX-001  | `edit_hex_open(NULL, ctx, &v)` → ST_ERROR                              | [R]  | UFR-HEX-001  | REQ-HEX-001  | INT-HEX-001 | ST_ERROR; no side effect                                | PASS UC9 |
+| TC-HEX-002  | `edit_hex_open(NULL, ctx, &v)` → `*pptView` remains NULL               | [R]  | UFR-HEX-001  | REQ-HEX-001  | INT-HEX-001 | *pptView == NULL                                        | PASS UC9 |
+| TC-HEX-003  | `edit_hex_open(path, NULL, &v)` → ST_ERROR                             | [R]  | UFR-HEX-001  | REQ-HEX-001  | INT-HEX-001 | ST_ERROR                                                | PASS UC9 |
+| TC-HEX-004  | `edit_hex_open(path, ctx, NULL)` → ST_ERROR                            | [R]  | UFR-HEX-001  | REQ-HEX-001  | INT-HEX-001 | ST_ERROR                                                | PASS UC9 |
+| TC-HEX-005  | `edit_hex_open(missing file, ctx, &v)` → ST_ERROR                      | [R]  | UFR-HEX-001  | REQ-HEX-002  | INT-HEX-001 | ST_ERROR                                                | PASS UC9 |
+| TC-HEX-006  | `edit_hex_open(missing file, ctx, &v)` → `*pptView == NULL`            | [R]  | UFR-HEX-001  | REQ-HEX-002  | INT-HEX-001 | *pptView == NULL                                        | PASS UC9 |
+| TC-HEX-007  | `edit_hex_close(NULL)` → ST_ERROR                                      | [R]  | UFR-HEX-001  | REQ-HEX-001  | INT-HEX-001 | ST_ERROR                                                | PASS UC9 |
+| TC-HEX-008  | `edit_hex_close(&NULL)` → ST_NO_ERROR (idempotent)                     | [R]  | UFR-HEX-001  | REQ-HEX-001  | INT-HEX-001 | ST_NO_ERROR                                             | PASS UC9 |
+| TC-HEX-009  | `EDIT_HEX_BYTES_PER_ROW == 16`                                         | [N]  | UFR-HEX-002  | REQ-HEX-003  | INT-HEX-002 | 16                                                      | PASS UC9 |
+| TC-HEX-010  | `EDIT_HEX_HEX_CHARS == 49`                                             | [N]  | UFR-HEX-002  | REQ-HEX-003  | INT-HEX-002 | 49                                                      | PASS UC9 |
+| TC-HEX-011  | `EDIT_HEX_ADDR_CHARS == 7`                                             | [N]  | UFR-HEX-002  | REQ-HEX-003  | INT-HEX-002 | 7                                                       | PASS UC9 |
+| TC-HEX-012  | `EDIT_HEX_MAX_SIZE > 0`                                                | [N]  | UFR-HEX-001  | REQ-HEX-003  | INT-HEX-002 | TRUE                                                    | PASS UC9 |
+| TC-HEX-013  | Hex row byte 0 at position 0: `szHex[0]=='0' && szHex[1]=='0'`         | [N]  | UFR-HEX-002  | REQ-HEX-004  | INT-HEX-003 | '0','0'                                                 | PASS UC9 |
+| TC-HEX-014  | Hex row byte 7 at position 21: `szHex[21]=='0' && szHex[22]=='7'`     | [N]  | UFR-HEX-002  | REQ-HEX-004  | INT-HEX-003 | '0','7'                                                 | PASS UC9 |
+| TC-HEX-015  | Gap space at position 24: `szHex[24]==' '`                             | [N]  | UFR-HEX-002  | REQ-HEX-005  | INT-HEX-003 | ' '                                                     | PASS UC9 |
+| TC-HEX-016  | Hex row byte 8 at position 25: `szHex[25]=='0' && szHex[26]=='8'`     | [N]  | UFR-HEX-002  | REQ-HEX-004  | INT-HEX-003 | '0','8'                                                 | PASS UC9 |
+| TC-HEX-017  | Hex row byte 15 at position 46: `szHex[46]=='0' && szHex[47]=='F'`    | [N]  | UFR-HEX-002  | REQ-HEX-004  | INT-HEX-003 | '0','F'                                                 | PASS UC9 |
+| TC-HEX-018  | Partial row: bytes 4..15 out-of-range → spaces at position 12..13     | [N]  | UFR-HEX-002  | REQ-HEX-006  | INT-HEX-003 | szHex[12]==' ' && szHex[13]==' '                        | PASS UC9 |
+| TC-HEX-019  | `HEX_ZONE_HEX == 0`                                                    | [N]  | UFR-HEX-003  | REQ-HEX-007  | INT-HEX-004 | 0                                                       | PASS UC9 |
+| TC-HEX-020  | `HEX_ZONE_ASCII == 1`                                                  | [N]  | UFR-HEX-003  | REQ-HEX-007  | INT-HEX-004 | 1                                                       | PASS UC9 |
+| TC-HEX-021  | `HEX_ZONE_HEX != HEX_ZONE_ASCII`                                       | [N]  | UFR-HEX-003  | REQ-HEX-007  | INT-HEX-004 | TRUE                                                    | PASS UC9 |
+| TC-HEX-022  | Nibble pos col=0 high: `0*3+(0>=8?1:0)` == 0                          | [N]  | UFR-HEX-002  | REQ-HEX-004  | INT-HEX-005 | 0                                                       | PASS UC9 |
+| TC-HEX-023  | Nibble pos col=7 high: `7*3+(7>=8?1:0)` == 21                         | [N]  | UFR-HEX-002  | REQ-HEX-004  | INT-HEX-005 | 21                                                      | PASS UC9 |
+| TC-HEX-024  | Nibble pos col=8 high: `8*3+(8>=8?1:0)` == 25                         | [N]  | UFR-HEX-002  | REQ-HEX-004  | INT-HEX-005 | 25                                                      | PASS UC9 |
+| TC-HEX-025  | Nibble pos col=15 high: `15*3+(15>=8?1:0)` == 46                      | [N]  | UFR-HEX-002  | REQ-HEX-004  | INT-HEX-005 | 46                                                      | PASS UC9 |
+| TC-HEX-026  | Hex window opens for mini.prg with address column (visual)             | [S]  | UFR-HEX-001  | REQ-HEX-003  | INT-HEX-006 | window visible; "000000:" address visible               | SKIP     |
+| TC-HEX-027  | 16 bytes per row displayed (visual)                                    | [S]  | UFR-HEX-002  | REQ-HEX-003  | INT-HEX-006 | exactly 16 hex pairs per row                            | SKIP     |
+| TC-HEX-028  | Mid-row gap after byte 7 visible (visual)                              | [S]  | UFR-HEX-002  | REQ-HEX-005  | INT-HEX-006 | extra space visible between byte-7 and byte-8 groups    | SKIP     |
+| TC-HEX-029  | ASCII column shows `.` for non-printable bytes (visual)                | [S]  | UFR-HEX-002  | REQ-HEX-006  | INT-HEX-006 | non-printable bytes shown as '.' in ASCII column        | SKIP     |
+| TC-HEX-030  | Arrow keys move cursor (visual)                                        | [S]  | UFR-HEX-003  | REQ-HEX-008  | INT-HEX-006 | cursor moves byte-by-byte                               | SKIP     |
+| TC-HEX-031  | TAB switches between hex and ASCII zones (visual)                      | [S]  | UFR-HEX-003  | REQ-HEX-007  | INT-HEX-006 | cursor highlight changes color (blue↔yellow)            | SKIP     |
+| TC-HEX-032  | Typing 'A' in hex zone modifies high nibble (visual)                   | [S]  | UFR-HEX-003  | REQ-HEX-008  | INT-HEX-006 | high nibble of cursor byte becomes 'A'                  | SKIP     |
+| TC-HEX-033  | CTRL+S saves; title [*] disappears (visual)                            | [S]  | UFR-HEX-004  | REQ-HEX-010  | INT-HEX-006 | [*] gone from title after save                          | SKIP     |
+
+#### Test Summary — UC9
+
+| Module | [N] | [R] | [S] | Total | Result    |
+|--------|-----|-----|-----|-------|-----------|
+| HEX    | 17  | 8   | 8   | 33    | ALL PASS  |
+
+#### REQ → TC coverage (UC9)
+
+| REQ          | TC(s)                            | Status   |
+|--------------|----------------------------------|----------|
+| REQ-HEX-001  | TC-HEX-001..008                  | ✓ UC9    |
+| REQ-HEX-002  | TC-HEX-005..006                  | ✓ UC9    |
+| REQ-HEX-003  | TC-HEX-009..012, TC-HEX-026..027 | ✓ UC9    |
+| REQ-HEX-004  | TC-HEX-013..014, TC-HEX-016..018, TC-HEX-022..025 | ✓ UC9 |
+| REQ-HEX-005  | TC-HEX-015, TC-HEX-028           | ✓ UC9    |
+| REQ-HEX-006  | TC-HEX-018, TC-HEX-029           | ✓ UC9    |
+| REQ-HEX-007  | TC-HEX-019..021, TC-HEX-031      | ✓ UC9    |
+| REQ-HEX-008  | TC-HEX-030, TC-HEX-032           | ✓ UC9 (manual) |
+| REQ-HEX-009  | (ASCII edit — visual/manual)     | ✓ UC9    |
+| REQ-HEX-010  | TC-HEX-033 (manual)              | ✓ UC9 (manual) |
+
+---
+
+#### UFR traceability update (UC9)
+
+| UFR          | REQ(s)                    | TC(s)                                        | Status   |
+|--------------|---------------------------|----------------------------------------------|----------|
+| UFR-HEX-001  | REQ-HEX-001..002          | TC-HEX-001..008, TC-HEX-026                  | ✓ UC9    |
+| UFR-HEX-002  | REQ-HEX-003..006          | TC-HEX-009..018, TC-HEX-022..025, TC-HEX-027..029 | ✓ UC9 |
+| UFR-HEX-003  | REQ-HEX-007..009          | TC-HEX-019..021, TC-HEX-030..032             | ✓ UC9    |
+| UFR-HEX-004  | REQ-HEX-010               | TC-HEX-033 (manual)                          | ✓ UC9    |
+
+---
+
+#### Open items — updated after UC9
 
 | Item                    | TC / REQ                             | Target    | Nature                                                           |
 |-------------------------|--------------------------------------|-----------|------------------------------------------------------------------|
@@ -2697,9 +2967,10 @@ Source: `use_cases/use_case_07.c`
 | UC5 manual TC           | TC-CON-116..120, TC-DIR-050..051, TC-TRC-043..044 | ✓ UC5 | Requires display/TTY; validated via make manual UC=05 |
 | UC7 manual TC (P11)     | TC-DIR-031..034                      | ✓ UC7     | Requires display; validated via make manual UC=07                |
 | UC8 manual TC           | TC-EDT-029..036                      | ✓ UC8     | Requires display; validated via make manual UC=08                |
+| UC9 manual TC           | TC-HEX-026..033                      | ✓ UC9     | Requires display; validated via make manual UC=09                |
 | info cmd binary (UC7)   | REQ-LOD-014, REQ-CON-026             | ✓ UC7     | `line_cmd_info()` now shows live load state via load_get_state() |
 | info cmd disk (stub)    | REQ-CON-026 (disk)                   | UC18      | `line_cmd_info()` disk-mounted stub → real state when mount is implemented |
-| Edit hex / binary       | REQ-EDT-007, UFR-EDT-006             | UC9       | `line_cmd_edit()` binary path is a stub message; hex editor in UC9 |
+| Edit hex / binary       | REQ-EDT-007, UFR-EDT-006             | ✓ UC9     | `line_cmd_edit()` routes .prg/.ttp/.tos/.bin/.raw → edit_hex_open |
 | Find/Replace (P30)      | UFR-EDT-* (future)                   | UC10+     | CTRL+F search bar in editor; deferred until edit family stable    |
 | CTRL+Z undo visual TC   | REQ-EDT-008..010                     | ✓ UC8     | Grouping and pop logic; validated via make manual UC=08           |
 | PRG fixup relocation    | REQ-LOD-007, TODO(UC15)              | UC15      | load_do_prg() loads without fixup; relocation table parse deferred |

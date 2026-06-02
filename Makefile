@@ -26,6 +26,9 @@ CC     := gcc
 #  allows zero.  GCC/MinGW-W64 always supports this regardless of target.)
 CFLAGS := -Wall -Wextra -pedantic -std=gnu99 -g -D_GNU_SOURCE
 CFLAGS += -I./src
+# Auto-generate header dependency files (.d) so that modifying any
+# .h triggers a rebuild of the affected .o without 'make clean'.
+CFLAGS += -MMD -MP
 
 # -----------------------------------------------------------------------------
 # Platform detection
@@ -186,6 +189,12 @@ endif
 	echo "================================================================"; \
 	echo ""; \
 	exit $$FAILS
+
+# -----------------------------------------------------------------------------
+# Include auto-generated header dependency files (produced by -MMD -MP).
+# The leading '-' suppresses errors on first build when .d files don't
+# exist yet.
+-include $(ALL_OBJS:.o=.d)
 
 # -----------------------------------------------------------------------------
 clean:

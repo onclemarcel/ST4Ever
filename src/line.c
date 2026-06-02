@@ -26,6 +26,7 @@
 #include "console.h"
 #include "dir.h"
 #include "edit_txt.h"
+#include "edit_hex.h"
 #include "load.h"
 #include "file.h"
 #include "trace.h"
@@ -150,6 +151,7 @@ void line_update_console_title(const line_context_t *ptCtx)
 
 static dir_view_t      *g_line_ptDirView     = NULL;
 static edit_txt_view_t *g_line_ptEditTxtView = NULL;
+static edit_hex_view_t *g_line_ptEditHexView = NULL;
 
 /* ------------------------------------------------------------------
  * History ring buffer
@@ -1338,20 +1340,47 @@ static st_error_t line_cmd_edit(const parsed_cmd_t *ptParsed,
         return ST_NO_ERROR;
     }
 
-    /* Binary / image files → hex editor (UC9 stub) */
-    if (strcmp(tStat.szExt, "prg") == 0
-     || strcmp(tStat.szExt, "ttp") == 0
-     || strcmp(tStat.szExt, "tos") == 0
-     || strcmp(tStat.szExt, "st")  == 0
+    /* Disk images → redirect to mount */
+    if (strcmp(tStat.szExt, "st")  == 0
      || strcmp(tStat.szExt, "msa") == 0
      || strcmp(tStat.szExt, "stx") == 0)
     {
-        LOG_TODO("edit_hex not yet implemented (UC9)");
-        line_print_msg("Binary/image editing — use edit_hex (UC9).");
+        line_print_warning("'%s' is a disk image. Use 'mount'.",
+                           szPath);
         return ST_NO_ERROR;
     }
 
-    /* Close previous text edit view if open */
+    /* ATARI ST binaries and generic binary extensions → hex editor */
+    if (strcmp(tStat.szExt, "prg") == 0
+     || strcmp(tStat.szExt, "ttp") == 0
+     || strcmp(tStat.szExt, "tos") == 0
+     || strcmp(tStat.szExt, "bin") == 0
+     || strcmp(tStat.szExt, "raw") == 0)
+    {
+        if (g_line_ptEditHexView != NULL)
+        {
+            eResult = edit_hex_close(&g_line_ptEditHexView);
+            if (eResult != ST_NO_ERROR)
+                line_print_warning(
+                    "edit: could not close previous hex view");
+            g_line_ptEditHexView = NULL;
+        }
+        eResult = edit_hex_open(szPath, ptCtx,
+                                 &g_line_ptEditHexView);
+        if (eResult != ST_NO_ERROR)
+        {
+            line_print_error("edit: failed to open '%s'.", szPath);
+            return ST_NO_ERROR;
+        }
+        line_print_msg("Hex-editing '%s' (%zu bytes).",
+                       szPath,
+                       g_line_ptEditHexView
+                       ? g_line_ptEditHexView->uiSize : (size_t)0);
+        line_update_console_title(ptCtx);
+        return ST_NO_ERROR;
+    }
+
+    /* All other files → text editor */
     if (g_line_ptEditTxtView != NULL)
     {
         eResult = edit_txt_close(&g_line_ptEditTxtView);
@@ -2539,6 +2568,13 @@ st_error_t line_shutdown(line_context_t *ptCtx)
     {
         edit_txt_close(&g_line_ptEditTxtView);
         g_line_ptEditTxtView = NULL;
+    }
+
+    /* Close any open hex edit view */
+    if (g_line_ptEditHexView != NULL)
+    {
+        edit_hex_close(&g_line_ptEditHexView);
+        g_line_ptEditHexView = NULL;
     }
 
     /* Save history */

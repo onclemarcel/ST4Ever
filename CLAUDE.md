@@ -23,6 +23,7 @@
 - 2026-06-01: UC6 validé — `src/file.h` + `src/file.c` : `file_stat`, `file_open/read/write/close`, `file_mkdir`, `file_list_dir` (callback) ; CRT + POSIX portable ; ST_APP_VERSION 0.6.0
 - 2026-06-01: UC7 validé — `src/load.h` + `src/load.c` : détection type, chargement binaire raw + PRG stub (magic 0x601A, .text+.data) + fixup TODO(UC15) ; `line_cmd_load()` ; `line_cmd_info()` live ; P11 `szLastSelected` + `g_dir_clrLastSel` (vert sombre) dans `dir_render()` ; `st_machine_t` + `load_init/shutdown` dans `main.c` ; ST_APP_VERSION 0.7.0
 - 2026-06-02: UC8 validé — `src/edit_txt.h` + `src/edit_txt.c` : éditeur texte D2D (load/save, numéros de ligne, sélection, CTRL raccourcis, clipboard) ; `gui.h` : `GUI_MOD_CTRL/SHIFT/ALT` + `uiMods` dans `tKey` + API clipboard ; `win_gui.c` : WM_KEYDOWN/WM_CHAR avec modificateurs, CTRL+lettre via codes de contrôle, implémentation clipboard Win32 ; `lx_gui.c` : stubs clipboard ; `line_cmd_edit()` routage texte/binaire ; `g_line_ptEditTxtView` dans `line.c` ; ST_APP_VERSION 0.8.0
+- 2026-06-02: UC9 validé — `src/edit_hex.h` + `src/edit_hex.c` : éditeur hex+ASCII D2D (load/save, zones HEX/ASCII, navigation nibble, édition nibble+byte, TAB toggle zone, clic souris, CTRL+S) ; routage `line_cmd_edit()` `.prg/.ttp/.tos/.bin/.raw → edit_hex`, `.st/.msa/.stx → mount` ; `g_line_ptEditHexView` dans `line.c` ; ST_APP_VERSION 0.9.0
 
 ## 1. Contexte du projet
 
@@ -44,9 +45,7 @@ Ce projet est une application console interactive multi-plateforme développée 
 
  A noter que l'émulation ATARI ST de ST4Ever est totalement développée from scratch dans un but éducatif : Hatari et STeem sont de très bons émulateurs complet et performants. L'émulation ATARI ST ST4Ever est simplifiée de manière à satisfaire les besoins d'exécution pas-à-pas des fonctions citées ci-dessus.
 
-De futures évolutions du projet seront les utilitaires annexes tels qu'une version GEN.TTP de Devpac3 portée sur PC pour la génération des binaires sur PC sans utiliser d'émulateur tel qu'Hatari ou STeem. Ou encore le développement d'un décompilateur assembleur 68000 vers C pur pour recompiler le programme sous msys2 sur PC.
- 
-L'objectif ultime est la production de code source en C pur compilé sous Msys2 à partir d'images disque de démos ATARI ST pour les compiler au format PC et les exécuter sous Msys2 en fenêtre graphique Windows ou Linux sans émulation ATARI ST (d'où le 'revival'...)
+La phase de "Revival" est une extension qui ST4Ever au-delà de l'émulation ATARI ST vers un portage du code d'une démo ST sous forme de C portable exécutable nativement, sans émulateur 68k, sur de multiples cibles. Le comportement de la démo portée ne sera pas strictement exacte par rapport à l'original ST, mais restera fidèle au "feeling" utilisateur : effets visuels reconnaissables, timing VBL raisonnable, son et inputs présents. L'extension est décrite en détail en section 9.
 
 ### 1.1 Objectifs fonctionnels
 
@@ -343,7 +342,12 @@ Inclure dès UC1 : un binaire 68000 minimal hand-crafté (`MOVEQ #42,D0 + RTS` =
 La majorité des démos contourne le TOS et écrit directement dans les registres matériel. Implémenter en priorité : Line-A (`0xA000-0xA0FF` : affichage, fontes), les registres vidéo Shifter (`0xFF8200-0xFF827F` : palette, résolution, adresse écran), YM2149 (`0xFF8800-0xFF8803` : son). GEMDOS peut rester en stub pour les premières démos.
 
 **R10 — Ordre de développement recommandé**
-Phase 1 (UC1-UC5) : Infrastructure console + Win32/X11 GUI framework. Phase 2 (UC6-UC12) : Fichiers, éditeurs, formats disque. Phase 3 (UC13-UC20) : Désassembleur, assembleur, CPU 68000. Phase 4 (UC21-UC26) : Émulation ST complète, exécution. Phase 5 (UC27+) : Démos.
+Phase 1 (UC1–UC9)  : Infrastructure console + Win32 GUI + éditeurs texte/hex.
+Phase 2 (UC10–UC14): Désassembleur 68000 (UC10–13) + vue intégrée hex+ASCII+désasm (UC14).
+Phase 3 (UC15–UC20): Formats fichiers/disque : PRG fixups, .st/.msa, mount/image.
+Phase 4 (UC21–UC30): CPU 68000 + émulation ST complète + assembleur DEVPAC3.
+Phase 5 (UC31)     : Démo cible via émulateur ST4Ever — référence visuelle + pivot vers revival.
+Phase 6 (UC32–UC39): Extension Revival (§9) — analyse, HAL, Pi Zero bare metal, PC natif.
 
 **R11 — Standard de compilation : `-std=gnu99`**
 Les macros `LOG_TRACE`, `LOG_INFO`, `LOG_ERROR`, `LOG_TODO` utilisent la syntaxe `##__VA_ARGS__` (extension GNU) pour permettre un appel sans argument variadique : `LOG_ERROR("message")`. Cette syntaxe est standard pour tous les compilateurs GCC/MinGW-W64. Le Makefile doit utiliser `-std=gnu99` et non `-std=c99`. Les flags `-DST_PLATFORM_WINDOWS` / `-DST_PLATFORM_LINUX` ne doivent **pas** être passés depuis le Makefile : `common.h` les détecte automatiquement via `_WIN32` et `__linux__` définis par GCC, évitant une redéfinition.
@@ -554,7 +558,7 @@ Les étapes de développement fonctionnelles sont formalisées en Use Cases, per
 | UC6 | plateforme | Abstraction fichiers : open/read/write/stat/mkdir, listing répertoire | ✓ VALIDÉ 2026-06-01 |
 | UC7 | `load` | Chargement fichier texte/binaire, détection type, buffer mémoire ; indicateur visuel sélection active dans vue `dir` (P11 : couleur secondaire sur ligne sélectionnée, ≠ highlight navigation) | ✓ VALIDÉ 2026-06-01 |
 | UC8 | `edit` texte | Vue éditeur texte D2D : scroll, numéros de ligne, sélection, clipboard, sauvegarde ; `GUI_MOD_*` + `uiMods` dans `gui_event_t` ; API clipboard `gui_clipboard_set/get_text` | ✓ VALIDÉ 2026-06-02 |
-| UC9 | `edit` hex | Vue hex/ASCII Win32/GDI + X11 : adresses, scroll, édition octets | navigation + modification |
+| UC9 | `edit` hex | Vue hex+ASCII D2D : adresses, 16 bytes/row, zones HEX/ASCII (TAB), édition nibble+byte, clic souris, CTRL+S save | ✓ VALIDÉ 2026-06-02 |
 | UC10 | `edit` | Vue intégrée hex+ASCII+désasm en colonnes synchronisées | sync curseur entre vues |
 | UC11 | interne | Désassembleur 68000 : MOVE/MOVEQ/LEA/CLR/EXG/SWAP/PEA | désasm binaire de test |
 | UC12 | interne | Désassembleur : ADD/SUB/CMP/MUL/DIV/AND/OR/EOR/NOT/NEG | désasm complet d'un .PRG |
@@ -576,7 +580,15 @@ Les étapes de développement fonctionnelles sont formalisées en Use Cases, per
 | UC28 | interne | Line-A traps + registres Shifter/YM2149 minimaux | démo 1 plan visible |
 | UC29 | interne | XBIOS/GEMDOS minimaux (palette, écran base, VBL wait) | démo dynamique |
 | UC30 | interne | Assembleur DEVPAC3 : directives + instructions de base | .S → .PRG re-exécutable |
-| UC31 | all | Exécution d'une démo ST complète connue (ex. Enchanted Land intro) | **objectif final** |
+| UC31 | all | Démo cible via émulateur ST4Ever (choisie parmi candidats §9.4) : référence visuelle validée + désassemblé complet extrait — **pivot émulation → revival** | démo reconnue + .s extrait |
+| UC32 | interne | Analyse annotée du désassemblé : patterns automatiques (VBL, accès HW $FFxxxx, GEMDOS/XBIOS) + session collaborative manuelle — livrable : `use_cases/UC32/demo.s` commenté | désassemblé .s annoté clos par Tonton Marcel |
+| UC33 | interne | Squelette C portable : flot de contrôle + structures de données + HAL stubs (`hal_vbl_wait`, `hal_palette_set`, `hal_ym_write`…) — compile sur PC avec stubs no-op | squelette C compile, aucun crash |
+| UC34 | interne | Toolchain cross `arm-none-eabi-gcc` + harness test PC (backend `pi0_pc/` dans Makefile ST4Ever) | démo C tourne sur PC via harness D2D/X11 |
+| UC35 | interne | Pi Zero bare metal OS minimal : vecteurs ARM, stack, BSS, UART debug, timer 50 Hz, framebuffer GPU mailbox BCM2835 | écran couleur uni synchronisé VBL sur Pi Zero réel |
+| UC36 | interne | Renderer Pi Zero : framebuffer RGB, modes basse/moyenne résolution ST simulés, palette 16 couleurs, sync VBL | rendu visuel HAL vidéo fonctionnel |
+| UC37 | interne | Son + inputs bare metal : YM2149 via émulateur AY-3 soft (ARM) + sortie PWM BCM2835, clavier/joystick GPIO ou USB HID minimal | son reconnaissable + inputs actifs |
+| UC38 | interne | Intégration complète démo cible sur Pi Zero : code C UC33 + HAL UC35–37 + toolchain UC34 | démo comportement reconnaissable sur Pi Zero bare metal |
+| UC39 | interne | Backend PC natif D2D/X11 : nouvelle plateforme dans Makefile ST4Ever, réutilise HAL validée sur Pi Zero | démo native sur PC sans émulateur 68k — **objectif revival** |
 
 ### 6.1 Use Case 01 (UC1) — VALIDÉ (2026-05-30)
 
@@ -1417,6 +1429,80 @@ Les étapes de développement fonctionnelles sont formalisées en Use Cases, per
 - UC18 (mount) : `GUI_MOD_SHIFT` est désormais transmis par `win_gui.c` → `dir_handle_key()` peut exploiter SHIFT+ESPACE pour la sélection multiple P14 sans modification du backend.
 - Encodage : `WM_CHAR` limité au code page ANSI courant (0xFF mask) — suffisant pour les sources ATARI ST ASCII. Support UTF-8 différé.
 
+### 6.14 Use Case 09 (UC9) — ✓ VALIDÉ (2026-06-02)
+
+**Périmètre fonctionnel implémenté :**
+- `src/edit_hex.h` + `src/edit_hex.c` : éditeur hex+ASCII D2D (`GUI_WND_EDIT_HEX`) :
+  - Chargement complet du fichier en buffer heap via `file.h` ; cap `EDIT_HEX_MAX_SIZE = 16 MB`.
+  - Layout fixe : colonne adresse `XXXXXX:` (7 chars + espace) | zone hex 49 chars (16×3, gap après byte 7) | séparateur ` | ` | zone ASCII 16 chars.
+  - Rendu D2D : fond noir, gutter adresse, highlight ligne courante, zone hex (gris clair), zone ASCII (vert ; '.' pour non-imprimable), curseur hex (bleu, 1 nibble) ou ASCII (jaune, 1 char) avec re-dessin du caractère en blanc.
+  - Deux zones d'édition : `HEX_ZONE_HEX` (édition nibble par nibble : 0–9/A–F) et `HEX_ZONE_ASCII` (édition byte direct : printable 0x20–0x7E), basculement par TAB.
+  - Navigation : ←→ (nibble/byte), ↑↓ (±16 bytes), Home/End (début/fin de row), CTRL+Home/End (début/fin fichier), PgUp/PgDn.
+  - Clic gauche : positionne le curseur sur nibble (zone hex) ou byte (zone ASCII) le plus proche du clic.
+  - Scroll molette verticale.
+  - CTRL+S : sauvegarde via `file_open(FILE_MODE_WRITE)` ; titre `[*]` (R18).
+  - ESC : ferme sans dialog, `LOG_INFO` si dirty.
+  - Mode remplacement uniquement (taille fichier fixe).
+- `src/line.c` :
+  - `g_line_ptEditHexView *edit_hex_view_t` static.
+  - `line_cmd_edit()` : `.prg/.ttp/.tos/.bin/.raw → edit_hex_open` ; `.st/.msa/.stx → "use mount"` ; tous les autres → `edit_txt_open`.
+  - `line_shutdown()` ferme `g_line_ptEditHexView`.
+- `src/common.h` : `ST_APP_VERSION → "0.9.0"`.
+
+**Tests R14/R15 appliqués :**
+- `use_cases/use_case_09.c` : TEST MATRIX **17N + 8R + 8S = 33 tests**, 0 failure
+  - [N] : constantes layout (4), row builder (6 : byte 0, byte 7, gap 24, byte 8, byte 15, partiel), zones enum (3), nibble positions (4)
+  - [R] : NULL guards (8 : path/ctx/pptView/missing×2 + close×2)
+  - [S] : 8 tests visuels `make manual UC=09`
+
+**Contrats comportementaux validés :**
+
+*`edit_hex_open(szPath, ptLineCtx, pptView)`*
+- NULL szPath / ptLineCtx / pptView → `ST_ERROR`
+- Fichier inexistant → `ST_ERROR` + `*pptView = NULL`
+- Fichier > `EDIT_HEX_MAX_SIZE` → `ST_ERROR`
+- Succès : fenêtre D2D visible, curseur en byte 0, zone HEX active
+
+*`edit_hex_close(pptView)`*
+- `pptView=NULL` → `ST_ERROR` ; `*pptView=NULL` → `ST_NO_ERROR` (idempotent)
+- Après close : thread joiné, renderer détruit, `pData` libéré, `*pptView=NULL`
+
+*Row builder (format hex)*
+- Byte i (0≤i<8) : position `i*3` dans la chaîne
+- Byte i (8≤i<16) : position `i*3+1` (le +1 représente le gap après byte 7 à la position 24)
+- Bytes hors portée (> uiSize) : espaces
+- Longueur totale : 49 chars (`EDIT_HEX_HEX_CHARS`)
+
+*Navigation*
+- ← en zone HEX nibble=1 → nibble=0 (reste même byte)
+- ← en zone HEX nibble=0 / zone ASCII → byte précédent (clampé à 0)
+- → en zone HEX nibble=0 → nibble=1
+- → en zone HEX nibble=1 / zone ASCII → byte suivant (clampé à uiSize-1)
+- ↑/↓ : ±EDIT_HEX_BYTES_PER_ROW bytes, clampé
+- Home : début de la row courante, nibble=0
+- CTRL+Home : byte 0, nibble=0
+- End : fin de la row (ou dernier byte si partielle), nibble=1 (hex) ou 0 (ASCII)
+- CTRL+End : dernier byte, nibble=1 (hex) ou 0 (ASCII)
+
+*Édition nibble (zone HEX)*
+- Nibble 0 (haut) : `(iVal << 4) | (byte & 0x0F)` ; avance à nibble=1
+- Nibble 1 (bas) : `(byte & 0xF0) | iVal` ; avance au byte suivant nibble=0
+- `bDirty = TRUE` après toute modification
+
+*Édition byte (zone ASCII)*
+- Printable 0x20–0x7E : écrit le byte, avance au byte suivant
+
+*Clic souris*
+- Click zone ASCII (iX ≥ iAsciiX) → zone ASCII, byte = row×16 + col
+- Click zone HEX (iHexX ≤ iX < iAsciiX) : parcourt les positions de nibble pour trouver le nibble exact → zone HEX
+- Click gutter (iX < iHexX) : ignoré
+
+**Points d'attention pour les UCs suivants :**
+- UC10 : `edit.c` dispatcher intégré — `edit_open()` choisit entre `edit_txt` et `edit_hex` selon l'extension ; les vues hex+ASCII et disassembly 68000 seront synchronisées (curseur partagé).
+- UC11–14 : désassembleur 68000 → vue disassembly dans UC10 (overlay sur la zone hex des sections `.text` d'un PRG).
+- UC15 : `load_do_prg()` fixup relocation → permet de charger le PRG correctement relocalisé en RAM ST avant `edit_hex`.
+- Undo (CTRL+Z) pour le hex editor : non implémenté en UC9 (mode remplacement, fichiers petits → l'utilisateur peut re-ouvrir). À planifier si besoin en UC9-bis.
+
 ## 7. Propositions d'améliorations
 
 *Claude et Tonton Marcel déposent ici leurs propositions UX/fonctionnelles au fil des UCs. Avant de clore un UC, les propositions sont passées en revue ensemble : celles agréées sont planifiées dans le tableau section 6 et retirées d'ici. **Un UC est clos quand §7 ne contient plus de propositions non arbitrées pour cet UC.***
@@ -1585,6 +1671,30 @@ Avis Claude : ACCEPTÉ — la valeur est réelle : `trace level info` cache les 
 
 ---
 
+### Arbitrage UC9 (2026-06-02)
+
+**P31 — Undo (CTRL+Z) pour l'éditeur hex** → **DIFFÉRÉ — UC9-bis si besoin**
+
+Avis Claude : ACCEPTÉ différé. Le mode remplacement avec fichiers ATARI ST (< 900 KB) rend l'undo moins critique qu'en texte : l'utilisateur peut re-ouvrir le fichier original. À implémenter si Tonton Marcel en ressent le besoin (même architecture ring-buffer que UC8).
+
+Avis Tonton: OK pour différer UC10, qui va synchroniser les vues => voir comment gérer le CTRL+Z : est-ce pour la vue texte seule ? ou les 2 ? en fonction des modifications cela peut être complexe à gérer (e.g. une modif byte hex, puis une modif text assembleur, que faire en cas de 2 CTRL+Z : normalement appliquer seulement celui de la vue active, mais cela peut ne pas paraître logique à l'utilisateur s'il peut modifier les 2 vues...) ou sinon simplement ne pas implémenter le CTRL+Z dans la vue hex.
+
+**P32 — SHIFT+flèches pour sélectionner une plage**
+
+Utile pour la vue synchronisée assembleur / hex synchronisée pour visualiser la partie binaire vs code: un surlignage peut apparaître dans les 2 vues lorsqu'un opcode/operand complet est sélectionné et correspond à une instruction assembleur ou vice-versa, une instruction surlignée voit sa correspondance surlignée. Peut-être utile également pour repérer les boucles et conditions dans hex et assembleur, ou encore les structures de données.
+
+Avis Claude: à renseigner
+
+**P33 — Commande 'edit hex' pour forcer une ouverture hex d'un fichier**
+
+Permet de visualiser n'importe quel fichier binaire (e.g. memory dump pendant execution UCxx) ou autre, qui ne soit pas par défaut .PRG, .TTP, .TOS. Par contre, la limite de taille reste inchangée, car on reste dans le domaine ATARI ST.
+
+Avis Claude: à renseigner
+
+*Aucune autre proposition ouverte pour UC9. UC9 Phase 1 complète.*
+
+---
+
 ### Arbitrage UC8 (2026-06-02)
 
 **P29 — Undo (CTRL+Z) dans l'éditeur texte** → **IMPLÉMENTÉ — UC8 (2026-06-02)**
@@ -1611,3 +1721,188 @@ P11 était arbitrée ACCEPTÉ depuis UC3.3 et planifiée à UC7. Implémentation
 
 ## 8. Licence & attribution
 Pas de redistribution prévue à ce jour
+
+## 9. Extension : ST Revival sur Pi Zero Bare Metal
+
+### 9.1 Vision et objectif
+
+Cette extension prolonge ST4Ever au-delà de l'émulation ATARI ST vers
+un "revival" authentique : porter le code d'une démo ST sous forme de
+C portable exécutable nativement, sans émulateur 68k, sur trois cibles :
+
+- **Pi Zero bare metal** : cible principale, ARM1176, accès HW direct,
+  sans OS — fonctionnellement analogue au TOS (pas de multitasking,
+  pas de MMU complexe). C'est la cible la plus contraignante et celle
+  qui force la bonne abstraction.
+- **PC Windows** : backend Direct2D existant, réutilisé tel quel.
+- **PC Linux** : backend X11 existant, réutilisé tel quel.
+
+Le comportement de la démo portée ne sera pas pixel-perfect par rapport
+à l'original ST, mais restera fidèle au "feeling" utilisateur : effets
+visuels reconnaissables, timing VBL raisonnable, son et inputs présents.
+
+La démo de référence pourrait être l'une des **Cudly Demos** des TCB (The CareBears) (UC31).
+
+### 9.2 Relation avec les UC existants
+
+UC31 change de statut : il n'est plus l'objectif terminal du projet
+mais le **point de pivot** entre la phase émulation et la phase revival.
+UC31 produit la démo tournant via émulateur ST — cette référence visuelle
+et le désassemblé extrait alimentent directement UC32.
+
+Séquence globale révisée :
+
+```
+
+UC1–UC30 Infrastructure ST4Ever (inchangée)
+UC31 Démo via émulateur ST — référence visuelle + extraction désasm
+UC32 Analyse annotée du désassemblé — patterns automatiques + manuel
+UC33 Squelette C portable — flot de contrôle + HAL stubs
+UC34 Toolchain cross + harness test PC
+UC35 Pi Zero bare metal OS minimal
+UC36 Renderer Pi Zero — framebuffer, palette, VBL
+UC37 Son + inputs bare metal
+UC38 Démo Enchanted Land sur Pi Zero — "revival bare metal"
+UC39+ Backend PC natif D2D/X11 — "revival PC sans émulation"
+```
+
+### 9.3 Description détaillée des UC d'extension
+
+**UC32 — Analyse annotée du désassemblé**
+
+UC32 produit une version enrichie du désassemblé UC11–UC14 via deux
+niveaux d'analyse :
+
+*Niveau automatique (Claude) :*
+Le désassemblé 68k est parcouru par un analyseur de patterns qui détecte
+et annote les structures typiques des démos ST avec une probabilité
+estimée :
+
+| Pattern détecté | Annotation produite |
+|---|---|
+| `move.l #handler,$70.w` | `; [VBL_INSTALL ~95%]` |
+| Accès `$FF8200`–`$FF827F` | `; [HW: video_base_hi]` etc. |
+| Accès `$FF8800`–`$FF8803` | `; [HW: YM2149_reg/data]` |
+| Accès `$FFFA00`–`$FFFA2F` | `; [HW: MFP_reg]` |
+| `trap #1` + D0 | `; [GEMDOS call: Pterm0 etc.]` |
+| `trap #14` + D0 | `; [XBIOS call: Vsync etc.]` |
+| `dbra` + bloc `move.w (A0)+,(A1)+` | `; [BLITTER_SOFT ~70%]` |
+| Table 32 mots oscillants 0–200 | `; [DATA: sinus_table ~80%]` |
+| Densité HW élevée par bloc | `; [BLOCK: graphic_engine ~75%]` |
+
+*Niveau manuel (Tonton Marcel + Claude) :*
+Session d'analyse collaborative sur le désassemblé annoté. Claude
+propose des identifications de blocs fonctionnels (décompacteur, scroller,
+effet raster, loader), Tonton Marcel valide et nomme. Ce travail produit
+un désassemblé commenté qui est le matériau source de UC33.
+
+UC32 est le seul UC du projet sans livrable entièrement automatisable —
+son critère de clôture est la validation par Tonton Marcel que les blocs
+fonctionnels principaux sont identifiés et nommés.
+
+**UC33 — Squelette C portable avec HAL stubs**
+
+À partir du désassemblé commenté UC32, production d'un programme C
+répliquant le flot de contrôle et les structures de données de la démo.
+Chaque accès HW est remplacé par un appel à une fonction stub HAL :
+`hal_set_video_base()`, `hal_vbl_wait()`, `hal_palette_set()`,
+`hal_ym_write()`, etc. Le squelette compile et s'exécute sur PC
+(avec stubs no-op) sans aucun code HW réel. C'est la HAL qui définit
+le contrat entre la logique démo et les backends suivants.
+
+**UC34 — Toolchain cross + harness test PC**
+
+Installation et validation du toolchain `arm-none-eabi-gcc` pour
+cross-compilation ARM bare metal. Mise en place d'un harness de test PC :
+le même code C portable UC33 compile avec un backend Win/D2D ou X11
+(réutilisant l'infrastructure ST4Ever existante) pour valider la logique
+sans passer par le Pi Zero. Ce harness est l'équivalent Pi Zero de ce
+que l'émulateur ST est pour le 68k.
+
+**UC35 — Pi Zero bare metal OS minimal**
+
+OS bare metal ARM minimaliste fonctionnellement analogue au TOS :
+démarrage (vecteurs ARM, stack, BSS clear), UART debug, timer
+(émulation VBL à 50 Hz), framebuffer via GPU mailbox BCM2835,
+pas de multitasking, pas de MMU. Le critère de clôture est l'affichage
+d'un écran de couleur unie synchronisé VBL sur Pi Zero réel.
+
+**UC36 — Renderer Pi Zero**
+
+Implémentation des fonctions HAL vidéo sur Pi Zero : framebuffer RGB,
+modes basse/moyenne résolution ST simulés, palette 16 couleurs,
+synchronisation VBL. Réutilise les interfaces HAL définies en UC33.
+
+**UC37 — Son + inputs bare metal**
+
+Émulation YM2149 logicielle via un émulateur AY-3 open source (~300
+lignes C, ex. `ayumi` ou équivalent) tournant sur le cœur ARM ; la
+sortie PCM est envoyée vers le PWM BCM2835. Cette approche donne un
+timing plus prévisible qu'une attaque directe du PWM et un son plus
+fidèle qu'une approximation par registres. Lecture clavier/joystick
+via GPIO ou USB HID minimal. Complète la HAL pour tous les services
+requis par la démo.
+
+**UC38 — Démo cible sur Pi Zero bare metal**
+
+Intégration complète : code C UC33 + HAL UC35–UC37 + toolchain UC34.
+La démo (choisie en UC31, voir §9.4) s'exécute sur Pi Zero bare metal.
+Critère de clôture : comportement visuel et sonore reconnaissable par
+rapport à la référence émulateur UC31. C'est l'objectif terminal de
+la branche Pi Zero.
+
+**UC39+ — Backend PC natif D2D/X11**
+
+La HAL étant définie et validée sur Pi Zero (le cas le plus contraint),
+l'implémentation du backend PC est l'ajout d'une nouvelle plateforme
+dans l'architecture existante ST4Ever. La démo tourne sur PC sans
+émulateur 68k — c'est l'objectif §1 original du projet.
+
+### 9.4 Recommandations spécifiques à l'extension
+
+**R_EXT_1 — HAL comme contrat inter-UC**
+Les signatures des fonctions HAL définies en UC33 sont contractuelles :
+elles ne changent pas entre UC34 et UC39. Tout besoin nouveau d'une
+démo future s'ajoute à la HAL sans modifier l'existant.
+
+**R_EXT_2 — Pi Zero comme cible de référence, pas PC**
+La HAL est dimensionnée par les contraintes Pi Zero (pas de float HW,
+mémoire limitée, pas d'OS). Le backend PC ne peut qu'être plus simple,
+jamais plus contraint. Concevoir pour Pi Zero d'abord garantit la
+portabilité descendante.
+
+**R_EXT_3 — UC32 : livrable = fichier .s annoté**
+Le désassemblé commenté UC32 est versionné dans `use_cases/UC32/`
+au même titre que les fixtures UC01. C'est la source de vérité pour
+UC33 — toute modification de l'analyse se fait sur ce fichier.
+
+**R_EXT_4 — Harness PC UC34 : réutiliser gui.c/renderer.c**
+Le harness de test PC n'est pas un nouveau projet — c'est une nouvelle
+cible dans le Makefile ST4Ever existant, avec un backend `pi0_pc/`
+ajouté à côté de `win/` et `linux/`. La logique de threading et de
+message queue est réutilisée telle quelle.
+
+**R_EXT_5 — Sélection de la démo cible (décision UC31)**
+La démo cible n'est pas fixée avant UC31 ; elle est choisie pendant
+cet UC à partir de trois candidats explorés avec ST4Ever lui-même :
+
+| Candidat | Source | Critères à vérifier en UC31 |
+|---|---|---|
+| Effet issu de `ggnkua/Atari_ST_Sources` | GitHub — sources ST collectées | < 10 Ko .text, pas d'opcodes illégaux, pas STE |
+| Démo custom basée sur tutoriaux Perihelion (`nguillaumin/perihelion-m68k-tutorials`) | GitHub + site html | VBL + palette + YM2149 + scroll ; code conçu pour la HAL |
+| FujiBoink (`larsbrinkhoff/FujiBoink`) | GitHub — source disponible | Inspecter taille .text et features HW |
+
+Critère de sélection : section `.text` < 10 Ko, pas d'opcode STE ni
+illégal, couvre VBL + Shifter + YM2149. La démo custom Perihelion est
+le choix le plus sûr si aucun candidat "historique" ne satisfait les
+critères — son code pédagogique maximise l'utilité éducative d'UC32.
+
+**R_EXT_6 — Émulateur YM2149 : préférer un soft émulateur ARM**
+Plutôt qu'une attaque directe du PWM BCM2835 par registres YM2149,
+UC37 intègre un émulateur AY-3/YM2149 open source (ex. `ayumi`,
+MIT License, ~400 lignes C portable) qui génère un buffer PCM envoyé
+au PWM. Avantages : timing prévisible, son plus fidèle, portabilité
+vers le backend PC (même émulateur, sortie vers SDL_audio ou PortAudio
+en UC39). La HAL expose `hal_ym_write(reg, val)` — l'implémentation
+sous-jacente (émulateur soft vs accès direct) est transparente pour
+UC33.
