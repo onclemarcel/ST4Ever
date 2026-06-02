@@ -224,34 +224,67 @@ static LRESULT CALLBACK win_wnd_proc(HWND   hWnd,
         }
         break;
 
-    /* Non-printable navigation keys */
+    /* Non-printable navigation keys — forward with modifier flags */
     case WM_KEYDOWN:
     {
         gui_key_t eKey;
+        st_u8_t   uiMods;
+
         eKey = win_translate_vkey((UINT)wParam);
         if (eKey != GUI_KEY_NONE
         &&  ptWnd != NULL && ptWnd->tDesc.pfnEvent != NULL)
         {
-            tEvt.eType            = GUI_EVT_KEY_DOWN;
-            tEvt.uData.tKey.eKey  = eKey;
-            tEvt.uData.tKey.cChar = 0;
+            uiMods = 0;
+            if (GetKeyState(VK_CONTROL) & 0x8000)
+                uiMods |= (st_u8_t)GUI_MOD_CTRL;
+            if (GetKeyState(VK_SHIFT)   & 0x8000)
+                uiMods |= (st_u8_t)GUI_MOD_SHIFT;
+            if (GetKeyState(VK_MENU)    & 0x8000)
+                uiMods |= (st_u8_t)GUI_MOD_ALT;
+            tEvt.eType             = GUI_EVT_KEY_DOWN;
+            tEvt.uData.tKey.eKey   = eKey;
+            tEvt.uData.tKey.cChar  = 0;
+            tEvt.uData.tKey.uiMods = uiMods;
             ptWnd->tDesc.pfnEvent((gui_window_t)ptWnd, &tEvt,
                                    ptWnd->tDesc.pUserCtx);
         }
         break;
     }
 
-    /* Printable ASCII character (translated from WM_KEYDOWN by Win32) */
+    /* Character input — printable and CTRL+letter control codes */
     case WM_CHAR:
     {
-        char cChar = (char)(wParam & 0x7F);
-        if (cChar >= 32
-        &&  ptWnd != NULL && ptWnd->tDesc.pfnEvent != NULL)
+        WCHAR   wChar  = (WCHAR)wParam;
+        st_u8_t uiMods = 0;
+
+        if (GetKeyState(VK_SHIFT)   & 0x8000)
+            uiMods |= (st_u8_t)GUI_MOD_SHIFT;
+
+        if (ptWnd == NULL || ptWnd->tDesc.pfnEvent == NULL)
+            break;
+
+        if (wChar >= 1 && wChar <= 26)
         {
-            tEvt.eType            = GUI_EVT_KEY_DOWN;
-            tEvt.uData.tKey.eKey  =
-                (gui_key_t)(GUI_KEY_PRINTABLE + (unsigned)cChar);
-            tEvt.uData.tKey.cChar = cChar;
+            /* CTRL+letter: forward as GUI_KEY_PRINTABLE+'A'..'Z'
+             * with GUI_MOD_CTRL so views can dispatch CTRL actions. */
+            int iLetter = 'A' + (int)wChar - 1;
+            tEvt.eType             = GUI_EVT_KEY_DOWN;
+            tEvt.uData.tKey.eKey   =
+                (gui_key_t)(GUI_KEY_PRINTABLE + iLetter);
+            tEvt.uData.tKey.cChar  = (char)iLetter;
+            tEvt.uData.tKey.uiMods = (st_u8_t)GUI_MOD_CTRL;
+            ptWnd->tDesc.pfnEvent((gui_window_t)ptWnd, &tEvt,
+                                   ptWnd->tDesc.pUserCtx);
+        }
+        else if (wChar >= 32)
+        {
+            char cChar = (char)(wChar & 0xFF);
+            tEvt.eType             = GUI_EVT_KEY_DOWN;
+            tEvt.uData.tKey.eKey   =
+                (gui_key_t)(GUI_KEY_PRINTABLE
+                            + (unsigned char)cChar);
+            tEvt.uData.tKey.cChar  = cChar;
+            tEvt.uData.tKey.uiMods = uiMods;
             ptWnd->tDesc.pfnEvent((gui_window_t)ptWnd, &tEvt,
                                    ptWnd->tDesc.pUserCtx);
         }
@@ -645,6 +678,97 @@ st_error_t gui_platform_shutdown(void)
     LOG_TRACE("(void)");
     UnregisterClassA(ST4EVER_WNDCLASS, GetModuleHandleA(NULL));
     LOG_INFO("WNDCLASS '%s' unregistered", ST4EVER_WNDCLASS);
+    return ST_NO_ERROR;
+}
+
+/* ------------------------------------------------------------------
+ * Clipboard
+ * ------------------------------------------------------------------ */
+
+st_error_t gui_clipboard_set_text(const char *szText)
+{
+    HGLOBAL hGlobal;
+    char   *pDst;
+    size_t  uiLen;
+
+    if (szText == NULL)
+    {
+        LOG_ERROR("NULL parameter: szText=%p", (void *)szText);
+        return ST_ERROR;
+    }
+    uiLen   = strlen(szText) + 1;
+    hGlobal = GlobalAlloc(GMEM_MOVEABLE, uiLen);
+    if (hGlobal == NULL)
+    {
+        LOG_ERROR("GlobalAlloc failed: %lu", GetLastError());
+        return ST_ERROR;
+    }
+    pDst = (char *)GlobalLock(hGlobal);
+    if (pDst == NULL)
+    {
+        GlobalFree(hGlobal);
+        LOG_ERROR("GlobalLock failed: %lu", GetLastError());
+        return ST_ERROR;
+    }
+    memcpy(pDst, szText, uiLen);
+    GlobalUnlock(hGlobal);
+
+    if (!OpenClipboard(NULL))
+    {
+        GlobalFree(hGlobal);
+        LOG_ERROR("OpenClipboard failed: %lu", GetLastError());
+        return ST_ERROR;
+    }
+    EmptyClipboard();
+    if (SetClipboardData(CF_TEXT, hGlobal) == NULL)
+    {
+        CloseClipboard();
+        GlobalFree(hGlobal);
+        LOG_ERROR("SetClipboardData failed: %lu", GetLastError());
+        return ST_ERROR;
+    }
+    CloseClipboard();
+    return ST_NO_ERROR;
+}
+
+st_error_t gui_clipboard_get_text(char *szBuf, size_t uiMax)
+{
+    HGLOBAL     hGlobal;
+    const char *pSrc;
+    size_t      uiLen;
+
+    if (szBuf == NULL || uiMax == 0)
+    {
+        LOG_ERROR("NULL/zero parameter");
+        return ST_ERROR;
+    }
+    szBuf[0] = '\0';
+
+    if (!OpenClipboard(NULL))
+    {
+        LOG_ERROR("OpenClipboard failed: %lu", GetLastError());
+        return ST_ERROR;
+    }
+    hGlobal = (HGLOBAL)GetClipboardData(CF_TEXT);
+    if (hGlobal == NULL)
+    {
+        CloseClipboard();
+        return ST_ERROR;
+    }
+    pSrc = (const char *)GlobalLock(hGlobal);
+    if (pSrc == NULL)
+    {
+        CloseClipboard();
+        LOG_ERROR("GlobalLock failed: %lu", GetLastError());
+        return ST_ERROR;
+    }
+    uiLen = strlen(pSrc);
+    if (uiLen >= uiMax)
+        uiLen = uiMax - 1;
+    memcpy(szBuf, pSrc, uiLen);
+    szBuf[uiLen] = '\0';
+    GlobalUnlock(hGlobal);
+    CloseClipboard();
     return ST_NO_ERROR;
 }
 

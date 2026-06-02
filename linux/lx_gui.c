@@ -120,4 +120,27 @@ st_error_t gui_platform_window_set_title(struct gui_window_s *ptWnd,
     return ST_NO_ERROR;
 }
 
+st_error_t gui_clipboard_set_text(const char *szText)
+{
+    if (szText == NULL)
+    {
+        LOG_ERROR("NULL parameter: szText=%p", (void *)szText);
+        return ST_ERROR;
+    }
+    LOG_TODO("gui_clipboard_set_text: X11 CLIPBOARD selection (UC8-Linux)");
+    return ST_NO_ERROR;
+}
+
+st_error_t gui_clipboard_get_text(char *szBuf, size_t uiMax)
+{
+    if (szBuf == NULL || uiMax == 0)
+    {
+        LOG_ERROR("NULL/zero parameter");
+        return ST_ERROR;
+    }
+    szBuf[0] = '\0';
+    LOG_TODO("gui_clipboard_get_text: X11 CLIPBOARD selection (UC8-Linux)");
+    return ST_ERROR;
+}
+
 #endif /* ST_PLATFORM_LINUX */

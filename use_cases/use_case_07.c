@@ -11,25 +11,20 @@
  *   use_cases/UC01/hello.prg      — valid PRG: magic 0x601A, 4-byte .text
  *
  * TEST MATRIX - UC7:
- *   [N] Nominal    : 19 tests - load_init/shutdown lifecycle;
- *                               load_file binary/txt/prg;
- *                               load_get_state fields;
- *                               RAM content after binary load;
- *                               RAM content after PRG load;
- *                               load replaces previous state;
- *                               rejected: dir / disk image;
- *                               get_state always non-NULL
- *   [R] Robustness :  8 tests - NULL params (init/file);
- *                               load without init;
- *                               non-existent file;
- *                               bad PRG magic;
+ *   [N] Nominal    : 33 tests - load_init/shutdown lifecycle (7);
+ *                               load_file binary, txt, PRG (17);
+ *                               load replaces state (2);
+ *                               rejection: dir / disk image (2);
+ *                               state preserved after failed PRG (1);
+ *                               get_state always non-NULL (1); re-init (1)
+ *   [R] Robustness :  6 tests - NULL params (init/file); load without
+ *                               init; non-existent file; bad PRG magic;
  *                               double shutdown
  *   [S] Skipped    :  4 tests - P11 dir visual indicator (make manual)
  *
  * Traceability:
- *   INT-LOD-001..010 → TC-LOD-001..027 → REQ-LOD-001..014
- *   UFR-LOD-001..005
- *   INT-DIR-011 → TC-DIR-031..034 → REQ-DIR-021 (P11 secondary sel)
+ *   INT-LOD-001..008 → TC-LOD-001..017 → REQ-LOD-001..014 → UFR-LOD-001..005
+ *   INT-DIR-011 → TC-DIR-031..034 → REQ-DIR-023 → UFR-DIR-013 (P11)
  */
 
 #include "use_cases.h"
@@ -54,20 +49,20 @@ int main(void)
      * BLOCK 1 — lifecycle: load_init / load_shutdown
      * ================================================================ */
 
-    /* INTENT[INT-LOD-001 → TC-LOD-001 → REQ-LOD-001]:
-     * load_init() with NULL must be rejected. */
+    /* INTENT[INT-LOD-001 → TC-LOD-001 → REQ-LOD-001 → UFR-LOD-001]:
+     * load_init() with NULL is rejected before touching module state. */
     UC_TEST("[R] load_init(NULL) → ST_ERROR",
             load_init(NULL) == ST_ERROR);
 
-    /* INTENT[INT-LOD-001 → TC-LOD-002 → REQ-LOD-001]:
-     * load_init() with a valid machine must succeed and reset state. */
+    /* INTENT[INT-LOD-001 → TC-LOD-002..003 → REQ-LOD-001..002 → UFR-LOD-001]:
+     * load_init() with a valid machine succeeds and resets state; get_state
+     * reflects bLoaded=FALSE and eType=NONE immediately after init. */
     memset(&tMachine, 0, sizeof(tMachine));
     tMachine.bPoweredOn = ST_TRUE;
     UC_TEST("[N] load_init(valid) → ST_NO_ERROR",
             load_init(&tMachine) == ST_NO_ERROR);
 
-    /* INTENT[INT-LOD-002 → TC-LOD-003 → REQ-LOD-002]:
-     * After load_init(), get_state reports nothing loaded. */
+    /* (continued — see above INTENT block) */
     ptState = load_get_state();
     UC_TEST("[N] get_state != NULL",
             ptState != NULL);
@@ -76,8 +71,8 @@ int main(void)
     UC_TEST("[N] get_state after init: eType=NONE",
             ptState->eType == LOAD_TYPE_NONE);
 
-    /* INTENT[INT-LOD-001 → TC-LOD-004 → REQ-LOD-001]:
-     * load_shutdown() resets the module cleanly. */
+    /* INTENT[INT-LOD-001 → TC-LOD-004..005 → REQ-LOD-001,REQ-LOD-013 → UFR-LOD-001]:
+     * load_shutdown() resets state cleanly; double shutdown is idempotent. */
     UC_TEST("[N] load_shutdown() → ST_NO_ERROR",
             load_shutdown() == ST_NO_ERROR);
 
@@ -85,8 +80,7 @@ int main(void)
     UC_TEST("[N] get_state after shutdown: bLoaded=FALSE",
             ptState->bLoaded == ST_FALSE);
 
-    /* INTENT[INT-LOD-001 → TC-LOD-005 → REQ-LOD-001]:
-     * Double shutdown is idempotent (no crash, ST_NO_ERROR). */
+    /* (continued — see above INTENT block) */
     UC_TEST("[R] double load_shutdown() → ST_NO_ERROR",
             load_shutdown() == ST_NO_ERROR);
 
@@ -94,8 +88,8 @@ int main(void)
      * BLOCK 2 — load_file without prior load_init
      * ================================================================ */
 
-    /* INTENT[INT-LOD-003 → TC-LOD-006 → REQ-LOD-003]:
-     * Calling load_file before load_init must fail. */
+    /* INTENT[INT-LOD-002 → TC-LOD-006 → REQ-LOD-003 → UFR-LOD-001]:
+     * load_file() before load_init() must fail with ST_ERROR. */
     UC_TEST("[R] load_file without init → ST_ERROR",
             load_file(UC07_TXT_PATH) == ST_ERROR);
 
@@ -112,13 +106,12 @@ int main(void)
      * BLOCK 3 — NULL and non-existent paths
      * ================================================================ */
 
-    /* INTENT[INT-LOD-003 → TC-LOD-007 → REQ-LOD-003]:
-     * NULL szPath is always rejected. */
+    /* INTENT[INT-LOD-002 → TC-LOD-007..008 → REQ-LOD-003..004 → UFR-LOD-001]:
+     * NULL szPath and non-existent path are rejected with ST_ERROR. */
     UC_TEST("[R] load_file(NULL) → ST_ERROR",
             load_file(NULL) == ST_ERROR);
 
-    /* INTENT[INT-LOD-003 → TC-LOD-008 → REQ-LOD-004]:
-     * Non-existent path must return ST_ERROR. */
+    /* (continued — see above INTENT block) */
     UC_TEST("[R] load_file non-existent → ST_ERROR",
             load_file("use_cases/UC07/no_such_file.bin") == ST_ERROR);
 
@@ -126,9 +119,9 @@ int main(void)
      * BLOCK 4 — binary load (hello.bin, 16 bytes 0x00..0x0F)
      * ================================================================ */
 
-    /* INTENT[INT-LOD-004 → TC-LOD-009 → REQ-LOD-005,REQ-LOD-006]:
-     * A plain binary file is loaded at ST_LOAD_BASE as LOAD_TYPE_BINARY
-     * with content copied verbatim into ST RAM. */
+    /* INTENT[INT-LOD-003 → TC-LOD-009 → REQ-LOD-005..006 → UFR-LOD-002..003]:
+     * A plain binary file is loaded at ST_LOAD_BASE as LOAD_TYPE_BINARY;
+     * state fields (path, addr, size) are correct; RAM content is verbatim. */
     UC_TEST("[N] load_file binary → ST_NO_ERROR",
             load_file(UC07_BIN_PATH) == ST_NO_ERROR);
 
@@ -156,8 +149,9 @@ int main(void)
      * BLOCK 5 — text load (hello.txt)
      * ================================================================ */
 
-    /* INTENT[INT-LOD-004 → TC-LOD-010 → REQ-LOD-005]:
-     * A text file (no special extension) is treated as LOAD_TYPE_BINARY. */
+    /* INTENT[INT-LOD-003 → TC-LOD-010 → REQ-LOD-005 → UFR-LOD-002..003]:
+     * A text file (no special extension) is treated as LOAD_TYPE_BINARY;
+     * RAM[LOAD_BASE] holds the first character of file content. */
     UC_TEST("[N] load_file txt → ST_NO_ERROR",
             load_file(UC07_TXT_PATH) == ST_NO_ERROR);
 
@@ -171,8 +165,9 @@ int main(void)
      * BLOCK 6 — PRG load (hello.prg: magic 0x601A, 4-byte .text)
      * ================================================================ */
 
-    /* INTENT[INT-LOD-005 → TC-LOD-011 → REQ-LOD-007,REQ-LOD-008]:
-     * Valid PRG: magic validated, .text+.data loaded at ST_LOAD_BASE. */
+    /* INTENT[INT-LOD-004 → TC-LOD-011 → REQ-LOD-007..008 → UFR-LOD-004]:
+     * Valid PRG (magic 0x601A): .text+.data loaded at ST_LOAD_BASE;
+     * state shows eType=PRG, uiSize=4; RAM contains MOVEQ #42 opcode. */
     memset(tMachine.aRam, 0, sizeof(tMachine.aRam));
     UC_TEST("[N] load_file PRG → ST_NO_ERROR",
             load_file(UC01_PRG_PATH) == ST_NO_ERROR);
@@ -198,8 +193,8 @@ int main(void)
      * BLOCK 7 — load replaces previous state
      * ================================================================ */
 
-    /* INTENT[INT-LOD-006 → TC-LOD-012 → REQ-LOD-009]:
-     * A new successful load replaces the previous load state. */
+    /* INTENT[INT-LOD-005 → TC-LOD-012..013 → REQ-LOD-009 → UFR-LOD-001..003]:
+     * A new successful load replaces the previous load state completely. */
     UC_TEST("[N] second load (bin) replaces PRG state",
             load_file(UC07_BIN_PATH) == ST_NO_ERROR);
     ptState = load_get_state();
@@ -210,13 +205,13 @@ int main(void)
      * BLOCK 8 — rejected: directory and disk image
      * ================================================================ */
 
-    /* INTENT[INT-LOD-007 → TC-LOD-013 → REQ-LOD-010]:
-     * Directories must be rejected (use mount). */
+    /* INTENT[INT-LOD-006 → TC-LOD-014..015 → REQ-LOD-010..011 → UFR-LOD-002]:
+     * Directories and disk images (.st/.msa/.stx) must be rejected with
+     * ST_ERROR; the caller (line_cmd_load) shows user-friendly messages. */
     UC_TEST("[N] load_file dir → ST_ERROR",
             load_file("use_cases/UC07") == ST_ERROR);
 
-    /* INTENT[INT-LOD-007 → TC-LOD-014 → REQ-LOD-011]:
-     * .st disk images must be rejected (use mount). */
+    /* (continued — see above INTENT block) */
     UC_TEST("[N] load_file .st disk image → ST_ERROR",
             load_file(UC07_ST_PATH) == ST_ERROR);
 
@@ -224,8 +219,9 @@ int main(void)
      * BLOCK 9 — bad PRG magic
      * ================================================================ */
 
-    /* INTENT[INT-LOD-005 → TC-LOD-015 → REQ-LOD-008]:
-     * PRG with bad magic is rejected; previous state is preserved. */
+    /* INTENT[INT-LOD-004 → TC-LOD-016..017 → REQ-LOD-008,REQ-LOD-009 → UFR-LOD-004]:
+     * PRG with wrong magic (0xDEAD) is rejected; previous load state is
+     * preserved — a failed load never partially overwrites the state. */
     UC_TEST("[R] load_file bad PRG magic → ST_ERROR",
             load_file(UC07_BADPRG_PATH) == ST_ERROR);
 
@@ -240,14 +236,21 @@ int main(void)
     UC_TEST("[N] load_shutdown() final → ST_NO_ERROR",
             load_shutdown() == ST_NO_ERROR);
 
-    /* INTENT[INT-LOD-002 → TC-LOD-016 → REQ-LOD-002]:
-     * load_get_state() never returns NULL (safe at any time). */
+    /* INTENT[INT-LOD-001 → TC-LOD-017..018 → REQ-LOD-002,REQ-LOD-013 → UFR-LOD-001]:
+     * After final shutdown, get_state() never returns NULL — the pointer
+     * to the internal static state is permanently valid. */
     UC_TEST("[N] load_get_state() != NULL after shutdown",
             load_get_state() != NULL);
 
     /* ================================================================
      * BLOCK 11 — [S] P11 visual indicator (manual only)
-     * ================================================================ */
+     * ================================================================
+     * INTENT[INT-DIR-011 → TC-DIR-031..034 → REQ-DIR-023 → UFR-DIR-013]:
+     * When ENTER or SPACE commits a file selection in the dir view,
+     * dir_view_t.szLastSelected is updated and dir_render() draws a dark
+     * green background (g_dir_clrLastSel) on that row, visually distinct
+     * from the navigation cursor highlight (blue).  Moving the cursor
+     * away does not remove the green; a new commit moves it. */
 
     TEST_MANUAL(
         "[S] P11: ENTER on file → green secondary background",

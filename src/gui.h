@@ -55,6 +55,11 @@ typedef enum gui_wnd_type_e
  * Input events
  * ------------------------------------------------------------------ */
 
+/* Modifier key bitmask flags (combinable, passed in tKey.uiMods) */
+#define GUI_MOD_CTRL  0x01u
+#define GUI_MOD_SHIFT 0x02u
+#define GUI_MOD_ALT   0x04u
+
 /* Key codes (platform-independent subset) */
 typedef enum gui_key_e
 {
@@ -110,7 +115,8 @@ typedef struct gui_event_s
 
     union
     {
-        struct sKey { gui_key_t eKey; char cChar; } tKey;
+        struct sKey { gui_key_t eKey; char cChar;
+                      st_u8_t uiMods; } tKey;
         struct sMouse { gui_mouse_btn_t eBtn; int iX; int iY; } tMouse;
         struct sScroll { int iDelta; } tScroll;
         struct sResize { int iWidth; int iHeight; } tResize;
@@ -334,5 +340,37 @@ st_error_t gui_msg_get(gui_msg_queue_t  hQueue,
  *   ST_ERROR    if pphQueue or *pphQueue is NULL.
  */
 st_error_t gui_msg_destroy(gui_msg_queue_t *pphQueue);
+
+/* ------------------------------------------------------------------
+ * Clipboard
+ * ------------------------------------------------------------------ */
+
+/*
+ * gui_clipboard_set_text() - Copy a NUL-terminated string to the
+ * system clipboard.
+ *
+ * Parameters:
+ *   szText [in] : Text to copy (must not be NULL).
+ *
+ * Returns:
+ *   ST_NO_ERROR on success.
+ *   ST_ERROR    on platform failure or NULL parameter.
+ */
+st_error_t gui_clipboard_set_text(const char *szText);
+
+/*
+ * gui_clipboard_get_text() - Read text from the system clipboard.
+ *
+ * szBuf is always NUL-terminated on return (empty string on failure).
+ *
+ * Parameters:
+ *   szBuf  [out] : Destination buffer.
+ *   uiMax  [in]  : Buffer capacity in bytes (including NUL).
+ *
+ * Returns:
+ *   ST_NO_ERROR if text was read.
+ *   ST_ERROR    on platform failure, empty clipboard, or bad params.
+ */
+st_error_t gui_clipboard_get_text(char *szBuf, size_t uiMax);
 
 #endif /* GUI_H */

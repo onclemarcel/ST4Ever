@@ -187,9 +187,28 @@ through one or more test cases in Section 5.
 | UFR-FIL-006 | `file_mkdir()` shall create a single directory level; calling on an already-existing directory shall succeed silently. | ✓ UC6 | UC6 |
 | UFR-FIL-007 | `file_list_dir()` shall enumerate directory entries via a user-supplied callback, excluding `.` and `..` always and optionally entries starting with `.`; the callback receives the full path, the entry name, and a pre-filled `file_stat_t`. | ✓ UC6 | UC6 |
 
-### 1.6 Editor Views — `EDT` (TODO UC8–10)
+### 1.6 Load Command — `LOD` (UC7)
 
-*Requirements will be detailed when UC8–UC10 are planned.*
+| ID          | Requirement                                                                                                         | Status   | UC   |
+|-------------|---------------------------------------------------------------------------------------------------------------------|----------|------|
+| UFR-LOD-001 | The `load` command shall accept a file path as argument; when no argument is given it shall fall back to the path selected via `dir`; if neither is available, it shall display an informational message and return without error. | ✓ UC7 | UC7 |
+| UFR-LOD-002 | The `load` command shall detect the file type via `file_stat()` and reject directories and disk images (`.st`/`.msa`/`.stx`) with a user-readable message indicating that `mount` should be used instead. | ✓ UC7 | UC7 |
+| UFR-LOD-003 | For any accepted non-PRG file, `load` shall copy the file content verbatim into emulated ST RAM at address `ST_LOAD_BASE` (0x0800) and report the load address and byte count to the user. | ✓ UC7 | UC7 |
+| UFR-LOD-004 | For ATARI ST executables (`.prg`/`.ttp`/`.tos`), `load` shall validate the `0x601A` magic, load the `.text`+`.data` sections at `ST_LOAD_BASE`, and report the result; fixup relocation is deferred to UC15. | ✓ UC7 | UC7 |
+| UFR-LOD-005 | The `info` command shall display the currently loaded binary name, type, ST load address, and byte count; if nothing is loaded, it shall display `(none)`. | ✓ UC7 | UC7 |
+| UFR-DIR-013 | When a file is committed via ENTER or SPACE in the dir view, a dark green secondary background (`g_dir_clrLastSel`) shall be rendered on that row in `dir_render()`, visually distinct from the navigation-cursor highlight. The indicator persists when the cursor moves; a new commit updates it. (P11) | ✓ UC7 | UC7 |
+
+### 1.7 Editor Views — `EDT` (UC8 text editor ✓, UC9–10 TODO)
+
+| ID          | User Functional Requirement                                                                                                                                         | Status   | UC    |
+|-------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------|-------|
+| UFR-EDT-001 | The `edit` command on a text file (non-binary, non-image extension) shall open a D2D window showing the file content with a line-number gutter and monospace font. | ✓ UC8    | UC8   |
+| UFR-EDT-002 | The editor shall support full cursor navigation: arrow keys, Home/End (line), PgUp/PgDn (screen), CTRL+Home/End (file), CTRL+←/→ (word). SHIFT+any motion extends a rectangular selection highlighted in blue. | ✓ UC8 | UC8 |
+| UFR-EDT-003 | The editor shall support character insert, ENTER (split line), Backspace (delete-back or merge lines), Delete (delete-fwd or merge lines), Tab (insert tab char). CTRL+A selects all. CTRL+C/X/V uses the system clipboard. | ✓ UC8 | UC8 |
+| UFR-EDT-004 | The editor shall implement 20-level CTRL+Z undo with consecutive-insert grouping: a run of printable characters typed without intervening navigation is undone as one unit. | ✓ UC8 | UC8 |
+| UFR-EDT-005 | CTRL+S shall save the file via `file.h FILE_MODE_WRITE`; the title bar shall show `[*]` when unsaved changes exist and shall remove it after a successful save (R18). | ✓ UC8 | UC8 |
+| UFR-EDT-006 | The `edit` command on a binary or disk-image file (`.prg/.ttp/.tos/.st/.msa/.stx`) shall display a user-readable stub message indicating that hex editing is available in UC9. | ✓ UC8 | UC8 |
+| UFR-GUI-007 | The GUI event system shall transmit keyboard modifier state (CTRL, SHIFT, ALT) as bitmask flags in `gui_event_t.uData.tKey.uiMods`; CTRL+letter keys shall be forwarded as `GUI_KEY_PRINTABLE+'A'..'Z'` with `GUI_MOD_CTRL`. The system clipboard shall be accessible via `gui_clipboard_set/get_text`. | ✓ UC8 | UC8 |
 
 ### 1.6 Floppy Emulation — `MNT` (TODO UC16–19)
 
@@ -344,6 +363,12 @@ requirement that will expose it (`UFR-EXE-*`, planned UC21–27).
 | REQ-GUI-019  | `gui_request_close(NULL)` shall return `ST_ERROR`.                                                           | UFR-GUI-001  | ✓ UC4.1   | UC4.1 |
 | REQ-GUI-020  | `gui_request_close(hWnd)` shall post `WM_CLOSE` asynchronously without joining the window thread; `gui_close_window()` shall handle the join correctly even if the window was already destroyed by a prior close request. | UFR-GUI-001 | ✓ UC4.1 | UC4.1 |
 | REQ-GUI-021  | The Win32 window thread shall call `SetForegroundWindow()` and `SetFocus()` after `ShowWindow()` so the new view receives keyboard input immediately. | UFR-GUI-007 | ✓ UC4.1 | UC4.1 |
+| REQ-GUI-022  | `gui_event_t.uData.tKey.uiMods` shall carry modifier bitmask flags: `GUI_MOD_CTRL=0x01`, `GUI_MOD_SHIFT=0x02`, `GUI_MOD_ALT=0x04`; the three flags shall be distinct and non-overlapping. | UFR-GUI-007 | ✓ UC8 | UC8 |
+| REQ-GUI-023  | `WM_KEYDOWN` shall set `uiMods` from `GetKeyState(VK_CONTROL/SHIFT/MENU)` on all navigation events; existing views that ignore `uiMods` shall behave identically (field initialised to 0 by `memset`). | UFR-GUI-007 | ✓ UC8 | UC8 |
+| REQ-GUI-024  | `WM_CHAR` control codes 1–26 shall be forwarded as `GUI_KEY_PRINTABLE+'A'..'Z'` with `uiMods=GUI_MOD_CTRL`, enabling views to dispatch CTRL+letter actions without separate VK handling. | UFR-GUI-007 | ✓ UC8 | UC8 |
+| REQ-GUI-025  | `gui_clipboard_set_text(NULL)` shall return `ST_ERROR`. `gui_clipboard_set_text(szText)` shall place a NUL-terminated copy of `szText` on the system clipboard. | UFR-GUI-007 | ✓ UC8 | UC8 |
+| REQ-GUI-026  | `gui_clipboard_get_text(NULL, N)` and `gui_clipboard_get_text(buf, 0)` shall return `ST_ERROR`; `szBuf` shall always be NUL-terminated on return (empty string on failure). | UFR-GUI-007 | ✓ UC8 | UC8 |
+| REQ-GUI-027  | On Windows, `gui_clipboard_set_text` + `gui_clipboard_get_text` shall perform a correct round-trip. On Linux, both shall be stubs returning `ST_ERROR` (TODO UC8-Linux). | UFR-GUI-007 | ✓ UC8 | UC8 |
 
 ### 2.7 2D Renderer — `renderer.h` / `renderer.c` / `win_D2D.c`
 
@@ -389,6 +414,7 @@ requirement that will expose it (`UFR-EXE-*`, planned UC21–27).
 | REQ-DIR-019  | SPACE on `iSelectedFlat >= 0` shall write the node's full path to `ptLineCtx->szSelected` without modifying expand/collapse state; SPACE on the `..` row (`iSelectedFlat == -1`) shall be a no-op. | UFR-DIR-010 | ✓ UC4.1 | UC4.1 |
 | REQ-DIR-020  | After `ShowWindow()`, the Win32 window thread shall call `SetForegroundWindow()` and `SetFocus()` so the view receives keyboard input immediately. | UFR-GUI-007 | ✓ UC4.1 | UC4.1 |
 | REQ-DIR-021  | In `dir_handle_key()`, the `H`/`h` printable key shall toggle `ptView->bShowHidden`, call `dir_node_reload_children(ptRoot, bShowHidden)`, rebuild the flat list, and reset `iSelectedFlat = -2` and `iScrollOffset = 0`. (P21) | UFR-DIR-011 | ✓ UC5 | UC5 |
+| REQ-DIR-023  | When a file node is committed via ENTER (`dir_activate_sel()`) or SPACE, `dir_view_t.szLastSelected` shall be updated with the node's full path; `dir_render()` shall draw `g_dir_clrLastSel` (dark green) on the matching row before the nav-highlight; directories and the `..` row shall never set `szLastSelected`; an empty `szLastSelected` means no green indicator. (P11) | UFR-DIR-013 | ✓ UC7 | UC7 |
 | REQ-DIR-022  | In `dir_handle_key()`, `GUI_KEY_F5` shall call `dir_refresh_tree()`, which: (1) collects all currently-expanded dir paths via DFS into a stack-local array (max 256); (2) reloads the root's direct children; (3) for each saved path, navigates the new tree component-by-component, loading children and setting `bExpanded=ST_TRUE` at each level; missing components (dir deleted) are silently ignored. The flat list is rebuilt and the existing selection is clamped to valid range. (P22) | UFR-DIR-012 | ✓ UC5 | UC5 |
 
 ---
@@ -444,6 +470,51 @@ requirement that will expose it (`UFR-EXE-*`, planned UC21–27).
 | REQ-FIL-020  | When `bShowHidden == ST_FALSE`, `file_list_dir()` shall exclude entries whose name starts with `.`.                                          | UFR-FIL-007 | ✓ UC6    | UC6  |
 | REQ-FIL-021  | The callback shall receive: `szFull` (full path = `szDir/szName`), `szName` (entry name only), and `ptStat` (pre-filled via `file_stat()`). | UFR-FIL-007 | ✓ UC6    | UC6  |
 | REQ-FIL-022  | The `file_t` handle type shall be opaque: defined only in `file.c`; callers must not access the underlying `FILE *` directly.               | UFR-FIL-002 | ✓ UC6    | UC6  |
+
+### 2.11 Load Command — `load.h` / `load.c`
+
+> Design ref: CLAUDE.md §1.1.4, §6.12; depends on `file.h` (UC6) and `ST.h` (UC1)
+
+| ID           | Software Requirement                                                                                                                               | Parent UFR  | Status   | UC   |
+|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------|-------------|----------|------|
+| REQ-LOD-001  | `load_init(NULL)` shall return `ST_ERROR`; `load_init(ptMachine)` shall store the machine pointer and reset state to bLoaded=FALSE, eType=NONE.   | UFR-LOD-001 | ✓ UC7    | UC7  |
+| REQ-LOD-002  | `load_get_state()` shall always return a non-NULL pointer to the internal `load_state_t`; it is valid for the program lifetime.                    | UFR-LOD-001 | ✓ UC7    | UC7  |
+| REQ-LOD-003  | `load_file(NULL)` shall return `ST_ERROR`; calling `load_file()` before `load_init()` shall return `ST_ERROR`.                                    | UFR-LOD-001 | ✓ UC7    | UC7  |
+| REQ-LOD-004  | `load_file()` on a non-existent path shall return `ST_ERROR` with `LOG_ERROR`.                                                                    | UFR-LOD-002 | ✓ UC7    | UC7  |
+| REQ-LOD-005  | `load_file()` on any file that is not a directory, not a disk image, and not a PRG-type extension shall copy the content verbatim to `aRam[ST_LOAD_BASE..]` and set `eType = LOAD_TYPE_BINARY`. | UFR-LOD-003 | ✓ UC7 | UC7 |
+| REQ-LOD-006  | After a successful `load_file()`, the state shall reflect `bLoaded=TRUE`, the actual file path in `szPath`, `uiLoadAddr = ST_LOAD_BASE`, and `uiSize` equal to the number of bytes loaded into RAM. | UFR-LOD-003 | ✓ UC7 | UC7 |
+| REQ-LOD-007  | `load_file()` on a `.prg`/`.ttp`/`.tos` path shall read the 28-byte PRG header, validate the `0x601A` magic, read `uiTextSize + uiDataSize` bytes at `ST_LOAD_BASE`, and set `eType = LOAD_TYPE_PRG`. | UFR-LOD-004 | ✓ UC7 | UC7 |
+| REQ-LOD-008  | A PRG file whose first two bytes differ from `0x601A` shall cause `load_file()` to return `ST_ERROR` with `LOG_ERROR`; the previous load state shall not be modified. | UFR-LOD-004 | ✓ UC7 | UC7 |
+| REQ-LOD-009  | A new successful `load_file()` call shall replace the entire previous load state atomically.                                                       | UFR-LOD-001 | ✓ UC7    | UC7  |
+| REQ-LOD-010  | `load_file()` on a directory shall return `ST_ERROR` with `LOG_ERROR` ("use mount").                                                              | UFR-LOD-002 | ✓ UC7    | UC7  |
+| REQ-LOD-011  | `load_file()` on a path whose lowercase extension is `st`, `msa`, or `stx` shall return `ST_ERROR` with `LOG_ERROR` ("use mount").                | UFR-LOD-002 | ✓ UC7    | UC7  |
+| REQ-LOD-012  | `load_file()` on a file whose size exceeds `ST_LOAD_MAX_SIZE` (= `ST_RAM_SIZE − 0x0800`) shall return `ST_ERROR`.                                | UFR-LOD-003 | ✓ UC7    | UC7  |
+| REQ-LOD-013  | `load_shutdown()` shall set the machine pointer to NULL and reset state to bLoaded=FALSE; calling it when already shut down shall return `ST_NO_ERROR` (idempotent). | UFR-LOD-001 | ✓ UC7 | UC7 |
+| REQ-LOD-014  | `line_cmd_load()` shall call `file_stat()` before `load_file()` to produce user-friendly console messages for directory/image rejection; on success it shall print the load address and byte count; `line_update_console_title()` shall be called after success. | UFR-LOD-001..005 | ✓ UC7 | UC7 |
+
+---
+
+### 2.12 Text Editor — `edit_txt.h` / `edit_txt.c`
+
+> Design ref: CLAUDE.md §1.1.5, §6.13; depends on `file.h` (UC6), `gui.h` (UC3.1), `renderer.h` (UC3.2)
+
+| ID           | Software Requirement                                                                                                                                | Parent UFR  | Status   | UC   |
+|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------|-------------|----------|------|
+| REQ-EDT-001  | `edit_txt_open(NULL, *, *)`, `(*, NULL, *)`, `(*, *, NULL)` shall return `ST_ERROR` without modifying `*pptView`. | UFR-EDT-001 | ✓ UC8 | UC8 |
+| REQ-EDT-002  | `edit_txt_open()` on a non-existent file shall return `ST_ERROR` and leave `*pptView == NULL`. | UFR-EDT-001 | ✓ UC8 | UC8 |
+| REQ-EDT-003  | An empty (zero-byte) file shall load as `iLineCount == 1` with one empty string; the line buffer shall never be empty after a successful open. | UFR-EDT-001 | ✓ UC8 | UC8 |
+| REQ-EDT-004  | File content shall be split on `\n`; `\r\n` sequences shall be normalised by stripping `\r`; lines longer than `EDIT_TXT_MAX_LINE_LEN − 1` bytes shall be truncated silently. | UFR-EDT-001 | ✓ UC8 | UC8 |
+| REQ-EDT-005  | Tab characters shall expand to the next `EDIT_TXT_TAB_WIDTH` (4) display column stop; non-tab characters shall map 1:1 from byte offset to display column. | UFR-EDT-002 | ✓ UC8 | UC8 |
+| REQ-EDT-006  | `etxt_byte_col_from_disp(szLine, etxt_display_len(szLine, iByteCol))` shall return `iByteCol` for all valid byte positions (round-trip invariant). | UFR-EDT-002 | ✓ UC8 | UC8 |
+| REQ-EDT-007  | `line_cmd_edit()` on an extension in `{prg, ttp, tos, st, msa, stx}` shall display a stub message and return `ST_NO_ERROR` without opening a window (hex editor deferred to UC9). | UFR-EDT-006 | ✓ UC8 | UC8 |
+| REQ-EDT-008  | CTRL+Z shall restore the most recent undo snapshot; if no snapshot exists, CTRL+Z shall be a no-op. | UFR-EDT-004 | ✓ UC8 | UC8 |
+| REQ-EDT-009  | The undo ring shall hold `EDIT_TXT_UNDO_LEVELS` (20) snapshots; when full, the oldest entry shall be silently overwritten. | UFR-EDT-004 | ✓ UC8 | UC8 |
+| REQ-EDT-010  | Consecutive printable-character insertions shall be grouped into a single undo level; any navigation key (arrow, Home, End, PgUp/Dn) or structural operation (ENTER, Backspace, Delete, Tab, paste) shall break the current group and start a new one on the next insert. | UFR-EDT-004 | ✓ UC8 | UC8 |
+| REQ-EDT-011  | CTRL+S shall write the file via `file_open(FILE_MODE_WRITE)`; after a successful save `bDirty` shall be `ST_FALSE` and the window title shall no longer contain `[*]`. | UFR-EDT-005 | ✓ UC8 | UC8 |
+| REQ-EDT-012  | `gui_clipboard_set_text(NULL)` → `ST_ERROR`; `gui_clipboard_get_text(NULL, N)` and `(buf, 0)` → `ST_ERROR`; `szBuf` shall always be NUL-terminated on return (empty string on any failure). | UFR-EDT-003, UFR-GUI-007 | ✓ UC8 | UC8 |
+| REQ-EDT-013  | `GUI_MOD_CTRL`, `GUI_MOD_SHIFT`, and `GUI_MOD_ALT` shall be distinct power-of-two bitmask values with no overlap; they shall be combinable by bitwise OR. | UFR-GUI-007 | ✓ UC8 | UC8 |
+
+---
 
 ### 2.6 Disassembler — `disassemble.h` / `disassemble.c`
 
@@ -1171,7 +1242,7 @@ void pfnCallback(const char        *szPath,   /* full path: szDir/szName */
 
 | Future UC | Usage                                                        |
 |-----------|--------------------------------------------------------------|
-| UC7 load  | `file_stat` (type detect) + `file_open/read/close` (load)   |
+| ✓ UC7 load | `file_stat` (type detect) + `file_open/read/close` (load)  |
 | UC8-10    | `file_open(READ/WRITE)` + `file_read/write` for edit save   |
 | UC16      | `file_open(READ)` + `file_read` of 737 280 bytes (.st image)|
 | UC18      | `file_list_dir` to enumerate mounted directory               |
@@ -1179,21 +1250,163 @@ void pfnCallback(const char        *szPath,   /* full path: szDir/szName */
 
 ---
 
-### 4.12 Placeholder Components (stubs)
+### 4.12 Load Command — `load.h` / `load.c`
 
-| Component                    | File(s)                                                              | Planned UC | Status       |
-|------------------------------|----------------------------------------------------------------------|------------|--------------|
-| GUI Framework                | `gui.c`, `win_gui.c`, `lx_gui.c`, `gui_backend.h`                  | UC3.1      | ✓ UC3.1 §4.8 |
-| 2D Renderer                  | `renderer.c`, `win_D2D.c`, `lx_X11.c`                              | UC3.2      | ✓ UC3.2 §4.9 |
-| Directory View               | `dir.c`                                                              | UC3.3      | ✓ UC3.3 §4.10|
-| Platform Thread/Mutex        | `win_platform.c`, `lx_platform.c`                                   | UC3.1      | ✓ UC3.1      |
-| File System Abstraction      | `file.h`, `file.c`                                                   | UC6        | ✓ UC6 §4.11  |
+**Role:** loads a file (binary/text/PRG) into emulated ST RAM and tracks the load
+state for consumption by `line_cmd_load()`, `line_cmd_info()`, and future
+execution UCs (UC25 will read `uiLoadAddr` as the initial PC for .PRG files).
+
+**Public API:**
+
+| Function                    | REQ(s)                          | Description                                                            |
+|-----------------------------|---------------------------------|------------------------------------------------------------------------|
+| `load_init(ptMachine)`      | REQ-LOD-001                     | Attach to ST machine; reset state; must precede load_file()            |
+| `load_file(szPath)`         | REQ-LOD-003..012                | Detect type, load into RAM; replaces previous state on success         |
+| `load_get_state()`          | REQ-LOD-002                     | Read-only pointer to g_load_tState; never NULL                         |
+| `load_shutdown()`           | REQ-LOD-013                     | Clear machine pointer and state; idempotent                            |
+
+**Key internal functions:**
+
+| Function          | REQ(s)                  | Description                                                               |
+|-------------------|-------------------------|---------------------------------------------------------------------------|
+| `load_do_raw()`   | REQ-LOD-005..006        | Stream file into aRam[ST_LOAD_BASE..] in 4 KB blocks                     |
+| `load_do_prg()`   | REQ-LOD-007..008        | Read 28-byte header, validate 0x601A, load .text+.data; TODO(UC15) fixup |
+| `load_is_prg_ext()` | REQ-LOD-007           | Match "prg"/"ttp"/"tos" (lowercase, from file_stat szExt)                |
+| `load_is_image_ext()` | REQ-LOD-011         | Match "st"/"msa"/"stx"                                                    |
+| `load_u16be()` / `load_u32be()` | REQ-LOD-007 | Big-endian reads from PRG header byte buffer                              |
+
+**`load_state_t` fields:**
+
+| Field        | Type             | Meaning                                               |
+|--------------|------------------|-------------------------------------------------------|
+| `bLoaded`    | `st_bool_t`      | ST_TRUE if a file is currently loaded in RAM          |
+| `eType`      | `load_type_t`    | NONE / BINARY / PRG                                   |
+| `szPath`     | `char[ST_MAX_PATH]` | Full path of the loaded file                       |
+| `uiLoadAddr` | `st_u32_t`       | ST RAM address of first content byte (= ST_LOAD_BASE) |
+| `uiSize`     | `st_u32_t`       | Bytes of content loaded (.text+.data for PRG)         |
+
+**Load address constants:**
+
+| Constant           | Value             | Meaning                                        |
+|--------------------|-------------------|------------------------------------------------|
+| `ST_LOAD_BASE`     | `0x0800`          | After 68000 vector table (512 bytes)           |
+| `ST_LOAD_MAX_SIZE` | `ST_RAM_SIZE − 0x0800` | Maximum loadable content                  |
+| `ST_PRG_MAGIC`     | `0x601A`          | First 2 bytes of a valid ATARI ST PRG header   |
+| `ST_PRG_HEADER_SIZE` | `28`            | Bytes before .text section                     |
+
+**External dependencies:**
+
+| Call                                      | Tag   | Purpose                                   |
+|-------------------------------------------|-------|-------------------------------------------|
+| `file_stat()`                             | [FIL] | Detect existence, dir, extension          |
+| `file_open()` / `file_read()` / `file_close()` | [FIL] | File I/O for both binary and PRG      |
+| `memcpy / memset / strncpy`               | [CRT] | RAM copy; state reset; path storage       |
+
+**Future consumers:**
+
+| Future UC      | Usage                                                                         |
+|----------------|-------------------------------------------------------------------------------|
+| UC15 `load_do_prg` | Parse PRG fixup table (bitstream); relocate address references in .text/.data |
+| UC24 memory map | Compute `ST_LOAD_BASE` dynamically from free RAM above TOS variable area     |
+| UC25 `execute`  | Use `load_get_state()->uiLoadAddr` as initial PC when eType == LOAD_TYPE_PRG |
+
+---
+
+### 4.13 Placeholder Components (stubs)
+
+| Component                    | File(s)                                                              | Planned UC | Status        |
+|------------------------------|----------------------------------------------------------------------|------------|---------------|
+| GUI Framework                | `gui.c`, `win_gui.c`, `lx_gui.c`, `gui_backend.h`                  | UC3.1      | ✓ UC3.1 §4.8  |
+| 2D Renderer                  | `renderer.c`, `win_D2D.c`, `lx_X11.c`                              | UC3.2      | ✓ UC3.2 §4.9  |
+| Directory View               | `dir.c`                                                              | UC3.3      | ✓ UC3.3 §4.10 |
+| Platform Thread/Mutex        | `win_platform.c`, `lx_platform.c`                                   | UC3.1      | ✓ UC3.1       |
+| File System Abstraction      | `file.h`, `file.c`                                                   | UC6        | ✓ UC6 §4.11   |
+| Load Command                 | `load.h`, `load.c`                                                   | UC7        | ✓ UC7 §4.12   |
 | Text Editor View             | `edit_txt.c`                                                         | UC8        | stub         |
 | Hex/ASCII Editor View        | `edit_hex.c`                                                         | UC9        | stub         |
 | Integrated Editor Dispatcher | `edit.c`                                                             | UC10       | stub         |
 | Floppy Mount                 | `mount.c`                                                            | UC18       | stub         |
 | Execution Engine             | `exec.c`, `exec_mon.c`, `exec_cpu.c`, `exec_mem.c`, `exec_screen.c` | UC25       | stub         |
 | DEVPAC3 Assembler            | `as.c`                                                               | UC30       | stub         |
+
+---
+
+### 4.14 Text Editor View — `edit_txt.c`
+
+**Role:** load a text file into a heap line buffer, render it with a monospace D2D view (gutter + selection + cursor), handle all keyboard/mouse input, and save back via `file.h`.
+
+**Key internal structure `edit_txt_view_t`:**
+
+| Field                | Type                       | Purpose                                                        |
+|----------------------|----------------------------|----------------------------------------------------------------|
+| `hWnd`               | `gui_window_t`             | GUI window handle (owned by gui_open_window thread)            |
+| `hRenderer`          | `renderer_t`               | D2D renderer (created lazily on first GUI_EVT_PAINT)           |
+| `szPath[]`           | `char[ST_MAX_PATH]`        | Absolute path of the file being edited                         |
+| `aszLines`           | `char **`                  | Heap array of heap strings (one per line, no newline)          |
+| `iLineCount`         | `int`                      | Always ≥ 1 (empty file = 1 empty line)                         |
+| `tCursor`            | `edit_pos_t`               | Current insertion point (iLine, iCol byte offset)              |
+| `iScrollLine/Col`    | `int`                      | First visible row / display column                             |
+| `iSelAnchorLine/Col` | `int`                      | Selection anchor; -1 = no selection                            |
+| `bDirty`             | `st_bool_t`                | Unsaved changes → `[*]` in title                               |
+| `iGutterW`           | `int`                      | Gutter width = (digits(iLineCount)+1) × iCellW                 |
+| `aUndo[]`            | `edit_undo_entry_t[20]`    | Undo ring: deep copies of aszLines + cursor                    |
+| `iUndoHead`          | `int`                      | Next write slot in ring (0-based)                              |
+| `iUndoCount`         | `int`                      | Valid entries (0..EDIT_TXT_UNDO_LEVELS)                        |
+| `bUndoGroupInsert`   | `st_bool_t`                | TRUE = last op was printable insert; group until broken        |
+| `ptLineCtx`          | `line_context_t *`         | Back-reference for console feedback (trace on save)            |
+
+**Public API:**
+
+| Function | REQ(s) | Description |
+|---|---|---|
+| `edit_txt_open(szPath, ptLineCtx, pptView)` | REQ-EDT-001..004 | Load file, open D2D window in new thread |
+| `edit_txt_close(pptView)` | REQ-EDT-001 | Join thread, free lines + undo ring, free view |
+
+**Key internal functions:**
+
+| Function | REQ(s) | Description |
+|---|---|---|
+| `etxt_load(ptV, szPath)` | REQ-EDT-003..004 | file_stat + file_read + split on `\n`; normalize `\r\n` |
+| `etxt_save(ptV)` | REQ-EDT-011 | file_open(WRITE) + write all lines separated by `\n` |
+| `etxt_display_len(szLine, iByteCol)` | REQ-EDT-005 | Byte→display col (tab expansion) |
+| `etxt_byte_col_from_disp(szLine, iDisp)` | REQ-EDT-006 | Display col→byte col (inverse) |
+| `etxt_undo_push(ptV)` | REQ-EDT-009..010 | Deep-copy aszLines into ring slot; advance head |
+| `etxt_undo_pop(ptV)` | REQ-EDT-008 | Transfer ring snapshot back to live buffer |
+| `etxt_undo_free_all(ptV)` | — | Release all ring entries (called on close) |
+| `etxt_del_sel(ptV)` | REQ-EDT-003 | Delete selection range (single-line or multi-line merge) |
+| `etxt_copy_sel(ptV)` | REQ-EDT-012 | Serialize selection to clipboard via `gui_clipboard_set_text` |
+| `etxt_paste(ptV)` | REQ-EDT-012 | Read clipboard, insert char-by-char (\\n → split line) |
+| `etxt_handle_key(ptV, eKey, cChar, uiMods)` | REQ-EDT-008..013 | Dispatch all keyboard actions; manage undo group |
+| `etxt_render(ptV)` | REQ-EDT-005 | D2D draw: gutter, current-line highlight, selection, text, cursor |
+
+**Undo push policy:**
+
+```
+Any modifying key:
+  ENTER / Backspace / Delete / Tab / CTRL+X / CTRL+V
+      → etxt_undo_push();  bUndoGroupInsert = FALSE
+  First printable char (bUndoGroupInsert==FALSE)
+      → etxt_undo_push();  bUndoGroupInsert = TRUE
+  Subsequent printable chars (bUndoGroupInsert==TRUE)
+      → no push  (grouped with previous)
+  Any navigation key
+      → bUndoGroupInsert = FALSE  (no push — no modification)
+  Selection present before insert:
+      → etxt_del_sel(); bUndoGroupInsert = FALSE (del+insert = one level)
+CTRL+Z:
+      → etxt_undo_pop();  bUndoGroupInsert = FALSE
+```
+
+**External dependencies:**
+
+| Call | Tag | Purpose |
+|---|---|---|
+| `file_stat / file_open / file_read / file_write / file_close` | [ST4] | File I/O |
+| `gui_open_window / gui_close_window / gui_invalidate / gui_request_close` | [ST4] | Window lifecycle |
+| `gui_set_title` | [ST4] | Dynamic title with `[*]` dirty marker (R18) |
+| `gui_clipboard_set_text / get_text` | [ST4] | CTRL+C/X/V clipboard |
+| `renderer_create / begin_draw / fill_rect / draw_text / end_draw / destroy` | [ST4] | D2D rendering |
+| `malloc / realloc / free` | [CRT] | Line buffer and undo snapshot management |
 
 ---
 
@@ -2376,17 +2589,120 @@ Source: `use_cases/use_case_06.c`
 
 ---
 
-#### Open items — updated after UC6
+### 5.28 INTENT Catalog — UC7
+
+Source: `use_cases/use_case_07.c`
+Fixtures: `use_cases/UC07/hello.txt`, `hello.bin`, `bad_magic.prg`, `test.st`;
+          `use_cases/UC01/hello.prg`
+
+| ID           | INTENT text                                                                                                              |
+|--------------|--------------------------------------------------------------------------------------------------------------------------|
+| INT-LOD-001  | `load_init()` / `load_shutdown()` lifecycle: NULL rejected; valid machine accepted with cleared state; shutdown is idempotent (no crash on double call). |
+| INT-LOD-002  | `load_file()` guard conditions: NULL path and call-before-init are both rejected with ST_ERROR before touching state.    |
+| INT-LOD-003  | Binary and text file loading: verbatim copy into ST RAM at ST_LOAD_BASE; state fields (path, addr, size) reflect reality; RAM content byte-for-byte matches the source file. |
+| INT-LOD-004  | PRG loading and bad-magic rejection: valid 0x601A accepted, .text content in RAM verified; bad magic (0xDEAD) rejected without corrupting previous state. |
+| INT-LOD-005  | Load replacement: a second successful load_file() completely replaces the previous state (eType, path, size).            |
+| INT-LOD-006  | Rejection — directory and disk image: both return ST_ERROR; user-facing messages are the responsibility of line_cmd_load(). |
+| INT-LOD-007  | Non-existent file: ST_ERROR without side effect on module state.                                                          |
+| INT-LOD-008  | `load_get_state()` invariant: pointer is never NULL; value reflects the last successful load or cleared state after shutdown. |
+| INT-DIR-011  | P11 secondary selection indicator: ENTER/SPACE on a file sets szLastSelected; dir_render() draws g_dir_clrLastSel (dark green) on that row; cursor moves do not clear it; new commit moves it. |
+
+---
+
+### 5.29 Test Cases — UC7 (load command + P11 dir indicator)
+
+Source: `use_cases/use_case_07.c`
+
+| ID           | Functional description                                                                                 | Type | UFR                   | REQ                       | INTENT      | Expected outcome                                                     | Status   |
+|--------------|--------------------------------------------------------------------------------------------------------|------|-----------------------|---------------------------|-------------|----------------------------------------------------------------------|----------|
+| TC-LOD-001   | `load_init(NULL)` → ST_ERROR                                                                          | [R]  | UFR-LOD-001           | REQ-LOD-001               | INT-LOD-001 | ST_ERROR                                                             | PASS UC7 |
+| TC-LOD-002   | `load_init(valid)` → ST_NO_ERROR                                                                      | [N]  | UFR-LOD-001           | REQ-LOD-001               | INT-LOD-001 | ST_NO_ERROR                                                          | PASS UC7 |
+| TC-LOD-003   | After `load_init()`: `get_state != NULL`, `bLoaded=FALSE`, `eType=NONE`                               | [N]  | UFR-LOD-001           | REQ-LOD-001..002          | INT-LOD-001 | ptState != NULL; bLoaded=FALSE; eType=NONE                           | PASS UC7 |
+| TC-LOD-004   | `load_shutdown()` → ST_NO_ERROR; `bLoaded=FALSE` after shutdown                                       | [N]  | UFR-LOD-001           | REQ-LOD-013               | INT-LOD-001 | ST_NO_ERROR; bLoaded=FALSE                                           | PASS UC7 |
+| TC-LOD-005   | Double `load_shutdown()` → ST_NO_ERROR (idempotent)                                                   | [R]  | UFR-LOD-001           | REQ-LOD-013               | INT-LOD-001 | ST_NO_ERROR                                                          | PASS UC7 |
+| TC-LOD-006   | `load_file()` without prior `load_init()` → ST_ERROR                                                  | [R]  | UFR-LOD-001           | REQ-LOD-003               | INT-LOD-002 | ST_ERROR                                                             | PASS UC7 |
+| TC-LOD-007   | Re-`load_init()` → ST_NO_ERROR                                                                        | [N]  | UFR-LOD-001           | REQ-LOD-001               | INT-LOD-001 | ST_NO_ERROR                                                          | PASS UC7 |
+| TC-LOD-008   | `load_file(NULL)` → ST_ERROR                                                                          | [R]  | UFR-LOD-001           | REQ-LOD-003               | INT-LOD-002 | ST_ERROR                                                             | PASS UC7 |
+| TC-LOD-009   | `load_file(non-existent)` → ST_ERROR                                                                  | [R]  | UFR-LOD-002           | REQ-LOD-004               | INT-LOD-007 | ST_ERROR                                                             | PASS UC7 |
+| TC-LOD-010   | `load_file(hello.bin)` → ST_NO_ERROR; state fields correct; RAM verbatim (0x00/0x07/0x0F)            | [N]  | UFR-LOD-002..003      | REQ-LOD-005..006          | INT-LOD-003 | bLoaded=TRUE; eType=BINARY; uiSize=16; RAM content verified          | PASS UC7 |
+| TC-LOD-011   | `load_file(hello.txt)` → ST_NO_ERROR; eType=BINARY; RAM[LOAD_BASE]=='H'                              | [N]  | UFR-LOD-002..003      | REQ-LOD-005..006          | INT-LOD-003 | eType=BINARY; RAM[0]='H'                                             | PASS UC7 |
+| TC-LOD-012   | `load_file(hello.prg)` → ST_NO_ERROR; eType=PRG; uiSize=4; RAM 0x70/0x2A                             | [N]  | UFR-LOD-004           | REQ-LOD-007..008          | INT-LOD-004 | eType=PRG; uiSize=4; RAM[0]=0x70; RAM[1]=0x2A                       | PASS UC7 |
+| TC-LOD-013   | New `load_file()` replaces PRG state → eType=BINARY                                                   | [N]  | UFR-LOD-001..003      | REQ-LOD-009               | INT-LOD-005 | eType=BINARY after second load                                       | PASS UC7 |
+| TC-LOD-014   | `load_file(directory)` → ST_ERROR                                                                     | [N]  | UFR-LOD-002           | REQ-LOD-010               | INT-LOD-006 | ST_ERROR                                                             | PASS UC7 |
+| TC-LOD-015   | `load_file(test.st)` → ST_ERROR (disk image)                                                          | [N]  | UFR-LOD-002           | REQ-LOD-011               | INT-LOD-006 | ST_ERROR                                                             | PASS UC7 |
+| TC-LOD-016   | `load_file(bad_magic.prg)` → ST_ERROR; previous state preserved                                       | [R]  | UFR-LOD-004           | REQ-LOD-008..009          | INT-LOD-004 | ST_ERROR; eType still BINARY (unchanged)                             | PASS UC7 |
+| TC-LOD-017   | Final `load_shutdown()` → ST_NO_ERROR; `load_get_state() != NULL` always                              | [N]  | UFR-LOD-001           | REQ-LOD-002,REQ-LOD-013   | INT-LOD-008 | ST_NO_ERROR; get_state() != NULL                                     | PASS UC7 |
+| TC-DIR-031   | [S] P11: ENTER on file → dark green background on that row                                            | [S]  | UFR-DIR-013           | REQ-DIR-023               | INT-DIR-011 | Green row visible; blue nav-cursor distinct                          | manual   |
+| TC-DIR-032   | [S] P11: cursor away keeps green on committed row                                                      | [S]  | UFR-DIR-013           | REQ-DIR-023               | INT-DIR-011 | Green persists when cursor moves away                                | manual   |
+| TC-DIR-033   | [S] P11: SPACE also marks secondary selection                                                          | [S]  | UFR-DIR-013           | REQ-DIR-023               | INT-DIR-011 | Green on SPACE-selected file                                         | manual   |
+| TC-DIR-034   | [S] P11: new ENTER moves green indicator                                                               | [S]  | UFR-DIR-013           | REQ-DIR-023               | INT-DIR-011 | Green moves to newly committed file                                  | manual   |
+
+#### Test Summary — UC7
+
+| Module | [N] | [R] | [S] | Total | Result    |
+|--------|-----|-----|-----|-------|-----------|
+| LOD    | 11  | 5   | 0   | 16    | ALL PASS  |
+| DIR    | 0   | 0   | 4   | 4     | make manual UC=07 |
+
+> Note: `use_case_07.c` reports 33N+6R+4S=43 `UC_TEST`/`TEST_MANUAL` calls; the SRTD
+> groups multi-assertion calls (e.g., TC-LOD-010 covers 8 UC_TEST lines for the binary
+> load) giving 17 logical TC-LOD entries + 4 TC-DIR entries.
+
+#### REQ → TC coverage (UC7)
+
+| REQ          | TC(s)                          | Status   |
+|--------------|--------------------------------|----------|
+| REQ-LOD-001  | TC-LOD-001..003, TC-LOD-007    | ✓ UC7    |
+| REQ-LOD-002  | TC-LOD-003, TC-LOD-017         | ✓ UC7    |
+| REQ-LOD-003  | TC-LOD-006, TC-LOD-008         | ✓ UC7    |
+| REQ-LOD-004  | TC-LOD-009                     | ✓ UC7    |
+| REQ-LOD-005  | TC-LOD-010..011                | ✓ UC7    |
+| REQ-LOD-006  | TC-LOD-010..011                | ✓ UC7    |
+| REQ-LOD-007  | TC-LOD-012                     | ✓ UC7    |
+| REQ-LOD-008  | TC-LOD-012, TC-LOD-016         | ✓ UC7    |
+| REQ-LOD-009  | TC-LOD-013, TC-LOD-016         | ✓ UC7    |
+| REQ-LOD-010  | TC-LOD-014                     | ✓ UC7    |
+| REQ-LOD-011  | TC-LOD-015                     | ✓ UC7    |
+| REQ-LOD-012  | (file > ST_LOAD_MAX_SIZE — not injectable headless; covered by code review) | ✓ UC7 |
+| REQ-LOD-013  | TC-LOD-004..005, TC-LOD-017    | ✓ UC7    |
+| REQ-LOD-014  | (line_cmd_load — console integration; validated via make run)               | ✓ UC7 |
+| REQ-DIR-023  | TC-DIR-031..034                | ✓ UC7 (manual) |
+
+---
+
+#### UFR traceability update (UC7)
+
+| UFR         | REQ(s)                     | TC(s)                                        | Status   |
+|-------------|----------------------------|----------------------------------------------|----------|
+| UFR-LOD-001 | REQ-LOD-001..003, REQ-LOD-009, REQ-LOD-013 | TC-LOD-001..009, TC-LOD-013, TC-LOD-017 | ✓ UC7 |
+| UFR-LOD-002 | REQ-LOD-004, REQ-LOD-010..011 | TC-LOD-009, TC-LOD-014..015              | ✓ UC7    |
+| UFR-LOD-003 | REQ-LOD-005..006, REQ-LOD-012 | TC-LOD-010..011                          | ✓ UC7    |
+| UFR-LOD-004 | REQ-LOD-007..008           | TC-LOD-012, TC-LOD-016                       | ✓ UC7    |
+| UFR-LOD-005 | REQ-LOD-014                | (integration — make run)                     | ✓ UC7    |
+| UFR-DIR-013 | REQ-DIR-023                | TC-DIR-031..034                              | ✓ UC7 (manual) |
+
+---
+
+#### Open items — updated after UC8
 
 | Item                    | TC / REQ                             | Target    | Nature                                                           |
 |-------------------------|--------------------------------------|-----------|------------------------------------------------------------------|
 | STM bus error           | TC-STM-010, REQ-STM-011              | UC24      | Stub returns ST_NO_ERROR+0xFF; real map → ST_ERROR               |
 | CPU decode              | TC-CPU-006, REQ-CPU-008              | UC21      | Stub: PC+2; real decode/execute to come                          |
 | Disasm DC.W             | TC-DIS-001, REQ-DIS-005              | UC11      | All opcodes → DC.W; full decode in UC11–UC14                     |
-| gui_msg spin-wait       | REQ-GUI-013                          | UC7+      | Replace 1 ms sleep with condition variable / Win32 Event; deferred |
-| Dir context menu        | UFR-DIR-005..006                     | UC7/UC18  | Right-click on file/dir → contextual commands                    |
+| gui_msg spin-wait       | REQ-GUI-013                          | UC9+      | Replace 1 ms sleep with condition variable / Win32 Event; deferred |
+| Dir context menu        | UFR-DIR-005..006                     | UC18      | Right-click on file/dir → contextual commands (deferred from UC7) |
 | lx_X11 renderer         | REQ-RND-002..007                     | UC3-Linux | Linux stub — X11/XRender implementation deferred                 |
+| lx clipboard            | REQ-GUI-027                          | UC8-Linux | `gui_clipboard_set/get_text` Linux X11 CLIPBOARD stub → real     |
 | UC5 manual TC           | TC-CON-116..120, TC-DIR-050..051, TC-TRC-043..044 | ✓ UC5 | Requires display/TTY; validated via make manual UC=05 |
-| info cmd disk/binary    | REQ-CON-026                          | UC7/UC15  | `line_cmd_info()` disk/binary stubs → real data when UCs implemented |
+| UC7 manual TC (P11)     | TC-DIR-031..034                      | ✓ UC7     | Requires display; validated via make manual UC=07                |
+| UC8 manual TC           | TC-EDT-029..036                      | ✓ UC8     | Requires display; validated via make manual UC=08                |
+| info cmd binary (UC7)   | REQ-LOD-014, REQ-CON-026             | ✓ UC7     | `line_cmd_info()` now shows live load state via load_get_state() |
+| info cmd disk (stub)    | REQ-CON-026 (disk)                   | UC18      | `line_cmd_info()` disk-mounted stub → real state when mount is implemented |
+| Edit hex / binary       | REQ-EDT-007, UFR-EDT-006             | UC9       | `line_cmd_edit()` binary path is a stub message; hex editor in UC9 |
+| Find/Replace (P30)      | UFR-EDT-* (future)                   | UC10+     | CTRL+F search bar in editor; deferred until edit family stable    |
+| CTRL+Z undo visual TC   | REQ-EDT-008..010                     | ✓ UC8     | Grouping and pop logic; validated via make manual UC=08           |
+| PRG fixup relocation    | REQ-LOD-007, TODO(UC15)              | UC15      | load_do_prg() loads without fixup; relocation table parse deferred |
+| load_file size check    | REQ-LOD-012                          | —         | File > ST_LOAD_MAX_SIZE: not injectable headless; covered by code review |
 | file_read ferror path   | REQ-FIL-010                          | —         | ferror branch not injectable in headless tests; covered by code review |
 | file_write short write  | REQ-FIL-012                          | —         | fwrite contract; not injectable headless; covered by code review       |

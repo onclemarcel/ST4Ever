@@ -25,6 +25,7 @@
 #include "line.h"
 #include "console.h"
 #include "dir.h"
+#include "edit_txt.h"
 #include "load.h"
 #include "file.h"
 #include "trace.h"
@@ -147,7 +148,8 @@ void line_update_console_title(const line_context_t *ptCtx)
  * Module-level state
  * ------------------------------------------------------------------ */
 
-static dir_view_t *g_line_ptDirView = NULL;
+static dir_view_t      *g_line_ptDirView     = NULL;
+static edit_txt_view_t *g_line_ptEditTxtView = NULL;
 
 /* ------------------------------------------------------------------
  * History ring buffer
@@ -1269,6 +1271,110 @@ static st_error_t line_cmd_load(const parsed_cmd_t *ptParsed,
     return ST_NO_ERROR;
 }
 
+/* line_cmd_edit() — open text or binary editor on a file.
+ * UC8: routes text files to edit_txt; binary/image = stub. */
+static st_error_t line_cmd_edit(const parsed_cmd_t *ptParsed,
+                                 line_context_t     *ptCtx)
+{
+    char        szPath[ST_MAX_PATH];
+    char        szSel[ST_MAX_PATH];
+    file_stat_t tStat;
+    st_error_t  eResult;
+    int         i;
+
+    LOG_TRACE("ptParsed=%p ptCtx=%p",
+              (void *)ptParsed, (void *)ptCtx);
+
+    if (ptParsed == NULL || ptCtx == NULL)
+    {
+        LOG_ERROR("NULL parameter");
+        return ST_ERROR;
+    }
+
+    szPath[0] = '\0';
+    for (i = 1; i < ptParsed->iArgc; i++)
+    {
+        if (ptParsed->aszArgv[i][0] != '-')
+        {
+            strncpy(szPath, ptParsed->aszArgv[i], ST_MAX_PATH - 1);
+            szPath[ST_MAX_PATH - 1] = '\0';
+            break;
+        }
+    }
+
+    if (szPath[0] == '\0')
+    {
+        szSel[0] = '\0';
+        line_get_selected(ptCtx, szSel, sizeof(szSel));
+        if (szSel[0] != '\0')
+        {
+            strncpy(szPath, szSel, ST_MAX_PATH - 1);
+            szPath[ST_MAX_PATH - 1] = '\0';
+        }
+    }
+
+    if (szPath[0] == '\0')
+    {
+        line_print_msg("No file selected. Provide a path or select a "
+                       "file with 'dir'.");
+        return ST_NO_ERROR;
+    }
+
+    memset(&tStat, 0, sizeof(tStat));
+    eResult = file_stat(szPath, &tStat);
+    if (eResult != ST_NO_ERROR)
+    {
+        line_print_error("Cannot stat '%s'.", szPath);
+        return ST_NO_ERROR;
+    }
+    if (!tStat.bExists)
+    {
+        line_print_error("'%s': file not found.", szPath);
+        return ST_NO_ERROR;
+    }
+    if (tStat.bIsDir)
+    {
+        line_print_warning("'%s' is a directory — use dir.", szPath);
+        return ST_NO_ERROR;
+    }
+
+    /* Binary / image files → hex editor (UC9 stub) */
+    if (strcmp(tStat.szExt, "prg") == 0
+     || strcmp(tStat.szExt, "ttp") == 0
+     || strcmp(tStat.szExt, "tos") == 0
+     || strcmp(tStat.szExt, "st")  == 0
+     || strcmp(tStat.szExt, "msa") == 0
+     || strcmp(tStat.szExt, "stx") == 0)
+    {
+        LOG_TODO("edit_hex not yet implemented (UC9)");
+        line_print_msg("Binary/image editing — use edit_hex (UC9).");
+        return ST_NO_ERROR;
+    }
+
+    /* Close previous text edit view if open */
+    if (g_line_ptEditTxtView != NULL)
+    {
+        eResult = edit_txt_close(&g_line_ptEditTxtView);
+        if (eResult != ST_NO_ERROR)
+            line_print_warning("edit: could not close previous view");
+        g_line_ptEditTxtView = NULL;
+    }
+
+    eResult = edit_txt_open(szPath, ptCtx, &g_line_ptEditTxtView);
+    if (eResult != ST_NO_ERROR)
+    {
+        line_print_error("edit: failed to open '%s'.", szPath);
+        return ST_NO_ERROR;
+    }
+
+    line_print_msg("Editing '%s' (%d lines).",
+                   szPath,
+                   g_line_ptEditTxtView
+                   ? g_line_ptEditTxtView->iLineCount : 0);
+    line_update_console_title(ptCtx);
+    return ST_NO_ERROR;
+}
+
 static st_error_t line_cmd_where(const parsed_cmd_t *ptParsed,
                                   line_context_t     *ptCtx)
 {
@@ -1505,7 +1611,7 @@ static const cmd_handler_fn g_line_aHandlers[CMD_COUNT] =
     /* CMD_QUIT       */ line_cmd_quit,
     /* CMD_DIR        */ line_cmd_dir,
     /* CMD_LOAD       */ line_cmd_load,
-    /* CMD_EDIT       */ line_cmd_stub,
+    /* CMD_EDIT       */ line_cmd_edit,
     /* CMD_IMAGE      */ line_cmd_stub,
     /* CMD_MOUNT      */ line_cmd_stub,
     /* CMD_UMOUNT     */ line_cmd_stub,
@@ -1748,6 +1854,9 @@ static st_error_t line_read_rich(line_context_t *ptCtx,
     const char *szSuffix;
     size_t     uiSuffixLen;
 
+    /* Prompt change detection for CON_KEY_TIMEOUT */
+    char  szLastPrompt[256];
+
     /* Initialise */
     uiLen    = 0;
     uiCursor = 0;
@@ -1759,10 +1868,12 @@ static st_error_t line_read_rich(line_context_t *ptCtx,
     iCompleteCount      = 0;
     iCompleteCur        = -1;
     uiCompletePrefixLen = 0;
-    szGhost[0]           = '\0';
+    szGhost[0]          = '\0';
+    szLastPrompt[0]     = '\0';
 
     /* Show initial empty prompt */
     line_redraw(ptCtx, szBuf, uiLen, uiCursor, NULL);
+    line_build_prompt(ptCtx, szLastPrompt, sizeof(szLastPrompt));
 
     for (;;)
     {
@@ -1774,12 +1885,21 @@ static st_error_t line_read_rich(line_context_t *ptCtx,
             return ST_ERROR;
         }
 
-        /* Timeout (200 ms, no keystroke): refresh prompt so that
-         * [T] and [file] indicators update without waiting for a key. */
+        /* Timeout (200 ms, no keystroke): refresh prompt only when
+         * the [T] or [file] indicators have actually changed.
+         * Skipping the redraw when nothing changed prevents the cursor
+         * from flickering while TAB ghost text is displayed. */
         if (iKey == CON_KEY_TIMEOUT)
         {
-            line_redraw(ptCtx, szBuf, uiLen, uiCursor,
-                        iCompleteCur >= 0 ? szGhost : NULL);
+            char szNewPrompt[256];
+            line_build_prompt(ptCtx, szNewPrompt, sizeof(szNewPrompt));
+            if (strcmp(szNewPrompt, szLastPrompt) != 0)
+            {
+                strncpy(szLastPrompt, szNewPrompt, sizeof(szLastPrompt) - 1);
+                szLastPrompt[sizeof(szLastPrompt) - 1] = '\0';
+                line_redraw(ptCtx, szBuf, uiLen, uiCursor,
+                            iCompleteCur >= 0 ? szGhost : NULL);
+            }
             continue;
         }
 
@@ -2412,6 +2532,13 @@ st_error_t line_shutdown(line_context_t *ptCtx)
     {
         dir_close(&g_line_ptDirView);
         g_line_ptDirView = NULL;
+    }
+
+    /* Close any open text edit view */
+    if (g_line_ptEditTxtView != NULL)
+    {
+        edit_txt_close(&g_line_ptEditTxtView);
+        g_line_ptEditTxtView = NULL;
     }
 
     /* Save history */

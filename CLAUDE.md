@@ -22,6 +22,7 @@
 - 2026-06-01: UC5 validé — `where`/`info`/`history [N]` + P8 console title (`SetConsoleTitleA`) + P21 `H` dir hidden-toggle + P22 F5 refresh + P23bis TAB common prefix avant cycle ghost + P24 `colors auto` via `isatty()` + P27 `trace clear` + P28 `trace level trace|info|error` ; `CMD_INFO`/`CMD_HISTORY` ; `trace_clear()`/`trace_set_view_level()` ; `line_update_console_title()` ; ST_APP_VERSION 0.5.0
 - 2026-06-01: UC6 validé — `src/file.h` + `src/file.c` : `file_stat`, `file_open/read/write/close`, `file_mkdir`, `file_list_dir` (callback) ; CRT + POSIX portable ; ST_APP_VERSION 0.6.0
 - 2026-06-01: UC7 validé — `src/load.h` + `src/load.c` : détection type, chargement binaire raw + PRG stub (magic 0x601A, .text+.data) + fixup TODO(UC15) ; `line_cmd_load()` ; `line_cmd_info()` live ; P11 `szLastSelected` + `g_dir_clrLastSel` (vert sombre) dans `dir_render()` ; `st_machine_t` + `load_init/shutdown` dans `main.c` ; ST_APP_VERSION 0.7.0
+- 2026-06-02: UC8 validé — `src/edit_txt.h` + `src/edit_txt.c` : éditeur texte D2D (load/save, numéros de ligne, sélection, CTRL raccourcis, clipboard) ; `gui.h` : `GUI_MOD_CTRL/SHIFT/ALT` + `uiMods` dans `tKey` + API clipboard ; `win_gui.c` : WM_KEYDOWN/WM_CHAR avec modificateurs, CTRL+lettre via codes de contrôle, implémentation clipboard Win32 ; `lx_gui.c` : stubs clipboard ; `line_cmd_edit()` routage texte/binaire ; `g_line_ptEditTxtView` dans `line.c` ; ST_APP_VERSION 0.8.0
 
 ## 1. Contexte du projet
 
@@ -552,7 +553,7 @@ Les étapes de développement fonctionnelles sont formalisées en Use Cases, per
 | UC5-bis | prefs | Module `prefs.c` : lecture/écriture `%APPDATA%\ST4Ever\prefs.ini` ; mémorisation position/taille fenêtres par type (P7) — **différé après UC10** : les types de vues (edit hex, edit txt, disassembly) doivent être stables avant de persister leurs positions | save/restore position fenêtre dir/edit |
 | UC6 | plateforme | Abstraction fichiers : open/read/write/stat/mkdir, listing répertoire | ✓ VALIDÉ 2026-06-01 |
 | UC7 | `load` | Chargement fichier texte/binaire, détection type, buffer mémoire ; indicateur visuel sélection active dans vue `dir` (P11 : couleur secondaire sur ligne sélectionnée, ≠ highlight navigation) | ✓ VALIDÉ 2026-06-01 |
-| UC8 | `edit` texte | Vue éditeur texte Win32/GDI + X11 : scroll, numéros de ligne, sauvegarde | édition + save .S et .TXT |
+| UC8 | `edit` texte | Vue éditeur texte D2D : scroll, numéros de ligne, sélection, clipboard, sauvegarde ; `GUI_MOD_*` + `uiMods` dans `gui_event_t` ; API clipboard `gui_clipboard_set/get_text` | ✓ VALIDÉ 2026-06-02 |
 | UC9 | `edit` hex | Vue hex/ASCII Win32/GDI + X11 : adresses, scroll, édition octets | navigation + modification |
 | UC10 | `edit` | Vue intégrée hex+ASCII+désasm en colonnes synchronisées | sync curseur entre vues |
 | UC11 | interne | Désassembleur 68000 : MOVE/MOVEQ/LEA/CLR/EXG/SWAP/PEA | désasm binaire de test |
@@ -1311,6 +1312,111 @@ Les étapes de développement fonctionnelles sont formalisées en Use Cases, per
 - UC25 : `execute` démarrera depuis `load_get_state()->uiLoadAddr` comme PC initial (si eType == LOAD_TYPE_PRG).
 - `line_cmd_info()` stub "Disk mounted" reste à remplir lors de UC18 (`mount`).
 
+### 6.13 Use Case 08 (UC8) — ✓ VALIDÉ (2026-06-02)
+
+**Périmètre fonctionnel implémenté :**
+- `src/edit_txt.h` + `src/edit_txt.c` : éditeur texte sur fenêtre D2D (`GUI_WND_EDIT_TXT`) :
+  - Chargement de fichier via `file.h` (split newlines, expansion tabs, cap `EDIT_TXT_MAX_LINE_LEN`) ; fichier vide → 1 ligne vide garantie.
+  - Rendu : fond sombre + gutter (numéros de ligne auto-width) + highlight ligne courante + surlignage sélection (bleu) + curseur barre verticale `CURSOR_BAR_W=2 px`.
+  - Navigation curseur : ↑↓←→, Home/End, PgUp/PgDn ; CTRL+Home/End (début/fin fichier) ; CTRL+←/→ (mot précédent/suivant).
+  - Sélection : SHIFT+toute navigation = ancre + curseur ; CTRL+A = tout sélectionner.
+  - Édition : printable insert, ENTER (split ligne), TAB (tab char), Backspace (delete back ou merge lignes), Delete (delete fwd ou merge lignes).
+  - Clipboard : CTRL+C (copie sélection), CTRL+X (coupe), CTRL+V (colle ; support multiligne).
+  - Save : CTRL+S → `file.h FILE_MODE_WRITE` + `bDirty=FALSE` + title update ; `[*]` dans le titre quand dirty (R18).
+  - ESC : ferme la vue sans dialog ; `LOG_INFO` si dirty.
+  - Scroll souris : molette verticale via `GUI_EVT_SCROLL`.
+  - Clic souris : `GUI_EVT_MOUSE_DOWN` → mapping pixel→ligne/colonne + déplacement curseur.
+  - Titre dynamique : `"ST4Ever - Edit: <basename> [*]"` (R18).
+- `src/gui.h` :
+  - `GUI_MOD_CTRL = 0x01`, `GUI_MOD_SHIFT = 0x02`, `GUI_MOD_ALT = 0x04` (masques).
+  - Champ `st_u8_t uiMods` ajouté à `struct sKey` dans `gui_event_t` — rétrocompatible (code existant qui ignore `uiMods` inchangé).
+  - API clipboard : `gui_clipboard_set_text(szText)`, `gui_clipboard_get_text(szBuf, uiMax)`.
+- `win/win_gui.c` :
+  - `WM_KEYDOWN` : `GetKeyState(VK_CONTROL/SHIFT/MENU)` → `uiMods` sur tous les événements navigation.
+  - `WM_CHAR` : codes de contrôle 1–26 → `GUI_KEY_PRINTABLE+'A'..'Z'` avec `GUI_MOD_CTRL` ; printable ≥ 32 → `uiMods` SHIFT.
+  - `gui_clipboard_set_text` : `GlobalAlloc/Lock + OpenClipboard(NULL) + EmptyClipboard + SetClipboardData(CF_TEXT)`.
+  - `gui_clipboard_get_text` : `OpenClipboard(NULL) + GetClipboardData(CF_TEXT) + GlobalLock + copy`.
+- `linux/lx_gui.c` : stubs clipboard avec `LOG_TODO(UC8-Linux)`.
+- `src/line.c` :
+  - `g_line_ptEditTxtView *edit_txt_view_t` static.
+  - `line_cmd_edit()` : collecte chemin depuis arg ou `line_get_selected()` ; `file_stat()` ; rejette dir / images / binaires (stub UC9) ; ouvre `edit_txt_view_t` ; ferme précédente si nécessaire.
+  - Dispatch `CMD_EDIT → line_cmd_edit` (remplace `line_cmd_stub`).
+  - `line_shutdown()` ferme `g_line_ptEditTxtView` si ouvert.
+- `src/common.h` : `ST_APP_VERSION → "0.8.0"`.
+
+**Tests R14/R15 appliqués :**
+- `use_cases/use_case_08.c` : TEST MATRIX **17N + 11R + 8S = 36 tests**, 0 failure
+  - [N] : display_len (tab expansion, round-trip, NUL-stop : 8 tests), clipboard round-trip, GUI_MOD flags+combinaison (5), constantes EDIT_TXT_* (3)
+  - [R] : lifecycle NULL guards (8 : path/ctx/pptView/missing-file×2 + close×2), clipboard NULL guards (3)
+  - [S] : 8 tests visuels `make manual UC=08`
+
+**Contrats comportementaux validés :**
+
+*`edit_txt_open(szPath, ptLineCtx, pptView)`*
+- `szPath=NULL`, `ptLineCtx=NULL`, `pptView=NULL` → `ST_ERROR`
+- Fichier inexistant → `ST_ERROR` + `*pptView=NULL`
+- Fichier vide → `ST_NO_ERROR` + `iLineCount == 1` (ligne vide garantie)
+- Succès : fenêtre D2D visible, curseur en (0,0), pas de focus volé (R22 : `GUI_WND_EDIT_TXT` exclut `AttachThreadInput` comme `GUI_WND_TRACE`)
+
+*`edit_txt_close(pptView)`*
+- `pptView=NULL` → `ST_ERROR`
+- `*pptView=NULL` → `ST_NO_ERROR` (idempotent)
+- Après close : thread joint, renderer détruit, lignes libérées, `*pptView=NULL`
+
+*Navigation curseur*
+- Toute navigation clamp au range valide `[0, iLineCount-1]` × `[0, len(ligne)]`
+- CTRL+Home/End positionnent le curseur en début/fin de fichier
+- CTRL+←/→ sautent les frontières de mots (alphanumériques + `_`)
+- SHIFT+toute navigation étend la sélection depuis l'ancre
+
+*Sélection*
+- `iSelAnchorLine < 0` = pas de sélection
+- CTRL+A = ancre (0,0) + curseur (dernière ligne, fin de ligne)
+- Clic simple = clear sélection ; SHIFT+clic = étend depuis ancre courante
+- Toute navigation sans SHIFT = `etxt_sel_clear()` (ancre=-1)
+
+*Edition (gestion des lignes)*
+- ENTER split la ligne au curseur : la fin de ligne courante devient une nouvelle ligne
+- Backspace en col=0 : merge avec la ligne précédente (curseur au joint)
+- Delete en fin de ligne : merge avec la ligne suivante
+- `etxt_del_sel()` : sélection mono-ligne → suppression de plage ; multi-ligne → merge préfixe+suffixe + suppression lignes intermédiaires
+
+*Clipboard*
+- `gui_clipboard_set_text(NULL)` → `ST_ERROR`
+- `gui_clipboard_get_text(NULL, N)` ou `(buf, 0)` → `ST_ERROR`
+- `gui_clipboard_get_text` : toujours NUL-terminé sur retour, même sur erreur (chaîne vide)
+- CTRL+V : `etxt_del_sel()` si sélection active, puis colle char par char ('\r' ignoré, '\n' = split ligne)
+
+*Save*
+- CTRL+S quand `bDirty=FALSE` : no-op
+- CTRL+S quand `bDirty=TRUE` : `FILE_MODE_WRITE` (crée/tronque) ; écrit toutes les lignes séparées par '\n' (pas de '\n' final) ; `bDirty=FALSE` ; titre mis à jour
+- Échec save : `LOG_ERROR`, `bDirty` reste TRUE
+
+*`gui.h` `GUI_MOD_*`*
+- Flags distincts : `CTRL=0x01`, `SHIFT=0x02`, `ALT=0x04` — aucun overlap
+- Combinables par OR ; code existant qui ignore `uiMods` = 0 (champ initialisé par `memset` dans WndProc)
+
+*`win_gui.c` CTRL+lettre*
+- `WM_CHAR` avec `wParam ∈ [1..26]` → `GUI_KEY_PRINTABLE + ('A'+wParam-1)`, `uiMods = GUI_MOD_CTRL`
+- Le code existant (dir, trace) reçoit `uiMods=0` par défaut — aucune régression
+
+*Module `edit_undo_*` — CTRL+Z (ajouté UC8, 2026-06-02)*
+- Ring buffer de `EDIT_TXT_UNDO_LEVELS = 20` snapshots ; chaque entrée = copie profonde de `aszLines[]` + `tCursor`.
+- `etxt_undo_push()` : copie profonde du buffer courant dans le slot `iUndoHead`, avance le ring. Si ring plein, l'entrée la plus ancienne est libérée et remplacée.
+- `etxt_undo_pop()` (CTRL+Z) : restaure le dernier snapshot, transfère l'ownership de `aszLines` vers le buffer live, décrémente `iUndoCount`. No-op si ring vide.
+- Groupage des inserts consécutifs : `bUndoGroupInsert=TRUE` après le premier printable insert ; push sauté tant que la frappe reste printable ; tout autre key remet `bUndoGroupInsert=FALSE` → CTRL+Z annule tout le groupe d'une traite.
+- Exception : `del_sel + insert_char` (remplacement de sélection) = un seul push avant le del_sel ; le insert suivant est déjà dans le même niveau.
+- Navigation (←/→/↑/↓/Home/End/PgUp/PgDn) : `bUndoGroupInsert=FALSE`, pas de push.
+- CTRL+S (save) : pas de push (la sauvegarde n'est pas annulable via undo).
+- `etxt_undo_free_all()` appelé dans `edit_txt_close()` pour libérer tous les snapshots.
+- Après `etxt_undo_pop()` : `bDirty=TRUE`, `iSelAnchorLine=-1` (sélection réinitialisée).
+
+**Points d'attention pour les UCs suivants :**
+- UC9 : `edit_hex_open(szPath, ptLineCtx, pptView)` — même architecture `GUI_WND_EDIT_HEX` ; `line_cmd_edit()` redirigera les `.prg/.ttp/.tos/.st/.msa` vers `edit_hex_open()`.
+- UC10 : `edit.c` dispatcher intégré (hex+ASCII+désasm synchronisés) — `edit_open()` choisit entre `edit_txt` et `edit_hex`.
+- UC18 (mount) : `GUI_MOD_SHIFT` est désormais transmis par `win_gui.c` → `dir_handle_key()` peut exploiter SHIFT+ESPACE pour la sélection multiple P14 sans modification du backend.
+- Encodage : `WM_CHAR` limité au code page ANSI courant (0xFF mask) — suffisant pour les sources ATARI ST ASCII. Support UTF-8 différé.
+
 ## 7. Propositions d'améliorations
 
 *Claude et Tonton Marcel déposent ici leurs propositions UX/fonctionnelles au fil des UCs. Avant de clore un UC, les propositions sont passées en revue ensemble : celles agréées sont planifiées dans le tableau section 6 et retirées d'ici. **Un UC est clos quand §7 ne contient plus de propositions non arbitrées pour cet UC.***
@@ -1470,6 +1576,38 @@ Avis Claude : ACCEPTÉ — la valeur est réelle : `trace level info` cache les 
 ### Arbitrage UC5 (2026-06-01)
 
 *Toutes les propositions P21–P28 planifiées pour UC5 ont été implémentées et validées dans ce UC. Aucune proposition UC5 ouverte en §7 — UC5 est clos.*
+
+---
+
+### Arbitrage UC6 (2026-06-01)
+
+*UC6 est un UC purement infrastructure (abstraction fichiers). Aucune proposition UX/fonctionnelle n'a émergé. Aucune proposition §7 en attente — UC6 est clos.*
+
+---
+
+### Arbitrage UC8 (2026-06-02)
+
+**P29 — Undo (CTRL+Z) dans l'éditeur texte** → **IMPLÉMENTÉ — UC8 (2026-06-02)**
+
+Ring buffer 20 niveaux, snapshot complet + groupage inserts consécutifs. Contrats dans §6.13.
+
+**P30 — Find/Replace (CTRL+F / CTRL+H)** → **DIFFÉRÉ — UC10 ou après**
+
+Avis Claude : ACCEPTÉ. Barre de saisie en bas de fenêtre (style éditeur minimal). À planifier à UC10 quand la famille edit (txt + hex + intégré) est stable.
+
+*Aucune autre proposition ouverte pour UC8. UC8 est clos.*
+
+---
+
+### Arbitrage UC7 (2026-06-01)
+
+**P11 — Indicateur sélection active dans la vue dir** → **IMPLÉMENTÉ — UC7**
+
+P11 était arbitrée ACCEPTÉ depuis UC3.3 et planifiée à UC7. Implémentation conforme :
+- `szLastSelected[ST_MAX_PATH]` dans `dir_view_t`, mis à jour sur ENTER et SPACE (fichiers uniquement).
+- `g_dir_clrLastSel = {0.04f, 0.28f, 0.10f, 1.0f}` (vert sombre) rendu avant le fond bleu de navigation → les deux couleurs sont visuellement distinctes.
+
+*Aucune autre proposition ouverte pour UC7. Aucune nouvelle proposition UX/fonctionnelle n'a émergé pendant l'implémentation — UC7 est clos.*
 
 ## 8. Licence & attribution
 Pas de redistribution prévue à ce jour
