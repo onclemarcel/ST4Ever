@@ -21,6 +21,6 @@ DEBUG: Skipped patch 'boot from DMA bus'.
 DEBUG: Applied 0 TOS patches, 0 patches failed.
 DEBUG: Video_SetSystemTimings 0 3 -> 2 (WS3) 503 503 64
 DEBUG: Video_SetSystemTimings 0 3 -> 2 (WS3) 503 503 64
-WARN : Host system does not have accurate delays. (13)
+DEBUG: Host system has accurate delays. (6)
 DEBUG: update cyc speed 0 throttle 0,000000 clock_mult 512
 DEBUG: CPU cycleunit: 256 (0,500)

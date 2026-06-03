@@ -26,15 +26,15 @@ for fname in os.listdir(SRC_DIR):
 
     # Lancer Hatari
     subprocess.run([
-        "hatari",
-        "--parse", "build.cmd",
-        "--tos", "C:\\msys\\mingw64\\share\\hatari\\tos104fr.rom",
-        "--harddrive", BUILD_DIR,
-        "--sound", "off",
-        "--fast-forward", "yes",
-        "--log-level", "debug",
-        "--trace", "gemdos",
-        "--log-file", "hatari.log"
+    "hatari",
+    "--parse", subprocess.check_output(["cygpath", "-w", "./build.cmd"]).decode().strip(),
+    "--tos", subprocess.check_output(["cygpath", "-w", "/C/msys/mingw64/share/hatari/tos104fr.rom"]).decode().strip(),
+    "--harddrive", subprocess.check_output(["cygpath", "-w", BUILD_DIR]).decode().strip(),
+    "--sound", "off",
+    "--fast-forward", "yes",
+    "--log-level", "debug",
+    "--trace", "gemdos",
+    "--log-file", "hatari.log"
     ])
     
     # Remove .S from current dir

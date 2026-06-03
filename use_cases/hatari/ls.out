@@ -1,0 +1,13 @@
+total 294
+drwxr-xr-x 1 march march      0 Jun  3 11:39 .
+drwxr-xr-x 1 march march      0 Jun  3 09:56 ..
+-rw-r--r-- 1 march march  69768 Aug  2  2018 GEN.TTP
+drwxr-xr-x 1 march march      0 Jun  3 10:25 PRG
+drwxr-xr-x 1 march march      0 Jun  3 11:07 SRC
+-rw-r--r-- 1 march march     70 Jun  3 11:39 build.cmd
+-rw-r--r-- 1 march march   1401 Jun  3 11:39 build_prg.py
+-rw-r--r-- 1 march march   8082 Jun  3 10:28 generate_m68k_tests.py
+-rw-r--r-- 1 march march     15 Jun  3 10:02 hatari.cfg
+-rw-r--r-- 1 march march   1557 Jun  3 11:39 hatari.log
+-rw-r--r-- 1 march march      0 Jun  3 11:39 ls.out
+-rw-r--r-- 1 march march 158913 Jun  3 09:23 m68k_all_instructions.asm
