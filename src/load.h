@@ -11,10 +11,21 @@
  *   directory           → rejected (ST_ERROR) — caller prints "use mount"
  *   all other           → LOAD_TYPE_BINARY (verbatim raw copy)
  *
- * PRG loading (UC7 stub — full fixup relocation deferred to UC15):
- *   Validates the 0x601A magic, loads .text + .data sections at
- *   ST_LOAD_BASE (0x0800, just above the 68000 vector table).
- *   Fixup relocation is logged as TODO(UC15) and skipped.
+ * PRG loading (UC15 — full implementation):
+ *   Validates the 0x601A magic, reads the 28-byte header (text_size,
+ *   data_size, bss_size, sym_size, abs_flag), loads .text + .data at
+ *   ST_LOAD_BASE (0x0800, just above the 68000 vector table), zeroes
+ *   the BSS area, skips the symbol table, then applies the fixup
+ *   relocation table when abs_flag == 0.
+ *
+ * Fixup relocation table format (after symtab):
+ *   - First 4 bytes (big-endian): offset from .text start to first fixup.
+ *     A value of 0 means "no fixups".
+ *   - Then successive bytes until 0x00:
+ *       0x00  end of fixup list
+ *       0x01  advance current fixup offset by 254 bytes
+ *       other N  advance by N bytes, then relocate the longword at
+ *                that offset (add ST_LOAD_BASE to it).
  *
  * Binary loading:
  *   Copies file content verbatim to ST RAM at ST_LOAD_BASE.
@@ -29,7 +40,6 @@
  *   main.c calls load_init(ptMachine) after st_init(), then
  *   load_shutdown() before st_shutdown().
  *
- * TODO(UC15): Full PRG header parse + fixup relocation.
  * TODO(UC24): Memory map-aware load address allocation (first free
  *             block above TOS variable area).
  */
@@ -72,7 +82,13 @@ typedef struct load_state_s
     load_type_t  eType;                  /* File type discriminant      */
     char         szPath[ST_MAX_PATH];    /* Full path of loaded file    */
     st_u32_t     uiLoadAddr;             /* ST RAM address of content   */
-    st_u32_t     uiSize;                 /* Bytes of content in RAM     */
+    st_u32_t     uiSize;                 /* Total bytes in RAM          */
+                                         /*  (text+data+bss for PRG)    */
+    /* PRG-specific fields (0 for LOAD_TYPE_BINARY) */
+    st_u32_t     uiTextSize;             /* .text section size (bytes)  */
+    st_u32_t     uiDataSize;             /* .data section size (bytes)  */
+    st_u32_t     uiBssSize;              /* .bss  section size (bytes)  */
+    st_u32_t     uiFixupCount;           /* Number of fixups applied    */
 } load_state_t;
 
 /* ------------------------------------------------------------------
@@ -114,7 +130,7 @@ st_error_t load_shutdown(void);
  *
  * Detects the file type via file_stat(), then:
  *   - directory / disk image → ST_ERROR (caller should show user msg)
- *   - .prg/.ttp/.tos        → validates 0x601A magic, loads .text+.data
+ *   - .prg/.ttp/.tos        → full PRG load with fixup relocation
  *   - all other             → copies file content verbatim
  *
  * On success the internal load state is updated and can be read via

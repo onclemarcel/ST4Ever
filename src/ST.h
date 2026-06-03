@@ -23,7 +23,6 @@
  *     0xFFFC00 - 0xFFFC07    ACIA 6850 - keyboard + MIDI
  *   0xFFFF82 - 0xFFFFFF   Reserved / mirrors
  *
- * TODO(UC15): Implement PRG loading and fixup relocation.
  * TODO(UC24): Implement hardware register read/write handlers.
  */
 

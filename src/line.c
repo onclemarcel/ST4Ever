@@ -1255,11 +1255,14 @@ static st_error_t line_cmd_load(const parsed_cmd_t *ptParsed,
     ptState = load_get_state();
     if (ptState->eType == LOAD_TYPE_PRG)
     {
-        line_print_msg("Loaded PRG '%s' at ST:0x%06X (%u bytes, "
-                       "fixup deferred to UC15).",
+        line_print_msg("Loaded PRG '%s' at ST:0x%06X "
+                       "(.text=%u .data=%u .bss=%u, %u fixup(s)).",
                        szPath,
                        (unsigned)ptState->uiLoadAddr,
-                       (unsigned)ptState->uiSize);
+                       (unsigned)ptState->uiTextSize,
+                       (unsigned)ptState->uiDataSize,
+                       (unsigned)ptState->uiBssSize,
+                       (unsigned)ptState->uiFixupCount);
     }
     else
     {
@@ -1510,17 +1513,29 @@ static st_error_t line_cmd_info(const parsed_cmd_t *ptParsed,
         const load_state_t *ptLoadState = load_get_state();
         if (ptLoadState->bLoaded)
         {
-            const char *szType;
-            szType = (ptLoadState->eType == LOAD_TYPE_PRG)
-                     ? "PRG-stub" : "binary";
-            line_print_msg("Binary       : %s%s%s (%s, ST:0x%06X, "
-                           "%u bytes)",
-                           c_green(),
-                           line_path_basename(ptLoadState->szPath),
-                           c_reset(),
-                           szType,
-                           (unsigned)ptLoadState->uiLoadAddr,
-                           (unsigned)ptLoadState->uiSize);
+            if (ptLoadState->eType == LOAD_TYPE_PRG)
+            {
+                line_print_msg("Binary       : %s%s%s (PRG, ST:0x%06X, "
+                               ".text=%u .data=%u .bss=%u, %u fixup(s))",
+                               c_green(),
+                               line_path_basename(ptLoadState->szPath),
+                               c_reset(),
+                               (unsigned)ptLoadState->uiLoadAddr,
+                               (unsigned)ptLoadState->uiTextSize,
+                               (unsigned)ptLoadState->uiDataSize,
+                               (unsigned)ptLoadState->uiBssSize,
+                               (unsigned)ptLoadState->uiFixupCount);
+            }
+            else
+            {
+                line_print_msg("Binary       : %s%s%s (binary, ST:0x%06X, "
+                               "%u bytes)",
+                               c_green(),
+                               line_path_basename(ptLoadState->szPath),
+                               c_reset(),
+                               (unsigned)ptLoadState->uiLoadAddr,
+                               (unsigned)ptLoadState->uiSize);
+            }
         }
         else
         {

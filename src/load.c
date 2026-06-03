@@ -1,9 +1,25 @@
 /*
  * load.c - ST4Ever file load into emulated ST RAM
  *
- * UC7: file type detection + raw binary load + PRG header validation.
+ * UC15: Full PRG header parse + fixup relocation table + BSS clear.
  *
- * TODO(UC15): Full PRG section layout + fixup relocation table parse.
+ * PRG header layout (28 bytes, all fields big-endian):
+ *   Offset  0 : magic    0x601A  (2 bytes)
+ *   Offset  2 : text_sz          (4 bytes) — .text section size
+ *   Offset  6 : data_sz          (4 bytes) — .data section size
+ *   Offset 10 : bss_sz           (4 bytes) — .bss  section size
+ *   Offset 14 : sym_sz           (4 bytes) — symbol table size
+ *   Offset 18 : reserved         (4 bytes)
+ *   Offset 22 : flags            (4 bytes)
+ *   Offset 26 : abs_flag         (2 bytes) — 0=relocatable, 1=absolute
+ *
+ * File layout after header:
+ *   .text (text_sz bytes) + .data (data_sz bytes)
+ *   symbol table (sym_sz bytes)
+ *   fixup table (if abs_flag == 0):
+ *     4 bytes  first fixup offset from .text start (0 = no fixups)
+ *     1 byte   0x00 = end ; 0x01 = advance 254 ; other = advance N + fix
+ *
  * TODO(UC24): Allocate load address from memory map (above TOS vars).
  */
 
@@ -66,6 +82,124 @@ static st_u32_t load_u32be(const st_u8_t *p)
          | ((st_u32_t)p[1] << 16)
          | ((st_u32_t)p[2] <<  8)
          |  (st_u32_t)p[3];
+}
+
+/*
+ * load_skip_bytes() - Read and discard uiCount bytes from a file.
+ *
+ * Used to skip the PRG symbol table before the fixup table.
+ */
+static st_error_t load_skip_bytes(file_t *ptFile, st_u32_t uiCount)
+{
+    st_u8_t  aBuf[512];
+    st_u32_t uiRemain;
+    size_t   uiChunk;
+    size_t   uiRead;
+
+    uiRemain = uiCount;
+    while (uiRemain > 0)
+    {
+        uiChunk = (uiRemain > (st_u32_t)sizeof(aBuf))
+                  ? sizeof(aBuf) : (size_t)uiRemain;
+        uiRead = 0;
+        if (file_read(ptFile, aBuf, uiChunk, &uiRead) != ST_NO_ERROR
+            || uiRead < uiChunk)
+            return ST_ERROR;
+        uiRemain -= (st_u32_t)uiRead;
+    }
+    return ST_NO_ERROR;
+}
+
+/*
+ * load_apply_fixups() - Walk the fixup table and relocate longwords in RAM.
+ *
+ * At each fixup position P (relative to start of .text), the longword
+ * stored in RAM at ST_LOAD_BASE + P is incremented by ST_LOAD_BASE.
+ *
+ * Parameters:
+ *   ptFile     [in]  : file open at the start of the fixup table
+ *   szPath     [in]  : path (for error messages)
+ *   uiTotal    [in]  : relocatable area size (text_sz + data_sz)
+ *   puiCount   [out] : receives the number of fixups applied
+ *
+ * Returns:
+ *   ST_NO_ERROR on success (including "no fixups").
+ *   ST_ERROR    on I/O error or out-of-range fixup offset.
+ */
+static st_error_t load_apply_fixups(file_t     *ptFile,
+                                     const char *szPath,
+                                     st_u32_t    uiTotal,
+                                     st_u32_t   *puiCount)
+{
+    st_u8_t  aBuf4[4];
+    st_u8_t  bByte;
+    size_t   uiRead;
+    st_u32_t uiOffset;
+    st_u32_t uiOld;
+    st_u32_t uiNew;
+    st_u8_t *pRam;
+
+    *puiCount = 0;
+
+    /* Read the first fixup offset (4 bytes big-endian) */
+    uiRead = 0;
+    if (file_read(ptFile, aBuf4, 4, &uiRead) != ST_NO_ERROR
+        || uiRead < 4)
+    {
+        LOG_ERROR("'%s': cannot read fixup table header", szPath);
+        return ST_ERROR;
+    }
+
+    uiOffset = load_u32be(aBuf4);
+    if (uiOffset == 0)
+    {
+        /* Conventional signal: no fixups in this PRG */
+        LOG_INFO("PRG '%s': no fixups", szPath);
+        return ST_NO_ERROR;
+    }
+
+    /* Walk the fixup list */
+    for (;;)
+    {
+        /* Validate: fixup must be a longword entirely within .text+.data */
+        if (uiOffset + 4 > uiTotal)
+        {
+            LOG_ERROR("'%s': fixup offset 0x%06X out of range (max 0x%06X)",
+                      szPath,
+                      (unsigned)uiOffset,
+                      (unsigned)(uiTotal >= 4 ? uiTotal - 4 : 0));
+            return ST_ERROR;
+        }
+
+        /* Relocate: longword at ST_LOAD_BASE + uiOffset += ST_LOAD_BASE */
+        pRam  = &g_load_ptMachine->aRam[ST_LOAD_BASE + uiOffset];
+        uiOld = load_u32be(pRam);
+        uiNew = uiOld + ST_LOAD_BASE;
+        pRam[0] = (st_u8_t)(uiNew >> 24);
+        pRam[1] = (st_u8_t)(uiNew >> 16);
+        pRam[2] = (st_u8_t)(uiNew >>  8);
+        pRam[3] = (st_u8_t)(uiNew);
+        (*puiCount)++;
+
+        /* Read next byte */
+        uiRead = 0;
+        if (file_read(ptFile, &bByte, 1, &uiRead) != ST_NO_ERROR
+            || uiRead < 1)
+        {
+            /* EOF without explicit 0x00 terminator — treat as end */
+            break;
+        }
+
+        if (bByte == 0x00)
+            break;             /* Explicit end of fixup list */
+
+        if (bByte == 0x01)
+            uiOffset += 254;   /* Long-distance skip */
+        else
+            uiOffset += (st_u32_t)bByte; /* Normal advance */
+    }
+
+    return ST_NO_ERROR;
 }
 
 /*
@@ -133,26 +267,32 @@ static st_error_t load_do_raw(const char        *szPath,
 }
 
 /*
- * load_do_prg() - Validate PRG header and load .text+.data into RAM.
- *
- * UC7 stub: magic check + section sizes only.
- * TODO(UC15): Parse fixup table and relocate addresses.
+ * load_do_prg() - Full ATARI ST PRG load: header, sections, BSS, fixups.
  */
 static st_error_t load_do_prg(const char *szPath)
 {
-    file_t  *ptFile;
-    st_u8_t  aHdr[ST_PRG_HEADER_SIZE];
-    size_t   uiRead;
-    st_u16_t uiMagic;
-    st_u32_t uiTextSize;
-    st_u32_t uiDataSize;
-    st_u32_t uiContentSize;
+    file_t   *ptFile;
+    st_u8_t   aHdr[ST_PRG_HEADER_SIZE];
+    size_t    uiRead;
+    st_u16_t  uiMagic;
+    st_u32_t  uiTextSize;
+    st_u32_t  uiDataSize;
+    st_u32_t  uiBssSize;
+    st_u32_t  uiSymSize;
+    st_u16_t  uiAbsFlag;
+    st_u32_t  uiContentSize; /* text + data (read from file) */
+    st_u32_t  uiTotalSize;   /* text + data + bss (RAM footprint) */
+    st_u32_t  uiFixupCount;
 
-    ptFile = NULL;
+    ptFile     = NULL;
+    uiFixupCount = 0;
 
     if (file_open(szPath, FILE_MODE_READ, &ptFile) != ST_NO_ERROR)
         return ST_ERROR;
 
+    /* ----------------------------------------------------------------
+     * 1. Read and validate the 28-byte header
+     * ---------------------------------------------------------------- */
     uiRead = 0;
     if (file_read(ptFile, aHdr, ST_PRG_HEADER_SIZE, &uiRead)
             != ST_NO_ERROR
@@ -173,18 +313,29 @@ static st_error_t load_do_prg(const char *szPath)
         return ST_ERROR;
     }
 
-    uiTextSize    = load_u32be(aHdr + 2);
-    uiDataSize    = load_u32be(aHdr + 6);
-    uiContentSize = uiTextSize + uiDataSize;
+    uiTextSize = load_u32be(aHdr +  2);
+    uiDataSize = load_u32be(aHdr +  6);
+    uiBssSize  = load_u32be(aHdr + 10);
+    uiSymSize  = load_u32be(aHdr + 14);
+    /* aHdr[18..21] = reserved, aHdr[22..25] = flags — not used by UC15 */
+    uiAbsFlag  = load_u16be(aHdr + 26);
 
-    if (uiContentSize > ST_LOAD_MAX_SIZE)
+    uiContentSize = uiTextSize + uiDataSize;
+    uiTotalSize   = uiContentSize + uiBssSize;
+
+    if (uiTotalSize > ST_LOAD_MAX_SIZE)
     {
         file_close(&ptFile);
-        LOG_ERROR("'%s': .text+.data too large (%lu bytes)",
-                  szPath, (unsigned long)uiContentSize);
+        LOG_ERROR("'%s': PRG footprint too large (%lu bytes, max %lu)",
+                  szPath,
+                  (unsigned long)uiTotalSize,
+                  (unsigned long)ST_LOAD_MAX_SIZE);
         return ST_ERROR;
     }
 
+    /* ----------------------------------------------------------------
+     * 2. Read .text + .data into ST RAM at ST_LOAD_BASE
+     * ---------------------------------------------------------------- */
     if (uiContentSize > 0)
     {
         uiRead = 0;
@@ -202,23 +353,68 @@ static st_error_t load_do_prg(const char *szPath)
         }
     }
 
+    /* ----------------------------------------------------------------
+     * 3. Zero BSS area immediately after .data in RAM
+     * ---------------------------------------------------------------- */
+    if (uiBssSize > 0)
+    {
+        memset(&g_load_ptMachine->aRam[ST_LOAD_BASE + uiContentSize],
+               0, (size_t)uiBssSize);
+    }
+
+    /* ----------------------------------------------------------------
+     * 4. Skip symbol table (not needed for execution)
+     * ---------------------------------------------------------------- */
+    if (uiSymSize > 0)
+    {
+        if (load_skip_bytes(ptFile, uiSymSize) != ST_NO_ERROR)
+        {
+            file_close(&ptFile);
+            LOG_ERROR("'%s': cannot skip symbol table (%lu bytes)",
+                      szPath, (unsigned long)uiSymSize);
+            return ST_ERROR;
+        }
+    }
+
+    /* ----------------------------------------------------------------
+     * 5. Apply fixup relocation table (unless abs_flag is set)
+     * ---------------------------------------------------------------- */
+    if (uiAbsFlag == 0)
+    {
+        if (load_apply_fixups(ptFile, szPath,
+                              uiContentSize, &uiFixupCount)
+                != ST_NO_ERROR)
+        {
+            file_close(&ptFile);
+            return ST_ERROR;
+        }
+    }
+    else
+    {
+        LOG_INFO("PRG '%s': absolute (abs_flag=1), no fixups", szPath);
+    }
+
     file_close(&ptFile);
 
-    LOG_TODO("load_do_prg: fixup relocation not yet implemented (UC15) "
-             "— '%s' loaded at ST:0x%06X without relocation",
-             szPath, ST_LOAD_BASE);
-
+    /* ----------------------------------------------------------------
+     * 6. Update load state
+     * ---------------------------------------------------------------- */
     memset(&g_load_tState, 0, sizeof(g_load_tState));
-    g_load_tState.bLoaded    = ST_TRUE;
-    g_load_tState.eType      = LOAD_TYPE_PRG;
+    g_load_tState.bLoaded      = ST_TRUE;
+    g_load_tState.eType        = LOAD_TYPE_PRG;
     strncpy(g_load_tState.szPath, szPath, ST_MAX_PATH - 1);
-    g_load_tState.uiLoadAddr = ST_LOAD_BASE;
-    g_load_tState.uiSize     = uiContentSize;
+    g_load_tState.uiLoadAddr   = ST_LOAD_BASE;
+    g_load_tState.uiSize       = uiTotalSize;
+    g_load_tState.uiTextSize   = uiTextSize;
+    g_load_tState.uiDataSize   = uiDataSize;
+    g_load_tState.uiBssSize    = uiBssSize;
+    g_load_tState.uiFixupCount = uiFixupCount;
 
-    LOG_INFO("loaded PRG '%s' at ST:0x%06X (.text=%u .data=%u bytes, "
-             "stub — fixup UC15)",
+    LOG_INFO("loaded PRG '%s' at ST:0x%06X (.text=%u .data=%u .bss=%u "
+             "%u fixup(s))",
              szPath, ST_LOAD_BASE,
-             (unsigned)uiTextSize, (unsigned)uiDataSize);
+             (unsigned)uiTextSize, (unsigned)uiDataSize,
+             (unsigned)uiBssSize, (unsigned)uiFixupCount);
     return ST_NO_ERROR;
 }
 
