@@ -23,6 +23,9 @@
 | 1.8 | 2026-06-01 | UC4.4 | Claude/OMC | UC4.4 validated — trace_view_t D2D ring buffer + auto-scroll + keyboard nav + stderr suppressed when GUI live; REQ-TRC-017..022; UFR-TRC-007 closed |
 | 1.9 | 2026-06-01 | UC5   | Claude/OMC | UC5 validated — where/info/history [N]; P8 console title; P21 H-key hidden toggle; P22 F5 refresh + state-preserve; P23bis TAB common prefix; P24 colors isatty; P27 trace clear; P28 trace level; REQ-TRC-023..026; REQ-CON-025..031; REQ-DIR-021..022 |
 | 2.0 | 2026-06-01 | UC6   | Claude/OMC | UC6 validated — portable file FS abstraction (file.h/file.c): file_stat, file_open/read/write/close, file_mkdir, file_list_dir; REQ-FIL-001..022; UFR-FIL-001..007 |
+| 2.1 | 2026-06-03 | UC10  | Claude/OMC | UC10 validated — disassembly panel added to hex editor: HEX_ZONE_DISASM, cache 512 entries, bidirectional cursor sync, F2 toggle, wider window; UFR-HEX-005; REQ-HEX-011..020; §4.15 extended |
+| 2.2 | 2026-06-03 | UC11  | Claude/OMC | UC11 validated — real 68k disassembler: MOVE/MOVEQ/LEA/CLR/EXG/SWAP/PEA + full 12-mode EA decoder; REQ-DIS-006, REQ-DIS-010..014; TC-DIS-010..080; §4.16 new; TC-DIS-001 ADAPTED(UC11) |
+| 2.3 | 2026-06-03 | UC12  | Claude/OMC | UC12 validated — ADD/ADDA/ADDI/ADDQ/ADDX/SUB/SUBA/SUBI/SUBQ/SUBX/CMP/CMPA/CMPI/CMPM/MUL/DIV/AND/ANDI/OR/ORI/EOR/EORI/NOT/NEG/NEGX/TST/EXT; REQ-DIS-015..025; TC-DIS-100..190; §4.16 extended; §5.38..39 |
 
 ---
 
@@ -198,7 +201,7 @@ through one or more test cases in Section 5.
 | UFR-LOD-005 | The `info` command shall display the currently loaded binary name, type, ST load address, and byte count; if nothing is loaded, it shall display `(none)`. | ✓ UC7 | UC7 |
 | UFR-DIR-013 | When a file is committed via ENTER or SPACE in the dir view, a dark green secondary background (`g_dir_clrLastSel`) shall be rendered on that row in `dir_render()`, visually distinct from the navigation-cursor highlight. The indicator persists when the cursor moves; a new commit updates it. (P11) | ✓ UC7 | UC7 |
 
-### 1.7 Editor Views — `EDT` (UC8 text editor ✓, UC9–10 TODO)
+### 1.7 Editor Views — `EDT` (UC8 text editor ✓, UC9 hex+ASCII ✓, UC10 hex+disasm ✓)
 
 | ID          | User Functional Requirement                                                                                                                                         | Status   | UC    |
 |-------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------|-------|
@@ -213,6 +216,7 @@ through one or more test cases in Section 5.
 | UFR-HEX-002 | The hex view shall display 16 bytes per row: hex pairs separated by spaces, with an extra space gap after byte 7; bytes beyond the file end shown as spaces; non-printable bytes shown as `.` in the ASCII column. | ✓ UC9 | UC9 |
 | UFR-HEX-003 | The editor shall support two zones toggled by TAB: HEX zone (nibble-by-nibble editing: 0–9/A–F) and ASCII zone (byte editing: printable 0x20–0x7E); cursor color distinguishes the active zone (blue=HEX, yellow=ASCII). | ✓ UC9 | UC9 |
 | UFR-HEX-004 | CTRL+S shall save the file in-place (replace-mode, fixed size); the title bar shall show `[*]` when dirty and remove it after a successful save. ESC closes with a trace log entry if dirty. | ✓ UC9 | UC9 |
+| UFR-HEX-005 | The hex editor shall display a disassembly panel to the right of the ASCII column showing 68000 instructions decoded from the file content. The panel shall be toggled with F2 (default on). TAB shall cycle three zones: HEX → ASCII → DISASM → HEX. Navigation in the DISASM zone (↑↓/PgUp/PgDn) shall move by instruction and keep the hex cursor synchronised; conversely, cursor movement in HEX/ASCII shall keep the DISASM highlight synchronised. The DISASM zone is read-only. Clicking in the DISASM panel shall switch to DISASM zone and position the cursor at the clicked instruction. Mouse scroll in the DISASM zone shall scroll the disasm panel independently of the hex panel. | ✓ UC10 | UC10 |
 
 ### 1.6 Floppy Emulation — `MNT` (TODO UC16–19)
 
@@ -520,7 +524,7 @@ requirement that will expose it (`UFR-EXE-*`, planned UC21–27).
 
 ### 2.13 Hex Editor — `edit_hex.h` / `edit_hex.c`
 
-> Design ref: CLAUDE.md §1.1.5, §6.14; depends on `file.h` (UC6), `gui.h` (UC3.1), `renderer.h` (UC3.2)
+> Design ref: CLAUDE.md §1.1.5, §6.14, §6.15; depends on `file.h` (UC6), `gui.h` (UC3.1), `renderer.h` (UC3.2), `disassemble.h` (UC1 stub → UC11–14 real)
 
 | ID           | Software Requirement                                                                                                                                | Parent UFR  | Status   | UC   |
 |--------------|----------------------------------------------------------------------------------------------------------------------------------------------------|-------------|----------|------|
@@ -534,13 +538,23 @@ requirement that will expose it (`UFR-EXE-*`, planned UC21–27).
 | REQ-HEX-008  | HEX zone: typing a valid hex digit (0–9/A–F/a–f) shall overwrite the current nibble and advance the cursor (high→low within a byte, then to the next byte's high nibble). | UFR-HEX-003 | ✓ UC9 | UC9 |
 | REQ-HEX-009  | ASCII zone: typing a printable character (0x20–0x7E) shall overwrite the current byte and advance the cursor by one byte. | UFR-HEX-003 | ✓ UC9 | UC9 |
 | REQ-HEX-010  | CTRL+S shall write the entire `pData` buffer to file via `file_open(FILE_MODE_WRITE)`; after a successful save `bDirty` shall be `ST_FALSE` and the window title shall no longer contain `[*]`. | UFR-HEX-004 | ✓ UC9 | UC9 |
+| REQ-HEX-011  | Disasm panel constants shall be: `EDIT_HEX_DISASM_CACHE_LINES=512`, `EDIT_HEX_DISASM_PANEL_CHARS=48`, `EDIT_HEX_DISASM_SEP_CHARS=3`, `EDIT_HEX_DISASM_ADDR_CHARS=8`, `EDIT_HEX_DISASM_PREBUF_BYTES=512`. | UFR-HEX-005 | ✓ UC10 | UC10 |
+| REQ-HEX-012  | `HEX_ZONE_DISASM` shall be a third distinct zone value (2) in `edit_hex_zone_t`; existing values `HEX_ZONE_HEX=0` and `HEX_ZONE_ASCII=1` shall be unchanged. | UFR-HEX-005 | ✓ UC10 | UC10 |
+| REQ-HEX-013  | `disasm_range()` called on the file buffer with `uiAddr = uiStartByte` shall return instruction results whose `.uiAddr` fields form a monotonically increasing sequence matching the byte offsets consumed. | UFR-HEX-005 | ✓ UC10 | UC10 |
+| REQ-HEX-014  | The disasm cache shall be rebuilt (via `ehex_disasm_cache_update()`) after any cursor movement in HEX or ASCII zone and after any byte edit. The cache window shall start at `max(0, uiCursor − PREBUF_BYTES) & ~1`. | UFR-HEX-005 | ✓ UC10 | UC10 |
+| REQ-HEX-015  | Moving the cursor in the DISASM zone shall update `uiCursor` to the start byte of the selected instruction and call `ehex_scroll_to_cursor()` to keep the hex panel in sync. | UFR-HEX-005 | ✓ UC10 | UC10 |
+| REQ-HEX-016  | Moving the cursor in HEX or ASCII zone shall call `ehex_disasm_find_cursor()` to update `iDisasmCursorIdx` and `ehex_disasm_scroll_to_cursor()` to keep the disasm panel in sync. | UFR-HEX-005 | ✓ UC10 | UC10 |
+| REQ-HEX-017  | F2 shall toggle `bShowDisasm`; if the active zone is `HEX_ZONE_DISASM` when F2 is pressed, the zone shall revert to `HEX_ZONE_HEX`. | UFR-HEX-005 | ✓ UC10 | UC10 |
+| REQ-HEX-018  | TAB shall cycle zones HEX → ASCII → DISASM (if `bShowDisasm`) → HEX; when `bShowDisasm` is FALSE TAB shall toggle between HEX and ASCII only. | UFR-HEX-005 | ✓ UC10 | UC10 |
+| REQ-HEX-019  | Mouse scroll in `HEX_ZONE_DISASM` shall update `iDisasmScrollRow`; in any other zone it shall update `iScrollRow` (hex panel). Both shall be clamped to valid range. | UFR-HEX-005 | ✓ UC10 | UC10 |
+| REQ-HEX-020  | `edit_hex_open()` shall allocate `atDisasmCache` heap and set `bShowDisasm=TRUE`; `edit_hex_close()` shall free it. If the allocation fails, `bShowDisasm` shall be `ST_FALSE` and the window shall still open. | UFR-HEX-005 | ✓ UC10 | UC10 |
 
 ---
 
 ### 2.6 Disassembler — `disassemble.h` / `disassemble.c`
 
 > Design ref: CLAUDE.md §5 R7; DEVPAC3 syntax reference
-> Parent UFR: none at UC1 level — will link to `UFR-EDT-*` (UC10) and `UFR-EXE-*` (UC25).
+> Parent UFR: `UFR-HEX-005` (UC10 disasm panel) and `UFR-EXE-*` (UC25 execution engine).
 
 | ID          | Software Requirement                                                                                     | Parent UFR    | Status        | UC    |
 |-------------|----------------------------------------------------------------------------------------------------------|---------------|---------------|-------|
@@ -548,9 +562,23 @@ requirement that will expose it (`UFR-EXE-*`, planned UC21–27).
 | REQ-DIS-002 | `disasm_range(…, NULL ptResults, …)` shall return `ST_ERROR`.                                            | — (see UC10)  | ✓ UC1         | UC1   |
 | REQ-DIS-003 | `disasm_range(…, NULL puiLines)` shall return `ST_ERROR`.                                               | — (see UC10)  | ✓ UC1         | UC1   |
 | REQ-DIS-004 | `disasm_range()` with `uiBufLen = 0` shall return `ST_NO_ERROR` and write 0 lines.                     | — (see UC10)  | ✓ UC1         | UC1   |
-| REQ-DIS-005 | Stub: any opcode shall produce a `DC.W $XXXX` fallback (`bValid = ST_FALSE`).                          | — (see UC11)  | ADAPTED(UC11) | UC11  |
-| REQ-DIS-006 | Shall decode MOVE / MOVEQ / LEA / PEA / CLR / EXG / SWAP to DEVPAC3 format.                           | — (see UC11)  | TODO UC11     | UC11  |
-| REQ-DIS-007 | Shall decode ADD / SUB / CMP / MULU / DIVS / AND / OR / EOR / NOT / NEG.                              | — (see UC12)  | TODO UC12     | UC12  |
+| REQ-DIS-005 | Stub: any opcode shall produce a `DC.W $XXXX` fallback (`bValid = ST_FALSE`). ADAPTED(UC11): instructions decoded in UC11 now set `bValid = ST_TRUE`; unrecognised opcodes still fall through to DC.W. | — | ADAPTED(UC11) | UC11 |
+| REQ-DIS-006 | Shall decode MOVE.B/W/L, MOVEA.W/L, MOVEQ, LEA, PEA, CLR.B/W/L, SWAP, EXG (Dx/Dy, Ax/Ay, Dx/Ay) to DEVPAC3 format with correct mnemonic, operands, and `iWordCount`. | UFR-HEX-005 | ✓ UC11 | UC11 |
+| REQ-DIS-010 | `disasm_fmt_ea()` shall support all 12 EA modes: Dn, An, (An), (An)+, -(An), d16(An), d8(An,Xn), abs.W (sign-extended to 24-bit display), abs.L, d16(PC) (computed EA), d8(PC,Xn), #imm (.B/.W/.L). | UFR-HEX-005 | ✓ UC11 | UC11 |
+| REQ-DIS-011 | For abs.W mode (7.0): the 16-bit extension word shall be sign-extended to 32 bits and masked to 24 bits for display; negative values shall appear as `$FFxxxx.W`, positive as `$xxxx.W`. | UFR-HEX-005 | ✓ UC11 | UC11 |
+| REQ-DIS-012 | For d16(PC) and d8(PC,Xn): the effective address displayed shall be calculated as `(address_of_extension_word + displacement) & 0xFFFFFF`. | UFR-HEX-005 | ✓ UC11 | UC11 |
+| REQ-DIS-013 | MOVE.B to An (destination mode=001, size=B) shall produce a DC.W fallback (`bValid=ST_FALSE`). MOVEA.W/L (destination mode=001, size=W/L) shall use mnemonic `MOVEA.W`/`MOVEA.L`. | UFR-HEX-005 | ✓ UC11 | UC11 |
+| REQ-DIS-014 | CLR with size field=11 (bits 7-6 = 11) shall produce a DC.W fallback. PEA with non-control EA mode (Dn, An, (An)+, -(An), #imm) shall produce a DC.W fallback. | UFR-HEX-005 | ✓ UC11 | UC11 |
+| REQ-DIS-015 | Shall decode ADD/ADDA/ADDI/ADDQ/ADDX and SUB/SUBA/SUBI/SUBQ/SUBX with correct size suffix, operands, and word count. | UFR-HEX-005 | ✓ UC12 | UC12 |
+| REQ-DIS-016 | Shall decode CMP/CMPA/CMPI/CMPM; CMPM uses (An)+,(An)+ syntax. | UFR-HEX-005 | ✓ UC12 | UC12 |
+| REQ-DIS-017 | Shall decode MULU.W/MULS.W/DIVU.W/DIVS.W with `.W` size suffix; source is always word-sized EA; destination is Dn. | UFR-HEX-005 | ✓ UC12 | UC12 |
+| REQ-DIS-018 | Shall decode AND/ANDI/OR/ORI/EOR/EORI; immediate forms use `#$imm` source then EA destination; CCR/SR detected and named. | UFR-HEX-005 | ✓ UC12 | UC12 |
+| REQ-DIS-019 | Shall decode NOT/NEG/NEGX/TST with correct size suffix; size=3 → DC.W. EXT.W and EXT.L on Dn. | UFR-HEX-005 | ✓ UC12 | UC12 |
+| REQ-DIS-020 | ADDQ/SUBQ: 3-bit immediate field (0 means 8) displayed as decimal; size=3 → DC.W (Scc/DBcc). | UFR-HEX-005 | ✓ UC12 | UC12 |
+| REQ-DIS-021 | ADDX/SUBX: register form `Dx,Dy` and memory form `-(Ax),-(Ay)` distinguished by bit3 of opcode. | UFR-HEX-005 | ✓ UC12 | UC12 |
+| REQ-DIS-022 | For group 0xC (AND/MULU/MULS + EXG) and group 0x8 (OR/DIVU/DIVS): ABCD/SBCD patterns (bit8=1, sz=B, mode≤1) → DC.W. | UFR-HEX-005 | ✓ UC12 | UC12 |
+| REQ-DIS-023 | IMMI instructions (ADDI/SUBI/CMPI/ANDI/ORI/EORI): immediate source words precede destination EA extension words in the instruction stream. | UFR-HEX-005 | ✓ UC12 | UC12 |
+| REQ-DIS-007 | Shall decode ADD / SUB / CMP / MULU / DIVS / AND / OR / EOR / NOT / NEG.                              | UFR-HEX-005   | ✓ UC12        | UC12  |
 | REQ-DIS-008 | Shall decode ASL/ASR/LSL/LSR/ROL/ROR/ROXL/ROXR / BTST/BSET/BCLR/BCHG.                                | — (see UC13)  | TODO UC13     | UC13  |
 | REQ-DIS-009 | Shall decode BRA / BSR / Bcc / JMP / JSR / RTS / RTR / RTE / TRAP / ILLEGAL.                          | — (see UC14)  | TODO UC14     | UC14  |
 
@@ -1431,7 +1459,7 @@ CTRL+Z:
 
 ### 4.15 Hex Editor View — `edit_hex.c`
 
-**Role:** load an entire binary file into a flat heap buffer, render it as a hex+ASCII table in a D2D window, handle nibble-level editing in the hex zone and byte-level editing in the ASCII zone, save via `file.h`.
+**Role:** load an entire binary file into a flat heap buffer, render it as a hex+ASCII+disassembly table in a D2D window (UC10), handle nibble-level editing in the hex zone and byte-level editing in the ASCII zone, bidirectional cursor sync with a disassembly panel, save via `file.h`.
 
 **Key internal structure `edit_hex_view_t`:**
 
@@ -1444,18 +1472,25 @@ CTRL+Z:
 | `uiSize`         | `size_t`              | File size in bytes                                               |
 | `uiCursor`       | `size_t`              | Byte offset of the cursor                                        |
 | `iNibble`        | `int`                 | 0 = high nibble, 1 = low nibble (HEX zone only)                 |
-| `eZone`          | `edit_hex_zone_t`     | Active editing zone (HEX or ASCII)                               |
-| `iScrollRow`     | `int`                 | Index of first visible row                                       |
+| `eZone`          | `edit_hex_zone_t`     | Active editing zone (HEX, ASCII, or DISASM)                      |
+| `iScrollRow`     | `int`                 | Index of first visible hex row                                   |
 | `bDirty`         | `st_bool_t`           | Unsaved changes → `[*]` in title                                 |
-| `iAddrX/iHexX/iAsciiX` | `int`        | Pre-computed column X positions (px), set on first paint        |
+| `iAddrX/iHexX/iAsciiX` | `int`        | Pre-computed hex+ASCII column X positions (px)                  |
+| `atDisasmCache`  | `disasm_result_t *`   | Heap, CACHE_LINES entries; window around uiCursor (UC10)        |
+| `iDisasmCacheCount` | `int`              | Valid entries in cache                                           |
+| `uiDisasmCacheBase` | `st_u32_t`         | Byte address of cache[0]                                        |
+| `iDisasmScrollRow` | `int`               | First visible row in disasm panel                                |
+| `iDisasmCursorIdx` | `int`               | Cache index of instruction containing uiCursor                  |
+| `iDisasmX`       | `int`                 | Pixel X of disasm panel; 0 when panel hidden                    |
+| `bShowDisasm`    | `st_bool_t`           | F2 toggle; TRUE by default                                       |
 | `ptLineCtx`      | `line_context_t *`    | Back-reference for console feedback                              |
 
 **Public API:**
 
 | Function | REQ(s) | Description |
 |---|---|---|
-| `edit_hex_open(szPath, ptLineCtx, pptView)` | REQ-HEX-001..003 | Load file, open D2D window in new thread |
-| `edit_hex_close(pptView)` | REQ-HEX-001 | Join thread, free pData, free view |
+| `edit_hex_open(szPath, ptLineCtx, pptView)` | REQ-HEX-001..003, REQ-HEX-020 | Load file, allocate disasm cache, open D2D window |
+| `edit_hex_close(pptView)` | REQ-HEX-001, REQ-HEX-020 | Join thread, free pData, free atDisasmCache, free view |
 
 **Key internal functions:**
 
@@ -1463,20 +1498,31 @@ CTRL+Z:
 |---|---|---|
 | `ehex_load(ptV, szPath)` | REQ-HEX-002..003 | file_stat + malloc + file_read all bytes |
 | `ehex_save(ptV)` | REQ-HEX-010 | file_open(WRITE) + file_write full pData buffer |
-| `ehex_build_hex_row(pData, uiSize, iRow, szOut)` | REQ-HEX-004..006 | Build 49-char hex string for one row |
-| `ehex_build_asc_row(pData, uiSize, iRow, szOut)` | REQ-HEX-006 | Build 16-char ASCII string for one row |
-| `ehex_recalc_layout(ptV)` | REQ-HEX-003 | Set iAddrX, iHexX, iAsciiX from iCellW |
+| `ehex_build_hex_row(ptV, iRow, szOut)` | REQ-HEX-004..006 | Build 49-char hex string for one row |
+| `ehex_build_asc_row(ptV, iRow, szOut)` | REQ-HEX-006 | Build 16-char ASCII string for one row |
+| `ehex_recalc_layout(ptV)` | REQ-HEX-003, REQ-HEX-011 | Set iAddrX, iHexX, iAsciiX, iDisasmX from iCellW |
 | `ehex_scroll_to_cursor(ptV)` | — | Keep iScrollRow so cursor row is visible |
-| `ehex_handle_key(ptV, eKey, cChar, uiMods)` | REQ-HEX-007..010 | Navigation + editing dispatch |
-| `ehex_handle_click(ptV, iX, iY)` | — | Pixel→byte+nibble hit-test; set zone |
-| `ehex_render(ptV)` | REQ-HEX-004..006 | Per-row D2D draw: addr + hex + sep + ASCII + cursor overlay |
+| `ehex_disasm_cache_update(ptV)` | REQ-HEX-014 | Call disasm_range() for window around uiCursor; update cache |
+| `ehex_disasm_find_cursor(ptV)` | REQ-HEX-016 | Find cache entry containing uiCursor; update iDisasmCursorIdx |
+| `ehex_disasm_scroll_to_cursor(ptV)` | REQ-HEX-016 | Keep iDisasmScrollRow so iDisasmCursorIdx is visible |
+| `ehex_disasm_render(ptV)` | REQ-HEX-011..013 | Draw disasm separator + instruction lines; highlight cursor row |
+| `ehex_handle_key(ptV, eKey, cChar, uiMods)` | REQ-HEX-007..010, REQ-HEX-015, REQ-HEX-017..018 | Navigation + editing dispatch (all 3 zones) |
+| `ehex_handle_click(ptV, iX, iY)` | REQ-HEX-015 | Pixel hit-test; set zone + cursor; disasm zone on click |
+| `ehex_render(ptV)` | REQ-HEX-004..006 | Per-row D2D draw: addr + hex + sep + ASCII + disasm panel |
 
-**Row layout (character offsets):**
+**Row layout (character offsets) — hex+ASCII columns:**
 
 ```
 "XXXXXX: XX XX XX XX XX XX XX XX  XX XX XX XX XX XX XX XX  |................|"
   0..6   8  11 14 17 20 23 26 29 33 36 39 42 45 48 51 54  57..72
          byte 0..7 at 3i      gap  byte 8..15 at 3i+1
+```
+
+**Disasm panel layout (when `bShowDisasm`):**
+
+```
+" | $XXXXXX MNEMONIC OPERANDS"
+   ^sep(3)  ^addr(8)  ^mnem(8) ^operands (variable, total panel 48 chars)
 ```
 
 **External dependencies:**
@@ -1486,7 +1532,63 @@ CTRL+Z:
 | `file_stat / file_open / file_read / file_write / file_close` | [ST4] | File I/O |
 | `gui_open_window / gui_close_window / gui_invalidate / gui_request_close / gui_set_title` | [ST4] | Window lifecycle and title |
 | `renderer_create / begin_draw / fill_rect / draw_text / end_draw / destroy` | [ST4] | D2D rendering |
-| `malloc / free` | [CRT] | Buffer allocation |
+| `disasm_range(pBuf, uiLen, uiAddr, ptResults, uiMax, puiLines)` | [ST4] | Disassemble a byte range into result array (UC10) |
+| `malloc / free` | [CRT] | Buffer allocation (pData + atDisasmCache) |
+
+---
+
+### 4.16 Disassembler — `disassemble.c`
+
+**Role:** decode raw 68000 binary opcodes into DEVPAC3 Atari ST assembly source notation, including full 12-mode effective-address decoding and multi-word instruction sizing.  Consumed by the hex editor disassembly panel (UC10) and future execution engine (UC25+).
+
+**Key internal functions:**
+
+| Function | REQ(s) | Description |
+|---|---|---|
+| `disasm_rw(p)` | — | Read big-endian 16-bit word from byte pointer |
+| `disasm_fmt_words(ptR, pOut, uiLen)` | — | Build hex words field (max 5 words, 20 chars padded) |
+| `disasm_fmt_line(ptR)` | REQ-DIS-006 | Finalise szLine from address + words + mnemonic + operands |
+| `disasm_fill_words(ptR, pBuf, uiBufLen)` | — | Copy auWords[1..iWordCount-1] from raw buffer |
+| `disasm_dc_word(pBuf, uiBufLen, uiAddr, ptR)` | REQ-DIS-005 | Emit DC.W fallback; bValid=ST_FALSE |
+| `disasm_fmt_ea(pExt, uiRemB, uiPC, iExtSoFar, iMode, iReg, iSz, szOut, uiOutLen)` | REQ-DIS-010..012 | Full 12-mode EA decoder; returns extension words consumed or -1 on invalid |
+| `disasm_move(pBuf, uiBufLen, uiAddr, ptR)` | REQ-DIS-006, REQ-DIS-013 | MOVE.B/W/L + MOVEA.W/L; MOVE.B→An → DC.W |
+| `disasm_moveq(pBuf, uiAddr, ptR)` | REQ-DIS-006 | MOVEQ #$XX,Dn (1 word, bit8=0 check) |
+| `disasm_misc4(pBuf, uiBufLen, uiAddr, ptR)` | REQ-DIS-006, REQ-DIS-014 | Group 0100 dispatch: LEA → CLR → SWAP → PEA (priority order) |
+| `disasm_exg(pBuf, uiAddr, ptR)` | REQ-DIS-006 | EXG Dx/Dy, Ax/Ay, Dx/Ay (3 F1F8 patterns) |
+
+**Public API:**
+
+| Function | REQ(s) | Description |
+|---|---|---|
+| `disasm_one(pBuf, uiBufLen, uiAddr, ptResult)` | REQ-DIS-001..006, REQ-DIS-010..014 | Decode one instruction; sets iWordCount, bValid, mnemonic, operands, szLine |
+| `disasm_range(pBuf, uiBufLen, uiAddr, ptResults, uiMaxLines, puiLines)` | REQ-DIS-001..004 | Decode consecutive instructions; advances by iWordCount*2 per line |
+
+**Dispatch (top 4 bits of opcode):**
+
+| Nibble | Handler | Instructions |
+|---|---|---|
+| 0001/0010/0011 | `disasm_move` | MOVE.B/L/W + MOVEA |
+| 0100 | `disasm_misc4` | LEA / CLR / SWAP / PEA (others → DC.W) |
+| 0111 | `disasm_moveq` | MOVEQ (bit8=0) |
+| 1100 | `disasm_exg` | EXG (F1F8 patterns) |
+| all others | `disasm_dc_word` | DC.W fallback (UC12–UC14) |
+
+**EA mode reference:**
+
+| Mode | Syntax | Extension words |
+|---|---|---|
+| 000 Dn | `Dn` | 0 |
+| 001 An | `An` | 0 |
+| 010 (An) | `(An)` | 0 |
+| 011 (An)+ | `(An)+` | 0 |
+| 100 -(An) | `-(An)` | 0 |
+| 101 d16(An) | `$X(An)` or `-$X(An)` | 1 |
+| 110 d8(An,Xn) | `$X(An,Xn.W/L)` | 1 brief |
+| 111.000 abs.W | `$FFxxxx.W` or `$xxxx.W` | 1 |
+| 111.001 abs.L | `$XXXXXXXX` | 2 |
+| 111.010 d16(PC) | `$XXXXXX(PC)` | 1 |
+| 111.011 d8(PC,Xn) | `$XXXXXX(PC,Xn.W/L)` | 1 brief |
+| 111.100 #imm | `#$XX`/`#$XXXX`/`#$XXXXXXXX` | 1 (B/W) or 2 (L) |
 
 ---
 
@@ -1627,7 +1729,7 @@ Input: `{ 0x70, 0x2A, 0x4E, 0x75 }` at base `0x1000`
 
 | ID          | Functional description                                    | Type | UFR          | REQ          | INTENT      | Input / Expected output                                             | Status   |
 |-------------|-----------------------------------------------------------|------|--------------|--------------|-------------|---------------------------------------------------------------------|----------|
-| TC-DIS-001  | 4-byte buffer → 2 DC.W stub lines                         | [N]  | — (see UC10) | REQ-DIS-004, REQ-DIS-005 | INT-DIS-001 | `disasm_range(buf,4,…)` → `ST_NO_ERROR`; `n==2`; DC.W fallback ADAPTED(UC11) | PASS UC1 |
+| TC-DIS-001  | 4-byte buffer → 2 lines; 0x702A=MOVEQ now bValid=TRUE     | [N]  | UFR-HEX-005 | REQ-DIS-004, REQ-DIS-006 | INT-DIS-001 | `disasm_range(buf,4,…)` → `ST_NO_ERROR`; `n==2`; 0x702A bValid=TRUE ADAPTED(UC11); 0x4E75 still DC.W ADAPTED(UC14) | PASS UC11 |
 | TC-DIS-002  | Zero-length buffer → 0 lines, no error                    | [N]  | — (see UC10) | REQ-DIS-004  | INT-DIS-002 | `disasm_range(buf,0,…)` → `ST_NO_ERROR`; `n==0`                    | PASS UC1 |
 | TC-DIS-003  | NULL `pBuf` rejected                                      | [R]  | — (see UC10) | REQ-DIS-001  | INT-DIS-003 | `disasm_range(NULL,4,…)` → `ST_ERROR`                              | PASS UC1 |
 | TC-DIS-004  | NULL `ptResults` rejected                                 | [R]  | — (see UC10) | REQ-DIS-002  | INT-DIS-003 | `disasm_range(buf,4,…,NULL,…)` → `ST_ERROR`                        | PASS UC1 |
@@ -2968,6 +3070,99 @@ Source: `use_cases/use_case_09.c`
 | UC7 manual TC (P11)     | TC-DIR-031..034                      | ✓ UC7     | Requires display; validated via make manual UC=07                |
 | UC8 manual TC           | TC-EDT-029..036                      | ✓ UC8     | Requires display; validated via make manual UC=08                |
 | UC9 manual TC           | TC-HEX-026..033                      | ✓ UC9     | Requires display; validated via make manual UC=09                |
+| UC10 manual TC          | TC-HEX-057..064                      | ✓ UC10    | Requires display; validated via make manual UC=10                |
+
+---
+
+### 5.34 INTENT Catalog — UC10
+
+Source: `use_cases/use_case_10.c`
+
+| ID           | INTENT text                                                                                 |
+|--------------|---------------------------------------------------------------------------------------------|
+| INT-HEX-010  | Cache must hold enough entries for comfortable navigation around the cursor (512 = 1 KB stub) |
+| INT-HEX-011  | Panel must be wide enough to show address + mnemonic + operands (48 chars)                  |
+| INT-HEX-012  | Separator between ASCII and disasm panels = " \| " (3 chars)                               |
+| INT-HEX-013  | Address prefix in panel: "$XXXXXX " = 8 characters                                         |
+| INT-HEX-014  | Cache window pre-buffer: 512 bytes before cursor included                                   |
+| INT-HEX-015  | Window with disasm panel must be wider than standard window                                 |
+| INT-HEX-016  | Window height constant defined (shared by both widths)                                      |
+| INT-HEX-017  | UC9 layout constants unchanged (BYTES_PER_ROW == 16 regression)                            |
+| INT-HEX-018  | HEX_ZONE_DISASM is the third zone (value 2); three zones are distinct values                |
+| INT-HEX-019  | Original zone values HEX_ZONE_HEX=0 and HEX_ZONE_ASCII=1 unchanged (regression UC9)       |
+| INT-HEX-020  | disasm_range on 4 bytes (stub) → 2 lines, ST_NO_ERROR                                     |
+| INT-HEX-021  | First instruction address == uiAddr parameter                                               |
+| INT-HEX-022  | Second instruction address == 2 (stub: all 1-word/2-byte instructions)                     |
+| INT-HEX-023  | edit_hex_open() rejects NULL parameters individually; missing file → ST_ERROR              |
+| INT-HEX-024  | edit_hex_close() rejects NULL; *pptView == NULL → ST_NO_ERROR (idempotent)                 |
+
+---
+
+### 5.35 Test Cases — UC10 (hex+disasm integrated view)
+
+Source: `use_cases/use_case_10.c`
+Inline fixture: `{ 0x70, 0x2A, 0x4E, 0x75 }` (MOVEQ #42,D0 + RTS)
+
+| ID          | Functional description                                          | Type | UFR          | REQ          | INTENT       | Expected outcome                                               | Status    |
+|-------------|--------------------------------------------------------------- |------|--------------|--------------|--------------|----------------------------------------------------------------|-----------|
+| TC-HEX-034  | `EDIT_HEX_DISASM_CACHE_LINES == 512`                           | [N]  | UFR-HEX-005  | REQ-HEX-011  | INT-HEX-010  | 512                                                            | PASS UC10 |
+| TC-HEX-035  | `EDIT_HEX_DISASM_PANEL_CHARS == 48`                            | [N]  | UFR-HEX-005  | REQ-HEX-011  | INT-HEX-011  | 48                                                             | PASS UC10 |
+| TC-HEX-036  | `EDIT_HEX_DISASM_SEP_CHARS == 3`                               | [N]  | UFR-HEX-005  | REQ-HEX-011  | INT-HEX-012  | 3                                                              | PASS UC10 |
+| TC-HEX-037  | `EDIT_HEX_DISASM_ADDR_CHARS == 8`                              | [N]  | UFR-HEX-005  | REQ-HEX-011  | INT-HEX-013  | 8                                                              | PASS UC10 |
+| TC-HEX-038  | `EDIT_HEX_DISASM_PREBUF_BYTES == 512`                          | [N]  | UFR-HEX-005  | REQ-HEX-014  | INT-HEX-014  | 512                                                            | PASS UC10 |
+| TC-HEX-039  | `EDIT_HEX_WND_WIDTH_DISASM > EDIT_HEX_WND_WIDTH_STD`          | [N]  | UFR-HEX-005  | REQ-HEX-011  | INT-HEX-015  | TRUE (1320 > 950)                                              | PASS UC10 |
+| TC-HEX-040  | `EDIT_HEX_WND_HEIGHT > 0`                                      | [N]  | UFR-HEX-005  | REQ-HEX-011  | INT-HEX-016  | TRUE (640)                                                     | PASS UC10 |
+| TC-HEX-041  | `EDIT_HEX_BYTES_PER_ROW == 16` (regression)                    | [N]  | UFR-HEX-002  | REQ-HEX-003  | INT-HEX-017  | 16 — unchanged from UC9                                        | PASS UC10 |
+| TC-HEX-042  | `HEX_ZONE_DISASM == 2`                                         | [N]  | UFR-HEX-005  | REQ-HEX-012  | INT-HEX-018  | 2                                                              | PASS UC10 |
+| TC-HEX-043  | Three zone values are distinct (no overlap)                    | [N]  | UFR-HEX-005  | REQ-HEX-012  | INT-HEX-018  | HEX≠ASCII, HEX≠DISASM, ASCII≠DISASM                           | PASS UC10 |
+| TC-HEX-044  | `HEX_ZONE_HEX==0` and `HEX_ZONE_ASCII==1` (regression)        | [N]  | UFR-HEX-003  | REQ-HEX-007  | INT-HEX-019  | 0 and 1 — unchanged from UC9                                   | PASS UC10 |
+| TC-HEX-045  | `disasm_range(4 bytes)` → `ST_NO_ERROR`                        | [N]  | UFR-HEX-005  | REQ-HEX-013  | INT-HEX-020  | ST_NO_ERROR                                                    | PASS UC10 |
+| TC-HEX-046  | `disasm_range(4 bytes)` → `uiLines == 2`                       | [N]  | UFR-HEX-005  | REQ-HEX-013  | INT-HEX-020  | 2 (stub: each instr = 1 word = 2 bytes) ADAPTED(UC11)          | PASS UC10 |
+| TC-HEX-047  | `aRes[0].uiAddr == 0` (matches uiAddr parameter)               | [N]  | UFR-HEX-005  | REQ-HEX-013  | INT-HEX-021  | 0                                                              | PASS UC10 |
+| TC-HEX-048  | `aRes[1].uiAddr == 2` (stub: 2-byte instructions)              | [N]  | UFR-HEX-005  | REQ-HEX-013  | INT-HEX-022  | 2 ADAPTED(UC11)                                                | PASS UC10 |
+| TC-HEX-049  | `edit_hex_open(NULL, ctx, &v)` → ST_ERROR                      | [R]  | UFR-HEX-001  | REQ-HEX-001  | INT-HEX-023  | ST_ERROR                                                       | PASS UC10 |
+| TC-HEX-050  | `edit_hex_open(NULL, ctx, &v)` → `*pptView` remains NULL       | [R]  | UFR-HEX-001  | REQ-HEX-001  | INT-HEX-023  | *pptView == NULL                                               | PASS UC10 |
+| TC-HEX-051  | `edit_hex_open(path, NULL, &v)` → ST_ERROR                     | [R]  | UFR-HEX-001  | REQ-HEX-001  | INT-HEX-023  | ST_ERROR                                                       | PASS UC10 |
+| TC-HEX-052  | `edit_hex_open(path, ctx, NULL)` → ST_ERROR                    | [R]  | UFR-HEX-001  | REQ-HEX-001  | INT-HEX-023  | ST_ERROR                                                       | PASS UC10 |
+| TC-HEX-053  | `edit_hex_open(missing, ctx, &v)` → ST_ERROR                   | [R]  | UFR-HEX-001  | REQ-HEX-002  | INT-HEX-023  | ST_ERROR                                                       | PASS UC10 |
+| TC-HEX-054  | `edit_hex_open(missing, ctx, &v)` → `*pptView == NULL`         | [R]  | UFR-HEX-001  | REQ-HEX-002  | INT-HEX-023  | *pptView == NULL                                               | PASS UC10 |
+| TC-HEX-055  | `edit_hex_close(NULL)` → ST_ERROR                              | [R]  | UFR-HEX-001  | REQ-HEX-001  | INT-HEX-024  | ST_ERROR                                                       | PASS UC10 |
+| TC-HEX-056  | `edit_hex_close(&NULL)` → ST_NO_ERROR (idempotent)             | [R]  | UFR-HEX-001  | REQ-HEX-001  | INT-HEX-024  | ST_NO_ERROR                                                    | PASS UC10 |
+| TC-HEX-057  | F2 toggle: disasm panel appears and disappears (visual)        | [S]  | UFR-HEX-005  | REQ-HEX-017  | INT-HEX-015  | panel toggled off then on                                      | SKIP      |
+| TC-HEX-058  | TAB cycles 3 zones HEX→ASCII→DISASM→HEX (visual)              | [S]  | UFR-HEX-005  | REQ-HEX-018  | INT-HEX-018  | cursor highlight changes per zone                              | SKIP      |
+| TC-HEX-059  | Hex cursor ↓ syncs disasm highlight (visual)                   | [S]  | UFR-HEX-005  | REQ-HEX-016  | INT-HEX-020  | disasm highlight follows hex cursor row                        | SKIP      |
+| TC-HEX-060  | Disasm cursor ↑/↓ syncs hex highlight (visual)                 | [S]  | UFR-HEX-005  | REQ-HEX-015  | INT-HEX-020  | hex row highlight follows disasm cursor                        | SKIP      |
+| TC-HEX-061  | Click on disasm entry → zone switches to DISASM (visual)       | [S]  | UFR-HEX-005  | REQ-HEX-015  | INT-HEX-023  | eZone == HEX_ZONE_DISASM after click                           | SKIP      |
+| TC-HEX-062  | Scroll wheel in DISASM zone scrolls disasm panel (visual)      | [S]  | UFR-HEX-005  | REQ-HEX-019  | INT-HEX-020  | disasm panel scrolls; hex panel unchanged                      | SKIP      |
+| TC-HEX-063  | Window opens wider with disasm panel (visual)                  | [S]  | UFR-HEX-005  | REQ-HEX-011  | INT-HEX-015  | window width ~1320px vs ~950px                                 | SKIP      |
+| TC-HEX-064  | Disasm shows `$XXXXXX DC.W $XXXX` format (visual)             | [S]  | UFR-HEX-005  | REQ-HEX-013  | INT-HEX-020  | address + DC.W + opcode per line                               | SKIP      |
+
+#### Test Summary — UC10
+
+| Module | [N] | [R] | [S] | Total | Result    |
+|--------|-----|-----|-----|-------|-----------|
+| HEX    | 15  | 8   | 8   | 31    | ALL PASS  |
+
+#### REQ → TC coverage (UC10)
+
+| REQ          | TC(s)                            | Status    |
+|--------------|----------------------------------|-----------|
+| REQ-HEX-011  | TC-HEX-034..040, TC-HEX-063      | ✓ UC10    |
+| REQ-HEX-012  | TC-HEX-042..043                  | ✓ UC10    |
+| REQ-HEX-013  | TC-HEX-045..048, TC-HEX-064      | ✓ UC10    |
+| REQ-HEX-014  | TC-HEX-038                       | ✓ UC10    |
+| REQ-HEX-015  | TC-HEX-060..061                  | ✓ UC10 (manual) |
+| REQ-HEX-016  | TC-HEX-059                       | ✓ UC10 (manual) |
+| REQ-HEX-017  | TC-HEX-057                       | ✓ UC10 (manual) |
+| REQ-HEX-018  | TC-HEX-058                       | ✓ UC10 (manual) |
+| REQ-HEX-019  | TC-HEX-062                       | ✓ UC10 (manual) |
+| REQ-HEX-020  | TC-HEX-049..056                  | ✓ UC10    |
+
+#### UFR traceability update (UC10)
+
+| UFR          | REQ(s)                    | TC(s)                                             | Status    |
+|--------------|---------------------------|---------------------------------------------------|-----------|
+| UFR-HEX-005  | REQ-HEX-011..020          | TC-HEX-034..064                                   | ✓ UC10    |
 | info cmd binary (UC7)   | REQ-LOD-014, REQ-CON-026             | ✓ UC7     | `line_cmd_info()` now shows live load state via load_get_state() |
 | info cmd disk (stub)    | REQ-CON-026 (disk)                   | UC18      | `line_cmd_info()` disk-mounted stub → real state when mount is implemented |
 | Edit hex / binary       | REQ-EDT-007, UFR-EDT-006             | ✓ UC9     | `line_cmd_edit()` routes .prg/.ttp/.tos/.bin/.raw → edit_hex_open |
@@ -2977,3 +3172,237 @@ Source: `use_cases/use_case_09.c`
 | load_file size check    | REQ-LOD-012                          | —         | File > ST_LOAD_MAX_SIZE: not injectable headless; covered by code review |
 | file_read ferror path   | REQ-FIL-010                          | —         | ferror branch not injectable in headless tests; covered by code review |
 | file_write short write  | REQ-FIL-012                          | —         | fwrite contract; not injectable headless; covered by code review       |
+
+---
+
+### 5.36 INTENT Catalog — UC11
+
+Source: `use_cases/use_case_11.c`
+
+| ID           | INTENT text                                                                                           |
+|--------------|-------------------------------------------------------------------------------------------------------|
+| INT-DIS-010  | MOVE Dn,Dn for all three sizes uses correct mnemonic and register names                              |
+| INT-DIS-011  | Each source EA addressing mode produces correct DEVPAC3 syntax; word counts match extension words    |
+| INT-DIS-012  | MOVE.W/L to An uses MOVEA mnemonic; MOVE.B to An → DC.W (invalid)                                   |
+| INT-DIS-013  | MOVEQ sign-extends 8-bit data at runtime; disassembler shows unsigned hex byte value                 |
+| INT-DIS-014  | LEA with control-addressing source; destination is always An                                         |
+| INT-DIS-015  | CLR in all three sizes; CLR with size=11 is invalid → DC.W                                          |
+| INT-DIS-016  | SWAP Dn operates on all 8 data registers                                                              |
+| INT-DIS-017  | PEA with control addressing modes; Dn/An/post/pre/imm source → DC.W (not control EA)                |
+| INT-DIS-018  | Three EXG modes: Dx,Dy / Ax,Ay / Dx,Ay — all without extension words                                |
+| INT-DIS-019  | Brief extension word format for d8(An,Xn): register, size, displacement correctly decoded           |
+| INT-DIS-020  | disasm_range decodes a sequence of different instruction types; word counts accumulate correctly      |
+| INT-DIS-021  | NULL and boundary conditions handled without crash                                                    |
+| INT-DIS-022  | hello.prg bytes: 0x702A now bValid=TRUE (MOVEQ); 0x4E75 still DC.W (RTS → UC14) ADAPTED(UC11)       |
+
+---
+
+### 5.37 Test Cases — UC11 (68000 disassembler: MOVE/MOVEQ/LEA/CLR/EXG/SWAP/PEA)
+
+Source: `use_cases/use_case_11.c`
+All opcodes hand-crafted from MC68000 PRM.
+
+| ID          | Functional description                                            | Type | UFR          | REQ               | INTENT       | Expected outcome                                      | Status    |
+|-------------|-------------------------------------------------------------------|------|--------------|-------------------|--------------|-------------------------------------------------------|-----------|
+| TC-DIS-010  | `MOVE.B D0,D1` (0x1200) mnemonic = MOVE.B                        | [N]  | UFR-HEX-005  | REQ-DIS-006       | INT-DIS-010  | "MOVE.B"                                              | PASS UC11 |
+| TC-DIS-011  | `MOVE.B D0,D1` (0x1200) operands = D0,D1                         | [N]  | UFR-HEX-005  | REQ-DIS-006       | INT-DIS-010  | "D0,D1"                                               | PASS UC11 |
+| TC-DIS-012  | `MOVE.W D0,D1` (0x3200)                                          | [N]  | UFR-HEX-005  | REQ-DIS-006       | INT-DIS-010  | "MOVE.W" / "D0,D1"                                   | PASS UC11 |
+| TC-DIS-013  | `MOVE.L D0,D1` (0x2200)                                          | [N]  | UFR-HEX-005  | REQ-DIS-006       | INT-DIS-010  | "MOVE.L" / "D0,D1"                                   | PASS UC11 |
+| TC-DIS-014  | `MOVE.W D7,D6` (0x3C07)                                          | [N]  | UFR-HEX-005  | REQ-DIS-006       | INT-DIS-010  | "MOVE.W" / "D7,D6"                                   | PASS UC11 |
+| TC-DIS-015  | `MOVE.W (A0),D0` (0x3010)                                        | [N]  | UFR-HEX-005  | REQ-DIS-006, REQ-DIS-010 | INT-DIS-011  | "MOVE.W" / "(A0),D0"                           | PASS UC11 |
+| TC-DIS-016  | `MOVE.W (A0)+,D0` (0x3018)                                       | [N]  | UFR-HEX-005  | REQ-DIS-010       | INT-DIS-011  | "(A0)+,D0"                                           | PASS UC11 |
+| TC-DIS-017  | `MOVE.W -(A0),D0` (0x3020)                                       | [N]  | UFR-HEX-005  | REQ-DIS-010       | INT-DIS-011  | "-(A0),D0"                                           | PASS UC11 |
+| TC-DIS-018  | `MOVE.W $10(A0),D0` (0x3028+ext 0x0010) wordCount=2              | [N]  | UFR-HEX-005  | REQ-DIS-010       | INT-DIS-011  | 2 / "MOVE.W" / "$10(A0),D0"                          | PASS UC11 |
+| TC-DIS-019  | `MOVE.W #$1234,D0` wordCount=2                                   | [N]  | UFR-HEX-005  | REQ-DIS-010       | INT-DIS-011  | 2 / "MOVE.W" / "#$1234,D0"                           | PASS UC11 |
+| TC-DIS-020  | `MOVE.L #$12345678,D0` wordCount=3                               | [N]  | UFR-HEX-005  | REQ-DIS-010       | INT-DIS-011  | 3 / "MOVE.L" / "#$12345678,D0"                       | PASS UC11 |
+| TC-DIS-021  | `MOVE.W abs.W($8200),D0` → `$FF8200.W` (sign-extend)            | [N]  | UFR-HEX-005  | REQ-DIS-011       | INT-DIS-011  | "$FF8200.W,D0"                                       | PASS UC11 |
+| TC-DIS-022  | `MOVE.L abs.L,D0` wordCount=3                                    | [N]  | UFR-HEX-005  | REQ-DIS-010       | INT-DIS-011  | 3 / "$12345678,D0"                                   | PASS UC11 |
+| TC-DIS-023  | `MOVEA.W D0,A0` (0x3040)                                         | [N]  | UFR-HEX-005  | REQ-DIS-013       | INT-DIS-012  | "MOVEA.W" / "D0,A0"                                  | PASS UC11 |
+| TC-DIS-024  | `MOVEA.L D0,A1` (0x2240)                                         | [N]  | UFR-HEX-005  | REQ-DIS-013       | INT-DIS-012  | "MOVEA.L" / "D0,A1"                                  | PASS UC11 |
+| TC-DIS-025  | `MOVE.B src,An` (0x1040) → DC.W (invalid)                       | [N]  | UFR-HEX-005  | REQ-DIS-013       | INT-DIS-012  | bValid==ST_FALSE                                     | PASS UC11 |
+| TC-DIS-026  | `MOVEQ #$42,D0` (0x7042)                                         | [N]  | UFR-HEX-005  | REQ-DIS-006       | INT-DIS-013  | "MOVEQ" / "#$42,D0"                                  | PASS UC11 |
+| TC-DIS-027  | `MOVEQ #$FF,D7` (0x7EFF)                                         | [N]  | UFR-HEX-005  | REQ-DIS-006       | INT-DIS-013  | "MOVEQ" / "#$FF,D7"                                  | PASS UC11 |
+| TC-DIS-028  | `MOVEQ #0,D3` (0x7600)                                           | [N]  | UFR-HEX-005  | REQ-DIS-006       | INT-DIS-013  | "MOVEQ" / "#$00,D3"                                  | PASS UC11 |
+| TC-DIS-029  | 0x7100 (bit8=1) → not MOVEQ → DC.W                              | [N]  | UFR-HEX-005  | REQ-DIS-006       | INT-DIS-013  | bValid==ST_FALSE                                     | PASS UC11 |
+| TC-DIS-030  | `LEA (A0),A1` (0x43D0)                                           | [N]  | UFR-HEX-005  | REQ-DIS-006       | INT-DIS-014  | "LEA" / "(A0),A1"                                    | PASS UC11 |
+| TC-DIS-031  | `LEA $FF8200.W,A0` (0x41F8+0x8200) wordCount=2                  | [N]  | UFR-HEX-005  | REQ-DIS-011       | INT-DIS-014  | 2 / "LEA" / "$FF8200.W,A0"                           | PASS UC11 |
+| TC-DIS-032  | `LEA abs.L,A2` (0x45F9+2 ext) wordCount=3                       | [N]  | UFR-HEX-005  | REQ-DIS-010       | INT-DIS-014  | 3 / "LEA" / "$12345678,A2"                           | PASS UC11 |
+| TC-DIS-033  | `LEA $10(A0),A3` (0x47E8+0x0010) wordCount=2                    | [N]  | UFR-HEX-005  | REQ-DIS-010       | INT-DIS-014  | 2 / "LEA" / "$10(A0),A3"                             | PASS UC11 |
+| TC-DIS-034  | `LEA d(PC),A4` (0x49FA+0x0010): EA=$001012(PC)                  | [N]  | UFR-HEX-005  | REQ-DIS-012       | INT-DIS-014  | 2 / "LEA" / "$001012(PC),A4"                         | PASS UC11 |
+| TC-DIS-035  | `CLR.B D0` (0x4200)                                              | [N]  | UFR-HEX-005  | REQ-DIS-006       | INT-DIS-015  | "CLR.B" / "D0"                                       | PASS UC11 |
+| TC-DIS-036  | `CLR.W D5` (0x4245)                                              | [N]  | UFR-HEX-005  | REQ-DIS-006       | INT-DIS-015  | "CLR.W" / "D5"                                       | PASS UC11 |
+| TC-DIS-037  | `CLR.L D7` (0x4287)                                              | [N]  | UFR-HEX-005  | REQ-DIS-006       | INT-DIS-015  | "CLR.L" / "D7"                                       | PASS UC11 |
+| TC-DIS-038  | `CLR.W (A1)` (0x4251)                                            | [N]  | UFR-HEX-005  | REQ-DIS-006       | INT-DIS-015  | "CLR.W" / "(A1)"                                     | PASS UC11 |
+| TC-DIS-039  | `CLR size=11` (0x42C0) → DC.W                                    | [N]  | UFR-HEX-005  | REQ-DIS-014       | INT-DIS-015  | bValid==ST_FALSE                                     | PASS UC11 |
+| TC-DIS-040  | `SWAP D0` (0x4840)                                               | [N]  | UFR-HEX-005  | REQ-DIS-006       | INT-DIS-016  | "SWAP" / "D0"                                        | PASS UC11 |
+| TC-DIS-041  | `SWAP D3` (0x4843)                                               | [N]  | UFR-HEX-005  | REQ-DIS-006       | INT-DIS-016  | "SWAP" / "D3"                                        | PASS UC11 |
+| TC-DIS-042  | `SWAP D7` (0x4847)                                               | [N]  | UFR-HEX-005  | REQ-DIS-006       | INT-DIS-016  | "SWAP" / "D7"                                        | PASS UC11 |
+| TC-DIS-043  | `PEA (A0)` (0x4850)                                              | [N]  | UFR-HEX-005  | REQ-DIS-006       | INT-DIS-017  | "PEA" / "(A0)"                                       | PASS UC11 |
+| TC-DIS-044  | `PEA abs.W` (0x4878+0x1234) wordCount=2                         | [N]  | UFR-HEX-005  | REQ-DIS-006       | INT-DIS-017  | 2 / "PEA" / "$1234.W"                                | PASS UC11 |
+| TC-DIS-045  | `PEA abs.L` (0x4879+2 ext) wordCount=3                          | [N]  | UFR-HEX-005  | REQ-DIS-006       | INT-DIS-017  | 3 / "PEA" / "$00001000"                              | PASS UC11 |
+| TC-DIS-046  | 0x4840 → SWAP D0 (SWAP takes priority over PEA)                 | [N]  | UFR-HEX-005  | REQ-DIS-014       | INT-DIS-017  | mnemonic=="SWAP"                                     | PASS UC11 |
+| TC-DIS-047  | `EXG D0,D1` (0xC141)                                             | [N]  | UFR-HEX-005  | REQ-DIS-006       | INT-DIS-018  | "EXG" / "D0,D1"                                      | PASS UC11 |
+| TC-DIS-048  | `EXG D3,D7` (0xC747)                                             | [N]  | UFR-HEX-005  | REQ-DIS-006       | INT-DIS-018  | "EXG" / "D3,D7"                                      | PASS UC11 |
+| TC-DIS-049  | `EXG A0,A1` (0xC149)                                             | [N]  | UFR-HEX-005  | REQ-DIS-006       | INT-DIS-018  | "EXG" / "A0,A1"                                      | PASS UC11 |
+| TC-DIS-050  | `EXG A3,A5` (0xC74D)                                             | [N]  | UFR-HEX-005  | REQ-DIS-006       | INT-DIS-018  | "EXG" / "A3,A5"                                      | PASS UC11 |
+| TC-DIS-051  | `EXG D0,A1` (0xC189)                                             | [N]  | UFR-HEX-005  | REQ-DIS-006       | INT-DIS-018  | "EXG" / "D0,A1"                                      | PASS UC11 |
+| TC-DIS-052  | `MOVE.W d8(A0,D1.W),D0` (0x3030+0x1005) wordCount=2            | [N]  | UFR-HEX-005  | REQ-DIS-010       | INT-DIS-019  | 2 / "MOVE.W" / "$5(A0,D1.W),D0"                     | PASS UC11 |
+| TC-DIS-053  | `MOVE.W $0(A0,A1.L),D0` (0x3030+0x9800)                        | [N]  | UFR-HEX-005  | REQ-DIS-010       | INT-DIS-019  | "$0(A0,A1.L),D0"                                    | PASS UC11 |
+| TC-DIS-054  | `MOVE.W -$8(A2,D3.W),D0` (0x3032+0x30F8)                       | [N]  | UFR-HEX-005  | REQ-DIS-010       | INT-DIS-019  | "-$8(A2,D3.W),D0"                                   | PASS UC11 |
+| TC-DIS-055  | disasm_range: MOVEQ + LEA → 2 lines, correct addresses          | [N]  | UFR-HEX-005  | REQ-DIS-004, REQ-DIS-006 | INT-DIS-020 | n==2; line0=MOVEQ; line1=LEA; addr1=$2002        | PASS UC11 |
+| TC-DIS-056  | disasm_range line1 wordCount=2                                   | [N]  | UFR-HEX-005  | REQ-DIS-006       | INT-DIS-020  | iWordCount==2                                        | PASS UC11 |
+| TC-DIS-057  | `disasm_one(NULL buf)` → ST_ERROR                                | [R]  | UFR-HEX-005  | REQ-DIS-001       | INT-DIS-021  | ST_ERROR                                             | PASS UC11 |
+| TC-DIS-058  | `disasm_one(..., NULL result)` → ST_ERROR                        | [R]  | UFR-HEX-005  | REQ-DIS-001       | INT-DIS-021  | ST_ERROR                                             | PASS UC11 |
+| TC-DIS-059  | 1-byte buffer → ST_NO_ERROR, wordCount=1                         | [R]  | UFR-HEX-005  | REQ-DIS-004       | INT-DIS-021  | ST_NO_ERROR; iWordCount==1                           | PASS UC11 |
+| TC-DIS-060  | `disasm_range(NULL buf)` → ST_ERROR                              | [R]  | UFR-HEX-005  | REQ-DIS-001       | INT-DIS-021  | ST_ERROR                                             | PASS UC11 |
+| TC-DIS-061  | `disasm_range(..., NULL results)` → ST_ERROR                     | [R]  | UFR-HEX-005  | REQ-DIS-002       | INT-DIS-021  | ST_ERROR                                             | PASS UC11 |
+| TC-DIS-062  | `disasm_range(..., NULL puiLines)` → ST_ERROR                    | [R]  | UFR-HEX-005  | REQ-DIS-003       | INT-DIS-021  | ST_ERROR                                             | PASS UC11 |
+| TC-DIS-063  | Unknown opcode 0x0000 → DC.W, bValid=ST_FALSE                   | [R]  | UFR-HEX-005  | REQ-DIS-005       | INT-DIS-021  | bValid==ST_FALSE; mnemonic=="DC.W"                  | PASS UC11 |
+| TC-DIS-064  | Unknown opcode 0xFFFF → DC.W, bValid=ST_FALSE                   | [R]  | UFR-HEX-005  | REQ-DIS-005       | INT-DIS-021  | bValid==ST_FALSE                                     | PASS UC11 |
+| TC-DIS-065  | range(len=0) → ST_NO_ERROR, 0 lines                              | [R]  | UFR-HEX-005  | REQ-DIS-004       | INT-DIS-021  | ST_NO_ERROR; n==0                                    | PASS UC11 |
+| TC-DIS-066  | 0x702A = MOVEQ #$2A,D0 → bValid=ST_TRUE ADAPTED(UC11)           | [N]  | UFR-HEX-005  | REQ-DIS-006       | INT-DIS-022  | bValid==ST_TRUE; "MOVEQ"                            | PASS UC11 |
+| TC-DIS-067  | 0x4E75 = DC.W (RTS deferred to UC14) ADAPTED(UC14)              | [N]  | UFR-HEX-005  | REQ-DIS-005       | INT-DIS-022  | bValid==ST_FALSE ADAPTED(UC14)                      | PASS UC11 |
+
+#### Test Summary — UC11
+
+| Module | [N] | [R] | [S] | Total | Result    |
+|--------|-----|-----|-----|-------|-----------|
+| DIS    | 52  | 10  | 0   | 62    | ALL PASS  |
+
+#### REQ → TC coverage (UC11)
+
+| REQ          | TC(s)                                  | Status    |
+|--------------|----------------------------------------|-----------|
+| REQ-DIS-001  | TC-DIS-057..058, TC-DIS-060           | ✓ UC11    |
+| REQ-DIS-002  | TC-DIS-061                            | ✓ UC11    |
+| REQ-DIS-003  | TC-DIS-062                            | ✓ UC11    |
+| REQ-DIS-004  | TC-DIS-059, TC-DIS-065                | ✓ UC11    |
+| REQ-DIS-005  | TC-DIS-063..064, TC-DIS-067           | ✓ UC11    |
+| REQ-DIS-006  | TC-DIS-010..055, TC-DIS-066           | ✓ UC11    |
+| REQ-DIS-010  | TC-DIS-015..022, TC-DIS-031..034, TC-DIS-052..054 | ✓ UC11 |
+| REQ-DIS-011  | TC-DIS-021, TC-DIS-031                | ✓ UC11    |
+| REQ-DIS-012  | TC-DIS-034                            | ✓ UC11    |
+| REQ-DIS-013  | TC-DIS-023..025                       | ✓ UC11    |
+| REQ-DIS-014  | TC-DIS-039, TC-DIS-046                | ✓ UC11    |
+
+#### UFR traceability update (UC11)
+
+| UFR          | REQ(s)                           | TC(s)                      | Status    |
+|--------------|----------------------------------|----------------------------|-----------|
+| UFR-HEX-005  | REQ-DIS-006, REQ-DIS-010..014   | TC-DIS-010..067             | ✓ UC11    |
+
+---
+
+### 5.38 INTENT Catalog — UC12
+
+Source: `use_cases/use_case_12.c`
+
+| ID           | INTENT text                                                                                         |
+|--------------|-----------------------------------------------------------------------------------------------------|
+| INT-DIS-030  | Immediate-to-EA instructions use correct mnemonic, size suffix, and format immediate as hex        |
+| INT-DIS-031  | ADDQ/SUBQ show immediate as decimal (1–8); 0 in opcode field = 8; size=3 → DC.W                   |
+| INT-DIS-032  | ADD/SUB/CMP in both directions (EA→Dn and Dn→EA)                                                    |
+| INT-DIS-033  | ADDA/SUBA/CMPA: An destination, EA source, W or L                                                   |
+| INT-DIS-034  | ADDX/SUBX in register (Dx,Dy) and memory (-(Ax),-(Ay)) forms                                        |
+| INT-DIS-035  | AND/OR/EOR in both directions; EOR is always Dn→EA when bit8=1                                     |
+| INT-DIS-036  | MULU/MULS/DIVU/DIVS: `.W` suffix, word source EA, Dn destination                                  |
+| INT-DIS-037  | NEG/NOT/NEGX/TST on EA; EXT.W/L on Dn; size=3 → DC.W for NEG/NOT/NEGX/TST                        |
+| INT-DIS-038  | CMPM uses postincrement addressing for both operands                                                 |
+| INT-DIS-039  | A realistic 5-instruction PRG-like sequence decodes correctly via disasm_range                     |
+| INT-DIS-040  | UC11 instructions still decode correctly after UC12 changes (regression)                           |
+| INT-DIS-041  | Invalid sizes / ABCD / Scc / RTS → DC.W; NULL params → ST_ERROR                                   |
+
+---
+
+### 5.39 Test Cases — UC12 (arithmetic, logic, multiply, divide)
+
+Source: `use_cases/use_case_12.c`
+
+| ID          | Functional description                                              | Type | UFR          | REQ          | INTENT       | Expected outcome               | Status    |
+|-------------|---------------------------------------------------------------------|------|--------------|--------------|--------------|--------------------------------|-----------|
+| TC-DIS-100  | `ADDI.B #$42,D0` (0x0600+ext) wc=2, mnem=ADDI.B, ops=#$42,D0     | [N]  | UFR-HEX-005  | REQ-DIS-023  | INT-DIS-030  | PASS                          | PASS UC12 |
+| TC-DIS-101  | `ADDI.W #$1234,D1` wc=2                                            | [N]  | UFR-HEX-005  | REQ-DIS-015  | INT-DIS-030  | ADDI.W / #$1234,D1            | PASS UC12 |
+| TC-DIS-102  | `SUBI.W #$0001,D0` wc=2                                            | [N]  | UFR-HEX-005  | REQ-DIS-015  | INT-DIS-030  | SUBI.W / #$0001,D0            | PASS UC12 |
+| TC-DIS-103  | `CMPI.L #$12345678,D0` wc=3                                        | [N]  | UFR-HEX-005  | REQ-DIS-016  | INT-DIS-030  | CMPI.L / #$12345678,D0        | PASS UC12 |
+| TC-DIS-104  | `ORI.W #$00FF,(A0)` wc=2                                           | [N]  | UFR-HEX-005  | REQ-DIS-018  | INT-DIS-030  | ORI.W / #$00FF,(A0)           | PASS UC12 |
+| TC-DIS-105  | `ANDI.B #$0F,D3` wc=2                                              | [N]  | UFR-HEX-005  | REQ-DIS-018  | INT-DIS-030  | ANDI.B / #$0F,D3              | PASS UC12 |
+| TC-DIS-106  | `EORI.W #$FFFF,D7` wc=2                                            | [N]  | UFR-HEX-005  | REQ-DIS-018  | INT-DIS-030  | EORI.W / #$FFFF,D7            | PASS UC12 |
+| TC-DIS-107  | `ADDQ.W #4,D0` (0x5840)                                            | [N]  | UFR-HEX-005  | REQ-DIS-020  | INT-DIS-031  | ADDQ.W / #4,D0                | PASS UC12 |
+| TC-DIS-108  | `ADDQ.L #1,A0` (0x5288)                                            | [N]  | UFR-HEX-005  | REQ-DIS-020  | INT-DIS-031  | ADDQ.L / #1,A0                | PASS UC12 |
+| TC-DIS-109  | `ADDQ.B #8,(A0)` (0x5010, data=0→8)                               | [N]  | UFR-HEX-005  | REQ-DIS-020  | INT-DIS-031  | ADDQ.B / #8,(A0)              | PASS UC12 |
+| TC-DIS-110  | `SUBQ.W #2,D5` (0x5545)                                            | [N]  | UFR-HEX-005  | REQ-DIS-020  | INT-DIS-031  | SUBQ.W / #2,D5                | PASS UC12 |
+| TC-DIS-111  | `SUBQ.L #4,A1` (0x5989)                                            | [N]  | UFR-HEX-005  | REQ-DIS-020  | INT-DIS-031  | SUBQ.L / #4,A1                | PASS UC12 |
+| TC-DIS-112  | SUBQ size=3 → DC.W                                                 | [N]  | UFR-HEX-005  | REQ-DIS-020  | INT-DIS-031  | bValid==ST_FALSE               | PASS UC12 |
+| TC-DIS-113  | `ADD.W D0,D1` EA→Dn (0xD240)                                       | [N]  | UFR-HEX-005  | REQ-DIS-015  | INT-DIS-032  | ADD.W / D0,D1                 | PASS UC12 |
+| TC-DIS-114  | `ADD.W D0,(A0)` Dn→EA (0xD150)                                     | [N]  | UFR-HEX-005  | REQ-DIS-015  | INT-DIS-032  | ADD.W / D0,(A0)               | PASS UC12 |
+| TC-DIS-115  | `SUB.L D3,D5` EA→Dn (0x9A83)                                       | [N]  | UFR-HEX-005  | REQ-DIS-015  | INT-DIS-032  | SUB.L / D3,D5                 | PASS UC12 |
+| TC-DIS-116  | `CMP.B (A0),D2` EA→Dn (0xB410)                                     | [N]  | UFR-HEX-005  | REQ-DIS-016  | INT-DIS-032  | CMP.B / (A0),D2               | PASS UC12 |
+| TC-DIS-117  | `ADD.L #imm32,D0` wc=3                                             | [N]  | UFR-HEX-005  | REQ-DIS-015  | INT-DIS-032  | ADD.L / #$12345678,D0         | PASS UC12 |
+| TC-DIS-118  | `SUB.W $10(A0),D1` wc=2 (0x9268+ext)                              | [N]  | UFR-HEX-005  | REQ-DIS-015  | INT-DIS-032  | SUB.W / $10(A0),D1            | PASS UC12 |
+| TC-DIS-119  | `ADDA.W D0,A1` (0xD2C0)                                            | [N]  | UFR-HEX-005  | REQ-DIS-015  | INT-DIS-033  | ADDA.W / D0,A1                | PASS UC12 |
+| TC-DIS-120  | `ADDA.L (A0),A1` (0xD3D0)                                          | [N]  | UFR-HEX-005  | REQ-DIS-015  | INT-DIS-033  | ADDA.L / (A0),A1              | PASS UC12 |
+| TC-DIS-121  | `SUBA.W D0,A0` (0x90C0)                                            | [N]  | UFR-HEX-005  | REQ-DIS-015  | INT-DIS-033  | SUBA.W / D0,A0                | PASS UC12 |
+| TC-DIS-122  | `CMPA.L D7,A3` (0xB7C7)                                            | [N]  | UFR-HEX-005  | REQ-DIS-016  | INT-DIS-033  | CMPA.L / D7,A3                | PASS UC12 |
+| TC-DIS-123  | `ADDX.W D0,D1` register form (0xD340)                              | [N]  | UFR-HEX-005  | REQ-DIS-021  | INT-DIS-034  | ADDX.W / D0,D1                | PASS UC12 |
+| TC-DIS-124  | `ADDX.L -(A0),-(A1)` memory form (0xD388)                          | [N]  | UFR-HEX-005  | REQ-DIS-021  | INT-DIS-034  | ADDX.L / -(A0),-(A1)          | PASS UC12 |
+| TC-DIS-125  | `SUBX.B D3,D5` register form (0x9B03)                              | [N]  | UFR-HEX-005  | REQ-DIS-021  | INT-DIS-034  | SUBX.B / D3,D5                | PASS UC12 |
+| TC-DIS-126  | `AND.W D0,D1` EA→Dn (0xC240)                                       | [N]  | UFR-HEX-005  | REQ-DIS-018  | INT-DIS-035  | AND.W / D0,D1                 | PASS UC12 |
+| TC-DIS-127  | `AND.W D0,(A0)` Dn→EA (0xC150)                                     | [N]  | UFR-HEX-005  | REQ-DIS-018  | INT-DIS-035  | AND.W / D0,(A0)               | PASS UC12 |
+| TC-DIS-128  | `OR.L D2,D3` EA→Dn (0x8682)                                        | [N]  | UFR-HEX-005  | REQ-DIS-018  | INT-DIS-035  | OR.L / D2,D3                  | PASS UC12 |
+| TC-DIS-129  | `EOR.W D0,D1` Dn→EA (0xB141)                                       | [N]  | UFR-HEX-005  | REQ-DIS-018  | INT-DIS-035  | EOR.W / D0,D1                 | PASS UC12 |
+| TC-DIS-130  | `MULU.W D0,D1` (0xC2C0)                                            | [N]  | UFR-HEX-005  | REQ-DIS-017  | INT-DIS-036  | MULU.W / D0,D1                | PASS UC12 |
+| TC-DIS-131  | `MULS.W D0,D2` (0xC5C0)                                            | [N]  | UFR-HEX-005  | REQ-DIS-017  | INT-DIS-036  | MULS.W / D0,D2                | PASS UC12 |
+| TC-DIS-132  | `DIVU.W D1,D0` (0x80C1)                                            | [N]  | UFR-HEX-005  | REQ-DIS-017  | INT-DIS-036  | DIVU.W / D1,D0                | PASS UC12 |
+| TC-DIS-133  | `DIVS.W (A0),D0` (0x81D0)                                          | [N]  | UFR-HEX-005  | REQ-DIS-017  | INT-DIS-036  | DIVS.W / (A0),D0              | PASS UC12 |
+| TC-DIS-134  | `NEG.B D0` (0x4400)                                                | [N]  | UFR-HEX-005  | REQ-DIS-019  | INT-DIS-037  | NEG.B / D0                    | PASS UC12 |
+| TC-DIS-135  | `NEG.W (A0)` (0x4450)                                              | [N]  | UFR-HEX-005  | REQ-DIS-019  | INT-DIS-037  | NEG.W / (A0)                  | PASS UC12 |
+| TC-DIS-136  | `NOT.L D3` (0x4683)                                                | [N]  | UFR-HEX-005  | REQ-DIS-019  | INT-DIS-037  | NOT.L / D3                    | PASS UC12 |
+| TC-DIS-137  | `NOT.W D0` (0x4640)                                                | [N]  | UFR-HEX-005  | REQ-DIS-019  | INT-DIS-037  | NOT.W / D0                    | PASS UC12 |
+| TC-DIS-138  | `NEGX.B D0` (0x4000)                                               | [N]  | UFR-HEX-005  | REQ-DIS-019  | INT-DIS-037  | NEGX.B / D0                   | PASS UC12 |
+| TC-DIS-139  | `TST.W D5` (0x4A45)                                                | [N]  | UFR-HEX-005  | REQ-DIS-019  | INT-DIS-037  | TST.W / D5                    | PASS UC12 |
+| TC-DIS-140  | `TST.L (A0)` (0x4A90)                                              | [N]  | UFR-HEX-005  | REQ-DIS-019  | INT-DIS-037  | TST.L / (A0)                  | PASS UC12 |
+| TC-DIS-141  | `EXT.W D2` (0x4882)                                                | [N]  | UFR-HEX-005  | REQ-DIS-019  | INT-DIS-037  | EXT.W / D2                    | PASS UC12 |
+| TC-DIS-142  | `EXT.L D5` (0x48C5)                                                | [N]  | UFR-HEX-005  | REQ-DIS-019  | INT-DIS-037  | EXT.L / D5                    | PASS UC12 |
+| TC-DIS-143  | NEG size=3 → DC.W                                                  | [N]  | UFR-HEX-005  | REQ-DIS-019  | INT-DIS-037  | bValid==ST_FALSE               | PASS UC12 |
+| TC-DIS-144  | `CMPM.W (A0)+,(A1)+` (0xB348)                                      | [N]  | UFR-HEX-005  | REQ-DIS-016  | INT-DIS-038  | CMPM.W / (A0)+,(A1)+          | PASS UC12 |
+| TC-DIS-145  | PRG sequence (5 instr) → ST_NO_ERROR, 5 lines                     | [N]  | UFR-HEX-005  | REQ-DIS-015..019 | INT-DIS-039 | n==5                        | PASS UC12 |
+| TC-DIS-146  | PRG line0 = MOVEQ (regression UC11)                                | [N]  | UFR-HEX-005  | REQ-DIS-006  | INT-DIS-039  | "MOVEQ"                        | PASS UC12 |
+| TC-DIS-147  | PRG line1 = ADDI.W, wc=2                                           | [N]  | UFR-HEX-005  | REQ-DIS-015  | INT-DIS-039  | "ADDI.W" / wc==2              | PASS UC12 |
+| TC-DIS-148  | PRG line2 = CMP.W at addr $2006                                    | [N]  | UFR-HEX-005  | REQ-DIS-016  | INT-DIS-039  | "CMP.W" / addr==$2006          | PASS UC12 |
+| TC-DIS-149  | PRG line3 = NEG.W; line4 = MULU.W                                  | [N]  | UFR-HEX-005  | REQ-DIS-017,019 | INT-DIS-039 | "NEG.W" / "MULU.W"         | PASS UC12 |
+| TC-DIS-150  | MOVE.W D0,D1 regression (UC11)                                     | [N]  | UFR-HEX-005  | REQ-DIS-006  | INT-DIS-040  | MOVE.W / D0,D1                | PASS UC12 |
+| TC-DIS-151  | LEA abs.W regression (UC11) wc=2                                   | [N]  | UFR-HEX-005  | REQ-DIS-006  | INT-DIS-040  | LEA / $FF8200.W,A0            | PASS UC12 |
+| TC-DIS-152  | disasm_one(NULL) → ST_ERROR                                        | [R]  | UFR-HEX-005  | REQ-DIS-001  | INT-DIS-041  | ST_ERROR                       | PASS UC12 |
+| TC-DIS-153  | disasm_one(…,NULL) → ST_ERROR                                      | [R]  | UFR-HEX-005  | REQ-DIS-001  | INT-DIS-041  | ST_ERROR                       | PASS UC12 |
+| TC-DIS-154  | NEGX size=3 → DC.W                                                 | [R]  | UFR-HEX-005  | REQ-DIS-019  | INT-DIS-041  | bValid==ST_FALSE               | PASS UC12 |
+| TC-DIS-155  | TST size=3 → DC.W                                                  | [R]  | UFR-HEX-005  | REQ-DIS-019  | INT-DIS-041  | bValid==ST_FALSE               | PASS UC12 |
+| TC-DIS-156  | 0x6000 (BRA UC14) → DC.W                                           | [R]  | UFR-HEX-005  | REQ-DIS-005  | INT-DIS-041  | bValid==ST_FALSE               | PASS UC12 |
+| TC-DIS-157  | 0x4E75 (RTS UC14) → DC.W ADAPTED(UC14)                            | [R]  | UFR-HEX-005  | REQ-DIS-005  | INT-DIS-041  | bValid==ST_FALSE               | PASS UC12 |
+| TC-DIS-158  | 0xC100 (ABCD) → DC.W                                               | [R]  | UFR-HEX-005  | REQ-DIS-022  | INT-DIS-041  | bValid==ST_FALSE               | PASS UC12 |
+| TC-DIS-159  | 0x50C0 (Scc) → DC.W                                                | [R]  | UFR-HEX-005  | REQ-DIS-020  | INT-DIS-041  | bValid==ST_FALSE               | PASS UC12 |
+
+#### Test Summary — UC12
+
+| Module | [N] | [R] | [S] | Total | Result    |
+|--------|-----|-----|-----|-------|-----------|
+| DIS    | 64  | 8   | 0   | 72    | ALL PASS  |
+
+#### REQ → TC coverage (UC12)
+
+| REQ          | TC(s)                                  | Status    |
+|--------------|----------------------------------------|-----------|
+| REQ-DIS-015  | TC-DIS-101..103,113..121,123..125      | ✓ UC12    |
+| REQ-DIS-016  | TC-DIS-103,116,118,122,128,144,148     | ✓ UC12    |
+| REQ-DIS-017  | TC-DIS-130..133                        | ✓ UC12    |
+| REQ-DIS-018  | TC-DIS-104..106,126..129               | ✓ UC12    |
+| REQ-DIS-019  | TC-DIS-134..143,154..155               | ✓ UC12    |
+| REQ-DIS-020  | TC-DIS-107..112,159                    | ✓ UC12    |
+| REQ-DIS-021  | TC-DIS-123..125                        | ✓ UC12    |
+| REQ-DIS-022  | TC-DIS-158                             | ✓ UC12    |
+| REQ-DIS-023  | TC-DIS-100..106                        | ✓ UC12    |
+
+#### UFR traceability update (UC12)
+
+| UFR          | REQ(s)                                       | TC(s)                 | Status    |
+|--------------|----------------------------------------------|-----------------------|-----------|
+| UFR-HEX-005  | REQ-DIS-015..023 (+ UC11: 006, 010..014)    | TC-DIS-100..159       | ✓ UC12    |

@@ -24,6 +24,9 @@
 - 2026-06-01: UC7 validé — `src/load.h` + `src/load.c` : détection type, chargement binaire raw + PRG stub (magic 0x601A, .text+.data) + fixup TODO(UC15) ; `line_cmd_load()` ; `line_cmd_info()` live ; P11 `szLastSelected` + `g_dir_clrLastSel` (vert sombre) dans `dir_render()` ; `st_machine_t` + `load_init/shutdown` dans `main.c` ; ST_APP_VERSION 0.7.0
 - 2026-06-02: UC8 validé — `src/edit_txt.h` + `src/edit_txt.c` : éditeur texte D2D (load/save, numéros de ligne, sélection, CTRL raccourcis, clipboard) ; `gui.h` : `GUI_MOD_CTRL/SHIFT/ALT` + `uiMods` dans `tKey` + API clipboard ; `win_gui.c` : WM_KEYDOWN/WM_CHAR avec modificateurs, CTRL+lettre via codes de contrôle, implémentation clipboard Win32 ; `lx_gui.c` : stubs clipboard ; `line_cmd_edit()` routage texte/binaire ; `g_line_ptEditTxtView` dans `line.c` ; ST_APP_VERSION 0.8.0
 - 2026-06-02: UC9 validé — `src/edit_hex.h` + `src/edit_hex.c` : éditeur hex+ASCII D2D (load/save, zones HEX/ASCII, navigation nibble, édition nibble+byte, TAB toggle zone, clic souris, CTRL+S) ; routage `line_cmd_edit()` `.prg/.ttp/.tos/.bin/.raw → edit_hex`, `.st/.msa/.stx → mount` ; `g_line_ptEditHexView` dans `line.c` ; ST_APP_VERSION 0.9.0
+- 2026-06-03: UC12 validé — `src/disassemble.c` étendu : ADD/ADDA/ADDI/ADDQ/ADDX, SUB/SUBA/SUBI/SUBQ/SUBX, CMP/CMPA/CMPI/CMPM, MULU/MULS/DIVU/DIVS, AND/ANDI/OR/ORI/EOR/EORI, NOT/NEG/NEGX/TST/EXT.W/EXT.L ; groupes 0x0/0x5/0x8/0x9/0xB/0xC/0xD ; helpers `disasm_dreg_ea`, `disasm_x_a`, `disasm_imm_ea`, `disasm_addq_subq`, `disasm_addx_subx`, `disasm_mul_div`, `disasm_cmpm`, `disasm_unary_ea` ; ST_APP_VERSION 0.12.0
+- 2026-06-03: UC11 validé — `src/disassemble.c` : désassembleur 68000 réel MOVE/MOVEQ/LEA/CLR/EXG/SWAP/PEA + décodeur EA complet (12 modes) ; `bValid = ST_TRUE` sur instructions reconnues ; `TC-DIS-001 ADAPTED(UC11)` ; ST_APP_VERSION 0.11.0
+- 2026-06-02: UC10 validé — `edit_hex.h/c` étendu : panneau désassembleur D2D synchronisé (zone HEX_ZONE_DISASM, cache 512 instructions, `ehex_disasm_cache_update/find_cursor/scroll_to_cursor/render`) ; TAB cycle 3 zones HEX→ASCII→DISASM→HEX ; F2 toggle ; sync bidirectionnel hex↔disasm ; fenêtre plus large (1320px) avec disasm ; `EDIT_HEX_WND_WIDTH_DISASM/STD/HEIGHT` ; ST_APP_VERSION 0.10.0
 
 ## 1. Contexte du projet
 
@@ -559,9 +562,9 @@ Les étapes de développement fonctionnelles sont formalisées en Use Cases, per
 | UC7 | `load` | Chargement fichier texte/binaire, détection type, buffer mémoire ; indicateur visuel sélection active dans vue `dir` (P11 : couleur secondaire sur ligne sélectionnée, ≠ highlight navigation) | ✓ VALIDÉ 2026-06-01 |
 | UC8 | `edit` texte | Vue éditeur texte D2D : scroll, numéros de ligne, sélection, clipboard, sauvegarde ; `GUI_MOD_*` + `uiMods` dans `gui_event_t` ; API clipboard `gui_clipboard_set/get_text` | ✓ VALIDÉ 2026-06-02 |
 | UC9 | `edit` hex | Vue hex+ASCII D2D : adresses, 16 bytes/row, zones HEX/ASCII (TAB), édition nibble+byte, clic souris, CTRL+S save | ✓ VALIDÉ 2026-06-02 |
-| UC10 | `edit` | Vue intégrée hex+ASCII+désasm en colonnes synchronisées | sync curseur entre vues |
-| UC11 | interne | Désassembleur 68000 : MOVE/MOVEQ/LEA/CLR/EXG/SWAP/PEA | désasm binaire de test |
-| UC12 | interne | Désassembleur : ADD/SUB/CMP/MUL/DIV/AND/OR/EOR/NOT/NEG | désasm complet d'un .PRG |
+| UC10 | `edit` | Vue intégrée hex+ASCII+désasm en colonnes synchronisées | ✓ VALIDÉ 2026-06-02 |
+| UC11 | interne | Désassembleur 68000 : MOVE/MOVEQ/LEA/CLR/EXG/SWAP/PEA | ✓ VALIDÉ 2026-06-03 |
+| UC12 | interne | Désassembleur : ADD/SUB/CMP/MUL/DIV/AND/OR/EOR/NOT/NEG | ✓ VALIDÉ 2026-06-03 |
 | UC13 | interne | Désassembleur : shifts, rotations, BTST/BSET/BCLR/BCHG | |
 | UC14 | interne | Désassembleur : BRA/BSR/Bcc/JMP/JSR/RTS/RTR/RTE/TRAP | désasm programme complet |
 | UC15 | interne | Format PRG : parser header + sections + fixups + chargement mémoire ST | load .PRG en mémoire émulée |
@@ -1503,6 +1506,216 @@ Les étapes de développement fonctionnelles sont formalisées en Use Cases, per
 - UC15 : `load_do_prg()` fixup relocation → permet de charger le PRG correctement relocalisé en RAM ST avant `edit_hex`.
 - Undo (CTRL+Z) pour le hex editor : non implémenté en UC9 (mode remplacement, fichiers petits → l'utilisateur peut re-ouvrir). À planifier si besoin en UC9-bis.
 
+### 6.15 Use Case 10 (UC10) — ✓ VALIDÉ (2026-06-02)
+
+**Périmètre fonctionnel implémenté :**
+- `src/edit_hex.h` étendu :
+  - `HEX_ZONE_DISASM = 2` ajouté à `edit_hex_zone_t` (troisième zone read-only).
+  - Constantes : `EDIT_HEX_DISASM_CACHE_LINES 512`, `EDIT_HEX_DISASM_PANEL_CHARS 48`, `EDIT_HEX_DISASM_SEP_CHARS 3`, `EDIT_HEX_DISASM_ADDR_CHARS 8`, `EDIT_HEX_DISASM_PREBUF_BYTES 512`.
+  - Constantes de fenêtre : `EDIT_HEX_WND_WIDTH_STD 950`, `EDIT_HEX_WND_WIDTH_DISASM 1320`, `EDIT_HEX_WND_HEIGHT 640`.
+  - Champs dans `edit_hex_view_t` : `atDisasmCache *disasm_result_t` (heap), `iDisasmCacheCount`, `uiDisasmCacheBase`, `iDisasmScrollRow`, `iDisasmCursorIdx`, `iDisasmX`, `bShowDisasm`.
+  - Include `disassemble.h` dans le header.
+- `src/edit_hex.c` étendu :
+  - Nouvelles couleurs : `g_clrDisasm` (tan), `g_clrDisasmDC` (DC.W stub, dim), `g_clrDisasmHL` (fond highlight), `g_clrDisasmSepBg`.
+  - `ehex_disasm_cache_update()` : reconstruit le cache autour du curseur (512 bytes avant + autant que le cache permet) via `disasm_range()`.
+  - `ehex_disasm_find_cursor()` : trouve l'instruction du cache contenant `uiCursor` ; met à jour `iDisasmCursorIdx` ; appelle `ehex_disasm_scroll_to_cursor()`.
+  - `ehex_disasm_scroll_to_cursor()` : maintient `iDisasmCursorIdx` dans la zone visible du panneau.
+  - `ehex_disasm_render()` : dessine séparateur + liste d'instructions (`$XXXXXX %-8s %s`) ; instruction active surlignée selon la zone active.
+  - `ehex_recalc_layout()` : calcule `iDisasmX` après la zone ASCII + séparateur.
+  - `ehex_render()` : appelle `ehex_disasm_render()` en fin si `bShowDisasm`.
+  - `ehex_handle_key()` : F2 toggle ; TAB cycle 3 zones (HEX→ASCII→DISASM si visible→HEX) ; navigation DISASM zone (↑↓/PgUp/PgDn/Home/End syncs `uiCursor` + `ehex_scroll_to_cursor` + `ehex_disasm_scroll_to_cursor`) ; rebuild cache après édition.
+  - `ehex_handle_click()` : click sur panneau disasm → `HEX_ZONE_DISASM` + sync curseur.
+  - `GUI_EVT_SCROLL` : scrolle le panneau disasm si `eZone == HEX_ZONE_DISASM`, sinon hex.
+  - `edit_hex_open()` : alloue `atDisasmCache` heap + `bShowDisasm = ST_TRUE` ; taille initiale `EDIT_HEX_WND_WIDTH_DISASM × EDIT_HEX_WND_HEIGHT` ; rebuild cache au premier paint.
+  - `edit_hex_close()` : libère `atDisasmCache`.
+
+**Architecture du cache (UC10) :**
+- Le cache est une fenêtre glissante : `EDIT_HEX_DISASM_PREBUF_BYTES` avant le curseur + `EDIT_HEX_DISASM_CACHE_LINES` instructions en avant. Reconstruit à chaque déplacement de curseur ou édition d'octet.
+- Avec le stub UC10 (toutes instructions = 1 word = 2 bytes) : `instruction N = byte 2N`, mapping trivial.
+- Quand UC11–14 implémenteront le vrai désassembleur (instructions de longueur variable) : le cache sera automatiquement correct car `disasm_range()` retournera les bonnes longueurs via `iWordCount`.
+- La zone DISASM est read-only : aucun chemin d'édition, touches printables ignorées.
+
+**Tests R14/R15 appliqués :**
+- `use_cases/use_case_10.c` : TEST MATRIX **15N + 8R + 8S = 31 tests**, 0 failure
+  - [N] : constantes DISASM_CACHE_LINES/PANEL_CHARS/SEP_CHARS/ADDR_CHARS/PREBUF_BYTES (5) ; WND_WIDTH_DISASM > STD, WND_HEIGHT > 0 (2) ; BYTES_PER_ROW == 16 régression (1) ; zones distinctes + valeurs correctes (3) ; `disasm_range` 4 bytes → 2 lignes + adresses (4)
+  - [R] : NULL guards open/close (8)
+  - [S] : `make manual UC=10` (8 tests visuels)
+
+**Contrats comportementaux validés :**
+
+*Zone DISASM — navigation*
+- TAB depuis HEX_ZONE_ASCII : → HEX_ZONE_DISASM si `bShowDisasm == ST_TRUE` ; sinon → HEX_ZONE_HEX.
+- TAB depuis HEX_ZONE_DISASM : → HEX_ZONE_HEX, `iNibble = 0`.
+- ↑ en DISASM : `iDisasmCursorIdx--` + `uiCursor = atDisasmCache[i-1].uiAddr` + scroll hex + scroll disasm.
+- ↓ en DISASM : `iDisasmCursorIdx++` + `uiCursor = atDisasmCache[i+1].uiAddr` + scroll hex + scroll disasm.
+- PgUp/PgDn en DISASM : décalage par `iVisRows` instructions.
+- Home/End en DISASM : rebuildent le cache depuis le début/la fin du fichier.
+- ESC : `gui_request_close()` (identique aux autres zones).
+- Touches printables en DISASM : ignorées (zone read-only).
+
+*F2 toggle*
+- `bShowDisasm = !bShowDisasm` ; si `eZone == HEX_ZONE_DISASM` → bascule vers `HEX_ZONE_HEX`.
+- `ehex_recalc_layout()` appelé pour recalculer `iDisasmX` (0 si masqué).
+- Cache rebuild si panel devient visible.
+
+*Sync bidirectionnel*
+- Curseur en HEX/ASCII → `ehex_disasm_find_cursor()` → `iDisasmCursorIdx` mis à jour → `ehex_disasm_scroll_to_cursor()`.
+- Curseur en DISASM → `uiCursor = atDisasmCache[idx].uiAddr` → `ehex_scroll_to_cursor()`.
+- Edit d'octet (HEX ou ASCII) → `ehex_disasm_cache_update()` → cache reconstruit (contenu du fichier a changé).
+
+*Scroll molette*
+- Zone HEX ou ASCII : scrolle `iScrollRow` (hex panel).
+- Zone DISASM : scrolle `iDisasmScrollRow` (disasm panel indépendant).
+
+*Fenêtre*
+- `bShowDisasm == ST_TRUE` → `tDesc.iWidth = EDIT_HEX_WND_WIDTH_DISASM (1320)`.
+- `bShowDisasm == ST_FALSE` (malloc cache échoué) → `tDesc.iWidth = EDIT_HEX_WND_WIDTH_STD (950)`.
+- Les deux : `tDesc.iHeight = EDIT_HEX_WND_HEIGHT (640)`.
+
+*Lifecycle*
+- `atDisasmCache` alloué dans `edit_hex_open()` ; `malloc` échec → `bShowDisasm = ST_FALSE` + LOG_ERROR, ouverture continue (non fatal).
+- `atDisasmCache` libéré dans `edit_hex_close()`.
+- Cache rebuild différé au premier `GUI_EVT_PAINT` (cellules connues seulement après création du renderer).
+
+**Points d'attention pour les UCs suivants :**
+- UC11–14 : le désassembleur réel remplacera les DC.W stubs. `ehex_disasm_cache_update()` appellera toujours `disasm_range()` sans modification — le cache sera automatiquement valide. La seule différence : `iWordCount` peut être > 1, donc `iDisasmCursorIdx` ne sera plus triviallement `uiCursor / 2`. `ehex_disasm_find_cursor()` gère déjà ce cas via la comparaison `uiAddr ≤ uiCursor < uiAddr_next`.
+- UC15 : fixup PRG → les adresses dans le disasm panel seront correctes par rapport à la RAM ST (pas juste des offsets dans le fichier). `uiAddr` dans `disasm_result_t` sera l'adresse ST réelle.
+- UC18 (mount) : disasm des secteurs boot d'une image `.st` — le secteur 0 est potentiellement un programme 68000. La sélection de plage (`szDisasmRange` UI) peut être un UC futur.
+- P32 (SHIFT+flèches sélection plage) : maintenant que DISASM zone existe, P32 peut cibler la vue hex pour surligner les octets correspondant à une instruction disasm sélectionnée — à arbitrer.
+- P33 (`edit hex` forcer hex) : applicable à UC10 — une commande `edit hex <file>` forcerait l'ouverture hex même pour les fichiers non-binaires.
+
+### 6.16 Use Case 11 (UC11) — ✓ VALIDÉ (2026-06-03)
+
+**Périmètre fonctionnel implémenté :**
+- `src/disassemble.c` réécrit intégralement :
+  - `disasm_rw()` : helper lecture big-endian 16-bit.
+  - `disasm_fmt_words()` : formatage du champ hex de `szLine` (jusqu'à 5 mots, 20 chars).
+  - `disasm_fmt_line()` : finalise `ptResult->szLine` à partir des champs remplis.
+  - `disasm_fill_words()` : copie `auWords[1..iWordCount-1]` depuis le buffer.
+  - `disasm_dc_word()` : helper fallback `DC.W $XXXX`.
+  - `disasm_fmt_ea()` : décodeur EA complet (12 modes) avec gestion des mots d'extension :
+    - Mode 0/1 : Dn/An (0 mot ext)
+    - Mode 2/3/4 : (An)/(An)+/-(An) (0 mot ext)
+    - Mode 5 : d16(An) — 1 mot ext, déplacement signé en hex
+    - Mode 6 : d8(An,Xn) brief format — 1 mot ext (index An/Dn + taille .W/.L + déplacement signé)
+    - Mode 7.0 : abs.W — 1 mot ext, signe étendu sur 24 bits (ex : `$FF8200.W`)
+    - Mode 7.1 : abs.L — 2 mots ext
+    - Mode 7.2 : d16(PC) — 1 mot ext, EA absolue calculée depuis adresse extension
+    - Mode 7.3 : d8(PC,Xn) — 1 mot ext brief
+    - Mode 7.4 : immédiat #data — 1 mot (B/W) ou 2 mots (L)
+  - `disasm_move()` : MOVE.B/W/L + MOVEA.W/L (destination An → MOVEA) ; rejet MOVE.B→An (DC.W).
+  - `disasm_moveq()` : MOVEQ #$XX,Dn — 1 mot, données 8 bits en hex non signé.
+  - `disasm_misc4()` : groupe 0100 — LEA / CLR.B/W/L / SWAP / PEA dans cet ordre de priorité ; CLR size=11 → DC.W ; PEA mode Dn/An/(An)+/-(An)/imm → DC.W.
+  - `disasm_exg()` : EXG Dx,Dy / Ax,Ay / Dx,Ay (3 patterns `0xF1F8`).
+  - `disasm_one()` : dispatch top nibble → 0001/0010/0011 MOVE, 0100 misc4, 0111 MOVEQ, 1100 EXG, autres DC.W.
+  - `disasm_range()` : inchangé (avance de `iWordCount*2` par itération).
+- `TC-DIS-001` ADAPTED UC11 : `bValid = ST_TRUE` pour MOVEQ ; `bValid = ST_FALSE` pour RTS (0x4E75) reste DC.W jusqu'à UC14.
+
+**Architecture EA :**
+- `disasm_fmt_ea()` prend `uiPC` (adresse du mot opcode) et `iExtSoFar` (mots d'extension déjà consommés avant cet EA). L'adresse PC pour d(PC) = `uiPC + (1 + iExtSoFar) * 2`.
+- Les mots d'extension sont ordonnés : source EA en premier, puis destination EA (conforme PRM Motorola).
+- Retour `-1` sur EA invalide → la fonction appelante émet DC.W.
+
+**Tests R14/R15 appliqués :**
+- `use_cases/use_case_11.c` : TEST MATRIX **52N + 10R + 0S = 62 tests**, 0 failure
+  - [N] : MOVE 3 tailles reg→reg (4), MOVE modes source (7×3), MOVEA (2+1 DC.W), MOVEQ (3+1 DC.W), LEA (5×3), CLR (4+1 DC.W), SWAP (3×2), PEA (2×3+1 SWAP), EXG (5×2), d8(An,Xn) 3 cas, range mixed (6), UC1 regression (4)
+  - [R] : NULL buf/result, buf trop court, range NULL ×3, opcode inconnu ×2, range len=0 ×2
+
+**Contrats comportementaux validés (ADAPTED UC11) :**
+
+*Décodeur EA*
+- Mode 6 (d8(An,Xn)) : déplacement 0 affiché `$0(An,Xn)`.
+- Mode 7.0 (abs.W) : signe étendu à 24 bits → `$FF8200.W` pour extension 0x8200 ; `$1234.W` pour extension 0x1234 positive.
+- Mode 7.2 (d16(PC)) : EA calculée = adresse de l'extension + déplacement signé.
+- Immédiat .B : mot d'extension entier lu, seul l'octet bas utilisé (`#$XX`).
+
+*`disasm_move()`*
+- Destination mode=001 (An) + taille B → DC.W (MOVEA.B n'existe pas).
+- Destination mode=001 + taille W/L → mnemonic `MOVEA.W`/`MOVEA.L`.
+- Source et destination avec extensions : source en premier, puis destination.
+
+*`disasm_moveq()`*
+- Bit 8 du mot opcode doit être 0 ; sinon DC.W.
+- Immédiat affiché en hex non-signé 2 chiffres.
+
+*`disasm_misc4()`*
+- Ordre de priorité : LEA → CLR → SWAP → PEA.
+- SWAP (0x4840-0x4847) précède PEA dans la vérification (même masque 0xFFC0).
+- PEA rejette les modes non-contrôle (0,1,3,4 et mode7.reg4 = immédiat).
+
+*`disasm_exg()`*
+- 3 modes distincts testés via masque `0xF1F8`.
+
+*`disasm_one()` / `disasm_range()`*
+- `bValid = ST_TRUE` pour toute instruction reconnue en UC11.
+- Tout opcode non reconnu → `bValid = ST_FALSE`, DC.W, `iWordCount = 1`.
+- `szLine` toujours renseigné (même sur buffer trop court).
+- `disasm_range()` : avance de `iWordCount * 2` à chaque ligne.
+
+**Points d'attention pour les UCs suivants :**
+- UC10 : le panneau disasm affiche maintenant les vraies mnémoniques pour MOVE/MOVEQ/LEA/CLR/EXG/SWAP/PEA — sans modification de `edit_hex.c` (appelle `disasm_range()` déjà).
+- UC12 : groupe 0100 contient aussi NOT/NEG/TST/NBCD/EXT — décodage complémentaire dans `disasm_misc4()`.
+- UC12 : groupe 0110 (ADD/SUB immediat) + groupe 1000 (OR/DIVU) + 1001 (SUB/SUBX) + 1011 (CMP/EOR) + 1100 (AND/MULU) + 1101 (ADD/ADDX).
+- UC13 : groupe 1110 (shifts/rotations) + BTST/BSET/BCLR/BCHG (groupe 0000 bits 7-6 ≠ 11).
+- UC14 : groupe 0100 (`4E75` RTS, `4E74` RTD, `4E73` RTE, `4EF9` JMP) + `6xxx` (Bcc/BRA/BSR) + `4E80-4EBF` (JSR).
+- `TC-DIS-001` (ADAPTED UC11) : reste valide — `bValid = ST_FALSE` pour 0x4E75 (RTS, non décodé jusqu'à UC14). A mettre à jour en ADAPTED(UC14) dans use_case_01.c en UC14.
+
+### 6.17 Use Case 12 (UC12) — ✓ VALIDÉ (2026-06-03)
+
+**Périmètre fonctionnel implémenté :**
+- `src/disassemble.c` étendu : 8 nouveaux groupes de dispatch + 8 helpers internes.
+- **Nouveaux helpers** :
+  - `disasm_unary_ea(szMnem, iSz, iMode, iReg)` : CLR/NEGX/NEG/NOT/TST — factorisation de l'opération "MNEM.sz EA".
+  - `disasm_dreg_ea(szMnem, iDn, iDir, iSz, iMode, iReg)` : ADD/SUB/CMP/AND/OR/EOR dans les 2 directions.
+  - `disasm_x_a(szMnem, iSz)` : ADDA/SUBA/CMPA (An destination).
+  - `disasm_addq_subq()` : ADDQ/SUBQ — immédiat 3 bits (0=8) affiché en décimal.
+  - `disasm_addx_subx(szMnem)` : ADDX/SUBX register (Dx,Dy) et mémoire (-(Ax),-(Ay)).
+  - `disasm_imm_ea(szMnem)` : ADDI/SUBI/CMPI/ANDI/ORI/EORI + cas spéciaux CCR/SR.
+  - `disasm_mul_div(szMnem)` : MULU.W/MULS.W/DIVU.W/DIVS.W (source word, dest Dn).
+  - `disasm_cmpm()` : CMPM.x (An)+,(An)+ — distingué de EOR par bits5-3=001 (mode1).
+- **`disasm_misc4()` étendu** (UC12) : NEGX (0x4000), NEG (0x4400), NOT (0x4600), TST (0x4A00), EXT.W (0x4880..7), EXT.L (0x48C0..7) — insérés avant SWAP/PEA UC11.
+- **Nouveaux groupes** dans `disasm_one()` :
+  - `disasm_group0()` : ORI/ANDI/SUBI/ADDI/EORI/CMPI — dispatch sur bits11-8.
+  - `disasm_group5()` : ADDQ/SUBQ (size≠3) ; Scc/DBcc (size=3) → DC.W.
+  - `disasm_group8()` : OR/DIVU/DIVS — DIVU si sz=3,bit8=0 ; DIVS si sz=3,bit8=1 ; SBCD → DC.W.
+  - `disasm_group9()` : SUB/SUBA/SUBX — SUBA si sz=3 ; SUBX si bit8=1,mode≤1 ; SUB sinon.
+  - `disasm_groupB()` : CMP/CMPA/EOR/CMPM — CMPA si sz=3 ; CMPM si bit8=1,mode=1 ; EOR si bit8=1,mode≠1 ; CMP si bit8=0.
+  - `disasm_groupC()` : AND/MULU/MULS + EXG (UC11) — MULU/MULS si sz=3 ; ABCD → DC.W ; AND sinon.
+  - `disasm_groupD()` : ADD/ADDA/ADDX — ADDA si sz=3 ; ADDX si bit8=1,mode≤1 ; ADD sinon.
+- **Disambiguation ADDX/SUBX** : mode=0 (Dn) et mode=1 (An/predecrement) dans le champ EA bits5-3 détectent les formes ADDX/SUBX avant le chemin ADD/SUB Dn→EA.
+
+**Tests R14/R15 appliqués :**
+- `use_cases/use_case_12.c` : TEST MATRIX **64N + 8R + 0S = 72 tests**, 0 failure
+  - [N] : ADDI/SUBI/CMPI/ORI/ANDI/EORI (7×2+2=16), ADDQ/SUBQ (5×2+2=12), ADD/SUB/CMP (6×3=18), ADDA/SUBA/CMPA (4×2=8), ADDX/SUBX (3×2=6), AND/OR/EOR (4×2=8), MULU/MULS/DIVU/DIVS (4×2=8), NEG/NOT/NEGX/TST/EXT (9×2+2=20), CMPM (2), range PRG (9), régression UC11 (2+3)
+  - [R] : NULL ×2, DC.W invalides (NEGX/TST/NOT sz=11, RTS, ABCD, Scc) ×6
+
+**Contrats comportementaux validés :**
+
+*`disasm_addq_subq()`*
+- Data=0 dans le champ opcode → affiche `#8` (pas `#0`).
+- Immediate affiché en décimal (convention DEVPAC3).
+- Size=3 (bits7-6=11) → DC.W (Scc/DBcc non implémenté).
+
+*`disasm_imm_ea()`*
+- Immédiat source toujours en premier (avant l'EA destination dans le buffer).
+- Destination EA mode=7, reg=4 → "CCR" (taille B) ou "SR" (taille W) — pas "#$imm".
+- Size=3 → DC.W.
+
+*`disasm_mul_div()`*
+- Opérande source est toujours word (iSz=1 passé à `disasm_fmt_ea`).
+- Mnemonic avec `.W` suffix : `MULU.W`, `MULS.W`, `DIVU.W`, `DIVS.W`.
+
+*ABCD/SBCD detection → DC.W*
+- Dans groupC/group8 : bit8=1, sz=0 (B), mode=0 ou 1 → DC.W sans crash.
+
+*`disasm_groupB()` EOR vs CMPM*
+- bit8=1, sz≠3, mode=001 → CMPM ; mode≠001 → EOR.
+
+**Points d'attention pour les UCs suivants :**
+- UC13 : groupe 1110 (ASL/ASR/LSL/LSR/ROL/ROR/ROXL/ROXR) + groupe 0000 bits7-6≠11 (BTST/BSET/BCLR/BCHG).
+- UC14 : groupe 0100 restant (RTS 0x4E75, JMP 0x4EF9, JSR 0x4E80-BF, TRAP, NOP) + groupe 0110 (BRA/BSR/Bcc).
+- UC11/UC12 se complètent : toutes les instructions arithmétiques et logiques de type R-R et M-R sont décodées. Le panneau disasm UC10 affiche maintenant l'ensemble complet des instructions algébriques.
+
 ## 7. Propositions d'améliorations
 
 *Claude et Tonton Marcel déposent ici leurs propositions UX/fonctionnelles au fil des UCs. Avant de clore un UC, les propositions sont passées en revue ensemble : celles agréées sont planifiées dans le tableau section 6 et retirées d'ici. **Un UC est clos quand §7 ne contient plus de propositions non arbitrées pour cet UC.***
@@ -1671,27 +1884,15 @@ Avis Claude : ACCEPTÉ — la valeur est réelle : `trace level info` cache les 
 
 ---
 
-### Arbitrage UC9 (2026-06-02)
+### Arbitrage UC7 (2026-06-01)
 
-**P31 — Undo (CTRL+Z) pour l'éditeur hex** → **DIFFÉRÉ — UC9-bis si besoin**
+**P11 — Indicateur sélection active dans la vue dir** → **IMPLÉMENTÉ — UC7**
 
-Avis Claude : ACCEPTÉ différé. Le mode remplacement avec fichiers ATARI ST (< 900 KB) rend l'undo moins critique qu'en texte : l'utilisateur peut re-ouvrir le fichier original. À implémenter si Tonton Marcel en ressent le besoin (même architecture ring-buffer que UC8).
+P11 était arbitrée ACCEPTÉ depuis UC3.3 et planifiée à UC7. Implémentation conforme :
+- `szLastSelected[ST_MAX_PATH]` dans `dir_view_t`, mis à jour sur ENTER et SPACE (fichiers uniquement).
+- `g_dir_clrLastSel = {0.04f, 0.28f, 0.10f, 1.0f}` (vert sombre) rendu avant le fond bleu de navigation → les deux couleurs sont visuellement distinctes.
 
-Avis Tonton: OK pour différer UC10, qui va synchroniser les vues => voir comment gérer le CTRL+Z : est-ce pour la vue texte seule ? ou les 2 ? en fonction des modifications cela peut être complexe à gérer (e.g. une modif byte hex, puis une modif text assembleur, que faire en cas de 2 CTRL+Z : normalement appliquer seulement celui de la vue active, mais cela peut ne pas paraître logique à l'utilisateur s'il peut modifier les 2 vues...) ou sinon simplement ne pas implémenter le CTRL+Z dans la vue hex.
-
-**P32 — SHIFT+flèches pour sélectionner une plage**
-
-Utile pour la vue synchronisée assembleur / hex synchronisée pour visualiser la partie binaire vs code: un surlignage peut apparaître dans les 2 vues lorsqu'un opcode/operand complet est sélectionné et correspond à une instruction assembleur ou vice-versa, une instruction surlignée voit sa correspondance surlignée. Peut-être utile également pour repérer les boucles et conditions dans hex et assembleur, ou encore les structures de données.
-
-Avis Claude: à renseigner
-
-**P33 — Commande 'edit hex' pour forcer une ouverture hex d'un fichier**
-
-Permet de visualiser n'importe quel fichier binaire (e.g. memory dump pendant execution UCxx) ou autre, qui ne soit pas par défaut .PRG, .TTP, .TOS. Par contre, la limite de taille reste inchangée, car on reste dans le domaine ATARI ST.
-
-Avis Claude: à renseigner
-
-*Aucune autre proposition ouverte pour UC9. UC9 Phase 1 complète.*
+*Aucune autre proposition ouverte pour UC7. Aucune nouvelle proposition UX/fonctionnelle n'a émergé pendant l'implémentation — UC7 est clos.*
 
 ---
 
@@ -1709,15 +1910,45 @@ Avis Claude : ACCEPTÉ. Barre de saisie en bas de fenêtre (style éditeur minim
 
 ---
 
-### Arbitrage UC7 (2026-06-01)
+### Arbitrage UC9 (2026-06-02)
 
-**P11 — Indicateur sélection active dans la vue dir** → **IMPLÉMENTÉ — UC7**
+**P31 — Undo (CTRL+Z) pour l'éditeur hex** → **DIFFÉRÉ — UC9-bis si besoin**
 
-P11 était arbitrée ACCEPTÉ depuis UC3.3 et planifiée à UC7. Implémentation conforme :
-- `szLastSelected[ST_MAX_PATH]` dans `dir_view_t`, mis à jour sur ENTER et SPACE (fichiers uniquement).
-- `g_dir_clrLastSel = {0.04f, 0.28f, 0.10f, 1.0f}` (vert sombre) rendu avant le fond bleu de navigation → les deux couleurs sont visuellement distinctes.
+Avis Claude : ACCEPTÉ différé. Le mode remplacement avec fichiers ATARI ST (< 900 KB) rend l'undo moins critique qu'en texte : l'utilisateur peut re-ouvrir le fichier original. À implémenter si Tonton Marcel en ressent le besoin (même architecture ring-buffer que UC8).
 
-*Aucune autre proposition ouverte pour UC7. Aucune nouvelle proposition UX/fonctionnelle n'a émergé pendant l'implémentation — UC7 est clos.*
+Avis Tonton: OK pour différer UC10, qui va synchroniser les vues => voir comment gérer le CTRL+Z : est-ce pour la vue texte seule ? ou les 2 ? en fonction des modifications cela peut être complexe à gérer (e.g. une modif byte hex, puis une modif text assembleur, que faire en cas de 2 CTRL+Z : normalement appliquer seulement celui de la vue active, mais cela peut ne pas paraître logique à l'utilisateur s'il peut modifier les 2 vues...) ou sinon simplement ne pas implémenter le CTRL+Z dans la vue hex.
+
+**P32 — SHIFT+flèches pour sélectionner une plage**
+
+Utile pour la vue synchronisée assembleur / hex pour visualiser la partie binaire vs code: un surlignage peut apparaître dans les 2 vues lorsqu'un opcode/operand complet est sélectionné et correspond à une instruction assembleur ou vice-versa, une instruction surlignée voit sa correspondance surlignée. Peut-être utile également pour repérer les boucles et conditions dans hex et assembleur, ou encore les structures de données.
+
+Avis Claude : **ACCEPTÉ DIFFÉRÉ — après UC14**. UC10 a posé l'infrastructure de synchronisation hex↔disasm. La sélection par plage prend son plein sens après UC14 (vrai désassembleur avec instructions multi-mots) — sinon toutes les instructions font 2 bytes et la sélection est triviale. Planifier après UC14, soit en UC14-bis, soit intégré dans UC14 si le scope le permet.
+
+**P33 — Commande 'edit hex' pour forcer une ouverture hex d'un fichier**
+
+Permet de visualiser n'importe quel fichier binaire (e.g. memory dump pendant execution UCxx) ou autre, qui ne soit pas par défaut .PRG, .TTP, .TOS. Par contre, la limite de taille reste inchangée, car on reste dans le domaine ATARI ST.
+
+Avis Claude : **ACCEPTÉ — UC10-bis ou intégré dans une UC ultérieure**. Coût faible : `line_cmd_edit()` reconnaît un flag `-h` / `--hex` (`edit -h <file>` ou `edit --hex <file>`) et force `edit_hex_open()` quel que soit le type détecté. Limite EDIT_HEX_MAX_SIZE inchangée. Utile pour ouvrir un dump mémoire ou un `.txt` en hex. À planifier avec P32.
+
+*P32/P33 arbitrées dans UC10 (2026-06-02). UC9 Phase 2 close.*
+
+---
+
+### Arbitrage UC10 (2026-06-02)
+
+*UC10 ajoute le panneau désassembleur synchronisé au hex editor (infrastructure, stub DC.W). P32/P33 issues de UC9 ont été arbitrées ci-dessus. Aucune nouvelle proposition UX/fonctionnelle n'a émergé pendant l'implémentation de UC10 — UC10 est clos.*
+
+---
+
+### Arbitrage UC11 (2026-06-03)
+
+*UC11 est un UC purement interne (décodeur EA + 7 instructions 68000). Aucune proposition UX/fonctionnelle n'a émergé — UC11 est clos.*
+
+---
+
+### Arbitrage UC12 (2026-06-03)
+
+*UC12 est un UC purement interne (arithmétique, logique, multiplication, division). Aucune proposition UX/fonctionnelle n'a émergé — UC12 est clos.*
 
 ## 8. Licence & attribution
 Pas de redistribution prévue à ce jour

@@ -1,11 +1,12 @@
 /*
- * edit_hex.c - Hex + ASCII editor view
+ * edit_hex.c - Hex + ASCII + disassembly editor view
  *
- * UC9: full implementation.
- *   Data model : flat heap byte array (replace-mode, fixed size).
- *   Rendering  : Direct2D; per-row: address | hex pairs | ASCII.
- *   Input      : nibble edit (hex zone), byte edit (ASCII zone),
- *                full navigation, TAB to switch zone, CTRL+S save.
+ * UC9:  Data model (flat heap buffer, replace-mode), hex+ASCII rendering,
+ *       full navigation, TAB to switch zones, CTRL+S save.
+ * UC10: Disassembly panel on the right side of the window, synchronized
+ *       bidirectionally with the hex cursor.  Cache of CACHE_LINES
+ *       instructions around the cursor is rebuilt on each cursor move.
+ *       TAB now cycles HEX → ASCII → DISASM → HEX.  F2 toggles panel.
  */
 
 #include "edit_hex.h"
@@ -13,6 +14,7 @@
 #include "trace.h"
 #include "gui.h"
 #include "renderer.h"
+#include "disassemble.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -20,7 +22,7 @@
 #include <ctype.h>
 
 /* ------------------------------------------------------------------
- * Colours
+ * Colours — hex+ASCII panel
  * ------------------------------------------------------------------ */
 
 static const renderer_color_t g_clrBg      = { 0.06f, 0.06f, 0.08f, 1.0f };
@@ -34,6 +36,19 @@ static const renderer_color_t g_clrSep     = { 0.22f, 0.22f, 0.30f, 1.0f };
 static const renderer_color_t g_clrCurHex  = { 0.20f, 0.40f, 0.90f, 1.0f };
 static const renderer_color_t g_clrCurAsc  = { 0.80f, 0.65f, 0.10f, 1.0f };
 static const renderer_color_t g_clrCurTxt  = RENDERER_COLOR_WHITE;
+
+/* ------------------------------------------------------------------
+ * Colours — disassembly panel (UC10)
+ * ------------------------------------------------------------------ */
+
+/* Valid 68000 instruction (will be non-DC.W after UC11-14)             */
+static const renderer_color_t g_clrDisasm      = { 0.85f, 0.75f, 0.50f, 1.0f };
+/* DC.W fallback (stub, dim)                                            */
+static const renderer_color_t g_clrDisasmDC    = { 0.45f, 0.40f, 0.30f, 1.0f };
+/* Highlighted instruction when cursor is in DISASM zone                */
+static const renderer_color_t g_clrDisasmHL    = { 0.15f, 0.30f, 0.55f, 1.0f };
+/* Panel separator background                                           */
+static const renderer_color_t g_clrDisasmSepBg = { 0.09f, 0.09f, 0.13f, 1.0f };
 
 /* ------------------------------------------------------------------
  * Hex nibble lookup
@@ -64,6 +79,12 @@ static void       ehex_handle_click(edit_hex_view_t *ptV,
 static void       ehex_event_callback(gui_window_t hWnd,
                                        gui_event_t *ptEvent,
                                        void        *pCtx);
+
+/* Disassembly helpers (UC10) */
+static void       ehex_disasm_cache_update(edit_hex_view_t *ptV);
+static void       ehex_disasm_find_cursor(edit_hex_view_t *ptV);
+static void       ehex_disasm_scroll_to_cursor(edit_hex_view_t *ptV);
+static void       ehex_disasm_render(edit_hex_view_t *ptV);
 
 /* ------------------------------------------------------------------
  * File I/O
@@ -179,15 +200,25 @@ static void ehex_update_title(edit_hex_view_t *ptV)
 
 static void ehex_recalc_layout(edit_hex_view_t *ptV)
 {
+    int iAsciiEnd;
+
     /* iAddrX = 0 (address column starts at left edge)                 */
-    ptV->iAddrX   = 0;
+    ptV->iAddrX  = 0;
     /* iHexX = after address column: (ADDR_CHARS + ADDR_PAD) cells     */
-    ptV->iHexX    = (EDIT_HEX_ADDR_CHARS + EDIT_HEX_ADDR_PAD)
-                    * ptV->iCellW;
+    ptV->iHexX   = (EDIT_HEX_ADDR_CHARS + EDIT_HEX_ADDR_PAD)
+                   * ptV->iCellW;
     /* iAsciiX = after hex area + separator                            */
-    ptV->iAsciiX  = ptV->iHexX
-                  + (EDIT_HEX_HEX_CHARS + EDIT_HEX_SEP_CHARS)
-                  * ptV->iCellW;
+    ptV->iAsciiX = ptV->iHexX
+                 + (EDIT_HEX_HEX_CHARS + EDIT_HEX_SEP_CHARS)
+                 * ptV->iCellW;
+
+    /* iDisasmX = after ASCII area + disasm separator                  */
+    iAsciiEnd    = ptV->iAsciiX + EDIT_HEX_ASCII_CHARS * ptV->iCellW;
+    if (ptV->bShowDisasm)
+        ptV->iDisasmX = iAsciiEnd
+                      + EDIT_HEX_DISASM_SEP_CHARS * ptV->iCellW;
+    else
+        ptV->iDisasmX = 0;
 }
 
 static int ehex_row_count(const edit_hex_view_t *ptV)
@@ -232,8 +263,8 @@ static void ehex_build_hex_row(const edit_hex_view_t *ptV,
         int iPos = i * 3 + (i >= 8 ? 1 : 0);
         if (uiBase + (size_t)i < ptV->uiSize)
         {
-            unsigned b     = ptV->pData[uiBase + (size_t)i];
-            szOut[iPos]    = g_szNib[b >> 4];
+            unsigned b      = ptV->pData[uiBase + (size_t)i];
+            szOut[iPos]     = g_szNib[b >> 4];
             szOut[iPos + 1] = g_szNib[b & 0xF];
         }
         /* else: spaces already set */
@@ -260,6 +291,183 @@ static void ehex_build_asc_row(const edit_hex_view_t *ptV,
         }
     }
     szOut[EDIT_HEX_ASCII_CHARS] = '\0';
+}
+
+/* ------------------------------------------------------------------
+ * Disassembly cache helpers (UC10)
+ * ------------------------------------------------------------------ */
+
+/*
+ * Rebuild the disasm cache centered around uiCursor.  Called after
+ * any cursor move.  Updates iDisasmCursorIdx via
+ * ehex_disasm_find_cursor().
+ */
+static void ehex_disasm_cache_update(edit_hex_view_t *ptV)
+{
+    size_t uiStart;
+    size_t uiAvail;
+    size_t uiLines = 0;
+
+    if (ptV->atDisasmCache == NULL) return;
+    if (ptV->pData == NULL || ptV->uiSize < 2)
+    {
+        ptV->iDisasmCacheCount = 0;
+        return;
+    }
+
+    /* Start PREBUF_BYTES before cursor, aligned to 2-byte boundary    */
+    if (ptV->uiCursor > EDIT_HEX_DISASM_PREBUF_BYTES)
+        uiStart = (ptV->uiCursor - EDIT_HEX_DISASM_PREBUF_BYTES) & ~1u;
+    else
+        uiStart = 0u;
+
+    uiAvail               = ptV->uiSize - uiStart;
+    ptV->uiDisasmCacheBase = (st_u32_t)uiStart;
+
+    disasm_range(ptV->pData + uiStart,
+                 uiAvail,
+                 (st_u32_t)uiStart,
+                 ptV->atDisasmCache,
+                 (size_t)EDIT_HEX_DISASM_CACHE_LINES,
+                 &uiLines);
+    ptV->iDisasmCacheCount = (int)uiLines;
+
+    ehex_disasm_find_cursor(ptV);
+}
+
+/*
+ * Find the cache index of the instruction that contains uiCursor.
+ * Updates iDisasmCursorIdx and calls ehex_disasm_scroll_to_cursor().
+ */
+static void ehex_disasm_find_cursor(edit_hex_view_t *ptV)
+{
+    int      i;
+    st_u32_t uiCur  = (st_u32_t)ptV->uiCursor;
+    int      iCount = ptV->iDisasmCacheCount;
+
+    ptV->iDisasmCursorIdx = 0;
+    if (iCount <= 0) return;
+
+    for (i = 0; i < iCount - 1; i++)
+    {
+        st_u32_t uiNext = ptV->atDisasmCache[i + 1].uiAddr;
+        if (ptV->atDisasmCache[i].uiAddr <= uiCur && uiCur < uiNext)
+        {
+            ptV->iDisasmCursorIdx = i;
+            ehex_disasm_scroll_to_cursor(ptV);
+            return;
+        }
+    }
+    /* Cursor is at or past the last cached instruction */
+    ptV->iDisasmCursorIdx = iCount - 1;
+    ehex_disasm_scroll_to_cursor(ptV);
+}
+
+/*
+ * Ensure the disasm cursor instruction is visible in the panel.
+ */
+static void ehex_disasm_scroll_to_cursor(edit_hex_view_t *ptV)
+{
+    int iVisRows;
+    int iIdx = ptV->iDisasmCursorIdx;
+
+    iVisRows = (ptV->iCellH > 0) ? ptV->iWndHeight / ptV->iCellH : 1;
+    if (iVisRows < 1) iVisRows = 1;
+
+    if (iIdx < ptV->iDisasmScrollRow)
+        ptV->iDisasmScrollRow = iIdx;
+    if (iIdx >= ptV->iDisasmScrollRow + iVisRows)
+        ptV->iDisasmScrollRow = iIdx - iVisRows + 1;
+    if (ptV->iDisasmScrollRow < 0)
+        ptV->iDisasmScrollRow = 0;
+}
+
+/*
+ * Render the disassembly panel (separator + instruction lines).
+ * Called from ehex_render() when bShowDisasm is TRUE.
+ */
+static void ehex_disasm_render(edit_hex_view_t *ptV)
+{
+    int             iVisRows;
+    int             iRow;
+    int             iAbsRow;
+    float           fY;
+    int             iSep2X;
+    float           fPanelW;
+    renderer_rect_t tRect;
+    char            szText[DISASM_LINE_MAX];
+
+    if (ptV->iDisasmX <= 0 || ptV->hRenderer == NULL) return;
+
+    iSep2X   = ptV->iAsciiX + EDIT_HEX_ASCII_CHARS * ptV->iCellW;
+    fPanelW  = (float)(EDIT_HEX_DISASM_PANEL_CHARS * ptV->iCellW);
+    iVisRows = (ptV->iCellH > 0) ? ptV->iWndHeight / ptV->iCellH : 1;
+    if (iVisRows < 1) iVisRows = 1;
+
+    /* Separator background */
+    tRect.fX = (float)iSep2X;
+    tRect.fY = 0.0f;
+    tRect.fW = (float)(EDIT_HEX_DISASM_SEP_CHARS * ptV->iCellW);
+    tRect.fH = (float)ptV->iWndHeight;
+    renderer_fill_rect(ptV->hRenderer, &tRect, &g_clrDisasmSepBg);
+
+    /* Separator text " | " drawn on each row */
+
+    for (iRow = 0; iRow < iVisRows; iRow++)
+    {
+        iAbsRow = ptV->iDisasmScrollRow + iRow;
+        if (iAbsRow < 0 || iAbsRow >= ptV->iDisasmCacheCount)
+            break;
+
+        fY = (float)(iRow * ptV->iCellH);
+
+        /* Separator text */
+        tRect.fX = (float)iSep2X;
+        tRect.fY = fY;
+        tRect.fW = (float)(EDIT_HEX_DISASM_SEP_CHARS * ptV->iCellW);
+        tRect.fH = (float)ptV->iCellH;
+        renderer_draw_text(ptV->hRenderer, " | ", &tRect,
+                           &g_clrSep, RENDERER_FONT_MONO,
+                           RENDERER_ALIGN_LEFT);
+
+        /* Highlight bar for cursor instruction */
+        if (iAbsRow == ptV->iDisasmCursorIdx)
+        {
+            tRect.fX = (float)ptV->iDisasmX;
+            tRect.fY = fY;
+            tRect.fW = fPanelW;
+            tRect.fH = (float)ptV->iCellH;
+            renderer_fill_rect(ptV->hRenderer, &tRect,
+                               (ptV->eZone == HEX_ZONE_DISASM)
+                               ? &g_clrDisasmHL : &g_clrCurRow);
+        }
+
+        /* Instruction text: "$XXXXXX %-8s %s"                         */
+        snprintf(szText, sizeof(szText), "$%06X %-8s %s",
+                 (unsigned)ptV->atDisasmCache[iAbsRow].uiAddr,
+                 ptV->atDisasmCache[iAbsRow].szMnemonic,
+                 ptV->atDisasmCache[iAbsRow].szOperands);
+
+        {
+            const renderer_color_t *ptClr;
+
+            if (iAbsRow == ptV->iDisasmCursorIdx
+            &&  ptV->eZone == HEX_ZONE_DISASM)
+                ptClr = &g_clrCurTxt;
+            else if (ptV->atDisasmCache[iAbsRow].bValid)
+                ptClr = &g_clrDisasm;
+            else
+                ptClr = &g_clrDisasmDC;
+
+            tRect.fX = (float)ptV->iDisasmX;
+            tRect.fY = fY;
+            tRect.fW = fPanelW;
+            tRect.fH = (float)ptV->iCellH;
+            renderer_draw_text(ptV->hRenderer, szText, &tRect,
+                               ptClr, RENDERER_FONT_MONO,
+                               RENDERER_ALIGN_LEFT);
+        }
+    }
 }
 
 /* ------------------------------------------------------------------
@@ -308,7 +516,7 @@ static void ehex_render(edit_hex_view_t *ptV)
     tRect.fH = (float)ptV->iWndHeight;
     renderer_fill_rect(ptV->hRenderer, &tRect, &g_clrAddrBg);
 
-    /* Separator background */
+    /* Separator background between hex and ASCII */
     tRect.fX = (float)iSepX;
     tRect.fW = (float)(EDIT_HEX_SEP_CHARS * ptV->iCellW);
     tRect.fY = 0.0f;
@@ -432,6 +640,10 @@ static void ehex_render(edit_hex_view_t *ptV)
         }
     }
 
+    /* Disassembly panel (UC10) */
+    if (ptV->bShowDisasm)
+        ehex_disasm_render(ptV);
+
     renderer_end_draw(ptV->hRenderer);
 }
 
@@ -459,6 +671,8 @@ static void ehex_handle_key(edit_hex_view_t *ptV,
 {
     int       bCtrl    = (uiMods & GUI_MOD_CTRL) != 0;
     int       iVisRows;
+    int       iCount;
+    int       iIdx;
     size_t    uiRowStart;
     size_t    uiRowEnd;
     int       iCurCol;
@@ -466,7 +680,24 @@ static void ehex_handle_key(edit_hex_view_t *ptV,
     iVisRows = (ptV->iCellH > 0) ? ptV->iWndHeight / ptV->iCellH : 10;
     if (iVisRows < 1) iVisRows = 1;
 
-    /* --- CTRL shortcuts ------------------------------------------- */
+    /* --- F2: toggle disasm panel (all zones) ---------------------- */
+    if (eKey == GUI_KEY_F2)
+    {
+        ptV->bShowDisasm = (ptV->bShowDisasm == ST_TRUE)
+                           ? ST_FALSE : ST_TRUE;
+        if (ptV->eZone == HEX_ZONE_DISASM)
+        {
+            ptV->eZone   = HEX_ZONE_HEX;
+            ptV->iNibble = 0;
+        }
+        ehex_recalc_layout(ptV);
+        if (ptV->bShowDisasm)
+            ehex_disasm_cache_update(ptV);
+        gui_invalidate(ptV->hWnd);
+        return;
+    }
+
+    /* --- CTRL shortcuts (all zones) ------------------------------- */
     if (bCtrl && eKey >= GUI_KEY_PRINTABLE)
     {
         int iLetter = (int)(eKey - GUI_KEY_PRINTABLE);
@@ -483,7 +714,113 @@ static void ehex_handle_key(edit_hex_view_t *ptV,
         return;
     }
 
-    /* --- Navigation ----------------------------------------------- */
+    /* --- DISASM zone navigation (read-only) ----------------------- */
+    if (ptV->eZone == HEX_ZONE_DISASM)
+    {
+        iCount = ptV->iDisasmCacheCount;
+        iIdx   = ptV->iDisasmCursorIdx;
+
+        switch (eKey)
+        {
+        case GUI_KEY_UP:
+            if (iIdx > 0)
+            {
+                ptV->iDisasmCursorIdx = iIdx - 1;
+                ptV->uiCursor =
+                    (size_t)ptV->atDisasmCache[iIdx - 1].uiAddr;
+                ptV->iNibble = 0;
+                ehex_scroll_to_cursor(ptV);
+                ehex_disasm_scroll_to_cursor(ptV);
+            }
+            gui_invalidate(ptV->hWnd);
+            return;
+
+        case GUI_KEY_DOWN:
+            if (iIdx < iCount - 1)
+            {
+                ptV->iDisasmCursorIdx = iIdx + 1;
+                ptV->uiCursor =
+                    (size_t)ptV->atDisasmCache[iIdx + 1].uiAddr;
+                ptV->iNibble = 0;
+                ehex_scroll_to_cursor(ptV);
+                ehex_disasm_scroll_to_cursor(ptV);
+            }
+            gui_invalidate(ptV->hWnd);
+            return;
+
+        case GUI_KEY_PAGE_UP:
+            {
+                int iNew = iIdx - iVisRows;
+                if (iNew < 0) iNew = 0;
+                ptV->iDisasmCursorIdx = iNew;
+                ptV->uiCursor =
+                    (size_t)ptV->atDisasmCache[iNew].uiAddr;
+                ptV->iNibble = 0;
+                ehex_scroll_to_cursor(ptV);
+                ehex_disasm_scroll_to_cursor(ptV);
+                gui_invalidate(ptV->hWnd);
+            }
+            return;
+
+        case GUI_KEY_PAGE_DOWN:
+            {
+                int iNew = iIdx + iVisRows;
+                if (iNew >= iCount) iNew = iCount - 1;
+                if (iNew < 0)       iNew = 0;
+                ptV->iDisasmCursorIdx = iNew;
+                ptV->uiCursor =
+                    (size_t)ptV->atDisasmCache[iNew].uiAddr;
+                ptV->iNibble = 0;
+                ehex_scroll_to_cursor(ptV);
+                ehex_disasm_scroll_to_cursor(ptV);
+                gui_invalidate(ptV->hWnd);
+            }
+            return;
+
+        case GUI_KEY_HOME:
+            if (iCount > 0)
+            {
+                ptV->iDisasmCursorIdx = 0;
+                ptV->uiCursor =
+                    (size_t)ptV->atDisasmCache[0].uiAddr;
+                ptV->iNibble = 0;
+                /* Full rebuild to reach file start */
+                ehex_disasm_cache_update(ptV);
+                ehex_scroll_to_cursor(ptV);
+                gui_invalidate(ptV->hWnd);
+            }
+            return;
+
+        case GUI_KEY_END:
+            if (ptV->uiSize > 0)
+            {
+                ptV->uiCursor = ptV->uiSize - 1;
+                ptV->iNibble  = 0;
+                ehex_disasm_cache_update(ptV);
+                ehex_scroll_to_cursor(ptV);
+                gui_invalidate(ptV->hWnd);
+            }
+            return;
+
+        case GUI_KEY_TAB:
+            ptV->eZone   = HEX_ZONE_HEX;
+            ptV->iNibble = 0;
+            gui_invalidate(ptV->hWnd);
+            return;
+
+        case GUI_KEY_ESCAPE:
+            if (ptV->bDirty)
+                LOG_INFO("hex edit: closed '%s' with unsaved changes",
+                         ptV->szPath);
+            gui_request_close(ptV->hWnd);
+            return;
+
+        default:
+            return; /* disasm zone is read-only */
+        }
+    }
+
+    /* --- HEX / ASCII zone navigation ------------------------------ */
     switch (eKey)
     {
     case GUI_KEY_LEFT:
@@ -563,8 +900,13 @@ static void ehex_handle_key(edit_hex_view_t *ptV,
         break;
 
     case GUI_KEY_TAB:
-        ptV->eZone   = (ptV->eZone == HEX_ZONE_HEX)
-                       ? HEX_ZONE_ASCII : HEX_ZONE_HEX;
+        /* Cycle HEX → ASCII → DISASM (if visible) → HEX             */
+        if (ptV->eZone == HEX_ZONE_HEX)
+            ptV->eZone = HEX_ZONE_ASCII;
+        else if (ptV->eZone == HEX_ZONE_ASCII && ptV->bShowDisasm)
+            ptV->eZone = HEX_ZONE_DISASM;
+        else
+            ptV->eZone = HEX_ZONE_HEX;
         ptV->iNibble = 0;
         break;
 
@@ -615,6 +957,9 @@ static void ehex_handle_key(edit_hex_view_t *ptV,
                 if (ptV->uiCursor < ptV->uiSize - 1)
                     ptV->uiCursor++;
             }
+            /* Rebuild disasm after byte edit                          */
+            if (ptV->bShowDisasm)
+                ehex_disasm_cache_update(ptV);
         }
         else /* HEX_ZONE_ASCII */
         {
@@ -628,12 +973,17 @@ static void ehex_handle_key(edit_hex_view_t *ptV,
             if (ptV->uiCursor < ptV->uiSize - 1)
                 ptV->uiCursor++;
             (void)iCurCol;
+            /* Rebuild disasm after byte edit                          */
+            if (ptV->bShowDisasm)
+                ehex_disasm_cache_update(ptV);
         }
         break;
     }
 
     ehex_scroll_to_cursor(ptV);
     ehex_update_title(ptV);
+    if (ptV->bShowDisasm)
+        ehex_disasm_find_cursor(ptV);
     gui_invalidate(ptV->hWnd);
 }
 
@@ -654,6 +1004,24 @@ static void ehex_handle_click(edit_hex_view_t *ptV, int iX, int iY)
     if (ptV->iCellH <= 0 || ptV->iCellW <= 0) return;
 
     iRow    = iY / ptV->iCellH;
+
+    /* Click in disasm panel (UC10) */
+    if (ptV->bShowDisasm && ptV->iDisasmX > 0 && iX >= ptV->iDisasmX)
+    {
+        int iAbsDisasm = ptV->iDisasmScrollRow + iRow;
+        if (iAbsDisasm >= 0 && iAbsDisasm < ptV->iDisasmCacheCount)
+        {
+            ptV->iDisasmCursorIdx = iAbsDisasm;
+            ptV->uiCursor =
+                (size_t)ptV->atDisasmCache[iAbsDisasm].uiAddr;
+            ptV->iNibble = 0;
+            ptV->eZone   = HEX_ZONE_DISASM;
+            ehex_scroll_to_cursor(ptV);
+            gui_invalidate(ptV->hWnd);
+        }
+        return;
+    }
+
     iAbsRow = ptV->iScrollRow + iRow;
     if (iAbsRow >= ehex_row_count(ptV)) return;
 
@@ -692,6 +1060,8 @@ static void ehex_handle_click(edit_hex_view_t *ptV, int iX, int iY)
                 ptV->uiCursor = uiOffset;
                 ptV->iNibble  = (iRelX == iPos) ? 0 : 1;
                 ptV->eZone    = HEX_ZONE_HEX;
+                if (ptV->bShowDisasm)
+                    ehex_disasm_find_cursor(ptV);
                 gui_invalidate(ptV->hWnd);
                 return;
             }
@@ -709,6 +1079,8 @@ static void ehex_handle_click(edit_hex_view_t *ptV, int iX, int iY)
         ptV->eZone    = HEX_ZONE_HEX;
     }
 
+    if (ptV->bShowDisasm)
+        ehex_disasm_find_cursor(ptV);
     gui_invalidate(ptV->hWnd);
 }
 
@@ -720,7 +1092,7 @@ static void ehex_event_callback(gui_window_t  hWnd,
                                  gui_event_t  *ptEvent,
                                  void         *pCtx)
 {
-    edit_hex_view_t *ptV    = (edit_hex_view_t *)pCtx;
+    edit_hex_view_t *ptV      = (edit_hex_view_t *)pCtx;
     int              iVisRows;
     int              iRowCount;
 
@@ -739,6 +1111,9 @@ static void ehex_event_callback(gui_window_t  hWnd,
                                           &ptV->iCellW,
                                           &ptV->iCellH);
                 ehex_recalc_layout(ptV);
+                /* Build initial disasm cache once cells are known     */
+                if (ptV->bShowDisasm)
+                    ehex_disasm_cache_update(ptV);
             }
         }
         if (ptV->hRenderer != NULL)
@@ -775,14 +1150,28 @@ static void ehex_event_callback(gui_window_t  hWnd,
         break;
 
     case GUI_EVT_SCROLL:
-        iRowCount = ehex_row_count(ptV);
-        iVisRows  = (ptV->iCellH > 0)
-                    ? ptV->iWndHeight / ptV->iCellH : 1;
-        ptV->iScrollRow -= ptEvent->uData.tScroll.iDelta;
-        if (ptV->iScrollRow < 0) ptV->iScrollRow = 0;
-        if (ptV->iScrollRow > iRowCount - 1)
-            ptV->iScrollRow = iRowCount - 1;
-        (void)iVisRows;
+        if (ptV->eZone == HEX_ZONE_DISASM && ptV->bShowDisasm)
+        {
+            /* Scroll disasm panel when cursor is in disasm zone       */
+            ptV->iDisasmScrollRow -= ptEvent->uData.tScroll.iDelta;
+            if (ptV->iDisasmScrollRow < 0)
+                ptV->iDisasmScrollRow = 0;
+            if (ptV->iDisasmCacheCount > 0
+            &&  ptV->iDisasmScrollRow >= ptV->iDisasmCacheCount)
+                ptV->iDisasmScrollRow = ptV->iDisasmCacheCount - 1;
+        }
+        else
+        {
+            /* Scroll hex panel */
+            iRowCount = ehex_row_count(ptV);
+            iVisRows  = (ptV->iCellH > 0)
+                        ? ptV->iWndHeight / ptV->iCellH : 1;
+            ptV->iScrollRow -= ptEvent->uData.tScroll.iDelta;
+            if (ptV->iScrollRow < 0) ptV->iScrollRow = 0;
+            if (ptV->iScrollRow > iRowCount - 1)
+                ptV->iScrollRow = iRowCount - 1;
+            (void)iVisRows;
+        }
         gui_invalidate(hWnd);
         break;
 
@@ -845,15 +1234,35 @@ st_error_t edit_hex_open(const char       *szPath,
         return ST_ERROR;
     }
 
+    /* Allocate disasm cache (UC10) */
+    ptV->atDisasmCache = (disasm_result_t *)malloc(
+        sizeof(disasm_result_t) * EDIT_HEX_DISASM_CACHE_LINES);
+    if (ptV->atDisasmCache == NULL)
+    {
+        LOG_ERROR("malloc failed for disasm cache (%zu bytes), "
+                  "panel disabled",
+                  sizeof(disasm_result_t) * EDIT_HEX_DISASM_CACHE_LINES);
+        ptV->bShowDisasm = ST_FALSE;
+    }
+    else
+    {
+        ptV->bShowDisasm = ST_TRUE;
+    }
+
     memset(&tDesc, 0, sizeof(tDesc));
     tDesc.szTitle  = "ST4Ever - Hex";
     tDesc.eType    = GUI_WND_EDIT_HEX;
     tDesc.pfnEvent = ehex_event_callback;
     tDesc.pUserCtx = ptV;
+    tDesc.iWidth   = ptV->bShowDisasm
+                     ? EDIT_HEX_WND_WIDTH_DISASM
+                     : EDIT_HEX_WND_WIDTH_STD;
+    tDesc.iHeight  = EDIT_HEX_WND_HEIGHT;
 
     if (gui_open_window(&tDesc, &ptV->hWnd) != ST_NO_ERROR)
     {
         LOG_ERROR("gui_open_window failed for '%s'", szPath);
+        free(ptV->atDisasmCache);
         free(ptV->pData);
         free(ptV);
         return ST_ERROR;
@@ -861,7 +1270,9 @@ st_error_t edit_hex_open(const char       *szPath,
 
     *pptView = ptV;
     eRet = ST_NO_ERROR;
-    LOG_INFO("edit_hex opened '%s' (%zu bytes)", szPath, ptV->uiSize);
+    LOG_INFO("edit_hex opened '%s' (%zu bytes, disasm=%s)",
+             szPath, ptV->uiSize,
+             ptV->bShowDisasm ? "on" : "off");
     return eRet;
 }
 
@@ -880,6 +1291,8 @@ st_error_t edit_hex_close(edit_hex_view_t **pptView)
 
     ptV = *pptView;
     gui_close_window(ptV->hWnd);
+    free(ptV->atDisasmCache);
+    ptV->atDisasmCache = NULL;
     free(ptV->pData);
     ptV->pData = NULL;
     free(ptV);
