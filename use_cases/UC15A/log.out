@@ -1,0 +1,13 @@
+GEN.TTP
+PRG
+RUN.PRG
+RUN.S
+SOURCE.S
+SRC
+__pycache__
+assemble.py
+generate_m68k_tests.py
+hatari.log
+hatari_trace.log
+log.out
+m68k_all_instructions.asm

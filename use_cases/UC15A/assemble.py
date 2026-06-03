@@ -41,7 +41,7 @@ PRG_DIR  = "./PRG"
 ASSEMBLE_VBLS = 2000
 
 HATARI_EXTRA_OPTS = [
-    "--tos",          TOS_ROM,
+    #"--tos",          TOS_ROM,
     "--memsize",      "1",
     "--fast-boot",    "yes",
     "--fast-forward", "yes",
@@ -369,9 +369,9 @@ def assemble_one(hatari_bin, work_dir, src_abs, prg_abs, _unused,
         print("  [ERREUR] {}".format(e), file=sys.stderr)
         if proc:
             proc.kill()
-    finally:
-        if os.path.isfile(run_prg):
-            os.remove(run_prg)
+    #finally:
+        #if os.path.isfile(run_prg):
+        #    os.remove(run_prg)
 
     return ok
 
