@@ -21,6 +21,8 @@ import re
 import random
 from collections import defaultdict
 
+SRC_DIR = "SRC/"
+
 # ------------------------------------------------------------
 # 1. Valeurs limites (toujours présentes en premier)
 # ------------------------------------------------------------
@@ -194,7 +196,7 @@ def generate_from_gist(input_path, mode_all=True, out_dir=".", seed=None):
         by_mnemonic[mnemonic].extend(expanded)
 
     if mode_all:
-        out_path = os.path.join(out_dir, "ALL.S")
+        out_path = os.path.join(out_dir, SRC_DIR + "ALL.S")
         with open(out_path, "w", encoding="utf-8") as out:
             out.write("        TEXT\n\n")
             for mnemonic in sorted(by_mnemonic.keys()):
@@ -206,7 +208,7 @@ def generate_from_gist(input_path, mode_all=True, out_dir=".", seed=None):
         print(f"Fichier {out_path} généré.")
     else:
         for mnemonic, instrs in by_mnemonic.items():
-            out_path = os.path.join(out_dir, f"{mnemonic}.S")
+            out_path = os.path.join(out_dir, SRC_DIR + f"{mnemonic}.S")
             with open(out_path, "w", encoding="utf-8") as out:
                 out.write("        TEXT\n\n")
                 out.write(f"; ===== {mnemonic} =====\n")
