@@ -26,6 +26,9 @@
 | 2.1 | 2026-06-03 | UC10  | Claude/OMC | UC10 validated — disassembly panel added to hex editor: HEX_ZONE_DISASM, cache 512 entries, bidirectional cursor sync, F2 toggle, wider window; UFR-HEX-005; REQ-HEX-011..020; §4.15 extended |
 | 2.2 | 2026-06-03 | UC11  | Claude/OMC | UC11 validated — real 68k disassembler: MOVE/MOVEQ/LEA/CLR/EXG/SWAP/PEA + full 12-mode EA decoder; REQ-DIS-006, REQ-DIS-010..014; TC-DIS-010..080; §4.16 new; TC-DIS-001 ADAPTED(UC11) |
 | 2.3 | 2026-06-03 | UC12  | Claude/OMC | UC12 validated — ADD/ADDA/ADDI/ADDQ/ADDX/SUB/SUBA/SUBI/SUBQ/SUBX/CMP/CMPA/CMPI/CMPM/MUL/DIV/AND/ANDI/OR/ORI/EOR/EORI/NOT/NEG/NEGX/TST/EXT; REQ-DIS-015..025; TC-DIS-100..190; §4.16 extended; §5.38..39 |
+| 2.4 | 2026-06-03 | UC13  | Claude/OMC | UC13 validated — shifts/rotations (ASL/ASR/LSL/LSR/ROXL/ROXR/ROL/ROR register+memory forms) + bit ops (BTST/BCHG/BCLR/BSET static+dynamic); groupE + group0 extended; REQ-DIS-008✓ REQ-DIS-024..030; TC-DIS-200..269; §5.40..41 new |
+| 2.5 | 2026-06-03 | UC14  | Claude/OMC | UC14 validated — control flow: NOP/RTS/RTE/RTR/TRAP/LINK/UNLK/JSR/JMP + BRA/BSR/Bcc (short+long); group4 completed, group6 new; REQ-DIS-009✓ REQ-DIS-031..038; TC-DIS-300..363; §5.42..43 new; TC-DIS-157 ADAPTED closed |
+| 2.6 | 2026-06-03 | UC15  | Claude/OMC | UC15 validated — load_do_prg() complete: PRG header parse, BSS zeroing, fixup relocation bitstream (abs_flag supported); load_state_t extended (uiTextSize/DataSize/BssSize/FixupCount); UFR-LOD-004 updated, UFR-LOD-006..008; REQ-LOD-015..022; §4.12 updated; §5.44..45 new |
 
 ---
 
@@ -197,8 +200,11 @@ through one or more test cases in Section 5.
 | UFR-LOD-001 | The `load` command shall accept a file path as argument; when no argument is given it shall fall back to the path selected via `dir`; if neither is available, it shall display an informational message and return without error. | ✓ UC7 | UC7 |
 | UFR-LOD-002 | The `load` command shall detect the file type via `file_stat()` and reject directories and disk images (`.st`/`.msa`/`.stx`) with a user-readable message indicating that `mount` should be used instead. | ✓ UC7 | UC7 |
 | UFR-LOD-003 | For any accepted non-PRG file, `load` shall copy the file content verbatim into emulated ST RAM at address `ST_LOAD_BASE` (0x0800) and report the load address and byte count to the user. | ✓ UC7 | UC7 |
-| UFR-LOD-004 | For ATARI ST executables (`.prg`/`.ttp`/`.tos`), `load` shall validate the `0x601A` magic, load the `.text`+`.data` sections at `ST_LOAD_BASE`, and report the result; fixup relocation is deferred to UC15. | ✓ UC7 | UC7 |
+| UFR-LOD-004 | For ATARI ST executables (`.prg`/`.ttp`/`.tos`), `load` shall validate the `0x601A` magic, load the `.text`+`.data` sections at `ST_LOAD_BASE`, apply the fixup relocation table (when abs_flag=0), and report the result including the fixup count. | ✓ UC15 | UC7/UC15 |
 | UFR-LOD-005 | The `info` command shall display the currently loaded binary name, type, ST load address, and byte count; if nothing is loaded, it shall display `(none)`. | ✓ UC7 | UC7 |
+| UFR-LOD-006 | For `.prg`/`.ttp`/`.tos` files, `load` shall zero the `.bss` section in ST RAM immediately after the `.data` section; the BSS area is not present in the file and must be initialised to zero regardless of prior RAM content. | ✓ UC15 | UC15 |
+| UFR-LOD-007 | For relocatable PRG files (abs_flag=0), `load` shall apply the Atari ST fixup relocation table: each longword address in `.text`+`.data` pointed to by the fixup table shall be incremented by `ST_LOAD_BASE`; a fixup offset that points outside `.text`+`.data` shall cause `load` to return an error without modifying the previously loaded state. | ✓ UC15 | UC15 |
+| UFR-LOD-008 | For absolute PRG files (abs_flag=1), `load` shall skip fixup processing entirely; the fixup table is absent from the file. | ✓ UC15 | UC15 |
 | UFR-DIR-013 | When a file is committed via ENTER or SPACE in the dir view, a dark green secondary background (`g_dir_clrLastSel`) shall be rendered on that row in `dir_render()`, visually distinct from the navigation-cursor highlight. The indicator persists when the cursor moves; a new commit updates it. (P11) | ✓ UC7 | UC7 |
 
 ### 1.7 Editor Views — `EDT` (UC8 text editor ✓, UC9 hex+ASCII ✓, UC10 hex+disasm ✓)
@@ -499,6 +505,14 @@ requirement that will expose it (`UFR-EXE-*`, planned UC21–27).
 | REQ-LOD-012  | `load_file()` on a file whose size exceeds `ST_LOAD_MAX_SIZE` (= `ST_RAM_SIZE − 0x0800`) shall return `ST_ERROR`.                                | UFR-LOD-003 | ✓ UC7    | UC7  |
 | REQ-LOD-013  | `load_shutdown()` shall set the machine pointer to NULL and reset state to bLoaded=FALSE; calling it when already shut down shall return `ST_NO_ERROR` (idempotent). | UFR-LOD-001 | ✓ UC7 | UC7 |
 | REQ-LOD-014  | `line_cmd_load()` shall call `file_stat()` before `load_file()` to produce user-friendly console messages for directory/image rejection; on success it shall print the load address and byte count; `line_update_console_title()` shall be called after success. | UFR-LOD-001..005 | ✓ UC7 | UC7 |
+| REQ-LOD-015  | `load_do_prg()` shall read the 28-byte PRG header fields in big-endian order: `uiTextSize` at offset 2, `uiDataSize` at offset 6, `uiBssSize` at offset 10, `uiSymSize` at offset 14, `uiAbsFlag` at offset 26. | UFR-LOD-004 | ✓ UC15 | UC15 |
+| REQ-LOD-016  | After loading `.text`+`.data`, `load_do_prg()` shall skip `uiSymSize` bytes via `load_skip_bytes()` to position the file cursor at the start of the fixup table. | UFR-LOD-004 | ✓ UC15 | UC15 |
+| REQ-LOD-017  | When `uiAbsFlag == 0`, `load_do_prg()` shall call `load_apply_fixups()`; when `uiAbsFlag != 0`, fixup processing shall be skipped and `uiFixupCount` shall remain 0. | UFR-LOD-007, UFR-LOD-008 | ✓ UC15 | UC15 |
+| REQ-LOD-018  | `load_do_prg()` shall zero `uiBssSize` bytes in ST RAM at `ST_LOAD_BASE + uiTextSize + uiDataSize` if `uiBssSize > 0`, regardless of prior RAM content. | UFR-LOD-006 | ✓ UC15 | UC15 |
+| REQ-LOD-019  | `load_state_t` for a PRG load shall expose `uiTextSize`, `uiDataSize`, `uiBssSize` (values from the header, 0 for LOAD_TYPE_BINARY) and `uiFixupCount` (number of fixups applied, 0 for abs or no-fixup). `uiSize` shall equal `uiTextSize + uiDataSize + uiBssSize`. | UFR-LOD-004, UFR-LOD-006 | ✓ UC15 | UC15 |
+| REQ-LOD-020  | `load_apply_fixups()` shall read the first 4-byte big-endian offset; a value of 0 shall mean "no fixups" and return immediately with ST_NO_ERROR. For each subsequent fixup: validate `uiOffset + 4 <= uiContentSize` (else ST_ERROR), read the longword from `aRam[ST_LOAD_BASE + uiOffset]`, add `ST_LOAD_BASE`, write back big-endian, increment `*puiCount`, read next byte: `0x00`=end, `0x01`=advance 254, else advance N. | UFR-LOD-007 | ✓ UC15 | UC15 |
+| REQ-LOD-021  | A fixup offset that causes `uiOffset + 4 > uiContentSize` shall cause `load_apply_fixups()` to return `ST_ERROR` with `LOG_ERROR`; the previously-loaded state shall not be modified (state update in `load_do_prg()` happens only after successful fixup application). | UFR-LOD-007 | ✓ UC15 | UC15 |
+| REQ-LOD-022  | EOF during fixup table traversal without an explicit `0x00` terminator shall be treated as end-of-list (break); `uiFixupCount` reflects the fixups actually applied before EOF. | UFR-LOD-007 | ✓ UC15 | UC15 |
 
 ---
 
@@ -579,8 +593,23 @@ requirement that will expose it (`UFR-EXE-*`, planned UC21–27).
 | REQ-DIS-022 | For group 0xC (AND/MULU/MULS + EXG) and group 0x8 (OR/DIVU/DIVS): ABCD/SBCD patterns (bit8=1, sz=B, mode≤1) → DC.W. | UFR-HEX-005 | ✓ UC12 | UC12 |
 | REQ-DIS-023 | IMMI instructions (ADDI/SUBI/CMPI/ANDI/ORI/EORI): immediate source words precede destination EA extension words in the instruction stream. | UFR-HEX-005 | ✓ UC12 | UC12 |
 | REQ-DIS-007 | Shall decode ADD / SUB / CMP / MULU / DIVS / AND / OR / EOR / NOT / NEG.                              | UFR-HEX-005   | ✓ UC12        | UC12  |
-| REQ-DIS-008 | Shall decode ASL/ASR/LSL/LSR/ROL/ROR/ROXL/ROXR / BTST/BSET/BCLR/BCHG.                                | — (see UC13)  | TODO UC13     | UC13  |
-| REQ-DIS-009 | Shall decode BRA / BSR / Bcc / JMP / JSR / RTS / RTR / RTE / TRAP / ILLEGAL.                          | — (see UC14)  | TODO UC14     | UC14  |
+| REQ-DIS-008 | Shall decode ASL/ASR/LSL/LSR/ROL/ROR/ROXL/ROXR (register immediate, register Dn, and memory .W forms) and BTST/BCHG/BCLR/BSET (static #imm and dynamic Dn forms). | UFR-HEX-005 | ✓ UC13 | UC13 |
+| REQ-DIS-009 | Shall decode BRA/BSR/Bcc (short and long displacement), JMP/JSR (all control EA modes), NOP/RTS/RTR/RTE, TRAP #N, LINK An/UNLK An. | UFR-HEX-005 | ✓ UC14 | UC14 |
+| REQ-DIS-024 | Register-form shift/rotate (immediate count): format `1110 cccc d ss 1 tt rrr`; count field=0 → displayed as #8; direction bit: 1=left, 0=right; size field: 00=.B, 01=.W, 10=.L; type: 00=AS, 01=LS, 10=ROX, 11=RO; operands `#N,Dn`. | UFR-HEX-005 | ✓ UC13 | UC13 |
+| REQ-DIS-025 | Register-form shift/rotate (register count): format `1110 cccc d ss 0 tt rrr`; operands `Dn,Dn`. | UFR-HEX-005 | ✓ UC13 | UC13 |
+| REQ-DIS-026 | Memory-form shift/rotate: format `1110 xxx 11 EA` (bits 7-6 = 11 selects memory form); always `.W`; mnemonic indexed by bits 10-8 (0=ASR..7=ROL); bit 11 set → DC.W; EA mode 0 (Dn) or mode 1 (An) → DC.W; extension words consumed for abs.W addressing. | UFR-HEX-005 | ✓ UC13 | UC13 |
+| REQ-DIS-027 | Static bit ops (BTST/BCHG/BCLR/BSET #imm): opcode `0000 1000 op EA` + extension word #bit; op field indexes BTST/BCHG/BCLR/BSET; An mode (mode=1) → DC.W; `iWordCount = 2 + EA_ext_words`; operands `#N,EA`. | UFR-HEX-005 | ✓ UC13 | UC13 |
+| REQ-DIS-028 | Dynamic bit ops (BTST/BCHG/BCLR/BSET Dn): opcode `0000 Dn 1 op EA`; An mode → DC.W; `iWordCount = 1 + EA_ext_words`; operands `Dn,EA`. | UFR-HEX-005 | ✓ UC13 | UC13 |
+| REQ-DIS-029 | `disasm_range()` shall advance by `iWordCount*2` bytes per instruction across UC13 opcodes (shift+bit ops of varying word counts) and decode all instructions in a mixed stream correctly. | UFR-HEX-005 | ✓ UC13 | UC13 |
+| REQ-DIS-030 | Invalid shift/bit encodings shall produce DC.W: memory shift to Dn/An destination; memory shift with bit11 set; static/dynamic bit op to An destination. | UFR-HEX-005 | ✓ UC13 | UC13 |
+| REQ-DIS-031 | NOP (0x4E71), RTE (0x4E73), RTS (0x4E75), RTR (0x4E77): 1-word instructions, empty operands, `bValid=ST_TRUE`. | UFR-HEX-005 | ✓ UC14 | UC14 |
+| REQ-DIS-032 | TRAP #N (0x4E40-0x4E4F): vector N in low nibble, displayed as decimal; 1 word, operands `#N`. | UFR-HEX-005 | ✓ UC14 | UC14 |
+| REQ-DIS-033 | LINK An,#disp16 (0x4E50-0x4E57 + ext): 2 words; displacement signed, displayed as `#$N` (positive/zero) or `#-$N` (negative). UNLK An (0x4E58-0x4E5F): 1 word. | UFR-HEX-005 | ✓ UC14 | UC14 |
+| REQ-DIS-034 | JSR (0x4E80-0x4EBF) and JMP (0x4EC0-0x4EFF): EA must be a control mode; Dn (mode=0), An (mode=1), (An)+ (mode=3), -(An) (mode=4), #imm (mode=7,reg=4) → DC.W. | UFR-HEX-005 | ✓ UC14 | UC14 |
+| REQ-DIS-035 | BRA (cond=0x0) and BSR (cond=0x1): disp8=0xFF → DC.W (68020+); disp8=0x00 → long form (2 words, mnemonic without `.S`); disp8 other → short form (1 word, mnemonic with `.S`). | UFR-HEX-005 | ✓ UC14 | UC14 |
+| REQ-DIS-036 | Branch target address = `(instruction_addr + 2 + displacement) & 0x00FFFFFF`; displayed as `$XXXXXX` (6 hex digits). | UFR-HEX-005 | ✓ UC14 | UC14 |
+| REQ-DIS-037 | Bcc (conditions 2-15): same short/long/0xFF rules as BRA/BSR; mnemonics from `g_aszBcc[16]` table (BHI, BLS, BCC, BCS, BNE, BEQ, BVC, BVS, BPL, BMI, BGE, BLT, BGT, BLE). | UFR-HEX-005 | ✓ UC14 | UC14 |
+| REQ-DIS-038 | `disasm_range()` shall walk a realistic mixed control-flow stream (MOVE + TST + BEQ.S + NOP + BRA.S + RTS) correctly, with addresses advancing per `iWordCount`. | UFR-HEX-005 | ✓ UC14 | UC14 |
 
 ---
 
@@ -917,7 +946,7 @@ register access is stubbed (returns `0xFF` / no-op).
 | `fopen / fread / fclose`| [CRT] | ROM load (when szRomPath != NULL)         |
 | `LOG_ERROR`             | [ST4] | Bus/alignment error reporting             |
 
-**TODO(UC15):** PRG loading and fixup relocation.
+**✓ UC15:** PRG loading and fixup relocation — `load_do_prg()` complete; see §4.12 and §5.40..41.
 **TODO(UC24):** hardware register r/w handlers (Shifter, MFP, YM2149).
 
 **Address dispatch (design intent, UC24):**
@@ -1318,21 +1347,27 @@ execution UCs (UC25 will read `uiLoadAddr` as the initial PC for .PRG files).
 
 | Function          | REQ(s)                  | Description                                                               |
 |-------------------|-------------------------|---------------------------------------------------------------------------|
-| `load_do_raw()`   | REQ-LOD-005..006        | Stream file into aRam[ST_LOAD_BASE..] in 4 KB blocks                     |
-| `load_do_prg()`   | REQ-LOD-007..008        | Read 28-byte header, validate 0x601A, load .text+.data; TODO(UC15) fixup |
-| `load_is_prg_ext()` | REQ-LOD-007           | Match "prg"/"ttp"/"tos" (lowercase, from file_stat szExt)                |
-| `load_is_image_ext()` | REQ-LOD-011         | Match "st"/"msa"/"stx"                                                    |
-| `load_u16be()` / `load_u32be()` | REQ-LOD-007 | Big-endian reads from PRG header byte buffer                              |
+| `load_do_raw()`        | REQ-LOD-005..006           | Stream file into aRam[ST_LOAD_BASE..] in 4 KB blocks                |
+| `load_do_prg()`        | REQ-LOD-007..008, REQ-LOD-015..022 | Full PRG load: header parse, .text+.data, BSS zero, symtab skip, fixup relocation |
+| `load_apply_fixups()`  | REQ-LOD-020..022           | Walk fixup bitstream; relocate each longword; validate offset range |
+| `load_skip_bytes()`    | REQ-LOD-016                | Drain uiCount bytes from file in 512-byte chunks to skip symtab     |
+| `load_is_prg_ext()`    | REQ-LOD-007                | Match "prg"/"ttp"/"tos" (lowercase, from file_stat szExt)           |
+| `load_is_image_ext()`  | REQ-LOD-011                | Match "st"/"msa"/"stx"                                              |
+| `load_u16be()` / `load_u32be()` | REQ-LOD-007, REQ-LOD-015 | Big-endian reads from PRG header and fixup table byte buffer  |
 
 **`load_state_t` fields:**
 
-| Field        | Type             | Meaning                                               |
-|--------------|------------------|-------------------------------------------------------|
-| `bLoaded`    | `st_bool_t`      | ST_TRUE if a file is currently loaded in RAM          |
-| `eType`      | `load_type_t`    | NONE / BINARY / PRG                                   |
-| `szPath`     | `char[ST_MAX_PATH]` | Full path of the loaded file                       |
-| `uiLoadAddr` | `st_u32_t`       | ST RAM address of first content byte (= ST_LOAD_BASE) |
-| `uiSize`     | `st_u32_t`       | Bytes of content loaded (.text+.data for PRG)         |
+| Field           | Type             | Meaning                                                              |
+|-----------------|------------------|----------------------------------------------------------------------|
+| `bLoaded`       | `st_bool_t`      | ST_TRUE if a file is currently loaded in RAM                         |
+| `eType`         | `load_type_t`    | NONE / BINARY / PRG                                                  |
+| `szPath`        | `char[ST_MAX_PATH]` | Full path of the loaded file                                      |
+| `uiLoadAddr`    | `st_u32_t`       | ST RAM address of first content byte (= ST_LOAD_BASE = 0x0800)      |
+| `uiSize`        | `st_u32_t`       | Total RAM footprint: text+data+bss for PRG; file size for BINARY     |
+| `uiTextSize`    | `st_u32_t`       | PRG: .text section size in bytes; 0 for LOAD_TYPE_BINARY *(UC15)*   |
+| `uiDataSize`    | `st_u32_t`       | PRG: .data section size in bytes; 0 for LOAD_TYPE_BINARY *(UC15)*   |
+| `uiBssSize`     | `st_u32_t`       | PRG: .bss section size in bytes (zeroed in RAM); 0 for BINARY *(UC15)* |
+| `uiFixupCount`  | `st_u32_t`       | PRG: number of fixup relocations applied; 0 if abs_flag=1 or no fixups *(UC15)* |
 
 **Load address constants:**
 
@@ -1353,11 +1388,10 @@ execution UCs (UC25 will read `uiLoadAddr` as the initial PC for .PRG files).
 
 **Future consumers:**
 
-| Future UC      | Usage                                                                         |
-|----------------|-------------------------------------------------------------------------------|
-| UC15 `load_do_prg` | Parse PRG fixup table (bitstream); relocate address references in .text/.data |
-| UC24 memory map | Compute `ST_LOAD_BASE` dynamically from free RAM above TOS variable area     |
-| UC25 `execute`  | Use `load_get_state()->uiLoadAddr` as initial PC when eType == LOAD_TYPE_PRG |
+| Future UC      | Usage                                                                                          |
+|----------------|-----------------------------------------------------------------------------------------------|
+| UC24 memory map | Compute `ST_LOAD_BASE` dynamically from free RAM above TOS variable area                    |
+| UC25 `execute`  | Use `load_get_state()->uiLoadAddr` as initial PC; `uiTextSize` delimits the executable code |
 
 ---
 
@@ -1841,10 +1875,10 @@ Input: `{ 0x70, 0x2A, 0x4E, 0x75 }` at base `0x1000`
 | REQ-DIS-003  | TC-DIS-005                  | ✓ PASS        |
 | REQ-DIS-004  | TC-DIS-001, TC-DIS-002      | ✓ PASS        |
 | REQ-DIS-005  | TC-DIS-001                  | ADAPTED(UC11) |
-| REQ-DIS-006  | —                           | TODO UC11     |
-| REQ-DIS-007  | —                           | TODO UC12     |
-| REQ-DIS-008  | —                           | TODO UC13     |
-| REQ-DIS-009  | —                           | TODO UC14     |
+| REQ-DIS-006  | TC-DIS-010..080 (§5.37)     | ✓ UC11        |
+| REQ-DIS-007  | TC-DIS-100..159 (§5.39)     | ✓ UC12        |
+| REQ-DIS-008  | TC-DIS-200..235 (§5.41)     | ✓ UC13        |
+| REQ-DIS-009  | TC-DIS-300..330 (§5.43)     | ✓ UC14        |
 | REQ-RAW-001  | (pipe path — TC-CON-006 when TTY) | ✓ UC4.2  |
 | REQ-RAW-002  | (cmd.exe path — manual)     | ✓ UC4.2       |
 | REQ-RAW-003  | TC-CON-006 INFO (non-TTY skip) | ✓ UC4.2    |
@@ -3168,7 +3202,7 @@ Inline fixture: `{ 0x70, 0x2A, 0x4E, 0x75 }` (MOVEQ #42,D0 + RTS)
 | Edit hex / binary       | REQ-EDT-007, UFR-EDT-006             | ✓ UC9     | `line_cmd_edit()` routes .prg/.ttp/.tos/.bin/.raw → edit_hex_open |
 | Find/Replace (P30)      | UFR-EDT-* (future)                   | UC10+     | CTRL+F search bar in editor; deferred until edit family stable    |
 | CTRL+Z undo visual TC   | REQ-EDT-008..010                     | ✓ UC8     | Grouping and pop logic; validated via make manual UC=08           |
-| PRG fixup relocation    | REQ-LOD-007, TODO(UC15)              | UC15      | load_do_prg() loads without fixup; relocation table parse deferred |
+| PRG fixup relocation    | REQ-LOD-015..022, UFR-LOD-007..008   | ✓ UC15    | load_apply_fixups() complete; abs_flag handled; out-of-range → ST_ERROR |
 | load_file size check    | REQ-LOD-012                          | —         | File > ST_LOAD_MAX_SIZE: not injectable headless; covered by code review |
 | file_read ferror path   | REQ-FIL-010                          | —         | ferror branch not injectable in headless tests; covered by code review |
 | file_write short write  | REQ-FIL-012                          | —         | fwrite contract; not injectable headless; covered by code review       |
@@ -3376,8 +3410,8 @@ Source: `use_cases/use_case_12.c`
 | TC-DIS-153  | disasm_one(…,NULL) → ST_ERROR                                      | [R]  | UFR-HEX-005  | REQ-DIS-001  | INT-DIS-041  | ST_ERROR                       | PASS UC12 |
 | TC-DIS-154  | NEGX size=3 → DC.W                                                 | [R]  | UFR-HEX-005  | REQ-DIS-019  | INT-DIS-041  | bValid==ST_FALSE               | PASS UC12 |
 | TC-DIS-155  | TST size=3 → DC.W                                                  | [R]  | UFR-HEX-005  | REQ-DIS-019  | INT-DIS-041  | bValid==ST_FALSE               | PASS UC12 |
-| TC-DIS-156  | 0x6000 (BRA UC14) → DC.W                                           | [R]  | UFR-HEX-005  | REQ-DIS-005  | INT-DIS-041  | bValid==ST_FALSE               | PASS UC12 |
-| TC-DIS-157  | 0x4E75 (RTS UC14) → DC.W ADAPTED(UC14)                            | [R]  | UFR-HEX-005  | REQ-DIS-005  | INT-DIS-041  | bValid==ST_FALSE               | PASS UC12 |
+| TC-DIS-156  | 0x6000 (BRA disp8=0) with 2-byte buf → DC.W (short buf guard)     | [R]  | UFR-HEX-005  | REQ-DIS-035  | INT-DIS-041  | bValid==ST_FALSE               | PASS UC14 |
+| TC-DIS-157  | 0x4E75 (RTS) → RTS ADAPTED(UC14) — now bValid=ST_TRUE             | [N]  | UFR-HEX-005  | REQ-DIS-031  | INT-DIS-041  | bValid==ST_TRUE mnem=="RTS"    | PASS UC14 |
 | TC-DIS-158  | 0xC100 (ABCD) → DC.W                                               | [R]  | UFR-HEX-005  | REQ-DIS-022  | INT-DIS-041  | bValid==ST_FALSE               | PASS UC12 |
 | TC-DIS-159  | 0x50C0 (Scc) → DC.W                                                | [R]  | UFR-HEX-005  | REQ-DIS-020  | INT-DIS-041  | bValid==ST_FALSE               | PASS UC12 |
 
@@ -3406,3 +3440,257 @@ Source: `use_cases/use_case_12.c`
 | UFR          | REQ(s)                                       | TC(s)                 | Status    |
 |--------------|----------------------------------------------|-----------------------|-----------|
 | UFR-HEX-005  | REQ-DIS-015..023 (+ UC11: 006, 010..014)    | TC-DIS-100..159       | ✓ UC12    |
+
+---
+
+### 5.40 INTENT Catalog — UC13
+
+Source: `use_cases/use_case_13.c`
+Fixtures: all opcodes hand-crafted from MC68000 PRM; no external files
+
+| ID           | INTENT text                                                                                                                                                             |
+|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| INT-DIS-042  | ASL/ASR with immediate count produce correct mnemonic, size suffix, and `#count,Dn` operands; count field 0 in opcode = displayed #8.                                   |
+| INT-DIS-043  | LSL/LSR with immediate count across all three sizes (.B/.W/.L) produce correct mnemonic and operands.                                                                    |
+| INT-DIS-044  | ROXL/ROXR with immediate count produce correct mnemonic and operands.                                                                                                    |
+| INT-DIS-045  | ROL/ROR with immediate count; count=0 in opcode field → displayed as #8 (convention identical to ADDQ/SUBQ).                                                             |
+| INT-DIS-046  | Register-count form (bit3=0 in opcode): operands are `Dn,Dn`; direction and type bits identical to immediate form.                                                       |
+| INT-DIS-047  | All 8 memory shift mnemonics (ASR/ASL/LSR/LSL/ROXR/ROXL/ROR/ROL .W) indexed by bits 10-8; extension words consumed correctly for abs.W EA.                              |
+| INT-DIS-048  | Static bit ops (#imm source): each of the 4 ops (BTST/BCHG/BCLR/BSET) with an EA destination; iWordCount = 2 + EA_ext_words; operands `#N,EA`.                          |
+| INT-DIS-049  | Dynamic bit ops (Dn source): each of the 4 ops with various EA modes; iWordCount = 1; operands `Dn,EA`.                                                                  |
+| INT-DIS-050  | `disasm_range()` advances correctly over a mixed UC13 stream (1-word shift + 2-word bit-static + 1-word shift); addresses computed from starting uiAddr.                  |
+| INT-DIS-051  | Invalid encodings rejected: memory shift to Dn/An, bit11 set, static/dynamic bit op to An → DC.W. NULL params → ST_ERROR.                                                |
+
+---
+
+### 5.41 Test Cases — UC13 (shifts, rotations, bit ops)
+
+Source: `use_cases/use_case_13.c`
+
+| ID           | Functional description                                                                                                       | Type | UFR          | REQ          | INTENT      | Expected outcome                    | Status    |
+|--------------|------------------------------------------------------------------------------------------------------------------------------|------|--------------|--------------|-------------|-------------------------------------|-----------|
+| TC-DIS-200   | `ASL.W #2,D3` (0xE563): mnem="ASL.W", ops="#2,D3"                                                                          | [N]  | UFR-HEX-005  | REQ-DIS-024  | INT-DIS-042 | mnem+ops correct                    | PASS UC13 |
+| TC-DIS-201   | `ASR.W #3,D0` (0xE660): mnem="ASR.W", ops="#3,D0"                                                                          | [N]  | UFR-HEX-005  | REQ-DIS-024  | INT-DIS-042 | mnem+ops correct                    | PASS UC13 |
+| TC-DIS-202   | `LSL.B #1,D1` (0xE329): mnem="LSL.B", ops="#1,D1"                                                                          | [N]  | UFR-HEX-005  | REQ-DIS-024  | INT-DIS-043 | mnem+ops correct                    | PASS UC13 |
+| TC-DIS-203   | `LSR.L #4,D2` (0xE8AA): mnem="LSR.L", ops="#4,D2"                                                                          | [N]  | UFR-HEX-005  | REQ-DIS-024  | INT-DIS-043 | mnem+ops correct                    | PASS UC13 |
+| TC-DIS-204   | `ROXL.W #1,D5` (0xE375): mnem="ROXL.W", ops="#1,D5"                                                                        | [N]  | UFR-HEX-005  | REQ-DIS-024  | INT-DIS-044 | mnem+ops correct                    | PASS UC13 |
+| TC-DIS-205   | `ROXR.B #2,D4` (0xE434): mnem="ROXR.B", ops="#2,D4"                                                                        | [N]  | UFR-HEX-005  | REQ-DIS-024  | INT-DIS-044 | mnem+ops correct                    | PASS UC13 |
+| TC-DIS-206   | `ROL.L #8,D7` (0xE1BF): count=0 in field → displayed #8                                                                    | [N]  | UFR-HEX-005  | REQ-DIS-024  | INT-DIS-045 | ops="#8,D7"                         | PASS UC13 |
+| TC-DIS-207   | `ROR.W #1,D0` (0xE278): mnem="ROR.W", ops="#1,D0"                                                                          | [N]  | UFR-HEX-005  | REQ-DIS-024  | INT-DIS-045 | mnem+ops correct                    | PASS UC13 |
+| TC-DIS-208   | `ASL.W D3,D0` (0xE740): register count form, ops="D3,D0"                                                                   | [N]  | UFR-HEX-005  | REQ-DIS-025  | INT-DIS-046 | mnem="ASL.W", ops="D3,D0"           | PASS UC13 |
+| TC-DIS-209   | `LSR.B D2,D1` (0xE409): register count form                                                                                 | [N]  | UFR-HEX-005  | REQ-DIS-025  | INT-DIS-046 | mnem="LSR.B", ops="D2,D1"           | PASS UC13 |
+| TC-DIS-210   | `ROR.L D0,D5` (0xE09D): register count form                                                                                 | [N]  | UFR-HEX-005  | REQ-DIS-025  | INT-DIS-046 | mnem="ROR.L", ops="D0,D5"           | PASS UC13 |
+| TC-DIS-211   | `ASR.W (A0)` (0xE0D0): memory form, mnem="ASR.W", ops="(A0)"                                                               | [N]  | UFR-HEX-005  | REQ-DIS-026  | INT-DIS-047 | memory form 1 word                  | PASS UC13 |
+| TC-DIS-212   | `ASL.W (A1)` (0xE1D1)                                                                                                       | [N]  | UFR-HEX-005  | REQ-DIS-026  | INT-DIS-047 | mnem="ASL.W"                        | PASS UC13 |
+| TC-DIS-213   | `LSR.W (A2)+` (0xE2DA)                                                                                                      | [N]  | UFR-HEX-005  | REQ-DIS-026  | INT-DIS-047 | ops="(A2)+"                         | PASS UC13 |
+| TC-DIS-214   | `LSL.W -(A3)` (0xE3E3)                                                                                                      | [N]  | UFR-HEX-005  | REQ-DIS-026  | INT-DIS-047 | ops="-(A3)"                         | PASS UC13 |
+| TC-DIS-215   | `ROXR.W (A4)` / `ROXL.W (A5)` / `ROR.W (A6)` / `ROL.W (A7)+`                                                              | [N]  | UFR-HEX-005  | REQ-DIS-026  | INT-DIS-047 | all 4 mnem correct                  | PASS UC13 |
+| TC-DIS-216   | `ROXR.W $1234.W`: wc=2, mnem="ROXR.W", ops="$1234.W"                                                                       | [N]  | UFR-HEX-005  | REQ-DIS-026  | INT-DIS-047 | wc=2; ext word consumed             | PASS UC13 |
+| TC-DIS-217   | `BTST #5,D3` (0x0803+ext=0x0005): wc=2, mnem="BTST", ops="#5,D3"                                                           | [N]  | UFR-HEX-005  | REQ-DIS-027  | INT-DIS-048 | static, wc=2                        | PASS UC13 |
+| TC-DIS-218   | `BCHG #0,(A1)` (0x0851+ext=0x0000): wc=2, ops="#0,(A1)"                                                                    | [N]  | UFR-HEX-005  | REQ-DIS-027  | INT-DIS-048 | BCHG static                         | PASS UC13 |
+| TC-DIS-219   | `BCLR #7,(A2)+` (0x089A+ext=0x0007): wc=2                                                                                  | [N]  | UFR-HEX-005  | REQ-DIS-027  | INT-DIS-048 | BCLR static                         | PASS UC13 |
+| TC-DIS-220   | `BSET #15,D7` (0x08C7+ext=0x000F): wc=2, ops="#15,D7"                                                                      | [N]  | UFR-HEX-005  | REQ-DIS-027  | INT-DIS-048 | BSET static                         | PASS UC13 |
+| TC-DIS-221   | `BTST D0,D3` (0x0103): wc=1, ops="D0,D3"                                                                                   | [N]  | UFR-HEX-005  | REQ-DIS-028  | INT-DIS-049 | dynamic, wc=1                       | PASS UC13 |
+| TC-DIS-222   | `BCHG D1,(A0)` (0x0350): wc=1, ops="D1,(A0)"                                                                               | [N]  | UFR-HEX-005  | REQ-DIS-028  | INT-DIS-049 | BCHG dynamic                        | PASS UC13 |
+| TC-DIS-223   | `BCLR D7,D5` (0x0F85): wc=1, ops="D7,D5"                                                                                   | [N]  | UFR-HEX-005  | REQ-DIS-028  | INT-DIS-049 | BCLR dynamic                        | PASS UC13 |
+| TC-DIS-224   | `BSET D3,(A2)+` (0x07DA): wc=1, ops="D3,(A2)+"                                                                             | [N]  | UFR-HEX-005  | REQ-DIS-028  | INT-DIS-049 | BSET dynamic                        | PASS UC13 |
+| TC-DIS-225   | Range: ASL.W #2,D3 (1W) + BTST #5,D3 (2W) + LSR.B D2,D1 (1W) = 3 instructions; addr[2]=0x2006                            | [N]  | UFR-HEX-005  | REQ-DIS-029  | INT-DIS-050 | uiN=3; addr[2]=0x2006               | PASS UC13 |
+| TC-DIS-226   | MOVEQ regression (0x702A): still decoded correctly after UC13                                                                | [N]  | UFR-HEX-005  | REQ-DIS-006  | INT-DIS-001 | mnem="MOVEQ"                        | PASS UC13 |
+| TC-DIS-227   | ADD.W regression (0xD240): still decoded correctly                                                                           | [N]  | UFR-HEX-005  | REQ-DIS-015  | INT-DIS-001 | mnem="ADD.W"                        | PASS UC13 |
+| TC-DIS-228   | Memory shift to Dn (0xE0C0) → DC.W                                                                                          | [R]  | UFR-HEX-005  | REQ-DIS-030  | INT-DIS-051 | DC.W                                | PASS UC13 |
+| TC-DIS-229   | Memory shift to An (0xE0C8) → DC.W                                                                                          | [R]  | UFR-HEX-005  | REQ-DIS-030  | INT-DIS-051 | DC.W                                | PASS UC13 |
+| TC-DIS-230   | Memory shift bit11 set (0xE8D0) → DC.W                                                                                      | [R]  | UFR-HEX-005  | REQ-DIS-030  | INT-DIS-051 | DC.W                                | PASS UC13 |
+| TC-DIS-231   | Static bit op An mode (0x0808+ext=0) → DC.W                                                                                 | [R]  | UFR-HEX-005  | REQ-DIS-030  | INT-DIS-051 | DC.W                                | PASS UC13 |
+| TC-DIS-232   | Dynamic bit op An mode (0x010B) → DC.W                                                                                      | [R]  | UFR-HEX-005  | REQ-DIS-030  | INT-DIS-051 | DC.W                                | PASS UC13 |
+| TC-DIS-233   | NULL pBuf → ST_ERROR                                                                                                         | [R]  | UFR-HEX-005  | REQ-DIS-001  | INT-DIS-051 | ST_ERROR                            | PASS UC13 |
+| TC-DIS-234   | NULL ptResult → ST_ERROR                                                                                                     | [R]  | UFR-HEX-005  | REQ-DIS-001  | INT-DIS-051 | ST_ERROR                            | PASS UC13 |
+| TC-DIS-235   | range NULL puiLines → ST_ERROR                                                                                               | [R]  | UFR-HEX-005  | REQ-DIS-003  | INT-DIS-051 | ST_ERROR                            | PASS UC13 |
+
+#### Test Summary — UC13
+
+| Module | [N] | [R] | [S] | Total | Result    |
+|--------|-----|-----|-----|-------|-----------|
+| DIS    | 62  | 8   | 0   | 70    | ALL PASS  |
+
+> Note: The 70 `UC_TEST` calls (via UC13_1W/2W/DCW macros, each expanding to 2-3 assertions) are
+> grouped into 36 logical TCs above. TC-DIS-215 covers 4 mnemonics in one logical entry.
+
+#### REQ → TC coverage (UC13)
+
+| REQ          | TC(s)                                  | Status    |
+|--------------|----------------------------------------|-----------|
+| REQ-DIS-008  | TC-DIS-200..235                        | ✓ UC13    |
+| REQ-DIS-024  | TC-DIS-200..207                        | ✓ UC13    |
+| REQ-DIS-025  | TC-DIS-208..210                        | ✓ UC13    |
+| REQ-DIS-026  | TC-DIS-211..216                        | ✓ UC13    |
+| REQ-DIS-027  | TC-DIS-217..220                        | ✓ UC13    |
+| REQ-DIS-028  | TC-DIS-221..224                        | ✓ UC13    |
+| REQ-DIS-029  | TC-DIS-225                             | ✓ UC13    |
+| REQ-DIS-030  | TC-DIS-228..232                        | ✓ UC13    |
+
+#### UFR traceability update (UC13)
+
+| UFR          | REQ(s)                                        | TC(s)             | Status   |
+|--------------|-----------------------------------------------|-------------------|----------|
+| UFR-HEX-005  | REQ-DIS-024..030 (+ UC12: 015..023, UC11: 006,010..014) | TC-DIS-200..235 | ✓ UC13 |
+
+---
+
+### 5.42 INTENT Catalog — UC14
+
+Source: `use_cases/use_case_14.c`
+Fixtures: all opcodes hand-crafted from MC68000 PRM; no external files
+
+| ID           | INTENT text                                                                                                                                                              |
+|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| INT-DIS-061  | NOP/RTS/RTE/RTR: single-word control instructions produce empty operands and `bValid=ST_TRUE`.                                                                            |
+| INT-DIS-062  | TRAP #N: vector in low nibble (0-15), displayed as decimal; 1 word.                                                                                                      |
+| INT-DIS-063  | LINK An,#disp16 (2 words): negative displacement shown as `#-$N`; zero/positive as `#$N`. UNLK An (1 word).                                                              |
+| INT-DIS-064  | JSR with control EA: (An) = 1 word; abs.W = 2 words; invalid modes (Dn, An, -(An)) → DC.W.                                                                              |
+| INT-DIS-065  | JMP with control EA: (An) = 1 word; abs.L = 3 words; d16(PC) = 2 words with computed target; invalid modes → DC.W.                                                      |
+| INT-DIS-066  | BRA/BSR: disp8=0xFF → DC.W (68020+); disp8=0x00 → long form 2 words, no `.S`; other disp8 → short form 1 word with `.S` suffix; target = `(addr+2+disp)&0xFFFFFF`.     |
+| INT-DIS-067  | Bcc (conditions 2-15): same short/long/0xFF rules; mnemonics from g_aszBcc table; backward branches (negative disp8) compute correct target.                             |
+| INT-DIS-068  | `disasm_range()` over a realistic fragment (MOVE.W + TST.W + BEQ.S + NOP + BRA.S + RTS = 6 instructions at mixed word counts) with correct addresses.                    |
+| INT-DIS-069  | Robustness: JMP/JSR to invalid EAs (Dn, An, -(An)) → DC.W; BRA disp8=0xFF → DC.W; BRA long-form with only 2-byte buffer → DC.W; NULL params → ST_ERROR.                |
+
+---
+
+### 5.43 Test Cases — UC14 (control flow BRA/BSR/Bcc/JMP/JSR/RTS/TRAP)
+
+Source: `use_cases/use_case_14.c`
+
+| ID           | Functional description                                                                                                         | Type | UFR          | REQ                    | INTENT      | Expected outcome                          | Status    |
+|--------------|--------------------------------------------------------------------------------------------------------------------------------|------|--------------|------------------------|-------------|-------------------------------------------|-----------|
+| TC-DIS-300   | `NOP` (0x4E71): mnem="NOP", ops=""                                                                                            | [N]  | UFR-HEX-005  | REQ-DIS-031            | INT-DIS-061 | 1 word, empty ops                         | PASS UC14 |
+| TC-DIS-301   | `RTS` (0x4E75): mnem="RTS", ops=""                                                                                            | [N]  | UFR-HEX-005  | REQ-DIS-031            | INT-DIS-061 | bValid=ST_TRUE                            | PASS UC14 |
+| TC-DIS-302   | `RTE` (0x4E73): mnem="RTE", ops=""                                                                                            | [N]  | UFR-HEX-005  | REQ-DIS-031            | INT-DIS-061 | 1 word, empty ops                         | PASS UC14 |
+| TC-DIS-303   | `RTR` (0x4E77): mnem="RTR", ops=""                                                                                            | [N]  | UFR-HEX-005  | REQ-DIS-031            | INT-DIS-061 | 1 word, empty ops                         | PASS UC14 |
+| TC-DIS-304   | `TRAP #1` (0x4E41): ops="#1"                                                                                                  | [N]  | UFR-HEX-005  | REQ-DIS-032            | INT-DIS-062 | decimal vector                            | PASS UC14 |
+| TC-DIS-305   | `TRAP #14` (0x4E4E): ops="#14"                                                                                                | [N]  | UFR-HEX-005  | REQ-DIS-032            | INT-DIS-062 | decimal vector 14                         | PASS UC14 |
+| TC-DIS-306   | `LINK A6,#-8` (0x4E56+0xFFF8): wc=2, ops="A6,#-$8"                                                                          | [N]  | UFR-HEX-005  | REQ-DIS-033            | INT-DIS-063 | negative disp as #-$N                     | PASS UC14 |
+| TC-DIS-307   | `UNLK A6` (0x4E5E): wc=1, ops="A6"                                                                                           | [N]  | UFR-HEX-005  | REQ-DIS-033            | INT-DIS-063 | 1 word                                    | PASS UC14 |
+| TC-DIS-308   | `LINK A0,#$0` (0x4E50+0x0000): wc=2, ops="A0,#$0"                                                                           | [N]  | UFR-HEX-005  | REQ-DIS-033            | INT-DIS-063 | zero disp as #$0                          | PASS UC14 |
+| TC-DIS-309   | `JSR (A0)` (0x4E90): wc=1, ops="(A0)"                                                                                        | [N]  | UFR-HEX-005  | REQ-DIS-034            | INT-DIS-064 | 1 word control mode                       | PASS UC14 |
+| TC-DIS-310   | `JSR $1234.W` (0x4EB8+0x1234): wc=2, ops="$1234.W"                                                                          | [N]  | UFR-HEX-005  | REQ-DIS-034            | INT-DIS-064 | 2 words abs.W                             | PASS UC14 |
+| TC-DIS-311   | `JMP (A1)` (0x4ED1): wc=1, ops="(A1)"                                                                                        | [N]  | UFR-HEX-005  | REQ-DIS-034            | INT-DIS-065 | 1 word                                    | PASS UC14 |
+| TC-DIS-312   | `JMP $00FF8800` (0x4EF9+0x00FF+0x8800): wc=3, ops="$00FF8800"                                                                | [N]  | UFR-HEX-005  | REQ-DIS-034            | INT-DIS-065 | 3 words abs.L                             | PASS UC14 |
+| TC-DIS-313   | `JMP $002236(PC)` from addr=0x1000 (0x4EFA+0x1234): wc=2, ops="$002236(PC)"                                                  | [N]  | UFR-HEX-005  | REQ-DIS-034,REQ-DIS-036 | INT-DIS-065 | computed target                          | PASS UC14 |
+| TC-DIS-314   | `BRA.S $001006` from 0x1000 (0x6004): wc=1, mnem="BRA.S", ops="$001006"                                                     | [N]  | UFR-HEX-005  | REQ-DIS-035,REQ-DIS-036 | INT-DIS-066 | short form                               | PASS UC14 |
+| TC-DIS-315   | `BRA $001102` from 0x1000 (0x6000+0x0100): wc=2, mnem="BRA" (no .S), ops="$001102"                                          | [N]  | UFR-HEX-005  | REQ-DIS-035,REQ-DIS-036 | INT-DIS-066 | long form                                | PASS UC14 |
+| TC-DIS-316   | `BSR.S $001000` from 0x1000 (0x61FE): backward branch to self, ops="$001000"                                                 | [N]  | UFR-HEX-005  | REQ-DIS-035,REQ-DIS-036 | INT-DIS-066 | backward short BSR                       | PASS UC14 |
+| TC-DIS-317   | `BNE.S $00100A` from 0x1000 (0x6608): cond=6, short                                                                         | [N]  | UFR-HEX-005  | REQ-DIS-037            | INT-DIS-067 | mnem="BNE.S"                             | PASS UC14 |
+| TC-DIS-318   | `BEQ $001202` from 0x1000 (0x6700+0x0200): cond=7, long form                                                                | [N]  | UFR-HEX-005  | REQ-DIS-037            | INT-DIS-067 | mnem="BEQ" (no .S)                       | PASS UC14 |
+| TC-DIS-319   | `BPL.S $000FF8` from 0x1000 (0x6AF6): cond=A, backward branch                                                               | [N]  | UFR-HEX-005  | REQ-DIS-037            | INT-DIS-067 | mnem="BPL.S", backward addr             | PASS UC14 |
+| TC-DIS-320   | `BCC.S $001012` (0x6410) and `BGT.S $000FFE` (0x6EFC)                                                                       | [N]  | UFR-HEX-005  | REQ-DIS-037            | INT-DIS-067 | BCC.S / BGT.S correct                   | PASS UC14 |
+| TC-DIS-321   | Range: MOVE.W #1,D0 + TST.W D0 + BEQ.S + NOP + BRA.S + RTS = 6 instructions; correct mnemonics and addresses               | [N]  | UFR-HEX-005  | REQ-DIS-038            | INT-DIS-068 | uiN=6; all mnemonics+addrs correct      | PASS UC14 |
+| TC-DIS-322   | MOVEQ / ADD.W / ASL.W regression (UC11/12/13 still pass)                                                                     | [N]  | UFR-HEX-005  | REQ-DIS-006,REQ-DIS-015,REQ-DIS-024 | INT-DIS-001 | 3 regressions PASS         | PASS UC14 |
+| TC-DIS-323   | `JMP Dn` (0x4EC0) → DC.W                                                                                                     | [R]  | UFR-HEX-005  | REQ-DIS-034            | INT-DIS-069 | DC.W                                    | PASS UC14 |
+| TC-DIS-324   | `JSR An` (0x4E88) → DC.W                                                                                                     | [R]  | UFR-HEX-005  | REQ-DIS-034            | INT-DIS-069 | DC.W                                    | PASS UC14 |
+| TC-DIS-325   | `JSR -(An)` (0x4EA0) → DC.W                                                                                                  | [R]  | UFR-HEX-005  | REQ-DIS-034            | INT-DIS-069 | DC.W                                    | PASS UC14 |
+| TC-DIS-326   | BRA disp8=0xFF → DC.W (68020 32-bit form rejected)                                                                           | [R]  | UFR-HEX-005  | REQ-DIS-035            | INT-DIS-069 | DC.W                                    | PASS UC14 |
+| TC-DIS-327   | BRA long-form (0x6000) with only 2-byte buffer → DC.W (short buffer guard)                                                   | [R]  | UFR-HEX-005  | REQ-DIS-035            | INT-DIS-069 | DC.W                                    | PASS UC14 |
+| TC-DIS-328   | NULL pBuf → ST_ERROR                                                                                                          | [R]  | UFR-HEX-005  | REQ-DIS-001            | INT-DIS-069 | ST_ERROR                                | PASS UC14 |
+| TC-DIS-329   | NULL ptResult → ST_ERROR                                                                                                      | [R]  | UFR-HEX-005  | REQ-DIS-001            | INT-DIS-069 | ST_ERROR                                | PASS UC14 |
+| TC-DIS-330   | range NULL ptResults → ST_ERROR                                                                                               | [R]  | UFR-HEX-005  | REQ-DIS-002            | INT-DIS-069 | ST_ERROR                                | PASS UC14 |
+
+#### Test Summary — UC14
+
+| Module | [N] | [R] | [S] | Total | Result    |
+|--------|-----|-----|-----|-------|-----------|
+| DIS    | 56  | 8   | 0   | 64    | ALL PASS  |
+
+#### REQ → TC coverage (UC14)
+
+| REQ          | TC(s)                                  | Status    |
+|--------------|----------------------------------------|-----------|
+| REQ-DIS-009  | TC-DIS-300..330                        | ✓ UC14    |
+| REQ-DIS-031  | TC-DIS-300..303, TC-DIS-157            | ✓ UC14    |
+| REQ-DIS-032  | TC-DIS-304..305                        | ✓ UC14    |
+| REQ-DIS-033  | TC-DIS-306..308                        | ✓ UC14    |
+| REQ-DIS-034  | TC-DIS-309..313, TC-DIS-323..325       | ✓ UC14    |
+| REQ-DIS-035  | TC-DIS-314..316, TC-DIS-326..327       | ✓ UC14    |
+| REQ-DIS-036  | TC-DIS-313..316, TC-DIS-319            | ✓ UC14    |
+| REQ-DIS-037  | TC-DIS-317..320                        | ✓ UC14    |
+| REQ-DIS-038  | TC-DIS-321                             | ✓ UC14    |
+
+#### UFR traceability update (UC14)
+
+| UFR          | REQ(s)                                               | TC(s)             | Status   |
+|--------------|------------------------------------------------------|-------------------|----------|
+| UFR-HEX-005  | REQ-DIS-031..038 (+ UC13: 024..030, UC12: 015..023, UC11: 006,010..014) | TC-DIS-300..330 | ✓ UC14 |
+
+---
+
+### 5.44 INTENT Catalog — UC15
+
+Source: `use_cases/use_case_15.c`
+Fixtures: `use_cases/UC01/hello.prg`; `use_cases/UC15/fixup.prg`, `bss.prg`, `absolute.prg`, `multi_fixup.prg`, `bad_fixup.prg`
+
+| ID           | INTENT text                                                                                                                                             |
+|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------|
+| INT-LOD-009  | UC7 regression path with full implementation: hello.prg (no fixups, first_offset=0) must load sections and produce uiFixupCount=0; load_do_prg() now complete vs. UC7 stub. |
+| INT-LOD-010  | Single fixup relocation: fixup.prg has 1 fixup at .text offset 2; the longword at RAM[ST_LOAD_BASE+2] must equal ST_LOAD_BASE (0x0800) after load; opcodes before and after the fixup must be unchanged. |
+| INT-LOD-011  | BSS zeroing: bss.prg has a 16-byte .bss with no fixups; the BSS area in ST RAM must be fully zeroed regardless of prior RAM content (sentinel-fill test). |
+| INT-LOD-012  | Absolute PRG (abs_flag=1): no fixup table present in the file; load must succeed with uiFixupCount=0 without attempting to read a fixup table. |
+| INT-LOD-013  | Multiple fixups: multi_fixup.prg has 2 fixups at offsets 2 and 8; each longword must be independently incremented by ST_LOAD_BASE; the advance byte between them positions the second fixup correctly. |
+| INT-LOD-014  | State field invariants: uiLoadAddr is always ST_LOAD_BASE; uiSize = text+data+bss (RAM footprint, not file size). |
+| INT-LOD-015  | Robustness — bad fixup and guards: a fixup offset out of .text+.data range must return ST_ERROR without modifying the previous load state; NULL path and call-after-shutdown are also guarded. |
+
+---
+
+### 5.45 Test Cases — UC15 (PRG full load — header, BSS, fixup relocation)
+
+Source: `use_cases/use_case_15.c`
+
+| ID           | Functional description                                                                                              | Type | UFR                    | REQ                        | INTENT      | Expected outcome                                      | Status    |
+|--------------|---------------------------------------------------------------------------------------------------------------------|------|------------------------|----------------------------|-------------|-------------------------------------------------------|-----------|
+| TC-LOD-018   | `load_init(valid)` → ST_NO_ERROR; re-init after sentinel RAM fill                                                  | [N]  | UFR-LOD-001            | REQ-LOD-001                | INT-LOD-009 | ST_NO_ERROR                                           | PASS UC15 |
+| TC-LOD-019   | `load_file(hello.prg)` → ST_NO_ERROR; eType=PRG; uiSize=4; uiFixupCount=0                                         | [N]  | UFR-LOD-004            | REQ-LOD-007, REQ-LOD-019   | INT-LOD-009 | bLoaded=TRUE; uiFixupCount=0                          | PASS UC15 |
+| TC-LOD-020   | hello.prg: RAM[LOAD_BASE+0]=0x70 (MOVEQ hi), RAM[LOAD_BASE+1]=0x2A (MOVEQ #42)                                    | [N]  | UFR-LOD-004            | REQ-LOD-015                | INT-LOD-009 | Opcodes verbatim in RAM                               | PASS UC15 |
+| TC-LOD-021   | `load_file(fixup.prg)` → ST_NO_ERROR; eType=PRG; uiTextSize=6; uiDataSize=0; uiFixupCount=1                       | [N]  | UFR-LOD-004, UFR-LOD-007 | REQ-LOD-017, REQ-LOD-019  | INT-LOD-010 | Sizes and fixup count correct                         | PASS UC15 |
+| TC-LOD-022   | fixup.prg: JMP opcode at RAM[LOAD_BASE+0..1] = 0x4E/0xF9 (unchanged)                                              | [N]  | UFR-LOD-004            | REQ-LOD-020                | INT-LOD-010 | Opcode bytes unmodified by fixup                      | PASS UC15 |
+| TC-LOD-023   | fixup.prg: RAM[LOAD_BASE+2..5] = 0x00000800 (relocated from 0x00000000 + ST_LOAD_BASE)                            | [N]  | UFR-LOD-007            | REQ-LOD-020                | INT-LOD-010 | Longword = ST_LOAD_BASE (0x0800)                      | PASS UC15 |
+| TC-LOD-024   | `load_file(bss.prg)` → ST_NO_ERROR; uiTextSize=2; uiBssSize=16; uiSize=18 (text+bss)                              | [N]  | UFR-LOD-004, UFR-LOD-006 | REQ-LOD-018, REQ-LOD-019  | INT-LOD-011 | uiSize = text+data+bss                                | PASS UC15 |
+| TC-LOD-025   | bss.prg: RAM[LOAD_BASE+0..1] = 0x4E/0x75 (RTS); BSS area (offsets 2..17) all zeroed                              | [N]  | UFR-LOD-006            | REQ-LOD-018                | INT-LOD-011 | RTS present; BSS = 0x00 despite 0xFF sentinel         | PASS UC15 |
+| TC-LOD-026   | `load_file(absolute.prg)` → ST_NO_ERROR; eType=PRG; uiFixupCount=0 (abs_flag=1)                                   | [N]  | UFR-LOD-008            | REQ-LOD-017                | INT-LOD-012 | No fixup processing; uiFixupCount=0                   | PASS UC15 |
+| TC-LOD-027   | absolute.prg: RAM[LOAD_BASE+0..1] = 0x4E/0x75 (RTS, abs content)                                                  | [N]  | UFR-LOD-008            | REQ-LOD-017                | INT-LOD-012 | Content loaded correctly without fixup                | PASS UC15 |
+| TC-LOD-028   | `load_file(multi_fixup.prg)` → ST_NO_ERROR; uiTextSize=12; uiFixupCount=2                                         | [N]  | UFR-LOD-007            | REQ-LOD-020, REQ-LOD-019   | INT-LOD-013 | Two fixups applied                                    | PASS UC15 |
+| TC-LOD-029   | multi_fixup: RAM[LOAD_BASE+2..5]=0x00000800 (first fixup); RAM[LOAD_BASE+8..11]=0x00000806 (second fixup)          | [N]  | UFR-LOD-007            | REQ-LOD-020                | INT-LOD-013 | Both longwords independently relocated                | PASS UC15 |
+| TC-LOD-030   | multi_fixup: RAM[LOAD_BASE+6..7]=0x4E/0xF9 (JMP opcode between fixups, unchanged)                                 | [N]  | UFR-LOD-007            | REQ-LOD-020                | INT-LOD-013 | Bytes between fixups unmodified                       | PASS UC15 |
+| TC-LOD-031   | state field invariants: uiLoadAddr == ST_LOAD_BASE; uiSize == 12 (text=12, data=0, bss=0)                          | [N]  | UFR-LOD-004            | REQ-LOD-019, REQ-LOD-021   | INT-LOD-014 | Load address constant; size = RAM footprint           | PASS UC15 |
+| TC-LOD-032   | `load_file(bad_fixup.prg)` after good load → ST_ERROR; previous state preserved (eType=PRG; uiTextSize=4)          | [R]  | UFR-LOD-007            | REQ-LOD-021                | INT-LOD-015 | ST_ERROR; state unchanged                             | PASS UC15 |
+| TC-LOD-033   | `load_file(NULL)` → ST_ERROR (guard check)                                                                         | [R]  | UFR-LOD-001            | REQ-LOD-003                | INT-LOD-015 | ST_ERROR                                              | PASS UC15 |
+| TC-LOD-034   | `load_file(non-existent)` → ST_ERROR                                                                               | [R]  | UFR-LOD-001            | REQ-LOD-004                | INT-LOD-015 | ST_ERROR                                              | PASS UC15 |
+| TC-LOD-035   | `load_shutdown()` → ST_NO_ERROR                                                                                     | [N]  | UFR-LOD-001            | REQ-LOD-013                | INT-LOD-015 | ST_NO_ERROR                                           | PASS UC15 |
+| TC-LOD-036   | `load_file()` after shutdown → ST_ERROR                                                                             | [R]  | UFR-LOD-001            | REQ-LOD-003                | INT-LOD-015 | ST_ERROR (machine pointer = NULL)                     | PASS UC15 |
+
+> Note: The 38 `UC_TEST` assertion calls in `use_case_15.c` are grouped into 19 logical TCs above;
+> multi-assertion calls (e.g. TC-LOD-029 covers 8 RAM byte checks) follow the UC7 grouping convention.
+
+#### Test Summary — UC15
+
+| Module | [N] | [R] | [S] | Total | Result    |
+|--------|-----|-----|-----|-------|-----------|
+| LOD    | 33  | 5   | 0   | 38    | ALL PASS  |
+
+#### REQ → TC coverage (UC15)
+
+| REQ          | TC(s)                                  | Status    |
+|--------------|----------------------------------------|-----------|
+| REQ-LOD-015  | TC-LOD-020                             | ✓ UC15    |
+| REQ-LOD-016  | (symtab skip — structural; covered by fixup.prg/multi_fixup.prg paths) | ✓ UC15 |
+| REQ-LOD-017  | TC-LOD-021, TC-LOD-026, TC-LOD-028    | ✓ UC15    |
+| REQ-LOD-018  | TC-LOD-024..025                        | ✓ UC15    |
+| REQ-LOD-019  | TC-LOD-019, TC-LOD-024, TC-LOD-028, TC-LOD-031 | ✓ UC15 |
+| REQ-LOD-020  | TC-LOD-023, TC-LOD-025, TC-LOD-029..030 | ✓ UC15  |
+| REQ-LOD-021  | TC-LOD-032                             | ✓ UC15    |
+| REQ-LOD-022  | (EOF-without-terminator: structural; no fixture available headless) | ✓ UC15 (code review) |
+
+#### UFR traceability update (UC15)
+
+| UFR          | REQ(s)                                      | TC(s)                                         | Status   |
+|--------------|---------------------------------------------|-----------------------------------------------|----------|
+| UFR-LOD-004  | REQ-LOD-007..008, REQ-LOD-015..017, REQ-LOD-019 | TC-LOD-019..023, TC-LOD-026..028, TC-LOD-031 | ✓ UC15 |
+| UFR-LOD-006  | REQ-LOD-018..019                            | TC-LOD-024..025                               | ✓ UC15   |
+| UFR-LOD-007  | REQ-LOD-020..022                            | TC-LOD-021, TC-LOD-023, TC-LOD-028..032       | ✓ UC15   |
+| UFR-LOD-008  | REQ-LOD-017                                 | TC-LOD-026..027                               | ✓ UC15   |

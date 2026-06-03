@@ -24,7 +24,7 @@
  *   [S] Skipped    :  0 tests
  *
  * Traceability:
- *   INT-LOD-009..015 → TC-LOD-018..055 → REQ-LOD-015..022 → UFR-LOD-004,006..008
+ *   INT-LOD-009..015 → TC-LOD-018..054 → REQ-LOD-015..022 → UFR-LOD-004,006..008
  *
  * Note: The UC7 regression for hello.prg (Block 1) exercises the same
  * load_do_prg() code path — the stub TODO(UC15) is now the real implementation.
@@ -58,7 +58,7 @@ int main(void)
      * BLOCK 1 — UC7 regression: hello.prg (no fixups, first_offset=0)
      * ================================================================ */
 
-    /* INTENT[INT-LOD-007 → TC-LOD-018 → REQ-LOD-015 → UFR-LOD-004]:
+    /* INTENT[INT-LOD-009 → TC-LOD-018..024 → REQ-LOD-015 → UFR-LOD-004]:
      * hello.prg has no fixups (fixup header first_offset == 0).  The new
      * load_do_prg() must still load the sections correctly and leave the
      * RAM content unchanged (uiFixupCount == 0). */
@@ -88,7 +88,7 @@ int main(void)
      * JMP abs.L $0  →  after relocation: longword@.text[2] = ST_LOAD_BASE
      * ================================================================ */
 
-    /* INTENT[INT-LOD-008 → TC-LOD-019..025 → REQ-LOD-016..017 → UFR-LOD-004]:
+    /* INTENT[INT-LOD-010 → TC-LOD-025..032 → REQ-LOD-016..017 → UFR-LOD-004]:
      * fixup.prg has 1 fixup at .text offset 2.  After loading at
      * ST_LOAD_BASE (0x0800), the longword stored at RAM[ST_LOAD_BASE+2]
      * must equal 0x00000800 (0x00000000 + 0x0800). */
@@ -124,7 +124,7 @@ int main(void)
      * .text=RTS(2), .bss=16, no fixups; BSS area must be all 0
      * ================================================================ */
 
-    /* INTENT[INT-LOD-009 → TC-LOD-026..030 → REQ-LOD-018 → UFR-LOD-004]:
+    /* INTENT[INT-LOD-011 → TC-LOD-033..037 → REQ-LOD-018 → UFR-LOD-006]:
      * bss.prg has 16-byte BSS.  load_do_prg() must zero the BSS area
      * (ST_LOAD_BASE + text_sz + data_sz .. + bss_sz - 1) regardless of
      * what was in RAM before. */
@@ -164,7 +164,7 @@ int main(void)
      * abs_flag=1 → no fixup table in file, no relocation applied
      * ================================================================ */
 
-    /* INTENT[INT-LOD-010 → TC-LOD-031..034 → REQ-LOD-019 → UFR-LOD-004]:
+    /* INTENT[INT-LOD-012 → TC-LOD-038..041 → REQ-LOD-019 → UFR-LOD-007]:
      * When abs_flag == 1, load_do_prg() must skip fixup processing
      * entirely (the fixup table is absent from the file).
      * uiFixupCount must remain 0. */
@@ -188,7 +188,7 @@ int main(void)
      * post-reloc: [2..5]=0x00000800, [8..11]=0x00000806
      * ================================================================ */
 
-    /* INTENT[INT-LOD-011 → TC-LOD-035..041 → REQ-LOD-020 → UFR-LOD-004]:
+    /* INTENT[INT-LOD-013 → TC-LOD-042..047 → REQ-LOD-020 → UFR-LOD-007]:
      * Two fixups in sequence; each longword must be independently
      * incremented by ST_LOAD_BASE.  The advance byte (0x06) correctly
      * positions the second fixup from the first. */
@@ -225,7 +225,7 @@ int main(void)
      * BLOCK 6 — state fields from last load (multi_fixup.prg)
      * ================================================================ */
 
-    /* INTENT[INT-LOD-012 → TC-LOD-042 → REQ-LOD-021 → UFR-LOD-004]:
+    /* INTENT[INT-LOD-014 → TC-LOD-048..049 → REQ-LOD-021 → UFR-LOD-004]:
      * uiLoadAddr is always ST_LOAD_BASE; uiSize = text+data+bss. */
     UC_TEST("[N] multi_fixup: uiLoadAddr=ST_LOAD_BASE",
             ptState->uiLoadAddr == ST_LOAD_BASE);
@@ -236,7 +236,7 @@ int main(void)
      * BLOCK 7 — robustness
      * ================================================================ */
 
-    /* INTENT[INT-LOD-012 → TC-LOD-043 → REQ-LOD-022 → UFR-LOD-004]:
+    /* INTENT[INT-LOD-015 → TC-LOD-050..054 → REQ-LOD-022 → UFR-LOD-008]:
      * A fixup offset that points beyond .text+.data must be rejected
      * with ST_ERROR; the previous load state must be preserved. */
     memset(tMachine.aRam, 0xAA, sizeof(tMachine.aRam));

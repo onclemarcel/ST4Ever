@@ -27,6 +27,7 @@
 - 2026-06-03: UC12 validé — `src/disassemble.c` étendu : ADD/ADDA/ADDI/ADDQ/ADDX, SUB/SUBA/SUBI/SUBQ/SUBX, CMP/CMPA/CMPI/CMPM, MULU/MULS/DIVU/DIVS, AND/ANDI/OR/ORI/EOR/EORI, NOT/NEG/NEGX/TST/EXT.W/EXT.L ; groupes 0x0/0x5/0x8/0x9/0xB/0xC/0xD ; helpers `disasm_dreg_ea`, `disasm_x_a`, `disasm_imm_ea`, `disasm_addq_subq`, `disasm_addx_subx`, `disasm_mul_div`, `disasm_cmpm`, `disasm_unary_ea` ; ST_APP_VERSION 0.12.0
 - 2026-06-03: UC13 validé — `src/disassemble.c` étendu : ASL/ASR/LSL/LSR/ROXL/ROXR/ROL/ROR (formes registre immédiat + registre Dn + mémoire .W), BTST/BCHG/BCLR/BSET (#imm statique + Dn dynamique) ; groupe 0xE `disasm_groupE` ; group 0x0 étendu `disasm_bit_static/dynamic` ; tables `g_aszShiftMnem`, `g_aszShiftMemMnem`, `g_aszBitOp` ; ST_APP_VERSION 0.13.0
 - 2026-06-03: UC14 validé — `src/disassemble.c` étendu : NOP/RTE/RTS/RTR, TRAP #N, LINK An/UNLK An, JSR/JMP (toutes EA contrôle), BRA/BSR/Bcc court (.S, 8-bit) et long (16-bit) ; groupe 0x6 `disasm_group6` ; `disasm_no_operand` helper ; `g_aszBcc[16]` ; bloc 0x4Exx dans `disasm_misc4` ; `use_case_11.c`+`use_case_12.c` : ADAPTED(UC14) RTS ; ST_APP_VERSION 0.14.0
+- 2026-06-03: UC15 validé — `src/load.c` `load_do_prg()` complet : header 28 octets, chargement .text+.data à ST_LOAD_BASE, BSS zeroing, table de fixups Atari ST (bitstream : first_offset 4B, 0x00=fin, 0x01=skip 254B, N=advance+fix) ; abs_flag géré (pas de table fixup) ; `load_state_t` étendu (uiTextSize/uiDataSize/uiBssSize/uiFixupCount) ; helpers `load_apply_fixups` + `load_skip_bytes` ; fixtures `use_cases/UC15/` (fixup/bss/absolute/multi_fixup/bad_fixup.prg) ; TODO(UC15) supprimé ; ST_APP_VERSION 0.15.0
 - 2026-06-03: UC11 validé — `src/disassemble.c` : désassembleur 68000 réel MOVE/MOVEQ/LEA/CLR/EXG/SWAP/PEA + décodeur EA complet (12 modes) ; `bValid = ST_TRUE` sur instructions reconnues ; `TC-DIS-001 ADAPTED(UC11)` ; ST_APP_VERSION 0.11.0
 - 2026-06-02: UC10 validé — `edit_hex.h/c` étendu : panneau désassembleur D2D synchronisé (zone HEX_ZONE_DISASM, cache 512 instructions, `ehex_disasm_cache_update/find_cursor/scroll_to_cursor/render`) ; TAB cycle 3 zones HEX→ASCII→DISASM→HEX ; F2 toggle ; sync bidirectionnel hex↔disasm ; fenêtre plus large (1320px) avec disasm ; `EDIT_HEX_WND_WIDTH_DISASM/STD/HEIGHT` ; ST_APP_VERSION 0.10.0
 
@@ -569,7 +570,7 @@ Les étapes de développement fonctionnelles sont formalisées en Use Cases, per
 | UC12 | interne | Désassembleur : ADD/SUB/CMP/MUL/DIV/AND/OR/EOR/NOT/NEG | ✓ VALIDÉ 2026-06-03 |
 | UC13 | interne | Désassembleur : shifts, rotations, BTST/BSET/BCLR/BCHG | ✓ VALIDÉ 2026-06-03 |
 | UC14 | interne | Désassembleur : BRA/BSR/Bcc/JMP/JSR/RTS/RTR/RTE/TRAP | ✓ VALIDÉ 2026-06-03 |
-| UC15 | interne | Format PRG : parser header + sections + fixups + chargement mémoire ST | load .PRG en mémoire émulée |
+| UC15 | interne | Format PRG : parser header + sections + fixups + chargement mémoire ST | ✓ VALIDÉ 2026-06-03 |
 | UC16 | interne | Image `.st` : lecture/écriture raw + FAT12 | mount/browse image .st |
 | UC17 | interne | Image `.msa` : décompression/compression RLE | round-trip .msa |
 | UC18 | `mount` | Vue arbre disquette Win32/GDI + X11, drag & drop depuis `dir` ; sélection multiple dans `dir` via CTRL+ESPACE/SHIFT+ESPACE (P14, même répertoire uniquement) pour drag & drop multi-fichiers ; historique navigation `dir` ALT+←/→ Précédent/Suivant (P10) | monter répertoire en A:\ |
@@ -1319,12 +1320,12 @@ Les étapes de développement fonctionnelles sont formalisées en Use Cases, per
 - Dir → `line_print_warning("use mount")`, `ST_NO_ERROR`
 - Image disque → `line_print_warning("use mount")`, `ST_NO_ERROR`
 - Erreur de stat → `line_print_error`, `ST_NO_ERROR` (erreur non fatale pour la boucle console)
-- Succès binary → message avec adresse ST et taille ; succès PRG → message avec mention "(fixup deferred to UC15)"
+- Succès binary → message avec adresse ST et taille ; succès PRG → message avec mention "(fixup deferred to UC15)" *(ADAPTED:UC15 — message mis à jour pour afficher uiFixupCount)*
 - `line_update_console_title()` appelé après chaque succès
 
 **Points d'attention pour les UCs suivants :**
 - UC8-10 : `edit` utilisera `load_get_state()` pour savoir si un fichier est déjà chargé et proposer de l'éditer directement en mémoire émulée.
-- UC15 : `load_do_prg()` TODO(UC15) — parser la table de fixups (bitstream : 0x00=fin, 0x01=sauter 254 octets, sinon offset depuis dernier fixup appliqué aux longwords en .text/.data).
+- ~~UC15 : `load_do_prg()` TODO(UC15)~~ **✓ IMPLÉMENTÉ UC15** — fixup relocation complet.
 - UC24 : `ST_LOAD_BASE = 0x0800` est en dur ; UC24 devra allouer la première zone libre au-dessus des variables TOS selon la memory map réelle.
 - UC25 : `execute` démarrera depuis `load_get_state()->uiLoadAddr` comme PC initial (si eType == LOAD_TYPE_PRG).
 - `line_cmd_info()` stub "Disk mounted" reste à remplir lors de UC18 (`mount`).
@@ -1824,9 +1825,71 @@ Les étapes de développement fonctionnelles sont formalisées en Use Cases, per
 - UC13: `0x6000` avec `uiBufLen=2` → reste DC.W (`uiBufLen < 4` → DC.W dans `disasm_group6`)
 
 **Points d'attention pour les UCs suivants :**
-- UC15 : format PRG fixups — désassembleur complet maintenant, prêt pour la vraie mémoire ST relocalisée. `load_do_prg()` TODO(UC15) à implémenter.
+- ~~UC15 : format PRG fixups~~ **✓ IMPLÉMENTÉ UC15** — `load_do_prg()` complet, adresses dans le disasm panel maintenant correctes (offset fichier = offset RAM puisque load à ST_LOAD_BASE=0x0800 et les fixups sont déjà appliqués).
 - UC31 : le désassembleur couvre le sous-ensemble démo (MOVE/MOVEQ/LEA/CLR/EXG/SWAP/ADD/SUB/CMP/AND/OR/EOR/NOT/NEG/shifts/rotations/bits/BRA/BSR/Bcc/JMP/JSR/RTS/TRAP). Il manque encore MOVEM, CHK, DBcc/Scc, MOVEP pour couverture complète 68000 — ces instructions apparaissent rarement dans les démos courtes ; ajout possible dans un UC15-bis si nécessaire.
 - UC21 : le CPU 68000 réel décodera les instructions via un mécanisme similaire au désassembleur mais avec exécution effective des effets (registres, flags SR).
+
+### 6.20 Use Case 15 (UC15) — ✓ VALIDÉ (2026-06-03)
+
+**Périmètre fonctionnel implémenté :**
+- `src/load.c` — `load_do_prg()` réécrit complètement (UC7 = stub sans fixups) :
+  - **Header** : lecture 28 octets + validation magic `0x601A` ; extraction `uiTextSize`, `uiDataSize`, `uiBssSize`, `uiSymSize`, `uiAbsFlag` en big-endian via `load_u16be()`/`load_u32be()`.
+  - **Chargement sections** : `uiTextSize + uiDataSize` octets copiés d'un bloc dans `aRam[ST_LOAD_BASE..]` via `file_read()`.
+  - **BSS zeroing** : `memset(aRam[ST_LOAD_BASE + contentSize], 0, bssSize)` après le chargement ; la zone BSS n'existe pas dans le fichier mais doit être zeroed en RAM.
+  - **Skip symtab** : `load_skip_bytes(ptFile, uiSymSize)` — lecture en blocs 512 octets et discard ; obligatoire pour positionner le curseur fichier sur la table de fixups.
+  - **Fixup relocation** : `load_apply_fixups()` — format bitstream Atari ST :
+    - Lit 4 octets big-endian = offset du premier fixup depuis le début de `.text` ; si `== 0` → pas de fixups (retour immédiat).
+    - Boucle : valide `uiOffset + 4 <= uiContentSize`, lit le longword RAM à `aRam[ST_LOAD_BASE + uiOffset]`, y ajoute `ST_LOAD_BASE`, réécrit big-endian ; lit l'octet suivant : `0x00` = fin, `0x01` = avance 254, autre = avance de N.
+    - EOF sans `0x00` explicite : traité comme fin (robuste vis-à-vis d'assembleurs anciens).
+    - Fixup hors-plage : `ST_ERROR` + `LOG_ERROR`.
+  - **abs_flag** : si `uiAbsFlag != 0` → saute `load_apply_fixups()` entièrement (le fichier ne contient pas de table de fixups).
+  - **`load_state_t` étendu** : ajout de `uiTextSize`, `uiDataSize`, `uiBssSize`, `uiFixupCount` (0 pour LOAD_TYPE_BINARY).
+- `src/load.h` : documentation du format fixup bitstream dans le header de fichier ; nouveaux champs `load_state_t` documentés.
+- Helpers internes nouveaux : `load_skip_bytes()`, `load_apply_fixups()`.
+- `use_cases/UC15/` : 5 fixtures binaires hand-crafted :
+  - `fixup.prg` — 1 fixup : `JMP abs.L $0` → longword[2] relocalisé à `0x0800` après chargement.
+  - `bss.prg` — .text=RTS(2B), .bss=16B, no fixups ; vérifie le zeroing BSS.
+  - `absolute.prg` — abs_flag=1, pas de table fixup dans le fichier.
+  - `multi_fixup.prg` — 2 fixups à offsets 2 et 8 dans .text.
+  - `bad_fixup.prg` — fixup offset=100 hors de la plage .text+.data → ST_ERROR.
+
+**Architecture de `load_apply_fixups()` :**
+- La validation `uiOffset + 4 <= uiContentSize` garantit qu'on ne lit jamais hors de la zone `.text+.data` chargée en RAM.
+- Le longword est lu depuis `aRam` (pas du fichier) : il a déjà été chargé lors de la phase 2. Cela garantit la cohérence même si le fichier est mal formé ou tronqué.
+- L'état du module (`g_load_tState`) n'est mis à jour que **après** que `load_apply_fixups()` retourne `ST_NO_ERROR` — un échec préserve l'état précédent.
+- EOF sans terminateur `0x00` est toléré : certains assembleurs ATARI ST omettent le byte final.
+
+**Tests R14/R15 appliqués :**
+- `use_cases/use_case_15.c` : TEST MATRIX **33N + 5R + 0S = 38 tests**, 0 failure
+  - [N] : hello.prg UC7 regression (7) ; fixup.prg : types+sizes+fixupCount+RAM opcodes+longword relocalisé (8) ; bss.prg : sizes+uiSize+RTS+BSS area zeroed (5) ; absolute.prg : eType+fixupCount=0+RTS (4) ; multi_fixup.prg : fixupCount=2+deux longwords relocalisés+opcodes entre-deux inchangés (6) ; state fields uiLoadAddr+uiSize (2) ; load_shutdown (1)
+  - [R] : bad_fixup → ST_ERROR + state preserved (2) ; load_file(NULL) (1) ; load_file non-existant (1) ; load_file after shutdown (1)
+  - [S] : 0 (UC15 est entièrement headless)
+- **INTENT IDs corrigés** : les IDs originaux (007/008 dans le corps, déjà pris par UC7) remplacés par 009..015 pour lever le conflit de numérotation.
+
+**Contrats comportementaux validés :**
+
+*`load_do_prg()` — pipeline complet*
+- `uiFixupCount == 0` si `first_offset == 0` (aucun fixup) ; la lecture des 4 octets est quand même obligatoire.
+- `abs_flag != 0` → `uiFixupCount == 0` et aucun appel à `load_apply_fixups()`.
+- `uiSize = uiTextSize + uiDataSize + uiBssSize` — c'est le footprint total en RAM ST (ADAPTED:UC15 par rapport au stub UC7 où `uiSize = uiTextSize + uiDataSize` uniquement).
+- La zone BSS est zeroed inconditionnellement si `uiBssSize > 0`, quelle que soit la valeur initiale de la RAM.
+- Un échec en cours de `load_apply_fixups()` : `file_close()` puis `return ST_ERROR` **sans** mise à jour de `g_load_tState` → l'état précédent est préservé.
+
+*`load_apply_fixups()` — invariants*
+- Fixup hors-plage (`uiOffset + 4 > uiContentSize`) → `ST_ERROR` immédiat + `LOG_ERROR`.
+- Chaque fixup : `longword_at_offset += ST_LOAD_BASE` (big-endian lu et réécrit dans `aRam`).
+- Octet `0x01` = avance de 254 (pas 255) : convention Atari ST pour dépasser les offsets > 127 sans ambiguïté avec le terminateur.
+- EOF sans `0x00` : comportement tolérant (break de boucle), `uiFixupCount` reflète les fixups effectivement appliqués.
+
+*`load_state_t` — champs étendus UC15*
+- `uiTextSize`, `uiDataSize`, `uiBssSize` : valeurs directement issues du header PRG, 0 pour LOAD_TYPE_BINARY.
+- `uiFixupCount` : nombre de relocalisations appliquées, 0 si abs_flag=1 ou no-fixup ou LOAD_TYPE_BINARY.
+
+**Points d'attention pour les UCs suivants :**
+- UC16 : image `.st` = `file_open(READ)` + `file_read` de 737 280 octets exact — le même pipeline `file.h` que UC15.
+- UC24 : `ST_LOAD_BASE = 0x0800` est en dur ; UC24 allouera la première zone libre au-dessus des variables TOS selon la memory map réelle.
+- UC25 : `execute` démarrera depuis `load_get_state()->uiLoadAddr` comme PC initial quand `eType == LOAD_TYPE_PRG`. Les adresses de fixup sont déjà correctes en RAM ST.
+- UC10/disasm panel : avec les fixups appliqués, les adresses affichées dans la vue hex+disasm correspondent aux vraies adresses ST (pas aux offsets fichier) — comportement attendu vérifié.
 
 ## 7. Propositions d'améliorations
 
