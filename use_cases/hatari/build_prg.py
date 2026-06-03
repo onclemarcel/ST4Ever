@@ -16,6 +16,8 @@ for fname in os.listdir(SRC_DIR):
     # Générer un script Hatari spécifique
     with open(os.path.join(BUILD_DIR, "build.cmd"), "w") as f:
         f.write(f"wait 500\n")
+        f.write(f"break 0xFC0000\n")
+        f.write(f"wait\n")
         f.write('run "GEN.TTP" "SOURCE.S"\n')
         f.write("wait\nquit\n")
 
@@ -29,7 +31,10 @@ for fname in os.listdir(SRC_DIR):
         "--tos", "C:\\msys\\mingw64\\share\\hatari\\tos104fr.rom",
         "--harddrive", BUILD_DIR,
         "--sound", "off",
-        "--fast-forward", "yes"
+        "--fast-forward", "yes",
+        "--log-level", "debug",
+        "--trace", "gemdos",
+        "--log-file", "hatari.log"
     ])
     
     # Remove .S from current dir
