@@ -14,6 +14,38 @@ Usage :
     python generate_m68k_tests.py --input m68k-all-instructions.asm --split
     python generate_m68k_tests.py --input m68k-all-instructions.asm --all --seed 1234
 """
+# Directives assembleur AS / DEVPAC à ignorer (pas des mnémoniques 68000).
+# Toute ligne dont le premier mot correspond est sautée.
+ASSEMBLER_DIRECTIVES = {
+    'cpu', 'padding', 'page', 'supmode', 'off', 'on',
+    'end', 'text', 'data', 'bss', 'section', 'even', 'odd',
+    'dc', 'ds', 'dcb', 'include', 'incbin', 'org', 'rorg',
+}
+
+# Instructions 68000 pas encore décodées par le désassembleur ST4Ever.
+# Les inclure générerait des tests qui échoueraient (DC.W attendu ≠ mnemonic).
+# Retirer une entrée ici quand le désassembleur gagne le support.
+UNIMPLEMENTED_MNEMONICS = {
+    'movep', 'movem',                      # déplacement multiple / périphérique
+    'nbcd', 'abcd', 'sbcd',               # BCD
+    'chk',                                 # vérification de borne
+    'trapv',                               # TRAP on overflow (0x4E76, pas dans UC14)
+    # Alias de branches — produits identiques mais mnemonic diff du désassembleur
+    'bhs', 'blo',                          # BHS=BCC, BLO=BCS (g_aszBcc utilise BCC/BCS)
+    # DBcc — toutes variantes + alias courants
+    'dbf',  'dbra',                        # DBF/DBRA = alias (boucle while N≥0)
+    'dbt',                                 # DBT = toujours vrai (jamais boucle)
+    'dbcc', 'dbcs', 'dbeq', 'dbge',
+    'dbgt', 'dbhi', 'dbhs', 'dble', 'dblo', 'dbls', 'dblt',
+    'dbmi', 'dbne', 'dbpl', 'dbvc', 'dbvs',
+    # Scc — toutes variantes + alias GEN.TTP
+    'sf', 'st',
+    'scc', 'scs', 'seq', 'sge', 'sgt',
+    'shi', 'shs', 'sle', 'slo', 'sls', 'slt', 'smi',
+    'sne', 'spl', 'svc', 'svs',
+    'tas', 'illegal', 'reset', 'stop',     # divers privilégiés / spéciaux
+    'bkpt',                                # breakpoint 68010+
+}
 
 import argparse
 import os
@@ -90,12 +122,13 @@ def expand_placeholders(line, size_suffix, rng):
     addr_list = ADDR_VALUES if "xxx" in line else [None]
 
     # Valeurs pseudo-aléatoires supplémentaires (mais après les limites)
+    # Préfixe $ obligatoire pour DEVPAC3 (ex: #$3F, pas #3F)
     if key == "b":
-        imm_list = imm_list + [f"#{hex(rng.randint(0,255))[2:].upper()}"]
+        imm_list = imm_list + [f"#${rng.randint(0, 255):02X}"]
     elif key == "w":
-        imm_list = imm_list + [f"#{hex(rng.randint(0,65535))[2:].upper()}"]
+        imm_list = imm_list + [f"#${rng.randint(0, 65535):04X}"]
     elif key == "l":
-        imm_list = imm_list + [f"#{hex(rng.randint(0,2**32-1))[2:].upper()}"]
+        imm_list = imm_list + [f"#${rng.randint(0, 2**32 - 1):08X}"]
 
     # Génération combinée
     for imm in imm_list:
@@ -140,9 +173,20 @@ expand_placeholders.disp_cycle = ring(DISPLACEMENTS)
 # 5. Parsing d'une ligne du gist
 # ------------------------------------------------------------
 def parse_gist_line(line):
-    """Extrait (mnemonic, size, operands) d'une ligne du gist."""
+    """Extrait (mnemonic, size, operands) d'une ligne du gist.
+
+    Retourne None pour :
+    - lignes vides ou commentaires purs
+    - directives assembleur (cpu, padding, end, dc, …)
+    - équates  (contiennent '=')
+    - mnémoniques non encore supportés par le désassembleur ST4Ever
+    """
     code = line.split(";", 1)[0].strip()
     if not code:
+        return None
+
+    # Équates : « xxx = $200 », « i8 = 126 », etc.
+    if "=" in code:
         return None
 
     parts = code.split(None, 1)
@@ -158,6 +202,14 @@ def parse_gist_line(line):
 
     mnemonic = m.group(1).upper()
     size = (m.group(2) or "").lower()
+
+    # Directives assembleur (CPU, PADDING, PAGE, SUPMODE, END, …)
+    if mnemonic.lower() in ASSEMBLER_DIRECTIVES:
+        return None
+
+    # Instructions non encore décodées par le désassembleur ST4Ever
+    if mnemonic.lower() in UNIMPLEMENTED_MNEMONICS:
+        return None
 
     # Remplacement des registres du gist par placeholders
     operands = operands.replace("d0", "DREG")

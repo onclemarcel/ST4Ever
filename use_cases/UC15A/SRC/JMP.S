@@ -1,0 +1,28 @@
+        TEXT
+
+; ===== JMP =====
+JMP (A2)
+JMP 2(A3)
+JMP *+-2(PC)
+JMP 64(A4,D5.W)
+JMP -64(A5,A5.W)
+JMP 127(A6,D6.L)
+JMP -128(A0,A0.L)
+JMP *+0(PC,D7.W)
+JMP *+2(PC,A1.W)
+JMP *+-2(PC,D0.L)
+JMP *+64(PC,A2.L)
+JMP ($0000).W
+JMP ($1234).W
+JMP ($7FFF).W
+JMP ($8000).W
+JMP ($C00000).W
+JMP ($00C00000).W
+JMP ($0000).L
+JMP ($1234).L
+JMP ($7FFF).L
+JMP ($8000).L
+JMP ($C00000).L
+JMP ($00C00000).L
+
+        END
