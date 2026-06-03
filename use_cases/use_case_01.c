@@ -450,15 +450,18 @@ static void test_disasm(void)
     printf("\n--- Test group 5: Disassembler stub ---\n");
 
     /* INTENT[INT-DIS-001 → TC-DIS-001 → REQ-DIS-004/005]:
-     * disasm_range must decode 4 bytes into 2 DC.W stub lines */
+     * disasm_range must decode 4 bytes into 2 instruction lines.
+     * ADAPTED: UC14 - MOVEQ (#42,D0) and RTS now fully decoded;
+     *   uiLines==2 is still correct (2 real instructions, not DC.W). */
     eR = disasm_range(aBytes, sizeof(aBytes), 0x1000,
                       aResults, 4, &uiLines);
     UC_TEST("[N] disasm_range() returns ST_NO_ERROR", eR == ST_NO_ERROR);
-    UC_TEST("[N] disasm_range() produces 2 DC.W stub lines", uiLines == 2);
+    /* ADAPTED: UC14 — description updated; assertion uiLines==2 unchanged */
+    UC_TEST("[N] disasm_range() produces 2 decoded lines", uiLines == 2);
 
     if (uiLines > 0) { printf("  [INFO] disasm[0]: %s\n", aResults[0].szLine); }
     if (uiLines > 1) { printf("  [INFO] disasm[1]: %s\n", aResults[1].szLine); }
-    printf("  [NOTE] DC.W fallback expected - full decode in UC11-UC14\n");
+    printf("  [NOTE] UC11+UC14: MOVEQ and RTS fully decoded\n");
 
     /* INTENT[INT-DIS-002 → TC-DIS-002 → REQ-DIS-004]:
      * zero-length buffer must produce 0 lines without error */

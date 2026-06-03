@@ -406,13 +406,14 @@ int main(void)
         UC_TEST("[R] 0x6000 (BRA UC14) → DC.W", tR.bValid == ST_FALSE);
     }
 
-    /* 0x4E75 (RTS — UC14) still DC.W */
+    /* ADAPTED: UC14 — RTS now decoded; was DC.W placeholder */
     {
         static const st_u8_t aBuf[2] = { 0x4E, 0x75 };
         memset(&tR, 0, sizeof(tR));
         disasm_one(aBuf, 2, 0x1000, &tR);
-        UC_TEST("[R] 0x4E75 (RTS UC14) → DC.W ADAPTED(UC14)",
-                tR.bValid == ST_FALSE);
+        UC_TEST("[N] 0x4E75 = RTS decoded ADAPTED(UC14)",
+                tR.bValid == ST_TRUE
+                && strcmp(tR.szMnemonic, "RTS") == 0);
     }
 
     /* ABCD (opcode 0xC100) → DC.W (not in scope) */

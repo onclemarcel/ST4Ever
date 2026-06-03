@@ -5,7 +5,8 @@
  * UC12: ADD/ADDA/ADDI/ADDQ/ADDX/SUB/SUBA/SUBI/SUBQ/SUBX/
  *        CMP/CMPA/CMPI/CMPM/MULU/MULS/DIVU/DIVS/
  *        AND/ANDI/OR/ORI/EOR/EORI/NOT/NEG/NEGX/TST/EXT
- * UC13: ASL/ASR/LSL/LSR/ROL/ROR/BTST/BSET/BCLR/BCHG   (TODO)
+ * UC13: ASL/ASR/LSL/LSR/ROL/ROR/ROXL/ROXR (register + memory)
+ *        BTST/BCHG/BCLR/BSET (static #imm + dynamic Dn)
  * UC14: BRA/BSR/Bcc/JMP/JSR/RTS/RTR/RTE/TRAP/ILLEGAL   (TODO)
  */
 
@@ -19,6 +20,34 @@
  * ------------------------------------------------------------------ */
 
 static const char * const g_aszSzSfx[3] = { ".B", ".W", ".L" };
+
+/* UC13: shift/rotate mnemonics [type][direction] */
+static const char * const g_aszShiftMnem[4][2] =
+{
+    { "ASR",  "ASL"  },
+    { "LSR",  "LSL"  },
+    { "ROXR", "ROXL" },
+    { "ROR",  "ROL"  }
+};
+
+/* UC13: memory shift mnemonics, indexed by bits 10-8 of opcode */
+static const char * const g_aszShiftMemMnem[8] =
+{
+    "ASR", "ASL", "LSR", "LSL", "ROXR", "ROXL", "ROR", "ROL"
+};
+
+/* UC13: bit-operation mnemonics, indexed by bits 7-6 of opcode */
+static const char * const g_aszBitOp[4] =
+{
+    "BTST", "BCHG", "BCLR", "BSET"
+};
+
+/* UC14: branch condition mnemonics, indexed by bits 11-8 of group 6 opcode */
+static const char * const g_aszBcc[16] =
+{
+    "BRA", "BSR", "BHI", "BLS", "BCC", "BCS", "BNE", "BEQ",
+    "BVC", "BVS", "BPL", "BMI", "BGE", "BLT", "BGT", "BLE"
+};
 
 static const char * const g_aszDn[8] =
     { "D0","D1","D2","D3","D4","D5","D6","D7" };
@@ -333,15 +362,36 @@ static void disasm_unary_ea(const st_u8_t *pBuf, size_t uiBufLen,
 }
 
 /* ------------------------------------------------------------------
+ * UC14: helper — single-word instruction with no operands
+ * (NOP, RTS, RTE, RTR)
+ * ------------------------------------------------------------------ */
+
+static void disasm_no_operand(const st_u8_t *pBuf, st_u32_t uiAddr,
+                               const char *szMnem, disasm_result_t *ptR)
+{
+    ptR->uiAddr        = uiAddr;
+    ptR->auWords[0]    = disasm_rw(pBuf);
+    ptR->iWordCount    = 1;
+    ptR->bValid        = ST_TRUE;
+    snprintf(ptR->szMnemonic, sizeof(ptR->szMnemonic), "%s", szMnem);
+    ptR->szOperands[0] = '\0';
+    disasm_fmt_line(ptR);
+}
+
+/* ------------------------------------------------------------------
  * UC11 / UC12: group 0x4 miscellaneous
  * ------------------------------------------------------------------ */
 
 static void disasm_misc4(const st_u8_t *pBuf, size_t uiBufLen,
                           st_u32_t uiAddr, disasm_result_t *ptR)
 {
-    st_u16_t uiOpc = disasm_rw(pBuf);
-    int      iMode, iReg, iAn, iSz, n;
-    char     szEA[40];
+    st_u16_t     uiOpc = disasm_rw(pBuf);
+    int          iMode, iReg, iAn, iSz, n;
+    int          iVec;
+    st_u16_t     uiExt;
+    st_i32_t     iDisp;
+    const char  *szJmpMnem;
+    char         szEA[40];
 
     /* --- UC12: NEGX  0100 0000 ss EA -------------------------------- */
     if ((uiOpc & 0xFF00) == 0x4000)
@@ -483,6 +533,95 @@ static void disasm_misc4(const st_u8_t *pBuf, size_t uiBufLen,
         snprintf(ptR->szOperands, sizeof(ptR->szOperands), "%s", szEA);
         disasm_fill_words(ptR, pBuf, uiBufLen);
         disasm_fmt_line(ptR);
+        return;
+    }
+
+    /* --- UC14: 0x4Exx — NOP/RTE/RTS/RTR/TRAP/LINK/UNLK/JSR/JMP --- */
+    if ((uiOpc & 0xFF00) == 0x4E00)
+    {
+        if      (uiOpc == 0x4E71)
+            { disasm_no_operand(pBuf, uiAddr, "NOP", ptR); }
+        else if (uiOpc == 0x4E73)
+            { disasm_no_operand(pBuf, uiAddr, "RTE", ptR); }
+        else if (uiOpc == 0x4E75)
+            { disasm_no_operand(pBuf, uiAddr, "RTS", ptR); }
+        else if (uiOpc == 0x4E77)
+            { disasm_no_operand(pBuf, uiAddr, "RTR", ptR); }
+        else if ((uiOpc & 0xFFF0) == 0x4E40)
+        {
+            /* TRAP #N (N = 0-15) */
+            iVec = uiOpc & 0xF;
+            ptR->uiAddr     = uiAddr;
+            ptR->auWords[0] = uiOpc;
+            ptR->iWordCount = 1;
+            ptR->bValid     = ST_TRUE;
+            snprintf(ptR->szMnemonic, sizeof(ptR->szMnemonic), "TRAP");
+            snprintf(ptR->szOperands, sizeof(ptR->szOperands), "#%d", iVec);
+            disasm_fmt_line(ptR);
+        }
+        else if ((uiOpc & 0xFFF8) == 0x4E50)
+        {
+            /* LINK An,#disp16 */
+            if (uiBufLen < 4)
+                { disasm_dc_word(pBuf, uiBufLen, uiAddr, ptR); return; }
+            iAn   = uiOpc & 7;
+            uiExt = disasm_rw(pBuf + 2);
+            iDisp = (st_i32_t)(st_i16_t)uiExt;
+            ptR->uiAddr     = uiAddr;
+            ptR->auWords[0] = uiOpc;
+            ptR->iWordCount = 2;
+            ptR->bValid     = ST_TRUE;
+            snprintf(ptR->szMnemonic, sizeof(ptR->szMnemonic), "LINK");
+            if (iDisp < 0)
+                snprintf(ptR->szOperands, sizeof(ptR->szOperands),
+                         "%s,#-$%X", g_aszAn[iAn], (unsigned)(-iDisp));
+            else
+                snprintf(ptR->szOperands, sizeof(ptR->szOperands),
+                         "%s,#$%X", g_aszAn[iAn], (unsigned)iDisp);
+            disasm_fill_words(ptR, pBuf, uiBufLen);
+            disasm_fmt_line(ptR);
+        }
+        else if ((uiOpc & 0xFFF8) == 0x4E58)
+        {
+            /* UNLK An */
+            iAn = uiOpc & 7;
+            ptR->uiAddr     = uiAddr;
+            ptR->auWords[0] = uiOpc;
+            ptR->iWordCount = 1;
+            ptR->bValid     = ST_TRUE;
+            snprintf(ptR->szMnemonic, sizeof(ptR->szMnemonic), "UNLK");
+            snprintf(ptR->szOperands, sizeof(ptR->szOperands),
+                     "%s", g_aszAn[iAn]);
+            disasm_fmt_line(ptR);
+        }
+        else if ((uiOpc & 0xFFC0) == 0x4E80
+             ||  (uiOpc & 0xFFC0) == 0x4EC0)
+        {
+            /* JSR / JMP <ea> */
+            szJmpMnem = ((uiOpc & 0xFFC0) == 0x4E80) ? "JSR" : "JMP";
+            iMode = (uiOpc >> 3) & 7;
+            iReg  = uiOpc & 7;
+            /* Reject non-control EAs: Dn, An, (An)+, -(An), #imm */
+            if (iMode == 0 || iMode == 1 || iMode == 3 || iMode == 4
+            || (iMode == 7 && iReg == 4))
+            { disasm_dc_word(pBuf, uiBufLen, uiAddr, ptR); return; }
+            n = disasm_fmt_ea(pBuf + 2, uiBufLen - 2, uiAddr, 0,
+                               iMode, iReg, 2, szEA, sizeof(szEA));
+            if (n < 0) { disasm_dc_word(pBuf, uiBufLen, uiAddr, ptR); return; }
+            ptR->uiAddr     = uiAddr;
+            ptR->auWords[0] = uiOpc;
+            ptR->iWordCount = 1 + n;
+            ptR->bValid     = ST_TRUE;
+            snprintf(ptR->szMnemonic, sizeof(ptR->szMnemonic),
+                     "%s", szJmpMnem);
+            snprintf(ptR->szOperands, sizeof(ptR->szOperands), "%s", szEA);
+            disasm_fill_words(ptR, pBuf, uiBufLen);
+            disasm_fmt_line(ptR);
+        }
+        else
+        {
+            disasm_dc_word(pBuf, uiBufLen, uiAddr, ptR);
+        }
         return;
     }
 
@@ -761,7 +900,235 @@ static void disasm_cmpm(const st_u8_t *pBuf,
 }
 
 /* ------------------------------------------------------------------
+ * UC14: Group 0x6 — BRA/BSR/Bcc
+ *
+ * Encoding: 0110 cccc dddddddd
+ *   cccc = condition (0=BRA, 1=BSR, 2-15=Bcc)
+ *   dddd = 8-bit displacement (0 → 16-bit extension; 0xFF → DC.W/68020)
+ *
+ * Target = uiAddr + 2 + displacement
+ * Short form (8-bit ≠ 0): mnemonic with ".S" suffix
+ * Long form  (8-bit = 0): mnemonic without suffix, 16-bit ext word
+ * ------------------------------------------------------------------ */
+
+static void disasm_group6(const st_u8_t *pBuf, size_t uiBufLen,
+                           st_u32_t uiAddr, disasm_result_t *ptR)
+{
+    st_u16_t uiOpc   = disasm_rw(pBuf);
+    int      iCond   = (uiOpc >> 8) & 0xF;
+    int      iDisp8  = (int)(st_i8_t)(uiOpc & 0xFF);
+    st_u16_t uiExt;
+    st_i32_t iDisp16;
+    st_u32_t uiTarget;
+
+    ptR->uiAddr     = uiAddr;
+    ptR->auWords[0] = uiOpc;
+    ptR->bValid     = ST_TRUE;
+
+    if ((uiOpc & 0xFF) == 0xFF)
+    {
+        /* 32-bit displacement (68020+ only) — not valid on 68000 */
+        disasm_dc_word(pBuf, uiBufLen, uiAddr, ptR);
+        return;
+    }
+
+    if ((uiOpc & 0xFF) == 0x00)
+    {
+        /* 16-bit displacement in extension word */
+        if (uiBufLen < 4) { disasm_dc_word(pBuf, uiBufLen, uiAddr, ptR); return; }
+        uiExt    = disasm_rw(pBuf + 2);
+        iDisp16  = (st_i32_t)(st_i16_t)uiExt;
+        uiTarget = (st_u32_t)((st_i32_t)(uiAddr + 2) + iDisp16) & 0x00FFFFFFu;
+        ptR->iWordCount = 2;
+        snprintf(ptR->szMnemonic, sizeof(ptR->szMnemonic),
+                 "%s", g_aszBcc[iCond]);
+        snprintf(ptR->szOperands, sizeof(ptR->szOperands),
+                 "$%06X", (unsigned)uiTarget);
+    }
+    else
+    {
+        /* 8-bit short displacement */
+        uiTarget = (st_u32_t)((st_i32_t)(uiAddr + 2) + iDisp8) & 0x00FFFFFFu;
+        ptR->iWordCount = 1;
+        snprintf(ptR->szMnemonic, sizeof(ptR->szMnemonic),
+                 "%s.S", g_aszBcc[iCond]);
+        snprintf(ptR->szOperands, sizeof(ptR->szOperands),
+                 "$%06X", (unsigned)uiTarget);
+    }
+
+    disasm_fill_words(ptR, pBuf, uiBufLen);
+    disasm_fmt_line(ptR);
+}
+
+/* ------------------------------------------------------------------
+ * UC13: BTST/BCHG/BCLR/BSET — static (#imm) form
+ *
+ * Encoding: 0000 1000 tt MMMRRR  + extension word #bit
+ * tt = bits 7-6: 00=BTST, 01=BCHG, 10=BCLR, 11=BSET
+ * ------------------------------------------------------------------ */
+
+static void disasm_bit_static(const st_u8_t *pBuf, size_t uiBufLen,
+                               st_u32_t uiAddr, disasm_result_t *ptR)
+{
+    st_u16_t uiOpc = disasm_rw(pBuf);
+    int      iOp   = (uiOpc >> 6) & 3;
+    int      iMode = (uiOpc >> 3) & 7;
+    int      iReg  = uiOpc & 7;
+    st_u16_t uiBitW;
+    int      iBit, n;
+    char     szEA[40];
+
+    if (uiBufLen < 4) { disasm_dc_word(pBuf, uiBufLen, uiAddr, ptR); return; }
+    /* An mode not valid for bit ops */
+    if (iMode == 1) { disasm_dc_word(pBuf, uiBufLen, uiAddr, ptR); return; }
+
+    uiBitW = disasm_rw(pBuf + 2);
+    iBit   = (int)(uiBitW & 0xFF);
+
+    n = disasm_fmt_ea(pBuf + 4, uiBufLen - 4, uiAddr, 1,
+                       iMode, iReg, 1, szEA, sizeof(szEA));
+    if (n < 0) { disasm_dc_word(pBuf, uiBufLen, uiAddr, ptR); return; }
+
+    ptR->uiAddr     = uiAddr;
+    ptR->auWords[0] = uiOpc;
+    ptR->auWords[1] = uiBitW;
+    ptR->iWordCount = 2 + n;
+    ptR->bValid     = ST_TRUE;
+    snprintf(ptR->szMnemonic, sizeof(ptR->szMnemonic),
+             "%s", g_aszBitOp[iOp]);
+    snprintf(ptR->szOperands, sizeof(ptR->szOperands),
+             "#%d,%s", iBit, szEA);
+    disasm_fill_words(ptR, pBuf, uiBufLen);
+    disasm_fmt_line(ptR);
+}
+
+/* ------------------------------------------------------------------
+ * UC13: BTST/BCHG/BCLR/BSET — dynamic (Dn) form
+ *
+ * Encoding: 0000 DDD 1 tt MMMRRR
+ * tt = bits 7-6, DDD = bits 11-9
+ * ------------------------------------------------------------------ */
+
+static void disasm_bit_dynamic(const st_u8_t *pBuf, size_t uiBufLen,
+                                st_u32_t uiAddr, disasm_result_t *ptR)
+{
+    st_u16_t uiOpc = disasm_rw(pBuf);
+    int      iDn   = (uiOpc >> 9) & 7;
+    int      iOp   = (uiOpc >> 6) & 3;
+    int      iMode = (uiOpc >> 3) & 7;
+    int      iReg  = uiOpc & 7;
+    char     szEA[40];
+    int      n;
+
+    /* An mode not valid for bit ops (would be MOVEP) */
+    if (iMode == 1) { disasm_dc_word(pBuf, uiBufLen, uiAddr, ptR); return; }
+
+    n = disasm_fmt_ea(pBuf + 2, uiBufLen - 2, uiAddr, 0,
+                       iMode, iReg, 1, szEA, sizeof(szEA));
+    if (n < 0) { disasm_dc_word(pBuf, uiBufLen, uiAddr, ptR); return; }
+
+    ptR->uiAddr     = uiAddr;
+    ptR->auWords[0] = uiOpc;
+    ptR->iWordCount = 1 + n;
+    ptR->bValid     = ST_TRUE;
+    snprintf(ptR->szMnemonic, sizeof(ptR->szMnemonic),
+             "%s", g_aszBitOp[iOp]);
+    snprintf(ptR->szOperands, sizeof(ptR->szOperands),
+             "%s,%s", g_aszDn[iDn], szEA);
+    disasm_fill_words(ptR, pBuf, uiBufLen);
+    disasm_fmt_line(ptR);
+}
+
+/* ------------------------------------------------------------------
+ * UC13: Group 0xE — shifts and rotations
+ *
+ * Register form: 1110 cccc d ss i tt rrr   (bits 7-6 ≠ 11)
+ *   cccc = count (if i=1) or source Dn (if i=0)
+ *   d    = direction (bit 8): 0=right, 1=left
+ *   ss   = size: 00=B, 01=W, 10=L
+ *   i    = 1=immediate count, 0=register count (bit 5)
+ *   tt   = type: 00=AS, 01=LS, 10=ROX, 11=RO (bits 4-3)
+ *   rrr  = destination Dn
+ *
+ * Memory form: 1110 cccc 11 EA   (bits 7-6 = 11)
+ *   bits 10-8 = index into g_aszShiftMemMnem[]
+ * ------------------------------------------------------------------ */
+
+static void disasm_groupE(const st_u8_t *pBuf, size_t uiBufLen,
+                           st_u32_t uiAddr, disasm_result_t *ptR)
+{
+    st_u16_t uiOpc = disasm_rw(pBuf);
+    int      iSz   = (uiOpc >> 6) & 3;
+    int      iIdx, iDir, iType, iIR, iCount, iDn;
+    int      iMode, iReg, n;
+    char     szEA[40];
+
+    if (iSz == 3)
+    {
+        /* Memory shift: bits 10-8 select mnemonic; word size; count=1 */
+        iIdx = (uiOpc >> 8) & 7;
+        if ((uiOpc >> 11) & 1)
+        {
+            /* bit 11 set → not a valid memory shift encoding */
+            disasm_dc_word(pBuf, uiBufLen, uiAddr, ptR);
+            return;
+        }
+        iMode = (uiOpc >> 3) & 7;
+        iReg  = uiOpc & 7;
+        /* Reject Dn, An, PC-relative, immediate */
+        if (iMode == 0 || iMode == 1
+        || (iMode == 7 && iReg >= 2))
+        {
+            disasm_dc_word(pBuf, uiBufLen, uiAddr, ptR);
+            return;
+        }
+        n = disasm_fmt_ea(pBuf + 2, uiBufLen - 2, uiAddr, 0,
+                           iMode, iReg, 1, szEA, sizeof(szEA));
+        if (n < 0) { disasm_dc_word(pBuf, uiBufLen, uiAddr, ptR); return; }
+
+        ptR->uiAddr     = uiAddr;
+        ptR->auWords[0] = uiOpc;
+        ptR->iWordCount = 1 + n;
+        ptR->bValid     = ST_TRUE;
+        snprintf(ptR->szMnemonic, sizeof(ptR->szMnemonic),
+                 "%s.W", g_aszShiftMemMnem[iIdx]);
+        snprintf(ptR->szOperands, sizeof(ptR->szOperands), "%s", szEA);
+        disasm_fill_words(ptR, pBuf, uiBufLen);
+        disasm_fmt_line(ptR);
+        return;
+    }
+
+    /* Register shift */
+    iCount = (uiOpc >> 9) & 7;
+    iDir   = (uiOpc >> 8) & 1;
+    iIR    = (uiOpc >> 5) & 1;
+    iType  = (uiOpc >> 3) & 3;
+    iDn    = uiOpc & 7;
+
+    ptR->uiAddr     = uiAddr;
+    ptR->auWords[0] = uiOpc;
+    ptR->iWordCount = 1;
+    ptR->bValid     = ST_TRUE;
+    snprintf(ptR->szMnemonic, sizeof(ptR->szMnemonic),
+             "%s%s", g_aszShiftMnem[iType][iDir], g_aszSzSfx[iSz]);
+
+    if (iIR)
+    {
+        if (iCount == 0) iCount = 8;
+        snprintf(ptR->szOperands, sizeof(ptR->szOperands),
+                 "#%d,%s", iCount, g_aszDn[iDn]);
+    }
+    else
+    {
+        snprintf(ptR->szOperands, sizeof(ptR->szOperands),
+                 "%s,%s", g_aszDn[iCount], g_aszDn[iDn]);
+    }
+    disasm_fmt_line(ptR);
+}
+
+/* ------------------------------------------------------------------
  * UC12: Group 0x0 — immediate arithmetic
+ * UC13: extended with BTST/BCHG/BCLR/BSET (static and dynamic)
  * ------------------------------------------------------------------ */
 
 static void disasm_group0(const st_u8_t *pBuf, size_t uiBufLen,
@@ -775,9 +1142,16 @@ static void disasm_group0(const st_u8_t *pBuf, size_t uiBufLen,
     case 0x2: disasm_imm_ea(pBuf, uiBufLen, uiAddr, "ANDI", ptR); break;
     case 0x4: disasm_imm_ea(pBuf, uiBufLen, uiAddr, "SUBI", ptR); break;
     case 0x6: disasm_imm_ea(pBuf, uiBufLen, uiAddr, "ADDI", ptR); break;
+    case 0x8: disasm_bit_static(pBuf, uiBufLen, uiAddr, ptR);     break;
     case 0xA: disasm_imm_ea(pBuf, uiBufLen, uiAddr, "EORI", ptR); break;
     case 0xC: disasm_imm_ea(pBuf, uiBufLen, uiAddr, "CMPI", ptR); break;
-    default:  disasm_dc_word(pBuf, uiBufLen, uiAddr, ptR); break;
+    default:
+        /* Odd values (bit 8 = 1): dynamic bit ops Dn */
+        if ((uiOpc >> 8) & 1)
+            disasm_bit_dynamic(pBuf, uiBufLen, uiAddr, ptR);
+        else
+            disasm_dc_word(pBuf, uiBufLen, uiAddr, ptR);
+        break;
     }
 }
 
@@ -1010,6 +1384,7 @@ st_error_t disasm_one(const st_u8_t  *pBuf,
     case 0x3: disasm_move  (pBuf, uiBufLen, uiAddr, ptResult); break;
     case 0x4: disasm_misc4 (pBuf, uiBufLen, uiAddr, ptResult); break;
     case 0x5: disasm_group5(pBuf, uiBufLen, uiAddr, ptResult); break;
+    case 0x6: disasm_group6(pBuf, uiBufLen, uiAddr, ptResult); break;
     case 0x8: disasm_group8(pBuf, uiBufLen, uiAddr, ptResult); break;
     case 0x9: disasm_group9(pBuf, uiBufLen, uiAddr, ptResult); break;
 
@@ -1023,6 +1398,7 @@ st_error_t disasm_one(const st_u8_t  *pBuf,
     case 0xB: disasm_groupB(pBuf, uiBufLen, uiAddr, ptResult); break;
     case 0xC: disasm_groupC(pBuf, uiBufLen, uiAddr, ptResult); break;
     case 0xD: disasm_groupD(pBuf, uiBufLen, uiAddr, ptResult); break;
+    case 0xE: disasm_groupE(pBuf, uiBufLen, uiAddr, ptResult); break;
 
     default:
         disasm_dc_word(pBuf, uiBufLen, uiAddr, ptResult);

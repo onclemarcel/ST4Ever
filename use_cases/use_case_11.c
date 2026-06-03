@@ -497,13 +497,13 @@ int main(void)
                 strcmp(tR.szMnemonic, "MOVEQ") == 0);
     }
     {
-        /* 0x4E75 = RTS — not in UC11 → still DC.W ADAPTED(UC14) */
+        /* ADAPTED: UC14 — RTS now decoded (bValid=TRUE, mnemonic="RTS") */
         static const st_u8_t aBuf[2] = { 0x4E, 0x75 };
         memset(&tR, 0, sizeof(tR));
         disasm_one(aBuf, 2, 0x1000, &tR);
-        UC_TEST("[N] 0x4E75 = DC.W still (RTS deferred to UC14) "
-                "ADAPTED(UC14)",
-                tR.bValid == ST_FALSE);
+        UC_TEST("[N] 0x4E75 = RTS decoded ADAPTED(UC14)",
+                tR.bValid == ST_TRUE
+                && strcmp(tR.szMnemonic, "RTS") == 0);
     }
 
     /* ================================================================

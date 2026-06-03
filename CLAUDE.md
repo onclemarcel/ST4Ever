@@ -25,6 +25,8 @@
 - 2026-06-02: UC8 validé — `src/edit_txt.h` + `src/edit_txt.c` : éditeur texte D2D (load/save, numéros de ligne, sélection, CTRL raccourcis, clipboard) ; `gui.h` : `GUI_MOD_CTRL/SHIFT/ALT` + `uiMods` dans `tKey` + API clipboard ; `win_gui.c` : WM_KEYDOWN/WM_CHAR avec modificateurs, CTRL+lettre via codes de contrôle, implémentation clipboard Win32 ; `lx_gui.c` : stubs clipboard ; `line_cmd_edit()` routage texte/binaire ; `g_line_ptEditTxtView` dans `line.c` ; ST_APP_VERSION 0.8.0
 - 2026-06-02: UC9 validé — `src/edit_hex.h` + `src/edit_hex.c` : éditeur hex+ASCII D2D (load/save, zones HEX/ASCII, navigation nibble, édition nibble+byte, TAB toggle zone, clic souris, CTRL+S) ; routage `line_cmd_edit()` `.prg/.ttp/.tos/.bin/.raw → edit_hex`, `.st/.msa/.stx → mount` ; `g_line_ptEditHexView` dans `line.c` ; ST_APP_VERSION 0.9.0
 - 2026-06-03: UC12 validé — `src/disassemble.c` étendu : ADD/ADDA/ADDI/ADDQ/ADDX, SUB/SUBA/SUBI/SUBQ/SUBX, CMP/CMPA/CMPI/CMPM, MULU/MULS/DIVU/DIVS, AND/ANDI/OR/ORI/EOR/EORI, NOT/NEG/NEGX/TST/EXT.W/EXT.L ; groupes 0x0/0x5/0x8/0x9/0xB/0xC/0xD ; helpers `disasm_dreg_ea`, `disasm_x_a`, `disasm_imm_ea`, `disasm_addq_subq`, `disasm_addx_subx`, `disasm_mul_div`, `disasm_cmpm`, `disasm_unary_ea` ; ST_APP_VERSION 0.12.0
+- 2026-06-03: UC13 validé — `src/disassemble.c` étendu : ASL/ASR/LSL/LSR/ROXL/ROXR/ROL/ROR (formes registre immédiat + registre Dn + mémoire .W), BTST/BCHG/BCLR/BSET (#imm statique + Dn dynamique) ; groupe 0xE `disasm_groupE` ; group 0x0 étendu `disasm_bit_static/dynamic` ; tables `g_aszShiftMnem`, `g_aszShiftMemMnem`, `g_aszBitOp` ; ST_APP_VERSION 0.13.0
+- 2026-06-03: UC14 validé — `src/disassemble.c` étendu : NOP/RTE/RTS/RTR, TRAP #N, LINK An/UNLK An, JSR/JMP (toutes EA contrôle), BRA/BSR/Bcc court (.S, 8-bit) et long (16-bit) ; groupe 0x6 `disasm_group6` ; `disasm_no_operand` helper ; `g_aszBcc[16]` ; bloc 0x4Exx dans `disasm_misc4` ; `use_case_11.c`+`use_case_12.c` : ADAPTED(UC14) RTS ; ST_APP_VERSION 0.14.0
 - 2026-06-03: UC11 validé — `src/disassemble.c` : désassembleur 68000 réel MOVE/MOVEQ/LEA/CLR/EXG/SWAP/PEA + décodeur EA complet (12 modes) ; `bValid = ST_TRUE` sur instructions reconnues ; `TC-DIS-001 ADAPTED(UC11)` ; ST_APP_VERSION 0.11.0
 - 2026-06-02: UC10 validé — `edit_hex.h/c` étendu : panneau désassembleur D2D synchronisé (zone HEX_ZONE_DISASM, cache 512 instructions, `ehex_disasm_cache_update/find_cursor/scroll_to_cursor/render`) ; TAB cycle 3 zones HEX→ASCII→DISASM→HEX ; F2 toggle ; sync bidirectionnel hex↔disasm ; fenêtre plus large (1320px) avec disasm ; `EDIT_HEX_WND_WIDTH_DISASM/STD/HEIGHT` ; ST_APP_VERSION 0.10.0
 
@@ -565,8 +567,8 @@ Les étapes de développement fonctionnelles sont formalisées en Use Cases, per
 | UC10 | `edit` | Vue intégrée hex+ASCII+désasm en colonnes synchronisées | ✓ VALIDÉ 2026-06-02 |
 | UC11 | interne | Désassembleur 68000 : MOVE/MOVEQ/LEA/CLR/EXG/SWAP/PEA | ✓ VALIDÉ 2026-06-03 |
 | UC12 | interne | Désassembleur : ADD/SUB/CMP/MUL/DIV/AND/OR/EOR/NOT/NEG | ✓ VALIDÉ 2026-06-03 |
-| UC13 | interne | Désassembleur : shifts, rotations, BTST/BSET/BCLR/BCHG | |
-| UC14 | interne | Désassembleur : BRA/BSR/Bcc/JMP/JSR/RTS/RTR/RTE/TRAP | désasm programme complet |
+| UC13 | interne | Désassembleur : shifts, rotations, BTST/BSET/BCLR/BCHG | ✓ VALIDÉ 2026-06-03 |
+| UC14 | interne | Désassembleur : BRA/BSR/Bcc/JMP/JSR/RTS/RTR/RTE/TRAP | ✓ VALIDÉ 2026-06-03 |
 | UC15 | interne | Format PRG : parser header + sections + fixups + chargement mémoire ST | load .PRG en mémoire émulée |
 | UC16 | interne | Image `.st` : lecture/écriture raw + FAT12 | mount/browse image .st |
 | UC17 | interne | Image `.msa` : décompression/compression RLE | round-trip .msa |
@@ -1712,9 +1714,119 @@ Les étapes de développement fonctionnelles sont formalisées en Use Cases, per
 - bit8=1, sz≠3, mode=001 → CMPM ; mode≠001 → EOR.
 
 **Points d'attention pour les UCs suivants :**
-- UC13 : groupe 1110 (ASL/ASR/LSL/LSR/ROL/ROR/ROXL/ROXR) + groupe 0000 bits7-6≠11 (BTST/BSET/BCLR/BCHG).
-- UC14 : groupe 0100 restant (RTS 0x4E75, JMP 0x4EF9, JSR 0x4E80-BF, TRAP, NOP) + groupe 0110 (BRA/BSR/Bcc).
+- UC13 : groupe 1110 (ASL/ASR/LSL/LSR/ROL/ROR/ROXL/ROXR) + groupe 0000 bits7-6≠11 (BTST/BSET/BCLR/BCHG). ✓ VALIDÉ UC13
+- UC14 : groupe 0100 restant (RTS/NOP/RTE/RTR/TRAP/LINK/UNLK/JSR/JMP) + groupe 0110 (BRA/BSR/Bcc). ✓ VALIDÉ UC14
 - UC11/UC12 se complètent : toutes les instructions arithmétiques et logiques de type R-R et M-R sont décodées. Le panneau disasm UC10 affiche maintenant l'ensemble complet des instructions algébriques.
+
+### 6.18 Use Case 13 (UC13) — ✓ VALIDÉ (2026-06-03)
+
+**Périmètre fonctionnel implémenté :**
+- `src/disassemble.c` étendu : groupe 0xE + BTST/BCHG/BCLR/BSET dans groupe 0x0.
+- **Nouvelles tables** :
+  - `g_aszShiftMnem[4][2]` : noms des 4 types × 2 directions (ASR/ASL, LSR/LSL, ROXR/ROXL, ROR/ROL).
+  - `g_aszShiftMemMnem[8]` : indexé par bits 10-8 de l'opcode pour les shifts mémoire.
+  - `g_aszBitOp[4]` : BTST/BCHG/BCLR/BSET (indexé par bits 7-6).
+- **`disasm_groupE()`** : groupe 0xE — shifts et rotations :
+  - *Forme registre* (sz≠3, bits 7-6 ≠ 11) : `1110 cccc d ss i tt rrr` — mnemonic `XXX.sz`, opérandes `#N,Dn` (immédiat, count=0→8) ou `Dn,Dn` (registre).
+  - *Forme mémoire* (sz=3, bits 7-6 = 11) : `1110 cccc 11 EA` — mnemonic `XXX.W`, opérande EA ; rejet Dn/An/PC-relative/imm → DC.W ; bit 11 set → DC.W.
+- **`disasm_bit_static()`** : BTST/BCHG/BCLR/BSET #imm — `0000 1000 tt MMMRRR + ext` ; rejet An mode (MOVEP) → DC.W.
+- **`disasm_bit_dynamic()`** : BTST/BCHG/BCLR/BSET Dn — `0000 DDD 1 tt MMMRRR` ; rejet An mode → DC.W.
+- **`disasm_group0()`** étendu : ajout `case 0x8` (static) + branch odd (dynamic) dans `default`.
+- **`disasm_one()`** : ajout `case 0xE → disasm_groupE`.
+
+**Tests R14/R15 appliqués :**
+- `use_cases/use_case_13.c` : TEST MATRIX **62N + 8R + 0S = 70 tests**, 0 failure
+  - [N] : shifts registre immédiat (ASL/ASR/LSL/LSR/ROXL/ROXR/ROL/ROR, 8×2=16) ; shifts registre Dn (3×2=6) ; shifts mémoire (8+1×3=11 nominaux+wc) ; bit static (4×3=12) ; bit dynamic (4×2=8) ; range 3 instructions (6) ; régression UC11/UC12 (3)
+  - [R] : mem shift Dn dest (1) ; mem shift An dest (1) ; mem shift bit11 (1) ; bit static An mode (1) ; bit dynamic An mode (1) ; NULL pBuf (1) ; NULL ptResult (1) ; range NULL puiLines (1)
+
+**Contrats comportementaux validés :**
+
+*`disasm_groupE()` — forme registre*
+- Immediate count = 0 dans le champ opcode → affiché `#8` (pas `#0`)
+- Direction : bit 8 = 0 → right (ASR, LSR, ROXR, ROR) ; bit 8 = 1 → left (ASL, LSL, ROXL, ROL)
+- Type : bits 4-3 = 00=AS, 01=LS, 10=ROX, 11=RO
+- Size : bits 7-6 = 00=.B, 01=.W, 10=.L (11 impossible → branch mémoire)
+- Format opérandes immédiat : `#N,Dn` ; format registre : `Dn,Dn`
+
+*`disasm_groupE()` — forme mémoire*
+- Identifiée par bits 7-6 = 11 (sz=3) ; toujours `.W` ; count=1 implicite
+- Mnemonic indexé par bits 10-8 : 0=ASR, 1=ASL, 2=LSR, 3=LSL, 4=ROXR, 5=ROXL, 6=ROR, 7=ROL
+- Bit 11 set (bits 10-8 ≥ 8 en interprétation non-tronquée) → DC.W
+- EA mode 0 (Dn) ou mode 1 (An) ou mode 7 reg ≥ 2 (PC-rel/imm) → DC.W
+- Extension word(s) consommés correctement si abs.W (`$1234.W` : wc=2)
+
+*`disasm_bit_static()` / `disasm_bit_dynamic()`*
+- Static : `iWordCount = 2 + n` (opcode + #bit word + EA ext words)
+- Bit number = octet bas du mot d'extension (`iBit = uiBitW & 0xFF`)
+- An mode (mode=1) → DC.W dans les deux formes (zone MOVEP)
+- Dynamic : `iWordCount = 1 + n` ; opérandes `"Dn,EA"`
+
+*`disasm_group0()` — cas bit ops*
+- `(uiOpc >> 8) & 0x0F == 0x8` → static bit op
+- Valeur impaire (bit 8 = 1) et ≠ 0x8 → dynamic bit op via `disasm_bit_dynamic`
+- Valeur paire ≠ {0,2,4,6,A,C} → DC.W (inchangé)
+
+**Points d'attention pour les UCs suivants :**
+- UC14 : groupe 0x4 restant : RTS (0x4E75), NOP (0x4E71), JMP (0x4EF9), JSR (0x4E80-0x4EBF), TRAP #N (0x4E40-0x4E4F), RTR (0x4E77), RTE (0x4E73). Groupe 0x6 : BRA/BSR/Bcc (déplacement 8-bit dans octet bas ou 16-bit extension). Après UC14, le désassembleur est complet pour la cible démo ST (UC31).
+- MOVEP : `0000 DDD 1 MM 001 RRR` (bits 5-3 = 001 = An mode dans EA). Actuellement → DC.W via le rejet An mode dans `disasm_bit_dynamic`. Comportement correct pour UC13 ; à implémenter si nécessaire avant UC31.
+- `TC-DIS-001` (ADAPTED UC11) : RTS (0x4E75) reste DC.W jusqu'à UC14. Marqueur ADAPTED(UC14) à ajouter dans `use_case_01.c` lors de UC14.
+
+### 6.19 Use Case 14 (UC14) — ✓ VALIDÉ (2026-06-03)
+
+**Périmètre fonctionnel implémenté :**
+- `src/disassemble.c` étendu : groupe 0x6 + complétion groupe 0x4.
+- **Nouvelle table** : `g_aszBcc[16]` — mnémoniques des 16 branches (BRA, BSR, BHI, BLS, BCC, BCS, BNE, BEQ, BVC, BVS, BPL, BMI, BGE, BLT, BGT, BLE).
+- **`disasm_no_operand()`** : helper pour instructions 1 mot sans opérande (NOP/RTS/RTE/RTR).
+- **Bloc 0x4Exx dans `disasm_misc4()`** (avant le fallback DC.W) :
+  - `0x4E71` NOP, `0x4E73` RTE, `0x4E75` RTS, `0x4E77` RTR → `disasm_no_operand`.
+  - `0x4E40-0x4E4F` TRAP #N → vecteur en décimal.
+  - `0x4E50-0x4E57` LINK An,#disp16 → 2 mots ; déplacement signé en hex (`#-$8` pour -8).
+  - `0x4E58-0x4E5F` UNLK An → 1 mot.
+  - `0x4E80-0x4EBF` JSR + `0x4EC0-0x4EFF` JMP → EA contrôle via `disasm_fmt_ea` ; rejet Dn/An/(An)+/-(An)/imm → DC.W.
+- **`disasm_group6()`** : BRA/BSR/Bcc —
+  - `disp8 == 0xFF` → DC.W (68020+ seulement).
+  - `disp8 == 0x00` → 16-bit form, 2 mots ; mnemonic sans `.S`.
+  - `disp8 ≠ 0, ≠ 0xFF` → 8-bit short form, 1 mot ; mnemonic avec `.S`.
+  - Cible = `(uiAddr + 2 + disp) & 0x00FFFFFF` ; formatée `$XXXXXX`.
+- **`disasm_one()`** : `case 0x6 → disasm_group6` ajouté.
+- **Non-régression** : `use_case_11.c` et `use_case_12.c` — assertions RTS `bValid==ST_FALSE` → `bValid==ST_TRUE && mnemonic=="RTS"` (ADAPTED:UC14) ; `use_case_01.c` — description TC-DIS-001 mise à jour.
+
+**Tests R14/R15 appliqués :**
+- `use_cases/use_case_14.c` : TEST MATRIX **56N + 8R + 0S = 64 tests**, 0 failure
+  - [N] : NOP/RTS/RTE/RTR (8) ; TRAP #1/#14 (4) ; LINK A6/UNLK A6/LINK A0,#0 (8) ; JSR (A0)/JSR $1234.W/JMP (A1)/JMP abs.L/JMP d16(PC) (13) ; BRA.S/BRA long/BSR.S (9) ; BNE.S/BEQ long/BPL.S/BCC.S/BGT.S (15) ; range PRG (8) ; régression (3)
+  - [R] : JMP Dn (1) ; JSR An (1) ; JSR -(An) (1) ; BRA disp8=0xFF (1) ; BRA 16-bit buf court (1) ; NULL pBuf/ptResult/ptResults (3)
+
+**Contrats comportementaux validés :**
+
+*`disasm_group6()` — BRA/BSR/Bcc*
+- `disp8 == 0xFF` → DC.W (forme 32-bit non-68000, `bValid=ST_FALSE`)
+- `disp8 == 0x00` → forme longue, `iWordCount=2`, mnemonic sans `.S` ; si `uiBufLen < 4` → DC.W
+- `disp8 ≠ {0, 0xFF}` → forme courte, `iWordCount=1`, mnemonic avec `.S`
+- Cible toujours masquée `& 0x00FFFFFF` (adresses 24-bit ST)
+- Branches arrière correctes : `0xFE` = -2, `0xF6` = -10, etc.
+
+*JSR / JMP*
+- Mode 0 (Dn) → DC.W ; Mode 1 (An) → DC.W (MOVEP territory) ; Mode 3 (An)+ → DC.W ; Mode 4 -(An) → DC.W ; Mode 7.4 (#imm) → DC.W
+- EA contrôle valide : modes 2/5/6/7.0/7.1/7.2/7.3 → décodage normal
+- `JMP $00FF8800` : abs.L → `iWordCount=3`, opérandes `$00FF8800`
+- `JMP d16(PC)` : cible calculée depuis adresse de l'ext word
+
+*TRAP*
+- Vecteur 0-15 affiché en décimal : `TRAP #0` à `TRAP #15`
+
+*LINK/UNLK*
+- LINK : `iWordCount=2` ; déplacement signé en hex sans-prefix : `#-$8` (négatif) ou `#$0` (zéro/positif)
+- UNLK : `iWordCount=1`, opérande = `g_aszAn[An]`
+
+*Régression use_case_11/12/13*
+- UC11: `0x4E75` (RTS) → `bValid=ST_TRUE`, mnemonic `"RTS"` (ADAPTED:UC14 — était ST_FALSE)
+- UC12: idem
+- UC13: `0x6000` avec `uiBufLen=2` → reste DC.W (`uiBufLen < 4` → DC.W dans `disasm_group6`)
+
+**Points d'attention pour les UCs suivants :**
+- UC15 : format PRG fixups — désassembleur complet maintenant, prêt pour la vraie mémoire ST relocalisée. `load_do_prg()` TODO(UC15) à implémenter.
+- UC31 : le désassembleur couvre le sous-ensemble démo (MOVE/MOVEQ/LEA/CLR/EXG/SWAP/ADD/SUB/CMP/AND/OR/EOR/NOT/NEG/shifts/rotations/bits/BRA/BSR/Bcc/JMP/JSR/RTS/TRAP). Il manque encore MOVEM, CHK, DBcc/Scc, MOVEP pour couverture complète 68000 — ces instructions apparaissent rarement dans les démos courtes ; ajout possible dans un UC15-bis si nécessaire.
+- UC21 : le CPU 68000 réel décodera les instructions via un mécanisme similaire au désassembleur mais avec exécution effective des effets (registres, flags SR).
 
 ## 7. Propositions d'améliorations
 
@@ -1949,6 +2061,18 @@ Avis Claude : **ACCEPTÉ — UC10-bis ou intégré dans une UC ultérieure**. Co
 ### Arbitrage UC12 (2026-06-03)
 
 *UC12 est un UC purement interne (arithmétique, logique, multiplication, division). Aucune proposition UX/fonctionnelle n'a émergé — UC12 est clos.*
+
+---
+
+### Arbitrage UC13 (2026-06-03)
+
+*UC13 est un UC purement interne (shifts, rotations, bit ops). Aucune proposition UX/fonctionnelle n'a émergé — UC13 est clos.*
+
+---
+
+### Arbitrage UC14 (2026-06-03)
+
+*UC14 est un UC purement interne (contrôle de flux 68000). Aucune proposition UX/fonctionnelle n'a émergé — UC14 est clos.*
 
 ## 8. Licence & attribution
 Pas de redistribution prévue à ce jour
