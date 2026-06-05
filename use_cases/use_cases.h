@@ -29,6 +29,7 @@
 #include "../src/as.h"
 #include "../src/dir.h"
 #include "../src/mount.h"
+#include "../src/image_st.h"
 #include "../src/edit_txt.h"
 #include "../src/edit_hex.h"
 #include "../src/edit.h"

@@ -27,6 +27,7 @@
 - 2026-06-03: UC12 validé — `src/disassemble.c` étendu : ADD/ADDA/ADDI/ADDQ/ADDX, SUB/SUBA/SUBI/SUBQ/SUBX, CMP/CMPA/CMPI/CMPM, MULU/MULS/DIVU/DIVS, AND/ANDI/OR/ORI/EOR/EORI, NOT/NEG/NEGX/TST/EXT.W/EXT.L ; groupes 0x0/0x5/0x8/0x9/0xB/0xC/0xD ; helpers `disasm_dreg_ea`, `disasm_x_a`, `disasm_imm_ea`, `disasm_addq_subq`, `disasm_addx_subx`, `disasm_mul_div`, `disasm_cmpm`, `disasm_unary_ea` ; ST_APP_VERSION 0.12.0
 - 2026-06-03: UC13 validé — `src/disassemble.c` étendu : ASL/ASR/LSL/LSR/ROXL/ROXR/ROL/ROR (formes registre immédiat + registre Dn + mémoire .W), BTST/BCHG/BCLR/BSET (#imm statique + Dn dynamique) ; groupe 0xE `disasm_groupE` ; group 0x0 étendu `disasm_bit_static/dynamic` ; tables `g_aszShiftMnem`, `g_aszShiftMemMnem`, `g_aszBitOp` ; ST_APP_VERSION 0.13.0
 - 2026-06-03: UC14 validé — `src/disassemble.c` étendu : NOP/RTE/RTS/RTR, TRAP #N, LINK An/UNLK An, JSR/JMP (toutes EA contrôle), BRA/BSR/Bcc court (.S, 8-bit) et long (16-bit) ; groupe 0x6 `disasm_group6` ; `disasm_no_operand` helper ; `g_aszBcc[16]` ; bloc 0x4Exx dans `disasm_misc4` ; `use_case_11.c`+`use_case_12.c` : ADAPTED(UC14) RTS ; ST_APP_VERSION 0.14.0
+- 2026-06-04: UC16 validé — `src/image_st.h` + `src/image_st.c` : FAT12 .st raw image (create/load/save/list_root/read_file/write_file/delete_file/free_bytes) ; fixtures roundtrip.st via test ; ST_APP_VERSION 0.16.0
 - 2026-06-03: UC15 validé — `src/load.c` `load_do_prg()` complet : header 28 octets, chargement .text+.data à ST_LOAD_BASE, BSS zeroing, table de fixups Atari ST (bitstream : first_offset 4B, 0x00=fin, 0x01=skip 254B, N=advance+fix) ; abs_flag géré (pas de table fixup) ; `load_state_t` étendu (uiTextSize/uiDataSize/uiBssSize/uiFixupCount) ; helpers `load_apply_fixups` + `load_skip_bytes` ; fixtures `use_cases/UC15/` (fixup/bss/absolute/multi_fixup/bad_fixup.prg) ; TODO(UC15) supprimé ; ST_APP_VERSION 0.15.0
 - 2026-06-03: UC11 validé — `src/disassemble.c` : désassembleur 68000 réel MOVE/MOVEQ/LEA/CLR/EXG/SWAP/PEA + décodeur EA complet (12 modes) ; `bValid = ST_TRUE` sur instructions reconnues ; `TC-DIS-001 ADAPTED(UC11)` ; ST_APP_VERSION 0.11.0
 - 2026-06-02: UC10 validé — `edit_hex.h/c` étendu : panneau désassembleur D2D synchronisé (zone HEX_ZONE_DISASM, cache 512 instructions, `ehex_disasm_cache_update/find_cursor/scroll_to_cursor/render`) ; TAB cycle 3 zones HEX→ASCII→DISASM→HEX ; F2 toggle ; sync bidirectionnel hex↔disasm ; fenêtre plus large (1320px) avec disasm ; `EDIT_HEX_WND_WIDTH_DISASM/STD/HEIGHT` ; ST_APP_VERSION 0.10.0
@@ -571,7 +572,7 @@ Les étapes de développement fonctionnelles sont formalisées en Use Cases, per
 | UC13 | interne | Désassembleur : shifts, rotations, BTST/BSET/BCLR/BCHG | ✓ VALIDÉ 2026-06-03 |
 | UC14 | interne | Désassembleur : BRA/BSR/Bcc/JMP/JSR/RTS/RTR/RTE/TRAP | ✓ VALIDÉ 2026-06-03 |
 | UC15 | interne | Format PRG : parser header + sections + fixups + chargement mémoire ST | ✓ VALIDÉ 2026-06-03 |
-| UC16 | interne | Image `.st` : lecture/écriture raw + FAT12 | mount/browse image .st |
+| UC16 | interne | Image `.st` : lecture/écriture raw + FAT12 | ✓ VALIDÉ 2026-06-04 |
 | UC17 | interne | Image `.msa` : décompression/compression RLE | round-trip .msa |
 | UC18 | `mount` | Vue arbre disquette Win32/GDI + X11, drag & drop depuis `dir` ; sélection multiple dans `dir` via CTRL+ESPACE/SHIFT+ESPACE (P14, même répertoire uniquement) pour drag & drop multi-fichiers ; historique navigation `dir` ALT+←/→ Précédent/Suivant (P10) | monter répertoire en A:\ |
 | UC19 | `umount` | Démontage + sauvegarde image si modifiée | dialog save |
@@ -1890,6 +1891,78 @@ Les étapes de développement fonctionnelles sont formalisées en Use Cases, per
 - UC24 : `ST_LOAD_BASE = 0x0800` est en dur ; UC24 allouera la première zone libre au-dessus des variables TOS selon la memory map réelle.
 - UC25 : `execute` démarrera depuis `load_get_state()->uiLoadAddr` comme PC initial quand `eType == LOAD_TYPE_PRG`. Les adresses de fixup sont déjà correctes en RAM ST.
 - UC10/disasm panel : avec les fixups appliqués, les adresses affichées dans la vue hex+disasm correspondent aux vraies adresses ST (pas aux offsets fichier) — comportement attendu vérifié.
+
+### 6.21 Use Case 16 (UC16) — ✓ VALIDÉ (2026-06-04)
+
+**Périmètre fonctionnel implémenté :**
+- `src/image_st.h` (nouveau) : constantes géométrie ST DD (IST_TRACKS/SIDES/SECTORS/BPS/SPC…), constantes FAT12 (IST_FAT_FREE/EOC/MEDIA_BYTE), flags attributs (IST_ATTR_*), type `image_st_dirent_t`, type opaque `image_st_t`, API complète.
+- `src/image_st.c` (nouveau) : implémentation portable CRT + file.h :
+  - `image_st_create()` : malloc + memset + `ist_format_boot()` (BPB LE16/LE32, OEM "ST4EVER ", boot sig 0x55/0xAA) + FAT init (cluster 0 = 0xFF9 media byte, cluster 1 = 0xFFF EOC).
+  - `image_st_load()` : lecture IST_DISK_SIZE octets via file.h + `ist_validate_bpb()` (BPS=512, TS=1440).
+  - `image_st_save()` : écriture IST_DISK_SIZE octets via file.h FILE_MODE_WRITE.
+  - `image_st_close()` : free + `*pptImg=NULL` ; `close(&NULL)` = no-op.
+  - `image_st_list_root()` : itération 112 entrées racine ; skip 0xE5 (deleted), 0x00 (end), IST_ATTR_VOLNAME ; remplit `image_st_dirent_t[]`.
+  - `image_st_read_file()` : suivi chaîne FAT12 cluster par cluster ; copie `IST_SPC * IST_BPS` octets par cluster ; détection fin-de-chaîne prématurée et cluster hors-plage.
+  - `image_st_write_file()` : normalisation 8.3 uppercase (`ist_name_to_83`) ; suppression entrée existante si présente ; allocation chaîne FAT (`ist_fat_alloc` + link + EOC) ; remplissage clusters ; écriture entrée racine (aName83 + size LE32 + cluster LE16 + attr ARCHIVE).
+  - `image_st_delete_file()` : libère chaîne FAT (`ist_fat_free_chain`) + marque entrée 0xE5.
+  - `image_st_free_bytes()` : compte clusters FAT_FREE × IST_SPC × IST_BPS.
+  - Helpers internes : `ist_fat_get/set` (12 bits pair/impair) + miroir FAT1→FAT2 ; `ist_fat_alloc` ; `ist_fat_free_chain` (boucle anti-cycle sur uiMax) ; `ist_cluster_offset` (secteur DATA + offset par cluster) ; `ist_raw_to_name` ; `ist_name_to_83` ; `ist_name_match` (case-insensitive) ; `ist_rd16/ist_wr16/ist_wr32`.
+- `use_cases/use_cases.h` : ajout `#include "../src/image_st.h"`.
+- `src/mount.h` / `src/mount.c` : suppression `TODO(UC16)` (implémenté).
+- `src/common.h` : `ST_APP_VERSION` → `"0.16.0"`.
+- `use_cases/UC16/roundtrip.st` : créé lors de l'exécution de `make tests` (test block 4) — inspectable manuellement avec un éditeur hex.
+
+**Tests R14/R15 appliqués :**
+- `use_cases/use_case_16.c` : TEST MATRIX **31N + 15R + 0S = 46 assertions** (39 TCs dans SRTD.md §5.47), 0 failure
+  - [N] : create/BPB/FAT init (7) ; write+list+read 64 bytes et 512 bytes (9) ; delete + free-bytes accounting (4) ; save+reload round-trip (6) ; overwrite file (2) ; close idempotence (3)
+  - [R] : NULL guards (11 : create/load×2/close/save×2/list_root×2/read_file×2/free_bytes) ; load non-existent + handle NULL (2) ; write invalid 8.3 name (1) ; delete non-existent (1)
+
+**Contrats comportementaux validés :**
+
+*FAT12 encoding (ist_fat_get/set)*
+- Cluster pair N (even) : bytes [N×3/2] et [N×3/2+1] — low 12 bits.
+- Cluster impair N (odd) : bits 4-15 du byte [N×3/2] et byte [N×3/2+1] complet — high 12 bits du pair de bytes.
+- `ist_fat_set` met à jour FAT1 et FAT2 de manière atomique (même appel).
+- `ist_fat_get` lit FAT1 uniquement (source de vérité).
+
+*`image_st_create()`*
+- Cluster 0 = 0xFF9 (IST_FAT_MEDIA_BYTE) ; cluster 1 = 0xFFF (EOC).
+- `free_bytes` = IST_DATA_CLUSTERS × IST_SPC × IST_BPS = 711 × 2 × 512 = 728,064 bytes.
+- Racine vide : `list_root` retourne count = 0.
+
+*`image_st_load()`*
+- Taille exacte IST_DISK_SIZE obligatoire : fichier tronqué → ST_ERROR.
+- BPS = 512 et TS = 1440 dans le BPB : divergence → ST_ERROR + LOG_ERROR.
+
+*`image_st_write_file()`*
+- Nom 8.3 normalisé en uppercase ; nom invalide (> 8 chars base ou > 3 chars ext) → ST_ERROR.
+- Si le fichier existait déjà : chaîne FAT libérée + entrée 0xE5 avant la nouvelle allocation ; `list_root` retourne count inchangé (1) avec le nouveau contenu.
+- `pData == NULL` avec `uiSize > 0` → ST_ERROR.
+- `uiSize == 0` : entrée créée avec cluster = 0, size = 0 ; aucun cluster alloué.
+- Cluster de fin de chaîne toujours EOC (0xFFF) ; clusters intermédiaires → suivant.
+- Dernier cluster : octet non-utilisé en fin zeroed (cluster padding).
+
+*`image_st_delete_file()`*
+- Entrée marquée 0xE5 (convention FAT "deleted", non effacée physiquement).
+- `ist_fat_free_chain` : boucle sur `uiCluster >= IST_CLUSTER_FIRST && < uiMax` avec uiMax = IST_CLUSTER_FIRST + IST_DATA_CLUSTERS (protection contre boucle infinie sur chaîne corrompue).
+- Après delete : `list_root` ne retourne plus l'entrée.
+
+*`image_st_close(&NULL)`*
+- `*pptImg == NULL` → no-op immédiat, `ST_NO_ERROR` (idempotent).
+
+**Points d'attention pour les UCs suivants :**
+- UC17 : `.msa` = `.st` compressé run-length ; la même structure `image_st_t` peut être réutilisée après décompression MSA → aDisk. UC17 ajoute `image_msa_load()` et `image_msa_save()` qui opèrent sur un `image_st_t` existant.
+- UC18 (`mount`) : `mount_open()` appellera `image_st_load()` pour les fichiers `.st`. La vue GUI listera les entrées via `image_st_list_root()`. Le drag & drop écrira via `image_st_write_file()`.
+- UC20 (`image`) : `image_st_save()` est déjà disponible — UC20 crée l'image depuis le contenu d'un répertoire PC monté via UC18.
+- Limite de sous-répertoires : seule la racine est supportée (suffisant pour UC18/UC20). Les `.st` ATARI ST réels ont rarement des sous-répertoires dans les démos.
+
+---
+
+### Arbitrage UC16 (2026-06-04)
+
+*UC16 est un UC purement interne (FAT12 .st image). Aucune proposition UX/fonctionnelle n'a émergé — UC16 est clos.*
+
+---
 
 ## 7. Propositions d'améliorations
 

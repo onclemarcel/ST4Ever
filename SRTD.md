@@ -29,6 +29,7 @@
 | 2.4 | 2026-06-03 | UC13  | Claude/OMC | UC13 validated — shifts/rotations (ASL/ASR/LSL/LSR/ROXL/ROXR/ROL/ROR register+memory forms) + bit ops (BTST/BCHG/BCLR/BSET static+dynamic); groupE + group0 extended; REQ-DIS-008✓ REQ-DIS-024..030; TC-DIS-200..269; §5.40..41 new |
 | 2.5 | 2026-06-03 | UC14  | Claude/OMC | UC14 validated — control flow: NOP/RTS/RTE/RTR/TRAP/LINK/UNLK/JSR/JMP + BRA/BSR/Bcc (short+long); group4 completed, group6 new; REQ-DIS-009✓ REQ-DIS-031..038; TC-DIS-300..363; §5.42..43 new; TC-DIS-157 ADAPTED closed |
 | 2.6 | 2026-06-03 | UC15  | Claude/OMC | UC15 validated — load_do_prg() complete: PRG header parse, BSS zeroing, fixup relocation bitstream (abs_flag supported); load_state_t extended (uiTextSize/DataSize/BssSize/FixupCount); UFR-LOD-004 updated, UFR-LOD-006..008; REQ-LOD-015..022; §4.12 updated; §5.44..45 new |
+| 2.7 | 2026-06-05 | UC16  | Claude/OMC | UC16 validated — image_st.h/c: FAT12 .st image create/load/save/list_root/read_file/write_file/delete_file/free_bytes; UFR-DSK-001..004 §1.8 new; REQ-IST-001..012 §2.14 new; §4.13 updated; §4.17 new; §5.46..47 new |
 
 ---
 
@@ -224,11 +225,20 @@ through one or more test cases in Section 5.
 | UFR-HEX-004 | CTRL+S shall save the file in-place (replace-mode, fixed size); the title bar shall show `[*]` when dirty and remove it after a successful save. ESC closes with a trace log entry if dirty. | ✓ UC9 | UC9 |
 | UFR-HEX-005 | The hex editor shall display a disassembly panel to the right of the ASCII column showing 68000 instructions decoded from the file content. The panel shall be toggled with F2 (default on). TAB shall cycle three zones: HEX → ASCII → DISASM → HEX. Navigation in the DISASM zone (↑↓/PgUp/PgDn) shall move by instruction and keep the hex cursor synchronised; conversely, cursor movement in HEX/ASCII shall keep the DISASM highlight synchronised. The DISASM zone is read-only. Clicking in the DISASM panel shall switch to DISASM zone and position the cursor at the clicked instruction. Mouse scroll in the DISASM zone shall scroll the disasm panel independently of the hex panel. | ✓ UC10 | UC10 |
 
-### 1.6 Floppy Emulation — `MNT` (TODO UC16–19)
+### 1.8 Disk Image — `DSK` (UC16 .st ✓; UC17 .msa TODO; UC20 create TODO)
 
-*Requirements will be detailed when UC16–UC19 are planned.*
+| ID          | Requirement                                                                                                                                      | Status    | UC   |
+|-------------|--------------------------------------------------------------------------------------------------------------------------------------------------|-----------|------|
+| UFR-DSK-001 | The application shall load a standard Atari ST DD 3.5" `.st` image file (737,280 bytes) into memory and make its FAT12 content accessible.      | ✓ UC16    | UC16 |
+| UFR-DSK-002 | The application shall enumerate root directory entries of a loaded `.st` image, providing name, size, and attributes for each file.              | ✓ UC16    | UC16 |
+| UFR-DSK-003 | The application shall read, write, and delete files in the root directory of an in-memory `.st` image using standard FAT12 8.3 naming rules.     | ✓ UC16    | UC16 |
+| UFR-DSK-004 | The application shall save a modified in-memory `.st` image back to a file, producing a valid 737,280-byte image readable by external emulators. | ✓ UC16    | UC16 |
 
-### 1.7 Execution Engine — `EXE` (TODO UC21–27)
+### 1.9 Floppy Mount / Emulation — `MNT` (TODO UC18–19)
+
+*Requirements will be detailed when UC18–UC19 are planned (GUI tree view, drag-and-drop, umount dialog).*
+
+### 1.10 Execution Engine — `EXE` (TODO UC21–27)
 
 *Requirements will be detailed when UC21–UC27 are planned.*
 
@@ -562,6 +572,27 @@ requirement that will expose it (`UFR-EXE-*`, planned UC21–27).
 | REQ-HEX-018  | TAB shall cycle zones HEX → ASCII → DISASM (if `bShowDisasm`) → HEX; when `bShowDisasm` is FALSE TAB shall toggle between HEX and ASCII only. | UFR-HEX-005 | ✓ UC10 | UC10 |
 | REQ-HEX-019  | Mouse scroll in `HEX_ZONE_DISASM` shall update `iDisasmScrollRow`; in any other zone it shall update `iScrollRow` (hex panel). Both shall be clamped to valid range. | UFR-HEX-005 | ✓ UC10 | UC10 |
 | REQ-HEX-020  | `edit_hex_open()` shall allocate `atDisasmCache` heap and set `bShowDisasm=TRUE`; `edit_hex_close()` shall free it. If the allocation fails, `bShowDisasm` shall be `ST_FALSE` and the window shall still open. | UFR-HEX-005 | ✓ UC10 | UC10 |
+
+---
+
+### 2.14 Disk Image — `image_st.h` / `image_st.c`
+
+> Design ref: CLAUDE.md §1.1.6, §6.21; depends on `file.h` (UC6)
+
+| ID           | Software Requirement                                                                                                                                                                                                                          | Parent UFR  | Status   | UC   |
+|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------|----------|------|
+| REQ-IST-001  | `image_st_create(NULL)` shall return `ST_ERROR`. `image_st_create(&p)` shall allocate, zero, and format a blank 737,280-byte image: BPB at boot sector offset +11 (BPS=512, SPC=2, RES=1, NFATS=2, RDE=112, TS=1440, MEDIA=0xF9, SPF=5, SPT=9, HEADS=2); FAT1 and FAT2 cluster 0 = IST_FAT_MEDIA_BYTE (0xFF9), cluster 1 = 0xFFF; root directory zeroed. | UFR-DSK-001 | ✓ UC16 | UC16 |
+| REQ-IST-002  | `image_st_close(NULL)` shall return `ST_ERROR`. `image_st_close(&NULL)` shall return `ST_NO_ERROR` (idempotent no-op). After a successful close, `*pptImg` shall be NULL and the heap block freed. | UFR-DSK-001 | ✓ UC16 | UC16 |
+| REQ-IST-003  | `image_st_load(NULL,*)` or `image_st_load(*,NULL)` shall return `ST_ERROR`. Loading a non-existent or unreadable file shall return `ST_ERROR`. If `file_read()` delivers fewer than IST_DISK_SIZE bytes, `image_st_load()` shall return `ST_ERROR`. | UFR-DSK-001 | ✓ UC16 | UC16 |
+| REQ-IST-004  | After successful `file_read()`, `image_st_load()` shall validate the BPB: the bytes-per-sector field (offset +0x0B, LE16) must equal 512 and the total-sectors field (offset +0x13, LE16) must equal 1440; any divergence shall return `ST_ERROR`. | UFR-DSK-001 | ✓ UC16 | UC16 |
+| REQ-IST-005  | `image_st_save(NULL,*)` or `image_st_save(*,NULL)` shall return `ST_ERROR`. On success the output file shall contain exactly IST_DISK_SIZE bytes. | UFR-DSK-004 | ✓ UC16 | UC16 |
+| REQ-IST-006  | `image_st_list_root()` shall return `ST_ERROR` if any pointer parameter is NULL or `iMaxEntries` ≤ 0. It shall skip deleted entries (first byte = 0xE5) and volume-label entries (`IST_ATTR_VOLNAME` set). Enumeration shall stop at the first unused entry (first byte = 0x00). | UFR-DSK-002 | ✓ UC16 | UC16 |
+| REQ-IST-007  | `image_st_read_file()` shall return `ST_ERROR` if `ptImg` or `pBuf` is NULL, or if `uiSize > uiBufSize`. It shall return `ST_ERROR` if any cluster in the FAT12 chain is out of range (< IST_CLUSTER_FIRST or ≥ IST_CLUSTER_FIRST + IST_DATA_CLUSTERS) or if the chain ends (≥ IST_FAT_EOC) before `uiSize` bytes have been delivered. | UFR-DSK-003 | ✓ UC16 | UC16 |
+| REQ-IST-008  | `image_st_write_file()` shall return `ST_ERROR` if `ptImg` or `szName` is NULL, or if `pData` is NULL and `uiSize > 0`. The name shall be validated as 8.3 (base 1–8 chars, extension 0–3 chars) and normalised to uppercase; an invalid name shall return `ST_ERROR`. | UFR-DSK-003 | ✓ UC16 | UC16 |
+| REQ-IST-009  | If a file with the same 8.3 name (case-insensitive) already exists, `image_st_write_file()` shall free its FAT chain and mark its directory entry deleted (0xE5) before allocating the replacement; the root entry count visible through `image_st_list_root()` shall remain unchanged. | UFR-DSK-003 | ✓ UC16 | UC16 |
+| REQ-IST-010  | `image_st_write_file()` shall return `ST_ERROR` if the disk is full (no free cluster) or the root directory is full (no free or deleted slot). On disk-full, all partially-allocated clusters shall be freed before returning `ST_ERROR`. | UFR-DSK-003 | ✓ UC16 | UC16 |
+| REQ-IST-011  | `image_st_delete_file()` shall return `ST_ERROR` if `ptImg` or `szName` is NULL or if the file is not found. On success the full FAT12 chain shall be freed (all entries set to IST_FAT_FREE) and the directory entry first byte set to 0xE5. | UFR-DSK-003 | ✓ UC16 | UC16 |
+| REQ-IST-012  | `image_st_free_bytes()` shall return `ST_ERROR` if any pointer is NULL. On success `*puiFreeBytes` shall equal the count of IST_FAT_FREE (0x000) entries in FAT1 for clusters IST_CLUSTER_FIRST through IST_CLUSTER_FIRST+IST_DATA_CLUSTERS−1, multiplied by IST_SPC × IST_BPS. | UFR-DSK-004 | ✓ UC16 | UC16 |
 
 ---
 
@@ -1408,6 +1439,7 @@ execution UCs (UC25 will read `uiLoadAddr` as the initial PC for .PRG files).
 | Text Editor View             | `edit_txt.c`                                                         | UC8        | stub         |
 | Hex/ASCII Editor View        | `edit_hex.c`                                                         | UC9        | stub         |
 | Integrated Editor Dispatcher | `edit.c`                                                             | UC10       | stub         |
+| Disk Image .st               | `image_st.h`, `image_st.c`                                          | UC16       | ✓ UC16 §4.17 |
 | Floppy Mount                 | `mount.c`                                                            | UC18       | stub         |
 | Execution Engine             | `exec.c`, `exec_mon.c`, `exec_cpu.c`, `exec_mem.c`, `exec_screen.c` | UC25       | stub         |
 | DEVPAC3 Assembler            | `as.c`                                                               | UC30       | stub         |
@@ -1623,6 +1655,81 @@ CTRL+Z:
 | 111.010 d16(PC) | `$XXXXXX(PC)` | 1 |
 | 111.011 d8(PC,Xn) | `$XXXXXX(PC,Xn.W/L)` | 1 brief |
 | 111.100 #imm | `#$XX`/`#$XXXX`/`#$XXXXXXXX` | 1 (B/W) or 2 (L) |
+
+---
+
+### 4.17 Disk Image — `image_st.h` / `image_st.c`
+
+**Role:** allocate and manipulate an Atari ST DD 3.5" `.st` disk image (737,280 bytes) entirely in memory via a FAT12 layer; load from / save to disk through `file.h`.  Only the root directory is supported (no subdirectories), which covers the flat file layout used by virtually all Atari ST demos.
+
+**Public API:**
+
+| Function                        | REQ(s)                          | Description                                                                          |
+|---------------------------------|---------------------------------|--------------------------------------------------------------------------------------|
+| `image_st_create(pptImg)`       | REQ-IST-001                     | Malloc + format BPB + FAT init (cluster 0 media byte, cluster 1 EOC)                |
+| `image_st_load(szPath, pptImg)` | REQ-IST-003, REQ-IST-004        | Read IST_DISK_SIZE bytes via file.h; validate BPB; set *pptImg on success            |
+| `image_st_save(ptImg, szPath)`  | REQ-IST-005                     | Write IST_DISK_SIZE bytes via file.h FILE_MODE_WRITE                                 |
+| `image_st_close(pptImg)`        | REQ-IST-002                     | free() + *pptImg=NULL; close(&NULL) is a safe no-op                                  |
+| `image_st_list_root(…)`         | REQ-IST-006                     | Iterate root directory; skip 0xE5 and volume labels; stop at 0x00                   |
+| `image_st_read_file(…)`         | REQ-IST-007                     | Follow FAT12 chain cluster-by-cluster; validate range; detect early end-of-chain    |
+| `image_st_write_file(…)`        | REQ-IST-008, REQ-IST-009, REQ-IST-010 | Normalise 8.3 name; delete existing; alloc FAT chain; write data; write dirent |
+| `image_st_delete_file(…)`       | REQ-IST-011                     | Free FAT chain; mark entry 0xE5                                                      |
+| `image_st_free_bytes(…)`        | REQ-IST-012                     | Count FAT_FREE clusters × IST_SPC × IST_BPS                                         |
+
+**Key internal functions:**
+
+| Function                | REQ(s)          | Description                                                               |
+|-------------------------|-----------------|---------------------------------------------------------------------------|
+| `ist_fat_get(ptImg, n)` | REQ-IST-007     | Read FAT1 12-bit entry; even/odd cluster encoding                         |
+| `ist_fat_set(ptImg, n, v)` | REQ-IST-001  | Write 12-bit entry to FAT1 and mirror to FAT2 atomically                  |
+| `ist_fat_alloc(ptImg)`  | REQ-IST-008     | Linear scan FAT1 for first IST_FAT_FREE entry; return 0 if disk full     |
+| `ist_fat_free_chain(ptImg, n)` | REQ-IST-011 | Walk chain, set each entry to IST_FAT_FREE; loop-guard on uiMax         |
+| `ist_cluster_offset(n)` | —               | Byte offset in aDisk = (IST_DATA_SECTOR + (n−2)×SPC) × BPS              |
+| `ist_name_to_83(…)`     | REQ-IST-008     | Convert human filename to 11-byte FAT name (uppercase, space-padded)     |
+| `ist_name_match(…)`     | REQ-IST-009     | Case-insensitive 8.3 comparison                                           |
+| `ist_raw_to_name(…)`    | REQ-IST-006     | Convert 11-byte FAT name to "NAME.EXT" C string                           |
+| `ist_format_boot(ptImg)` | REQ-IST-001   | Write BPB, OEM field "ST4EVER ", boot signature 0x55/0xAA                |
+| `ist_validate_bpb(ptImg)` | REQ-IST-004  | Check BPS=512 and TS=1440; all other checks deferred to future UCs       |
+
+**Layout constants:**
+
+| Constant              | Value | Meaning                                      |
+|-----------------------|-------|----------------------------------------------|
+| `IST_DISK_SIZE`       | 737280 | Total image bytes (80×2×9×512)              |
+| `IST_FAT1_SECTOR`     | 1     | First FAT1 sector                            |
+| `IST_FAT2_SECTOR`     | 6     | First FAT2 sector                            |
+| `IST_ROOT_SECTOR`     | 11    | Root directory start                         |
+| `IST_ROOT_SECTORS`    | 7     | 112 entries × 32 bytes / 512                 |
+| `IST_DATA_SECTOR`     | 18    | First data cluster (cluster 2)               |
+| `IST_DATA_CLUSTERS`   | 711   | (1440−18) / 2                                |
+| `IST_CLUSTER_FIRST`   | 2     | First usable cluster number                  |
+| `IST_FAT_FREE`        | 0x000 | Free cluster marker                          |
+| `IST_FAT_EOC`         | 0xFF8 | End-of-chain threshold (0xFF8..0xFFF)        |
+| `IST_FAT_MEDIA_BYTE`  | 0xFF9 | Media descriptor written to cluster 0        |
+
+**Internal `image_st_t` structure:**
+
+```c
+struct image_st_s {
+    st_u8_t aDisk[IST_DISK_SIZE]; /* complete in-memory disk image */
+};
+```
+
+**External dependencies:**
+
+| Call                                | Tag   | Purpose                               |
+|-------------------------------------|-------|---------------------------------------|
+| `file_open()` / `file_read()` / `file_write()` / `file_close()` | [FIL] | Load from / save to .st file |
+| `malloc()` / `free()` / `memset()` / `memcpy()` | [CRT] | Image allocation, BPB format, data I/O |
+| `toupper()` / `strlen()` / `strncpy()` / `strcmp()` / `memcmp()` | [CRT] | 8.3 name normalisation and comparison |
+
+**Future consumers:**
+
+| Future UC  | Usage                                                                               |
+|------------|-------------------------------------------------------------------------------------|
+| UC17 .msa  | `image_msa_load()` decompresses MSA → same `image_st_t.aDisk`; `image_msa_save()` compresses back |
+| UC18 mount | `mount_open()` calls `image_st_load()` for `.st` files; GUI lists via `image_st_list_root()` |
+| UC20 image | `image_st_save()` already available; UC20 adds the PC-directory→FAT12 population loop |
 
 ---
 
@@ -3694,3 +3801,103 @@ Source: `use_cases/use_case_15.c`
 | UFR-LOD-006  | REQ-LOD-018..019                            | TC-LOD-024..025                               | ✓ UC15   |
 | UFR-LOD-007  | REQ-LOD-020..022                            | TC-LOD-021, TC-LOD-023, TC-LOD-028..032       | ✓ UC15   |
 | UFR-LOD-008  | REQ-LOD-017                                 | TC-LOD-026..027                               | ✓ UC15   |
+
+---
+
+### 5.46 INTENT Catalog — UC16
+
+Source: `use_cases/use_case_16.c`
+
+| INTENT ID    | Description                                                                                                                                         |
+|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------|
+| INT-IST-001  | Create + BPB + FAT init: `image_st_create()` produces a valid blank DD image with correct BPB values, FAT12 cluster-0/1 markers, and an empty root directory. |
+| INT-IST-002  | Write / list / read round-trip: writing a file allocates FAT clusters, creates a directory entry, and the content is returned byte-for-byte by `image_st_read_file()`. |
+| INT-IST-003  | Delete + free-bytes accounting: deleting a file marks the entry 0xE5, frees the FAT chain, and `free_bytes` returns to the pre-write value.         |
+| INT-IST-004  | Save + reload round-trip: saving an image with `image_st_save()` and reloading with `image_st_load()` produces an identical structure with matching filenames, sizes, and file content. |
+| INT-IST-005  | Overwrite existing file: writing a file whose name already exists replaces it: root count stays at 1 and new content is returned by `image_st_read_file()`. |
+| INT-IST-006  | Close idempotence: `image_st_close()` sets the handle to NULL and is safe to call twice (`close(&NULL)` is a no-op). |
+| INT-IST-007  | NULL guards: all public functions return `ST_ERROR` when any required pointer parameter is NULL. |
+| INT-IST-008  | Error cases: loading a non-existent file, writing an invalid 8.3 name, and deleting a non-existent file all return `ST_ERROR` cleanly without side-effects. |
+
+---
+
+### 5.47 Test Cases — UC16 (.st disk image — FAT12 create/load/save/list/read/write/delete)
+
+Source: `use_cases/use_case_16.c`
+
+| ID           | Functional description                                                                                              | Type | UFR          | REQ                          | INTENT      | Expected outcome                                           | Status    |
+|--------------|---------------------------------------------------------------------------------------------------------------------|------|--------------|------------------------------|-------------|------------------------------------------------------------|-----------|
+| TC-IST-001   | `image_st_create(&ptImg)` → ST_NO_ERROR                                                                            | [N]  | UFR-DSK-001  | REQ-IST-001                  | INT-IST-001 | ST_NO_ERROR                                                | PASS UC16 |
+| TC-IST-002   | After create: handle not NULL                                                                                       | [N]  | UFR-DSK-001  | REQ-IST-001                  | INT-IST-001 | ptImg != NULL                                              | PASS UC16 |
+| TC-IST-003   | `IST_DISK_SIZE == 737280` (constant sanity)                                                                         | [N]  | UFR-DSK-001  | REQ-IST-001                  | INT-IST-001 | 80×2×9×512 = 737280                                        | PASS UC16 |
+| TC-IST-004   | `image_st_free_bytes()` on fresh image → ST_NO_ERROR                                                               | [N]  | UFR-DSK-004  | REQ-IST-012                  | INT-IST-001 | ST_NO_ERROR                                                | PASS UC16 |
+| TC-IST-005   | Free bytes == IST_DATA_CLUSTERS × IST_SPC × IST_BPS = 728,064                                                      | [N]  | UFR-DSK-004  | REQ-IST-012                  | INT-IST-001 | uiFree = 711×2×512 = 728064                                | PASS UC16 |
+| TC-IST-006   | `image_st_list_root()` on fresh image → ST_NO_ERROR; piCount = 0                                                   | [N]  | UFR-DSK-002  | REQ-IST-006                  | INT-IST-001 | iCount == 0                                                | PASS UC16 |
+| TC-IST-007   | `image_st_write_file(ptImg, "HELLO.PRG", 64 bytes)` → ST_NO_ERROR                                                  | [N]  | UFR-DSK-003  | REQ-IST-008                  | INT-IST-002 | ST_NO_ERROR                                                | PASS UC16 |
+| TC-IST-008   | `image_st_list_root()` after write → ST_NO_ERROR                                                                   | [N]  | UFR-DSK-002  | REQ-IST-006                  | INT-IST-002 | ST_NO_ERROR                                                | PASS UC16 |
+| TC-IST-009   | After write: root count == 1; entry name == "HELLO.PRG"; entry size == 64                                          | [N]  | UFR-DSK-002  | REQ-IST-006, REQ-IST-008     | INT-IST-002 | iCount=1; szName="HELLO.PRG"; uiSize=64                    | PASS UC16 |
+| TC-IST-010   | `image_st_read_file()` on the written entry → ST_NO_ERROR                                                          | [N]  | UFR-DSK-003  | REQ-IST-007                  | INT-IST-002 | ST_NO_ERROR                                                | PASS UC16 |
+| TC-IST-011   | Read content matches the 64 bytes originally written (pattern i×3+7)                                               | [N]  | UFR-DSK-003  | REQ-IST-007                  | INT-IST-002 | memcmp == 0                                                | PASS UC16 |
+| TC-IST-012   | `image_st_write_file(ptImg, "DATA.BIN", 512 bytes)` → ST_NO_ERROR                                                  | [N]  | UFR-DSK-003  | REQ-IST-008                  | INT-IST-002 | ST_NO_ERROR                                                | PASS UC16 |
+| TC-IST-013   | Root count == 2 after second write                                                                                  | [N]  | UFR-DSK-002  | REQ-IST-006                  | INT-IST-002 | iCount == 2                                                | PASS UC16 |
+| TC-IST-014   | Free bytes decreases after writing a 512-byte file                                                                  | [N]  | UFR-DSK-004  | REQ-IST-012                  | INT-IST-003 | uiMid < uiFreeBefore                                       | PASS UC16 |
+| TC-IST-015   | `image_st_delete_file(ptImg, "TMP.TXT")` → ST_NO_ERROR                                                             | [N]  | UFR-DSK-003  | REQ-IST-011                  | INT-IST-003 | ST_NO_ERROR                                                | PASS UC16 |
+| TC-IST-016   | Root count == 0 after delete                                                                                        | [N]  | UFR-DSK-002  | REQ-IST-006                  | INT-IST-003 | iCount == 0                                                | PASS UC16 |
+| TC-IST-017   | Free bytes restored to pre-write value after delete                                                                 | [N]  | UFR-DSK-004  | REQ-IST-012                  | INT-IST-003 | uiFreeAfter == uiFreeBefore                                | PASS UC16 |
+| TC-IST-018   | `image_st_save(ptImg, roundtrip.st)` → ST_NO_ERROR                                                                 | [N]  | UFR-DSK-004  | REQ-IST-005                  | INT-IST-004 | ST_NO_ERROR                                                | PASS UC16 |
+| TC-IST-019   | `image_st_load("roundtrip.st", &ptImg2)` → ST_NO_ERROR                                                             | [N]  | UFR-DSK-001  | REQ-IST-003, REQ-IST-004     | INT-IST-004 | ST_NO_ERROR                                                | PASS UC16 |
+| TC-IST-020   | Reload: root count == 1; entry name == "REVIVAL.PRG"; entry size == 100                                            | [N]  | UFR-DSK-002  | REQ-IST-006                  | INT-IST-004 | iCount=1; szName="REVIVAL.PRG"; uiSize=100                 | PASS UC16 |
+| TC-IST-021   | Reload: read_file content matches original 100 bytes (pattern i^0xA5)                                              | [N]  | UFR-DSK-003  | REQ-IST-007                  | INT-IST-004 | memcmp == 0                                                | PASS UC16 |
+| TC-IST-022   | Overwrite "DEMO.PRG": write 32 bytes, then overwrite with 48 bytes; root count still 1                             | [N]  | UFR-DSK-003  | REQ-IST-009                  | INT-IST-005 | iCount == 1                                                | PASS UC16 |
+| TC-IST-023   | Overwrite: new content (0x22 × 48) returned by read_file                                                           | [N]  | UFR-DSK-003  | REQ-IST-009                  | INT-IST-005 | memcmp(aBuf, aNew, 48) == 0                                | PASS UC16 |
+| TC-IST-024   | `image_st_close(&ptImg)` → ST_NO_ERROR; ptImg == NULL                                                              | [N]  | UFR-DSK-001  | REQ-IST-002                  | INT-IST-006 | ST_NO_ERROR; handle NULL                                   | PASS UC16 |
+| TC-IST-025   | `image_st_close(&NULL)` → ST_NO_ERROR (idempotent)                                                                 | [N]  | UFR-DSK-001  | REQ-IST-002                  | INT-IST-006 | ST_NO_ERROR                                                | PASS UC16 |
+| TC-IST-026   | `image_st_create(NULL)` → ST_ERROR                                                                                  | [R]  | UFR-DSK-001  | REQ-IST-001                  | INT-IST-007 | ST_ERROR                                                   | PASS UC16 |
+| TC-IST-027   | `image_st_load(NULL, &p)` → ST_ERROR                                                                               | [R]  | UFR-DSK-001  | REQ-IST-003                  | INT-IST-007 | ST_ERROR                                                   | PASS UC16 |
+| TC-IST-028   | `image_st_load("x.st", NULL)` → ST_ERROR                                                                           | [R]  | UFR-DSK-001  | REQ-IST-003                  | INT-IST-007 | ST_ERROR                                                   | PASS UC16 |
+| TC-IST-029   | `image_st_close(NULL)` → ST_ERROR                                                                                   | [R]  | UFR-DSK-001  | REQ-IST-002                  | INT-IST-007 | ST_ERROR                                                   | PASS UC16 |
+| TC-IST-030   | `image_st_save(NULL, "x.st")` → ST_ERROR                                                                           | [R]  | UFR-DSK-004  | REQ-IST-005                  | INT-IST-007 | ST_ERROR                                                   | PASS UC16 |
+| TC-IST-031   | `image_st_save(ptImg, NULL)` → ST_ERROR                                                                             | [R]  | UFR-DSK-004  | REQ-IST-005                  | INT-IST-007 | ST_ERROR                                                   | PASS UC16 |
+| TC-IST-032   | `image_st_list_root(NULL, …)` → ST_ERROR                                                                           | [R]  | UFR-DSK-002  | REQ-IST-006                  | INT-IST-007 | ST_ERROR                                                   | PASS UC16 |
+| TC-IST-033   | `image_st_list_root(ptImg, NULL, …)` → ST_ERROR                                                                    | [R]  | UFR-DSK-002  | REQ-IST-006                  | INT-IST-007 | ST_ERROR                                                   | PASS UC16 |
+| TC-IST-034   | `image_st_read_file(NULL, …)` → ST_ERROR                                                                           | [R]  | UFR-DSK-003  | REQ-IST-007                  | INT-IST-007 | ST_ERROR                                                   | PASS UC16 |
+| TC-IST-035   | `image_st_read_file(ptImg, 2, 4, NULL, 16)` → ST_ERROR                                                             | [R]  | UFR-DSK-003  | REQ-IST-007                  | INT-IST-007 | ST_ERROR                                                   | PASS UC16 |
+| TC-IST-036   | `image_st_free_bytes(NULL, &v)` → ST_ERROR                                                                         | [R]  | UFR-DSK-004  | REQ-IST-012                  | INT-IST-007 | ST_ERROR                                                   | PASS UC16 |
+| TC-IST-037   | `image_st_load("no_such.st", &p)` → ST_ERROR; *pptImg remains NULL                                                 | [R]  | UFR-DSK-001  | REQ-IST-003                  | INT-IST-008 | ST_ERROR; handle unchanged                                 | PASS UC16 |
+| TC-IST-038   | `image_st_write_file(ptImg, "TOOLONGNAME.TXT", …)` → ST_ERROR (name > 8 chars)                                     | [R]  | UFR-DSK-003  | REQ-IST-008                  | INT-IST-008 | ST_ERROR                                                   | PASS UC16 |
+| TC-IST-039   | `image_st_delete_file(ptImg, "ABSENT.TXT")` → ST_ERROR (not found)                                                 | [R]  | UFR-DSK-003  | REQ-IST-011                  | INT-IST-008 | ST_ERROR                                                   | PASS UC16 |
+
+#### Test Summary — UC16
+
+| Module | [N] | [R] | [S] | Total | Result   |
+|--------|-----|-----|-----|-------|----------|
+| IST    | 25  | 14  | 0   | 39    | ALL PASS |
+
+> Note: The 46 `UC_TEST`/`UC_CHECK` macro calls in `use_case_16.c` are grouped into 39 logical TCs above.
+> TC-IST-009 covers 3 assertions (iCount + szName + uiSize); TC-IST-020 covers 3 assertions; TC-IST-021 covers read_file call + memcmp.
+
+#### REQ → TC coverage (UC16)
+
+| REQ          | TC(s)                                              | Status    |
+|--------------|----------------------------------------------------|-----------|
+| REQ-IST-001  | TC-IST-001..005                                    | ✓ UC16    |
+| REQ-IST-002  | TC-IST-024..025, TC-IST-029                        | ✓ UC16    |
+| REQ-IST-003  | TC-IST-027..028, TC-IST-037                        | ✓ UC16    |
+| REQ-IST-004  | TC-IST-019 (BPB validated on reload)               | ✓ UC16    |
+| REQ-IST-005  | TC-IST-018, TC-IST-030..031                        | ✓ UC16    |
+| REQ-IST-006  | TC-IST-006, TC-IST-008..009, TC-IST-013, TC-IST-016, TC-IST-020, TC-IST-032..033 | ✓ UC16 |
+| REQ-IST-007  | TC-IST-010..011, TC-IST-021, TC-IST-034..035       | ✓ UC16    |
+| REQ-IST-008  | TC-IST-007, TC-IST-012, TC-IST-026, TC-IST-038    | ✓ UC16    |
+| REQ-IST-009  | TC-IST-022..023                                    | ✓ UC16    |
+| REQ-IST-010  | (disk-full path structural; no fixture for a filled image) | ✓ UC16 (code review) |
+| REQ-IST-011  | TC-IST-015, TC-IST-036, TC-IST-039                 | ✓ UC16    |
+| REQ-IST-012  | TC-IST-004..005, TC-IST-014, TC-IST-017            | ✓ UC16    |
+
+#### UFR traceability update (UC16)
+
+| UFR          | REQ(s)                                           | TC(s)                                                    | Status   |
+|--------------|--------------------------------------------------|----------------------------------------------------------|----------|
+| UFR-DSK-001  | REQ-IST-001..004                                 | TC-IST-001..006, TC-IST-018..019, TC-IST-024..029, TC-IST-037 | ✓ UC16 |
+| UFR-DSK-002  | REQ-IST-006                                      | TC-IST-006, TC-IST-008..009, TC-IST-013, TC-IST-016, TC-IST-020, TC-IST-032..033 | ✓ UC16 |
+| UFR-DSK-003  | REQ-IST-007..011                                 | TC-IST-007, TC-IST-010..012, TC-IST-015, TC-IST-021..023, TC-IST-034..036, TC-IST-038..039 | ✓ UC16 |
+| UFR-DSK-004  | REQ-IST-005, REQ-IST-012                         | TC-IST-014, TC-IST-017..018, TC-IST-030..031              | ✓ UC16   |

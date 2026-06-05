@@ -9,7 +9,6 @@
  * Disk image read/write is delegated to ST.c (TODO UC16/UC17).
  *
  * TODO(UC18): GUI tree view for the mounted floppy content.
- * TODO(UC16): .st raw sector image read/write.
  * TODO(UC17): .msa RLE-compressed image read/write.
  * TODO(UC19): umount with optional image save dialog.
  */

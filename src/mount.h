@@ -6,7 +6,6 @@
  * drag files in/out, and trigger `image` creation.
  *
  * TODO(UC18): GUI tree view for the mounted floppy.
- * TODO(UC16): .st image read/write.
  * TODO(UC17): .msa image read/write.
  */
 

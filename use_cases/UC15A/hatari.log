@@ -19,7 +19,7 @@ DEBUG: Applying TOS patch 'boot from DMA bus'.
 DEBUG: Applied 1 TOS patches, 0 patches failed.
 DEBUG: Video_SetSystemTimings 0 3 -> 2 (WS3) 503 503 64
 DEBUG: Video_SetSystemTimings 0 3 -> 2 (WS3) 503 503 64
-WARN : Host system does not have accurate delays. (16)
+WARN : Host system does not have accurate delays. (15)
 DEBUG: update cyc speed 0 throttle 0,000000 clock_mult 512
 DEBUG: CPU cycleunit: 256 (0,500)
 DEBUG: Building CPU, 44274 opcodes (0 -2 1)
@@ -38,13 +38,7 @@ DEBUG: SDL2 window event: 0xa
 DEBUG: SDL2 window event: 0x3
 WARN : Bus Error reading at address $ffff8a00, PC=$fc0ee2 addr_e3=fc0ee2 op_e3=4a68
 DEBUG: SDL2 window event: 0xb
-DEBUG: SDL2 window event: 0xa
-DEBUG: SDL2 window event: 0xb
 DEBUG: SDL2 window event: 0xc
-DEBUG: SDL2 window event: 0x3
-DEBUG: Increased frameskip to 1
-DEBUG: Decreased frameskip to 0
-DEBUG: SDL2 window event: 0x4
 DEBUG: SDL2 window event: 0x3
 DEBUG: Increased frameskip to 1
 DEBUG: Decreased frameskip to 0
@@ -55,37 +49,6 @@ DEBUG: scandir : findIn origin='C:\msys\home\claude\ST4Ever\use_cases\UC15A'
 DEBUG: scandir : findIn processed='C:\msys\home\claude\ST4Ever\use_cases\UC15A\*'
 WARN : Bus Error reading at address $ffff8a00, PC=$fc0ee2 addr_e3=fc0ee2 op_e3=4a68
 DEBUG: SDL2 window event: 0xa
-DEBUG: SDL2 window event: 0xb
-DEBUG: SDL2 window event: 0xa
-DEBUG: SDL2 window event: 0xb
-DEBUG: SDL2 window event: 0xa
-DEBUG: SDL2 window event: 0xb
-DEBUG: SDL2 window event: 0xa
-DEBUG: SDL2 window event: 0xb
-DEBUG: SDL2 window event: 0xa
-DEBUG: SDL2 window event: 0xb
-DEBUG: SDL2 window event: 0xa
-DEBUG: scandir : findIn origin='C:\msys\home\claude\ST4Ever\use_cases\UC15A'
-DEBUG: scandir : findIn processed='C:\msys\home\claude\ST4Ever\use_cases\UC15A\*'
-DEBUG: scandir : findIn origin='C:\msys\home\claude\ST4Ever\use_cases\UC15A'
-DEBUG: scandir : findIn processed='C:\msys\home\claude\ST4Ever\use_cases\UC15A\*'
-DEBUG: SDL2 window event: 0xb
-DEBUG: SDL2 window event: 0xa
-DEBUG: SDL2 window event: 0xb
-DEBUG: SDL2 window event: 0xa
-DEBUG: SDL2 window event: 0xb
-DEBUG: SDL2 window event: 0xa
-DEBUG: SDL2 window event: 0xb
-DEBUG: SDL2 window event: 0xa
-DEBUG: SDL2 window event: 0xb
-DEBUG: SDL2 window event: 0xa
-DEBUG: SDL2 window event: 0xb
-DEBUG: SDL2 window event: 0xa
-DEBUG: scandir : findIn origin='C:\msys\home\claude\ST4Ever\use_cases\UC15A'
-DEBUG: scandir : findIn processed='C:\msys\home\claude\ST4Ever\use_cases\UC15A\*'
-DEBUG: scandir : findIn origin='C:\msys\home\claude\ST4Ever\use_cases\UC15A'
-DEBUG: scandir : findIn processed='C:\msys\home\claude\ST4Ever\use_cases\UC15A\*'
-WARN : Bus Error reading at address $ffff8a00, PC=$fc0ee2 addr_e3=fc0ee2 op_e3=4a68
 DEBUG: SDL2 window event: 0xb
 DEBUG: SDL2 window event: 0xe
 DEBUG: exit m68k_run
