@@ -1,6 +1,0 @@
-        TEXT
-
-; ===== NOP =====
-NOP
-
-        END

@@ -1,6 +1,0 @@
-        TEXT
-
-; ===== RTS =====
-RTS
-
-        END

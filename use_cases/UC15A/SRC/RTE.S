@@ -1,6 +1,0 @@
-        TEXT
-
-; ===== RTE =====
-RTE
-
-        END
