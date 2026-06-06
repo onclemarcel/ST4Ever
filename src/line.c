@@ -20,6 +20,7 @@
  *        P23bis: TAB inserts longest common prefix before cycling.
  *        P24: g_line_bColors = isatty(stdout) at line_init().
  *        trace clear (P27), trace level <lvl> (P28) sub-commands.
+ * UC18.1: line_cmd_mount() / line_cmd_umount() + g_line_ptMountView.
  */
 
 #include "line.h"
@@ -28,6 +29,8 @@
 #include "edit_txt.h"
 #include "edit_hex.h"
 #include "load.h"
+#include "mount.h"
+#include "image_msa.h"
 #include "file.h"
 #include "trace.h"
 
@@ -152,6 +155,7 @@ void line_update_console_title(const line_context_t *ptCtx)
 static dir_view_t      *g_line_ptDirView     = NULL;
 static edit_txt_view_t *g_line_ptEditTxtView = NULL;
 static edit_hex_view_t *g_line_ptEditHexView = NULL;
+static mount_view_t    *g_line_ptMountView   = NULL;
 
 /* ------------------------------------------------------------------
  * History ring buffer
@@ -1642,6 +1646,115 @@ static st_error_t line_cmd_stub(const parsed_cmd_t *ptParsed,
 }
 
 /* ------------------------------------------------------------------
+ * line_cmd_mount / line_cmd_umount (UC18.1)
+ * ------------------------------------------------------------------ */
+
+static st_error_t line_cmd_mount(const parsed_cmd_t *ptParsed,
+                                  line_context_t     *ptCtx)
+{
+    char        szPath[ST_MAX_PATH];
+    char        szSel[ST_MAX_PATH];
+    file_stat_t tStat;
+    int         iKey;
+    int         iArgIdx;
+
+    /* Collect path: explicit arg > selected file > cwd (confirmation) */
+    szPath[0] = '\0';
+    for (iArgIdx = 1; iArgIdx < ptParsed->iArgc; iArgIdx++)
+    {
+        if (szPath[0] == '\0' &&
+            ptParsed->aszArgv[iArgIdx][0] != '-')
+        {
+            strncpy(szPath, ptParsed->aszArgv[iArgIdx],
+                    ST_MAX_PATH - 1);
+            szPath[ST_MAX_PATH - 1] = '\0';
+        }
+    }
+
+    if (szPath[0] == '\0')
+    {
+        szSel[0] = '\0';
+        line_get_selected(ptCtx, szSel, sizeof(szSel));
+        if (szSel[0] != '\0')
+        {
+            strncpy(szPath, szSel, ST_MAX_PATH - 1);
+            szPath[ST_MAX_PATH - 1] = '\0';
+        }
+        else
+        {
+            /* Use cwd — ask for confirmation */
+            line_print_msg("Mount '%s'? (y/n): ", ptCtx->szCwd);
+            fflush(stdout);
+            iKey = 0;
+            if (console_read_key(&iKey) != ST_NO_ERROR ||
+                (iKey != (int)'y' && iKey != (int)'Y'))
+            {
+                printf("\n");
+                line_print_msg("Mount cancelled.");
+                return ST_NO_ERROR;
+            }
+            printf("\n");
+            strncpy(szPath, ptCtx->szCwd, ST_MAX_PATH - 1);
+            szPath[ST_MAX_PATH - 1] = '\0';
+        }
+    }
+
+    /* Reject plain files that belong to other commands */
+    memset(&tStat, 0, sizeof(tStat));
+    if (file_stat(szPath, &tStat) == ST_NO_ERROR && tStat.bExists)
+    {
+        if (!tStat.bIsDir &&
+            strcmp(tStat.szExt, "st")   != 0 &&
+            strcmp(tStat.szExt, "msa")  != 0)
+        {
+            line_print_warning("'%s' is not a directory or disk image — "
+                               "use 'load' for executables.", szPath);
+            return ST_NO_ERROR;
+        }
+    }
+
+    /* Close any existing mount view first */
+    if (g_line_ptMountView != NULL)
+    {
+        mount_view_close(&g_line_ptMountView);
+        g_line_ptMountView = NULL;
+    }
+
+    if (mount_view_open(szPath, ptCtx, &g_line_ptMountView) != ST_NO_ERROR)
+    {
+        line_print_error("mount failed for '%s'.", szPath);
+        return ST_NO_ERROR;
+    }
+
+    line_print_msg("Mounted '%s' — %d file(s) on A:\\.",
+                   szPath, g_line_ptMountView->iEntryCount);
+    line_update_console_title(ptCtx);
+    return ST_NO_ERROR;
+}
+
+static st_error_t line_cmd_umount(const parsed_cmd_t *ptParsed,
+                                   line_context_t     *ptCtx)
+{
+    ST_UNUSED(ptParsed);
+
+    if (g_line_ptMountView == NULL)
+    {
+        line_print_warning("no disk is currently mounted.");
+        return ST_NO_ERROR;
+    }
+
+    if (g_line_ptMountView->bDirty)
+        line_print_warning("disk has unsaved changes — "
+                           "use 'image' to save before unmounting.");
+
+    mount_view_close(&g_line_ptMountView);
+    g_line_ptMountView = NULL;
+    line_print_msg("Disk unmounted.");
+    line_update_console_title(ptCtx);
+    return ST_NO_ERROR;
+}
+
+/* ------------------------------------------------------------------
  * Dispatch table  (indexed by cmd_id_t value)
  * ------------------------------------------------------------------ */
 
@@ -1657,8 +1770,8 @@ static const cmd_handler_fn g_line_aHandlers[CMD_COUNT] =
     /* CMD_LOAD       */ line_cmd_load,
     /* CMD_EDIT       */ line_cmd_edit,
     /* CMD_IMAGE      */ line_cmd_stub,
-    /* CMD_MOUNT      */ line_cmd_stub,
-    /* CMD_UMOUNT     */ line_cmd_stub,
+    /* CMD_MOUNT      */ line_cmd_mount,
+    /* CMD_UMOUNT     */ line_cmd_umount,
     /* CMD_WHERE      */ line_cmd_where,
     /* CMD_TRACE      */ line_cmd_trace,
     /* CMD_EXECUTE    */ line_cmd_stub,
@@ -2590,6 +2703,13 @@ st_error_t line_shutdown(line_context_t *ptCtx)
     {
         edit_hex_close(&g_line_ptEditHexView);
         g_line_ptEditHexView = NULL;
+    }
+
+    /* Close any open mount view */
+    if (g_line_ptMountView != NULL)
+    {
+        mount_view_close(&g_line_ptMountView);
+        g_line_ptMountView = NULL;
     }
 
     /* Save history */

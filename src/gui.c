@@ -265,6 +265,40 @@ st_error_t gui_request_close(gui_window_t hWnd)
     return ST_NO_ERROR;
 }
 
+st_error_t gui_find_window_by_type(gui_wnd_type_t  eType,
+                                    gui_window_t   *phWnd)
+{
+    size_t               uiIdx;
+    struct gui_window_s *ptWnd;
+
+    if (phWnd == NULL)
+    {
+        LOG_ERROR("phWnd is NULL");
+        return ST_ERROR;
+    }
+    *phWnd = NULL;
+
+    if (g_gui_ptMutex == NULL)
+        return ST_NO_ERROR;
+
+    if (platform_mutex_lock(g_gui_ptMutex) != ST_NO_ERROR)
+        return ST_NO_ERROR;
+
+    for (uiIdx = 0; uiIdx < GUI_MAX_WINDOWS; uiIdx++)
+    {
+        ptWnd = g_gui_aptWnd[uiIdx];
+        if (ptWnd != NULL && ptWnd->bOpen == ST_TRUE &&
+            ptWnd->tDesc.eType == eType)
+        {
+            *phWnd = (gui_window_t)ptWnd;
+            break;
+        }
+    }
+
+    platform_mutex_unlock(g_gui_ptMutex);
+    return ST_NO_ERROR;
+}
+
 st_error_t gui_invalidate(gui_window_t hWnd)
 {
     struct gui_window_s *ptWnd;

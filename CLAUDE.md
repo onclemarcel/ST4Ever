@@ -29,6 +29,7 @@
 - 2026-06-03: UC14 validé — `src/disassemble.c` étendu : NOP/RTE/RTS/RTR, TRAP #N, LINK An/UNLK An, JSR/JMP (toutes EA contrôle), BRA/BSR/Bcc court (.S, 8-bit) et long (16-bit) ; groupe 0x6 `disasm_group6` ; `disasm_no_operand` helper ; `g_aszBcc[16]` ; bloc 0x4Exx dans `disasm_misc4` ; `use_case_11.c`+`use_case_12.c` : ADAPTED(UC14) RTS ; ST_APP_VERSION 0.14.0
 - 2026-06-04: UC16 validé — `src/image_st.h` + `src/image_st.c` : FAT12 .st raw image (create/load/save/list_root/read_file/write_file/delete_file/free_bytes) ; fixtures roundtrip.st via test ; ST_APP_VERSION 0.16.0
 - 2026-06-06: UC17 validé — `src/image_msa.h` + `src/image_msa.c` : MSA RLE codec (imsa_compress/decompress) + `image_msa_load/save` sur `image_st_t` ; `image_st_get_disk()` ajouté à `image_st.h/c` ; round-trip blank + fichiers + 0xE5 escape ; ST_APP_VERSION 0.17.0
+- 2026-06-06: UC18.1 validé — `src/mount.h` + `src/mount.c` : vue D2D `GUI_WND_MOUNT` (liste FAT + panneau propriétés) ; `mount_view_open/close/add_file` ; `line_cmd_mount/umount` ; `gui_find_window_by_type` ; fix szExt sans point ; ST_APP_VERSION 0.18.1
 - 2026-06-06: UC15A validé — torture test désassembleur 68000 vs SOURCE.PRG (DEVPAC3, ATARI ST réel) : 2525 instructions, DIFF=0 ; 5 bugs disasm corrigés (groupE iIR inversé, EXG An,An ordre DEVPAC3, NBCD/CHK/size=3 ext words) ; `DISASM_SYNTAX.md` créé à la racine ; use_case_11/13.c ADAPTED:UC15A
 - 2026-06-03: UC15 validé — `src/load.c` `load_do_prg()` complet : header 28 octets, chargement .text+.data à ST_LOAD_BASE, BSS zeroing, table de fixups Atari ST (bitstream : first_offset 4B, 0x00=fin, 0x01=skip 254B, N=advance+fix) ; abs_flag géré (pas de table fixup) ; `load_state_t` étendu (uiTextSize/uiDataSize/uiBssSize/uiFixupCount) ; helpers `load_apply_fixups` + `load_skip_bytes` ; fixtures `use_cases/UC15/` (fixup/bss/absolute/multi_fixup/bad_fixup.prg) ; TODO(UC15) supprimé ; ST_APP_VERSION 0.15.0
 - 2026-06-03: UC11 validé — `src/disassemble.c` : désassembleur 68000 réel MOVE/MOVEQ/LEA/CLR/EXG/SWAP/PEA + décodeur EA complet (12 modes) ; `bValid = ST_TRUE` sur instructions reconnues ; `TC-DIS-001 ADAPTED(UC11)` ; ST_APP_VERSION 0.11.0
@@ -577,7 +578,8 @@ Les étapes de développement fonctionnelles sont formalisées en Use Cases, per
 | UC16 | interne | Image `.st` : lecture/écriture raw + FAT12 | ✓ VALIDÉ 2026-06-04 |
 | UC15A | interne | Torture test désassembleur : SOURCE.PRG (DEVPAC3, ATARI ST réel) vs disasm_range() — 2525 instructions, DIFF=0 ; 5 bugs disasm corrigés | ✓ VALIDÉ 2026-06-06 |
 | UC17 | interne | Image `.msa` : décompression/compression RLE | ✓ VALIDÉ 2026-06-06 |
-| UC18 | `mount` | Vue arbre disquette Win32/GDI + X11, drag & drop depuis `dir` ; sélection multiple dans `dir` via CTRL+ESPACE/SHIFT+ESPACE (P14, même répertoire uniquement) pour drag & drop multi-fichiers ; historique navigation `dir` ALT+←/→ Précédent/Suivant (P10) | monter répertoire en A:\ |
+| UC18.1 | `mount`, `umount` | Vue D2D `GUI_WND_MOUNT` : liste FAT12 + panneau propriétés ; `mount_view_open/close/add_file` ; `line_cmd_mount/umount` ; `gui_find_window_by_type` | ✓ VALIDÉ 2026-06-06 |
+| UC18.2 | `mount` | Drag & drop depuis vue `dir` (P14) ; historique navigation `dir` ALT+←/→ (P10) ; sélection multiple CTRL+ESPACE | monter depuis dir avec multi-sélection |
 | UC19 | `umount` | Démontage + sauvegarde image si modifiée | dialog save |
 | UC20 | `image` | Création .st / .msa depuis le contenu monté | image valide et montable |
 | UC21 | interne | CPU 68000 : registres + MOVE/MOVEQ/LEA/CLR/SWAP | step 10 instructions |
@@ -2106,6 +2108,103 @@ Référence complète des différences syntaxiques : **`DISASM_SYNTAX.md`** à l
 ### Arbitrage UC17 (2026-06-06)
 
 *UC17 est un UC purement interne (codec MSA RLE). Aucune proposition UX/fonctionnelle n'a émergé — UC17 est clos.*
+
+---
+
+### 6.24 Use Case 18.1 (UC18.1) — ✓ VALIDÉ (2026-06-06)
+
+**Périmètre fonctionnel implémenté :**
+- `src/mount.h` (réécrit) : constantes `MOUNT_WND_WIDTH=780`, `MOUNT_WND_HEIGHT=500`, `MOUNT_LIST_WIDTH=516` ; enum `mount_src_t` (MOUNT_SRC_DIR/ST/MSA) ; struct `mount_view_t` (hWnd, hRenderer, ptImg, eSrc, szSrcPath, bDirty, aEntries[IST_RDE], iEntryCount, iSelectedEntry, iScrollOffset, iWndWidth/H, iCellW/H) ; API publique `mount_view_open/close/add_file`.
+- `src/mount.c` (réécrit) : implémentation D2D complète (~800 lignes) :
+  - `mount_refresh()` : snapshot FAT via `image_st_list_root()`.
+  - `mount_scroll_to_sel()` : clamp scroll pour maintenir la sélection visible.
+  - `mount_render()` : begin_draw + fond gauche + fond droit + séparateur vertical + header "A:\\ [SRC] N files" + liste fichiers (highlight sélection bleu) + panneau propriétés (Source/Path/Files/Free/Total/Modified/hints/sélection) ; macro `PROP_ROW` pour les lignes propriétés.
+  - `mount_handle_key()` : UP/DOWN/PgUp/PgDn/Home/End/DEL/ESC ; DEL appelle `image_st_delete_file()` + `mount_refresh()`.
+  - `mount_handle_click()` : clic gauche dans panel liste → sélection par index visible.
+  - `mount_handle_scroll()` : molette → `iScrollOffset` clampé.
+  - `mount_event_callback()` : PAINT (lazy renderer), RESIZE, KEY_DOWN, MOUSE_DOWN, SCROLL, CLOSE.
+  - `mount_dir_cb()` : callback `file_list_dir` pour peupler image depuis répertoire PC (skip dirs, log skipped si 8.3 invalide).
+  - `mount_view_open()` : résolution chemin via cwd, stat, dispatch dir/st/msa, `image_st_create/load/image_msa_load`, `mount_refresh`, `gui_open_window`.
+  - `mount_view_close()` : `gui_close_window` + `image_st_close` + free.
+  - `mount_view_add_file()` : stat + read + `image_st_write_file` + `mount_refresh` + `gui_invalidate`.
+  - **Fix szExt** : comparaisons `strcmp(tStat.szExt, "st")` et `"msa"` sans point (conforme `file_stat_t` UC6).
+- `src/gui.h` : déclaration `gui_find_window_by_type(eType, phWnd)`.
+- `src/gui.c` : implémentation `gui_find_window_by_type()` — parcourt `g_gui_aptWnd[GUI_MAX_WINDOWS]` sous mutex, retourne premier handle `bOpen==ST_TRUE && eType==eType`.
+- `src/line.c` :
+  - Includes `mount.h` + `image_msa.h` après `load.h`.
+  - `static mount_view_t *g_line_ptMountView = NULL`.
+  - `line_cmd_mount()` : collecte chemin arg/selected/cwd-avec-confirmation ; rejette fichier non-image ("use load") ; ferme vue existante ; `mount_view_open`.
+  - `line_cmd_umount()` : log warning si dirty ; `mount_view_close`.
+  - Dispatch `CMD_MOUNT/CMD_UMOUNT` → fonctions respectives.
+  - `line_shutdown()` : ferme `g_line_ptMountView` si ouvert.
+  - **Fix szExt** : comparaison `"st"`/`"msa"` sans point dans `line_cmd_mount`.
+- `src/common.h` : `ST_APP_VERSION` → `"0.18.1"`.
+- `use_cases/use_case_13.c` : suppression variable `uiLines` inutilisée (warning `-Wunused-variable`).
+- `use_cases/use_case_18_1.c` : nouveau test — inclut `file.h` pour `file_t`/`file_open`/`file_write`/`file_close`/`file_mkdir`.
+
+**Anomalie découverte et résolue :**
+- `file_stat_t.szExt` est sans point (ex : `"st"` pas `".st"`). Les comparaisons dans `mount_view_open()` et `line_cmd_mount()` utilisaient `".st"` avec point → tous les montages .st/.msa retournaient ST_ERROR. Corrigé dans `mount.c` et `line.c`.
+
+**Tests R14/R15 appliqués :**
+- `use_cases/use_case_18_1.c` : TEST MATRIX **12N + 8R + 8S = 28 tests**, 0 failure
+  - [R] : NULL guards open(ptLineCtx/pptView) (2) ; close(NULL/&NULL) (2) ; add_file(NULL view/path) (2) ; find_window_by_type(NULL phWnd) (1) ; open(nonexistent) (1)
+  - [N] : Constantes MOUNT_WND_*/MOUNT_LIST_WIDTH/MOUNT_SRC_* (6) ; find_window (no window) → ST_NO_ERROR + NULL (2) ; open .st (eSrc/iEntryCount/ptImg/hWnd/find_window/close) (7) ; open .msa (eSrc/iEntryCount/close) (3) ; add_file (ST_NO_ERROR/count++/bDirty) (3) ; idempotence close (1) [conditionnel sur gui_open réel]
+  - [S] : 8 tests visuels `make manual UC=18_1`
+
+**Contrats comportementaux validés :**
+
+*`gui_find_window_by_type(eType, phWnd)`*
+- `phWnd == NULL` → `ST_ERROR`
+- GUI non initialisé (`g_gui_ptMutex == NULL`) → `ST_NO_ERROR` + `*phWnd = NULL` (no-op sûr)
+- Aucune fenêtre du type demandé ouverte → `ST_NO_ERROR` + `*phWnd = NULL`
+- Fenêtre ouverte de ce type → `ST_NO_ERROR` + `*phWnd != NULL`
+- Parcours sous mutex `g_gui_ptMutex` : thread-safe vis-à-vis de `gui_open/close_window`
+
+*`mount_view_open(szPath, ptLineCtx, pptView)`*
+- `ptLineCtx == NULL` ou `pptView == NULL` → `ST_ERROR`
+- `szPath == NULL` ou vide → résolu en `ptLineCtx->szCwd`
+- Source non trouvée → `ST_ERROR` + `LOG_ERROR`
+- Extension ni dir, ni `.st`, ni `.msa` → `ST_ERROR` ("unsupported source")
+- Répertoire → `MOUNT_SRC_DIR` : `image_st_create()` + `file_list_dir()` callback
+- `.st` → `MOUNT_SRC_ST` : `image_st_load()`
+- `.msa` → `MOUNT_SRC_MSA` : `image_msa_load()`
+- Échec image load → `ST_ERROR` + `free(ptView)` (pas de fuite)
+- Succès → fenêtre D2D visible, titre `"ST4Ever - Mount: A:\\ [SRC]"`, `*pptView != NULL`
+
+*`mount_view_close(pptView)`*
+- `pptView == NULL` → `ST_ERROR`
+- `*pptView == NULL` → `ST_NO_ERROR` (idempotent)
+- Après close : thread joint, renderer détruit dans `GUI_EVT_CLOSE`, image libérée, `*pptView = NULL`
+
+*`mount_view_add_file(ptView, szSrcPath)`*
+- `ptView == NULL` ou `szSrcPath == NULL` → `ST_ERROR`
+- `ptView->ptImg == NULL` → `ST_ERROR`
+- Fichier non trouvé ou répertoire → `ST_ERROR`
+- Nom 8.3 invalide (délégué à `image_st_write_file`) → `ST_ERROR`
+- Disque plein (délégué à `image_st_write_file`) → `ST_ERROR`
+- Succès : `bDirty = ST_TRUE`, `iEntryCount` incrémenté, `gui_invalidate`
+
+*`mount_handle_key()` — DEL*
+- DEL sur entrée valide : `image_st_delete_file()` + `mount_refresh()` + clamp `iSelectedEntry` + `gui_invalidate`.
+- DEL si `ptImg == NULL` ou sélection invalide : no-op.
+
+*`mount_dir_cb()` — MOUNT_SRC_DIR*
+- Sous-répertoires ignorés silencieusement.
+- Fichier taille 0 : `image_st_write_file(NULL, 0)` (entrée vide).
+- Nom non-8.3 → skipped avec `LOG_INFO("skipped '%s'")`.
+- Malloc/open échoue → skipped avec `LOG_ERROR`, compteur `iSkipped++`.
+
+**Points d'attention pour les UCs suivants :**
+- UC18.2 : drag-and-drop depuis vue `dir` → `mount_view_add_file()` (infrastructure prête) ; multi-sélection CTRL+ESPACE (P14) dans `dir_handle_key()` ; historique navigation ALT+←/→ (P10).
+- UC19 : `umount` + dialog "save image?" si `bDirty == ST_TRUE`. `line_cmd_umount()` actuel log warning mais ne bloque pas.
+- UC20 : `image_st_save()` et `image_msa_save()` disponibles depuis UC16/UC17 — `image` command créera une image depuis le contenu monté.
+- `gui_find_window_by_type` : ajouté à `gui.h`/`gui.c` — disponible pour toutes les vues futures (edit_txt, edit_hex, dir) qui veulent vérifier si une vue de même type est déjà ouverte.
+
+---
+
+### Arbitrage UC18.1 (2026-06-06)
+
+*UC18.1 implémente la vue D2D mount + commandes mount/umount. Propositions ouvertes de §7 déjà planifiées en UC18.2 (P10, P14). Aucune nouvelle proposition UX/fonctionnelle n'a émergé — UC18.1 est clos.*
 
 ---
 

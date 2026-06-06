@@ -373,4 +373,22 @@ st_error_t gui_clipboard_set_text(const char *szText);
  */
 st_error_t gui_clipboard_get_text(char *szBuf, size_t uiMax);
 
+/*
+ * gui_find_window_by_type() - Find the first open window of a given type.
+ *
+ * Searches the global window registry under mutex for the first open
+ * gui_window_t whose type matches eType.  Used by the mount view to let
+ * the dir view locate it for drag-and-drop (UC18.2).
+ *
+ * Parameters:
+ *   eType [in]  : Window type to locate (e.g. GUI_WND_MOUNT).
+ *   phWnd [out] : Receives the first matching handle, or NULL if none.
+ *
+ * Returns:
+ *   ST_NO_ERROR always (phWnd is NULL when the type is not found).
+ *   ST_ERROR    if phWnd is NULL.
+ */
+st_error_t gui_find_window_by_type(gui_wnd_type_t  eType,
+                                    gui_window_t   *phWnd);
+
 #endif /* GUI_H */

@@ -88,7 +88,6 @@ int main(void)
 {
     disasm_result_t tR;
     st_error_t      eRet;
-    size_t          uiLines = 0;
 
     printf("=== UC13: Shifts/Rotations + Bit Ops ===\n\n");
 
