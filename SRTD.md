@@ -32,6 +32,7 @@
 | 2.7 | 2026-06-05 | UC16  | Claude/OMC | UC16 validated — image_st.h/c: FAT12 .st image create/load/save/list_root/read_file/write_file/delete_file/free_bytes; UFR-DSK-001..004 §1.8 new; REQ-IST-001..012 §2.14 new; §4.13 updated; §4.17 new; §5.46..47 new |
 | 2.8 | 2026-06-06 | UC15A | Claude/OMC | UC15A validated — disassembler torture test vs DEVPAC3 SOURCE.PRG (2525 instructions, DIFF=0); 5 disasm bugs fixed (groupE iIR, EXG An,An order, NBCD/CHK/size=3 ext words); DISASM_SYNTAX.md created; REQ-DIS-024..030 ADAPTED; TC-DIS-200..219 ADAPTED(UC15A) |
 | 2.9 | 2026-06-06 | UC17  | Claude/OMC | UC17 validated — image_msa.h/c: MSA RLE codec (imsa_compress/decompress, escape 0xE5, raw fallback); image_msa_load/save layered on image_st_t; image_st_get_disk() added; UFR-DSK-005..007 §1.8 updated; REQ-MSA-001..010 §2.15 new; §4.18 new; §5.50..51 new |
+| 3.0 | 2026-06-06 | UC18.1 | Claude/OMC | UC18.1 validated — mount.h/c: GUI_WND_MOUNT D2D view (FAT list + properties panel); mount_view_open/close/add_file; gui_find_window_by_type; line_cmd_mount/umount; fix szExt without dot; UFR-MNT-001..004 §1.9 new; REQ-MNT-001..012 §2.16 new; §4.19 new; §5.52..53 new |
 
 ---
 
@@ -239,9 +240,18 @@ through one or more test cases in Section 5.
 | UFR-DSK-006 | The application shall save an in-memory `image_st_t` to a `.msa` file, compressing each track with MSA RLE when the compressed form is shorter than the raw 4608-byte track. | ✓ UC17 | UC17 |
 | UFR-DSK-007 | The application shall provide a safe accessor `image_st_get_disk()` that exposes the raw byte buffer of an `image_st_t` to codec modules without breaking the opaque struct encapsulation. | ✓ UC17 | UC17 |
 
-### 1.9 Floppy Mount / Emulation — `MNT` (TODO UC18–19)
+### 1.9 Floppy Mount / Emulation — `MNT`
 
-*Requirements will be detailed when UC18–UC19 are planned (GUI tree view, drag-and-drop, umount dialog).*
+> UC18.1 validated 2026-06-06. UC18.2 (drag-and-drop), UC19 (umount dialog), UC20 (image creation) planned.
+
+| ID           | Requirement                                                                                                                                        | Status       | UC       |
+|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------|--------------|----------|
+| UFR-MNT-001  | `mount [path]` shall open a D2D GUI view showing the FAT12 root directory of the given `.st` or `.msa` image, or of a PC directory converted to an in-memory disk. | ✓ UC18.1 | UC18.1 |
+| UFR-MNT-002  | The mount view shall display a left panel listing FAT root entries (name, size) and a right panel showing disk properties (source type, total files, free bytes, modified flag). | ✓ UC18.1 | UC18.1 |
+| UFR-MNT-003  | The mount view shall allow the user to add files from the PC file system via `mount_view_add_file()`, and delete selected entries via the DEL key; both actions shall update the in-memory image and refresh the view. | ✓ UC18.1 | UC18.1 |
+| UFR-MNT-004  | `umount` shall close the mount view. If the in-memory image is dirty (modified since open), the user shall be notified (warning log). A full save dialog is planned for UC19. | ✓ UC18.1 | UC18.1 |
+| UFR-CON-070  | `mount [path]` shall emulate an Atari ST floppy drive A:\ from the given directory.                                                               | ✓ UC18.1     | UC18.1   |
+| UFR-CON-071  | `umount` shall eject the emulated floppy, offering to save a disk image if modified.                                                               | TODO UC19    | UC19     |
 
 ### 1.10 Execution Engine — `EXE` (TODO UC21–27)
 
@@ -665,6 +675,29 @@ requirement that will expose it (`UFR-EXE-*`, planned UC21–27).
 | REQ-DIS-036 | Branch target address = `(instruction_addr + 2 + displacement) & 0x00FFFFFF`; displayed as `$XXXXXX` (6 hex digits). | UFR-HEX-005 | ✓ UC14 | UC14 |
 | REQ-DIS-037 | Bcc (conditions 2-15): same short/long/0xFF rules as BRA/BSR; mnemonics from `g_aszBcc[16]` table (BHI, BLS, BCC, BCS, BNE, BEQ, BVC, BVS, BPL, BMI, BGE, BLT, BGT, BLE). | UFR-HEX-005 | ✓ UC14 | UC14 |
 | REQ-DIS-038 | `disasm_range()` shall walk a realistic mixed control-flow stream (MOVE + TST + BEQ.S + NOP + BRA.S + RTS) correctly, with addresses advancing per `iWordCount`. | UFR-HEX-005 | ✓ UC14 | UC14 |
+
+---
+
+### 2.16 Mount View — `mount.h` / `mount.c`
+
+> Design ref: CLAUDE.md §6.24; depends on `image_st.h` (UC16), `image_msa.h` (UC17), `gui.h` (UC3.1), `renderer.h` (UC3.2), `file.h` (UC6).
+
+| ID           | Software Requirement                                                                                                                                                                                                                        | Parent UFR   | Status    | UC      |
+|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------|-----------|---------|
+| REQ-MNT-001  | `mount_view_open(szPath, NULL, pptView)` or `mount_view_open(szPath, ptCtx, NULL)` shall return `ST_ERROR`. `mount_view_open("noexist.st", ...)` shall return `ST_ERROR` and leave `*pptView == NULL`. | UFR-MNT-001 | ✓ UC18.1 | UC18.1 |
+| REQ-MNT-002  | When `szPath` is NULL or empty, `mount_view_open()` shall resolve to `ptCtx->szCwd`. A PC directory shall open with `MOUNT_SRC_DIR`; a `.st` file with `MOUNT_SRC_ST`; a `.msa` file with `MOUNT_SRC_MSA`; any other extension shall return `ST_ERROR`. | UFR-MNT-001 | ✓ UC18.1 | UC18.1 |
+| REQ-MNT-003  | After a successful `mount_view_open()`, `ptView->eSrc` shall match the detected source type, `ptView->iEntryCount` shall equal the number of FAT root entries, and `ptView->ptImg` shall be non-NULL. | UFR-MNT-001 | ✓ UC18.1 | UC18.1 |
+| REQ-MNT-004  | `mount_view_open()` shall open a D2D GUI window (`GUI_WND_MOUNT`) visible to `gui_find_window_by_type(GUI_WND_MOUNT, &hWnd)` as long as the view is open. | UFR-MNT-002 | ✓ UC18.1 | UC18.1 |
+| REQ-MNT-005  | `mount_view_close(NULL)` shall return `ST_ERROR`. `mount_view_close(&NULL)` shall return `ST_NO_ERROR` (idempotent). After a successful close, `*pptView` shall be NULL, the window thread joined, the renderer destroyed, and `ptImg` freed. | UFR-MNT-004 | ✓ UC18.1 | UC18.1 |
+| REQ-MNT-006  | `mount_view_add_file(NULL, szPath)` or `mount_view_add_file(ptView, NULL)` shall return `ST_ERROR`. Adding a valid PC file shall call `image_st_write_file()`, set `ptView->bDirty = ST_TRUE`, increment `ptView->iEntryCount`, and invalidate the view. | UFR-MNT-003 | ✓ UC18.1 | UC18.1 |
+| REQ-MNT-007  | The left panel shall list FAT root entries; keyboard UP/DOWN/PgUp/PgDn/Home/End shall navigate the selection with scroll clamping; DEL shall call `image_st_delete_file()`, refresh the entry list, and clamp the selection to the new count. | UFR-MNT-002 | ✓ UC18.1 | UC18.1 |
+| REQ-MNT-008  | ESC shall call `gui_request_close()` from the window thread, without blocking. `line_cmd_umount()` shall call `mount_view_close()`. | UFR-MNT-004 | ✓ UC18.1 | UC18.1 |
+| REQ-MNT-009  | `gui_find_window_by_type(eType, NULL)` shall return `ST_ERROR`. With a valid `phWnd`, if no window of `eType` is open, it shall return `ST_NO_ERROR` and set `*phWnd = NULL`; if one is open, `*phWnd != NULL`. | UFR-MNT-004 | ✓ UC18.1 | UC18.1 |
+| REQ-MNT-010  | `file_stat_t.szExt` stores the extension without the leading dot (e.g., `"st"` not `".st"`). All comparisons in `mount_view_open()` and `line_cmd_mount()` shall compare against the dot-free form. | UFR-MNT-001 | ✓ UC18.1 | UC18.1 |
+| REQ-MNT-011  | The window title shall follow R18 format: `"ST4Ever - Mount: A:\\ [SRC]"` where `[SRC]` is `DIR`, `ST`, or `MSA` according to `mount_src_t`. | UFR-MNT-002 | ✓ UC18.1 | UC18.1 |
+| REQ-MNT-012  | The right properties panel shall display: Source type, source path, file count, free bytes, total bytes, and a "modified" indicator (`bDirty`). Mouse scroll wheel shall scroll the file list when focused on it. | UFR-MNT-002 | ✓ UC18.1 | UC18.1 |
+| REQ-MNT-013  | **(UC18.2)** The properties panel shall display BPB geometry fields in read-only mode: heads, sectors/track, tracks, bytes/sector, root dir capacity (RDE), and a "Bootable: YES/NO" indicator. Bootability is determined by: (1) WD1772 checksum (sum of bootsector words ≡ 0x1234 mod 0x10000) AND (2) bytes[0:1] form a valid `JMP`/`BRA` opcode. The `/N` root-dir count shall be removed from the left panel header. | UFR-MNT-002 | TODO UC18.2 | UC18.2 |
+| REQ-MNT-014  | **(UC18.2)** Keyboard shortcut `B` in the mount view shall extract `aDisk[0..511]` (bootsector) to a temporary file and open it via `edit_hex_open()`. The edit_hex window title shall include detected bootsector type as a heuristic placeholder (e.g., `[code]`, `[BPB]`, `[text]`). Detection shall be refined in a later UC using a curated bootsector dataset. | UFR-MNT-002 | TODO UC18.2 | UC18.2 |
 
 ---
 
@@ -1817,6 +1850,78 @@ uiOffset = (iTrack * IST_SIDES + iSide) * (IST_SPT * IST_SECTOR_SIZE);
 ```
 
 Matches the `.st` interleaved layout: track 0 side 0, track 0 side 1, track 1 side 0, …
+
+### 4.19 Mount View — `mount.h` / `mount.c`
+
+> Design ref: CLAUDE.md §6.24; UC18.1 validated 2026-06-06
+
+**Role:** D2D GUI view (`GUI_WND_MOUNT`) presenting a FAT12 disk image as an emulated Atari ST floppy `A:\`. Sources: PC directory (in-memory fresh image), `.st` raw image, `.msa` RLE-compressed image. Left panel: FAT root entry list. Right panel: disk properties.
+
+**Public API:**
+
+| Function                                       | REQ(s)                            | Description                                                                                              |
+|------------------------------------------------|-----------------------------------|----------------------------------------------------------------------------------------------------------|
+| `mount_view_open(szPath, ptLineCtx, pptView)`  | REQ-MNT-001..004, REQ-MNT-010..011 | Resolve source (dir/st/msa), load/create `image_st_t`, open `GUI_WND_MOUNT` window thread               |
+| `mount_view_close(pptView)`                    | REQ-MNT-005                       | Close window thread (join), free `image_st_t`, set `*pptView = NULL`; idempotent on `&NULL`             |
+| `mount_view_add_file(ptView, szSrcPath)`       | REQ-MNT-006                       | Stat + read PC file, call `image_st_write_file()`, set `bDirty`, refresh entry list, invalidate view    |
+
+**Key internal functions:**
+
+| Function                               | REQ(s)          | Description                                                                                 |
+|----------------------------------------|-----------------|---------------------------------------------------------------------------------------------|
+| `mount_refresh(ptView)`                | REQ-MNT-003     | Snapshot FAT via `image_st_list_root()` into `ptView->aEntries[]` + `iEntryCount`          |
+| `mount_scroll_to_sel(ptView)`          | REQ-MNT-007     | Clamp `iScrollOffset` so `iSelectedEntry` is in the visible region                         |
+| `mount_render(ptView)`                 | REQ-MNT-002,011,012 | begin_draw → left panel (header + file list) → separator → right panel (properties)    |
+| `mount_handle_key(ptView, eKey)`       | REQ-MNT-007,008 | UP/DOWN/PgUp/PgDn/Home/End navigation + DEL delete + ESC close                             |
+| `mount_handle_click(ptView, iX, iY)`  | REQ-MNT-007     | Left-click on list panel selects entry by pixel-to-index mapping                           |
+| `mount_handle_scroll(ptView, iDelta)` | REQ-MNT-012     | Mouse scroll wheel: clamp `iScrollOffset`                                                   |
+| `mount_event_callback(hWnd, ptEvt)`   | REQ-MNT-002..008 | PAINT (lazy renderer), RESIZE, KEY_DOWN, MOUSE_DOWN, SCROLL, CLOSE                        |
+| `mount_dir_cb(szFull, szName, ptStat, pCtx)` | REQ-MNT-002 | `file_list_dir()` callback: skip dirs; skip invalid 8.3 names; read + write into image   |
+
+**Also modified — `gui.h` / `gui.c`:**
+
+| Function                                         | REQ(s)       | Description                                                                            |
+|--------------------------------------------------|--------------|----------------------------------------------------------------------------------------|
+| `gui_find_window_by_type(eType, phWnd)`          | REQ-MNT-009  | Scan `g_gui_aptWnd[]` under mutex; return first matching open window handle or NULL    |
+
+**Constants:**
+
+| Constant             | Value | Meaning                                              |
+|----------------------|-------|------------------------------------------------------|
+| `MOUNT_WND_WIDTH`    | 780   | Default window width in pixels                       |
+| `MOUNT_WND_HEIGHT`   | 500   | Default window height in pixels                      |
+| `MOUNT_LIST_WIDTH`   | 516   | Left panel (file list) width in pixels               |
+| `MOUNT_SRC_DIR`      | 0     | Source is a PC directory (new in-memory image)       |
+| `MOUNT_SRC_ST`       | 1     | Source is a `.st` raw disk image                     |
+| `MOUNT_SRC_MSA`      | 2     | Source is a `.msa` RLE-compressed disk image         |
+
+**Dependencies:**
+
+| Module       | Symbol(s)                                                                          | Purpose                              |
+|--------------|------------------------------------------------------------------------------------|--------------------------------------|
+| `image_st`   | `image_st_create/load/save/close/list_root/write_file/delete_file/free_bytes`      | In-memory FAT12 disk manipulation    |
+| `image_msa`  | `image_msa_load()`                                                                 | Decompress `.msa` into `image_st_t`  |
+| `gui`        | `gui_open/close_window`, `gui_find_window_by_type`, `gui_invalidate`, `gui_set_title` | Window lifecycle + title            |
+| `renderer`   | `renderer_create/destroy`, `renderer_begin/end_draw`, draw primitives              | D2D rendering                        |
+| `file`       | `file_stat`, `file_open/read/close`, `file_list_dir`, `file_mkdir`                 | PC file system access                |
+| `line`       | `line_context_t`, `line_get_selected()`                                            | CWD + selected file context          |
+
+**Threading model:**
+
+Same pattern as `dir_view_t` and `trace_view_t`: `mount_view_open()` calls `gui_open_window()` which spawns a dedicated window thread. The console thread calls `mount_view_open/close/add_file()` only; the window thread runs `mount_event_callback()` exclusively. `mount_view_add_file()` writes to the image and calls `gui_invalidate()` — the only cross-thread interaction.
+
+**Colour palette:**
+
+| Variable           | RGB approx             | Usage                              |
+|--------------------|------------------------|------------------------------------|
+| `g_mnt_clrBg`      | #181824 (dark navy)    | Window background                  |
+| `g_mnt_clrSep`     | #444466                | Vertical separator line            |
+| `g_mnt_clrHeader`  | #AAAAFF (lavender)     | Header row "A:\\ [SRC] N files"    |
+| `g_mnt_clrEntry`   | #CCCCCC (light grey)   | Regular file entry text            |
+| `g_mnt_clrSel`     | #1A3A6A (navy blue)    | Selected entry background          |
+| `g_mnt_clrPropKey` | #8888CC                | Property key label text            |
+| `g_mnt_clrPropVal` | #DDDDDD                | Property value text                |
+| `g_mnt_clrDirty`   | #FFAA44 (amber)        | "Modified" indicator text          |
 
 ---
 
@@ -4147,3 +4252,115 @@ Source: `use_cases/use_case_15A.c`
 | UFR-DSK-005 | REQ-MSA-001, REQ-MSA-003..007    | TC-MSA-001..002, TC-MSA-010..016, TC-MSA-020..027, TC-MSA-030..033 | UC17 |
 | UFR-DSK-006 | REQ-MSA-002, REQ-MSA-008..009    | TC-MSA-003..004, TC-MSA-010..016, TC-MSA-020..027         | UC17   |
 | UFR-DSK-007 | REQ-MSA-010                      | TC-MSA-005..006                                            | UC17   |
+
+---
+
+### 5.52 INTENT Catalog — UC18.1
+
+Each INTENT maps to one or more test blocks in `use_cases/use_case_18_1.c`.
+
+| ID            | INTENT text                                                                                  |
+|---------------|----------------------------------------------------------------------------------------------|
+| INT-MNT-001   | mount_view_open must reject NULL ptLineCtx and NULL pptView                                  |
+| INT-MNT-002   | mount_view_open on a non-existent file must return ST_ERROR and leave *pptView NULL          |
+| INT-MNT-003   | mount_view_close(NULL) must return ST_ERROR; mount_view_close(&NULL) must be idempotent      |
+| INT-MNT-004   | mount_view_add_file must reject NULL view and NULL path                                      |
+| INT-MNT-005   | gui_find_window_by_type must reject NULL phWnd                                               |
+| INT-MNT-006   | gui_find_window_by_type returns ST_NO_ERROR + NULL when no window of that type is open       |
+| INT-MNT-007   | MOUNT_WND_WIDTH, MOUNT_WND_HEIGHT, MOUNT_LIST_WIDTH constants must have valid ranges         |
+| INT-MNT-008   | MOUNT_SRC_DIR/ST/MSA enum values must be 0, 1, 2                                             |
+| INT-MNT-009   | Opening a .st image must set eSrc=MOUNT_SRC_ST, correct iEntryCount, non-NULL ptImg and hWnd |
+| INT-MNT-010   | gui_find_window_by_type must find the GUI_WND_MOUNT window once it is open                   |
+| INT-MNT-011   | mount_view_close on an open .st view must return ST_NO_ERROR and set *pptView = NULL         |
+| INT-MNT-012   | Opening a .msa image must set eSrc=MOUNT_SRC_MSA and correct iEntryCount                    |
+| INT-MNT-013   | mount_view_add_file must increment iEntryCount and set bDirty                               |
+| INT-MNT-014   | mount_view_close(&NULL) called a second time must return ST_NO_ERROR (idempotent)            |
+
+---
+
+### 5.53 Test Cases — UC18.1 (mount D2D view)
+
+**Fixture files** (created in `use_cases/UC18_1/` at test start):
+- `test2files.st` — `.st` image with FILE1.DAT (16B) and FILE2.BIN (8B)
+- `test.msa` — `.msa` image with DEMO.PRG (16B) and README.TXT (8B)
+- `test.st` — blank `.st` image (0 files)
+- `IMPORT.DAT` — 16-byte PC file for add_file test
+
+| TC             | Description                                                                                 | Kind | UFR          | REQ          | INT          | Notes                              | Status       |
+|----------------|---------------------------------------------------------------------------------------------|------|--------------|--------------|--------------|------------------------------------|--------------|
+| TC-MNT-001     | `mount_view_open(NULL, NULL, &p)` → ST_ERROR and `p == NULL`                               | [R]  | UFR-MNT-001  | REQ-MNT-001  | INT-MNT-001  |                                    | PASS UC18.1  |
+| TC-MNT-002     | `mount_view_open(sz, &ctx, NULL)` → ST_ERROR                                               | [R]  | UFR-MNT-001  | REQ-MNT-001  | INT-MNT-001  |                                    | PASS UC18.1  |
+| TC-MNT-003     | `mount_view_close(NULL)` → ST_ERROR                                                        | [R]  | UFR-MNT-004  | REQ-MNT-005  | INT-MNT-003  |                                    | PASS UC18.1  |
+| TC-MNT-004     | `mount_view_close(&NULL)` → ST_NO_ERROR                                                    | [R]  | UFR-MNT-004  | REQ-MNT-005  | INT-MNT-003  |                                    | PASS UC18.1  |
+| TC-MNT-005     | `mount_view_add_file(NULL, "foo")` → ST_ERROR                                              | [R]  | UFR-MNT-003  | REQ-MNT-006  | INT-MNT-004  |                                    | PASS UC18.1  |
+| TC-MNT-006     | `mount_view_add_file(ptr, NULL)` → ST_ERROR                                                | [R]  | UFR-MNT-003  | REQ-MNT-006  | INT-MNT-004  |                                    | PASS UC18.1  |
+| TC-MNT-007     | `gui_find_window_by_type(GUI_WND_MOUNT, NULL)` → ST_ERROR                                  | [R]  | UFR-MNT-004  | REQ-MNT-009  | INT-MNT-005  |                                    | PASS UC18.1  |
+| TC-MNT-008     | `mount_view_open("NONEXISTENT.st", ...)` → ST_ERROR, `*pptView == NULL`                   | [R]  | UFR-MNT-001  | REQ-MNT-001  | INT-MNT-002  |                                    | PASS UC18.1  |
+| TC-MNT-010     | `MOUNT_WND_WIDTH > 0`                                                                       | [N]  | UFR-MNT-002  | REQ-MNT-011  | INT-MNT-007  |                                    | PASS UC18.1  |
+| TC-MNT-011     | `MOUNT_WND_HEIGHT > 0`                                                                      | [N]  | UFR-MNT-002  | REQ-MNT-011  | INT-MNT-007  |                                    | PASS UC18.1  |
+| TC-MNT-012     | `MOUNT_LIST_WIDTH < MOUNT_WND_WIDTH`                                                        | [N]  | UFR-MNT-002  | REQ-MNT-011  | INT-MNT-007  |                                    | PASS UC18.1  |
+| TC-MNT-013     | `MOUNT_SRC_DIR == 0`                                                                        | [N]  | UFR-MNT-001  | REQ-MNT-002  | INT-MNT-008  |                                    | PASS UC18.1  |
+| TC-MNT-014     | `MOUNT_SRC_ST == 1`                                                                         | [N]  | UFR-MNT-001  | REQ-MNT-002  | INT-MNT-008  |                                    | PASS UC18.1  |
+| TC-MNT-015     | `MOUNT_SRC_MSA == 2`                                                                        | [N]  | UFR-MNT-001  | REQ-MNT-002  | INT-MNT-008  |                                    | PASS UC18.1  |
+| TC-MNT-020     | `gui_find_window_by_type(GUI_WND_MOUNT, &h)` (no window open) → ST_NO_ERROR                | [N]  | UFR-MNT-004  | REQ-MNT-009  | INT-MNT-006  |                                    | PASS UC18.1  |
+| TC-MNT-021     | `gui_find_window_by_type(GUI_WND_MOUNT, &h)` (no window open) → `h == NULL`               | [N]  | UFR-MNT-004  | REQ-MNT-009  | INT-MNT-006  |                                    | PASS UC18.1  |
+| TC-MNT-030     | `mount_view_open(test2files.st, ...)` → ST_NO_ERROR                                        | [N]  | UFR-MNT-001  | REQ-MNT-001  | INT-MNT-009  |                                    | PASS UC18.1  |
+| TC-MNT-031     | After open .st: `ptView != NULL`                                                            | [N]  | UFR-MNT-001  | REQ-MNT-003  | INT-MNT-009  |                                    | PASS UC18.1  |
+| TC-MNT-032     | After open .st: `eSrc == MOUNT_SRC_ST`                                                     | [N]  | UFR-MNT-001  | REQ-MNT-003  | INT-MNT-009  |                                    | PASS UC18.1  |
+| TC-MNT-033     | After open .st: `iEntryCount == 2`                                                          | [N]  | UFR-MNT-001  | REQ-MNT-003  | INT-MNT-009  |                                    | PASS UC18.1  |
+| TC-MNT-034     | After open .st: `ptImg != NULL`                                                             | [N]  | UFR-MNT-001  | REQ-MNT-003  | INT-MNT-009  |                                    | PASS UC18.1  |
+| TC-MNT-035     | After open .st: `hWnd != NULL`                                                              | [N]  | UFR-MNT-002  | REQ-MNT-004  | INT-MNT-009  |                                    | PASS UC18.1  |
+| TC-MNT-036     | `gui_find_window_by_type(GUI_WND_MOUNT, &h)` while open → `h != NULL`                     | [N]  | UFR-MNT-004  | REQ-MNT-009  | INT-MNT-010  |                                    | PASS UC18.1  |
+| TC-MNT-037     | `mount_view_close(&ptView)` → ST_NO_ERROR                                                  | [N]  | UFR-MNT-004  | REQ-MNT-005  | INT-MNT-011  |                                    | PASS UC18.1  |
+| TC-MNT-038     | After close: `ptView == NULL`                                                               | [N]  | UFR-MNT-004  | REQ-MNT-005  | INT-MNT-011  |                                    | PASS UC18.1  |
+| TC-MNT-040     | `mount_view_open(test.msa, ...)` → ST_NO_ERROR                                             | [N]  | UFR-MNT-001  | REQ-MNT-001  | INT-MNT-012  |                                    | PASS UC18.1  |
+| TC-MNT-041     | After open .msa: `eSrc == MOUNT_SRC_MSA`                                                   | [N]  | UFR-MNT-001  | REQ-MNT-002  | INT-MNT-012  |                                    | PASS UC18.1  |
+| TC-MNT-042     | After open .msa: `iEntryCount == 2`                                                         | [N]  | UFR-MNT-001  | REQ-MNT-003  | INT-MNT-012  |                                    | PASS UC18.1  |
+| TC-MNT-050     | `mount_view_add_file(ptView, IMPORT.DAT)` → ST_NO_ERROR                                    | [N]  | UFR-MNT-003  | REQ-MNT-006  | INT-MNT-013  | blank .st open before add         | PASS UC18.1  |
+| TC-MNT-051     | After add_file: `iEntryCount` incremented by 1                                              | [N]  | UFR-MNT-003  | REQ-MNT-006  | INT-MNT-013  |                                    | PASS UC18.1  |
+| TC-MNT-052     | After add_file: `bDirty == ST_TRUE`                                                         | [N]  | UFR-MNT-003  | REQ-MNT-006  | INT-MNT-013  |                                    | PASS UC18.1  |
+| TC-MNT-060     | `mount_view_close(&NULL)` idempotent — second call → ST_NO_ERROR                           | [N]  | UFR-MNT-004  | REQ-MNT-005  | INT-MNT-014  |                                    | PASS UC18.1  |
+| TC-MNT-S001    | Mount .st view visible with correct title `A:\\ [ST]`                                      | [S]  | UFR-MNT-001  | REQ-MNT-011  | INT-MNT-009  | `make manual UC=18_1`             | PASS UC18.1  |
+| TC-MNT-S002    | Left panel lists FILE1.DAT and FILE2.BIN (2 entries)                                       | [S]  | UFR-MNT-002  | REQ-MNT-007  | INT-MNT-009  | `make manual UC=18_1`             | PASS UC18.1  |
+| TC-MNT-S003    | Right panel shows properties (Source, Files, Free bytes)                                    | [S]  | UFR-MNT-002  | REQ-MNT-012  | INT-MNT-009  | `make manual UC=18_1`             | PASS UC18.1  |
+| TC-MNT-S004    | UP/DOWN keys navigate and highlight selection                                               | [S]  | UFR-MNT-002  | REQ-MNT-007  | INT-MNT-009  | `make manual UC=18_1`             | PASS UC18.1  |
+| TC-MNT-S005    | DEL removes selected file and decrements entry count                                        | [S]  | UFR-MNT-003  | REQ-MNT-007  | INT-MNT-009  | `make manual UC=18_1`             | PASS UC18.1  |
+| TC-MNT-S006    | Mouse scroll wheel scrolls the file list                                                    | [S]  | UFR-MNT-002  | REQ-MNT-012  | INT-MNT-009  | `make manual UC=18_1`             | PASS UC18.1  |
+| TC-MNT-S007    | ESC closes the mount window                                                                 | [S]  | UFR-MNT-004  | REQ-MNT-008  | INT-MNT-009  | `make manual UC=18_1`             | PASS UC18.1  |
+| TC-MNT-S008    | Mount .msa window title shows `[MSA]` tag                                                  | [S]  | UFR-MNT-001  | REQ-MNT-011  | INT-MNT-012  | `make manual UC=18_1`             | PASS UC18.1  |
+
+#### Test Summary — UC18.1
+
+| Kind        | Count | Notes                                   |
+|-------------|-------|-----------------------------------------|
+| [N] Nominal | 12    | lifecycle, source types, add-file, find |
+| [R] Robust  |  8    | NULL params, non-existent source        |
+| [S] Skipped |  8    | visual — run `make manual UC=18_1`      |
+| **Total**   | **28** |                                        |
+
+#### REQ → TC coverage (UC18.1)
+
+| REQ          | TC(s)                                                            | Status   |
+|--------------|------------------------------------------------------------------|----------|
+| REQ-MNT-001  | TC-MNT-001, TC-MNT-002, TC-MNT-008, TC-MNT-030, TC-MNT-040    | UC18.1   |
+| REQ-MNT-002  | TC-MNT-013..015, TC-MNT-041                                     | UC18.1   |
+| REQ-MNT-003  | TC-MNT-031..035, TC-MNT-042                                     | UC18.1   |
+| REQ-MNT-004  | TC-MNT-035, TC-MNT-036                                          | UC18.1   |
+| REQ-MNT-005  | TC-MNT-003, TC-MNT-004, TC-MNT-037, TC-MNT-038, TC-MNT-060    | UC18.1   |
+| REQ-MNT-006  | TC-MNT-005, TC-MNT-006, TC-MNT-050, TC-MNT-051, TC-MNT-052    | UC18.1   |
+| REQ-MNT-007  | TC-MNT-S002, TC-MNT-S004, TC-MNT-S005                          | UC18.1   |
+| REQ-MNT-008  | TC-MNT-S007                                                     | UC18.1   |
+| REQ-MNT-009  | TC-MNT-007, TC-MNT-020, TC-MNT-021, TC-MNT-036                 | UC18.1   |
+| REQ-MNT-010  | (invariant — covered by TC-MNT-030..031, TC-MNT-040..041 succeeding) | UC18.1 |
+| REQ-MNT-011  | TC-MNT-010..012, TC-MNT-S001, TC-MNT-S008                      | UC18.1   |
+| REQ-MNT-012  | TC-MNT-S003, TC-MNT-S006                                        | UC18.1   |
+
+#### UFR traceability update (UC18.1)
+
+| UFR          | REQ(s)                              | TC(s)                                                                       | Status   |
+|--------------|-------------------------------------|-----------------------------------------------------------------------------|----------|
+| UFR-MNT-001  | REQ-MNT-001..003, REQ-MNT-010..011  | TC-MNT-001..002, TC-MNT-008, TC-MNT-013..015, TC-MNT-030..035, TC-MNT-040..042, TC-MNT-S001, TC-MNT-S008 | UC18.1 |
+| UFR-MNT-002  | REQ-MNT-004, REQ-MNT-011..012       | TC-MNT-010..012, TC-MNT-035, TC-MNT-S001..004, TC-MNT-S006, TC-MNT-S008   | UC18.1   |
+| UFR-MNT-003  | REQ-MNT-006                         | TC-MNT-005..006, TC-MNT-050..052, TC-MNT-S005                              | UC18.1   |
+| UFR-MNT-004  | REQ-MNT-005, REQ-MNT-008..009       | TC-MNT-003..004, TC-MNT-007, TC-MNT-020..021, TC-MNT-036..038, TC-MNT-060, TC-MNT-S007 | UC18.1 |
+| UFR-CON-070  | REQ-MNT-001..004                    | TC-MNT-030..038 (via line_cmd_mount integration)                            | UC18.1   |

@@ -579,7 +579,7 @@ Les étapes de développement fonctionnelles sont formalisées en Use Cases, per
 | UC15A | interne | Torture test désassembleur : SOURCE.PRG (DEVPAC3, ATARI ST réel) vs disasm_range() — 2525 instructions, DIFF=0 ; 5 bugs disasm corrigés | ✓ VALIDÉ 2026-06-06 |
 | UC17 | interne | Image `.msa` : décompression/compression RLE | ✓ VALIDÉ 2026-06-06 |
 | UC18.1 | `mount`, `umount` | Vue D2D `GUI_WND_MOUNT` : liste FAT12 + panneau propriétés ; `mount_view_open/close/add_file` ; `line_cmd_mount/umount` ; `gui_find_window_by_type` | ✓ VALIDÉ 2026-06-06 |
-| UC18.2 | `mount` | Drag & drop depuis vue `dir` (P14) ; historique navigation `dir` ALT+←/→ (P10) ; sélection multiple CTRL+ESPACE | monter depuis dir avec multi-sélection |
+| UC18.2 | `mount` | Drag & drop depuis vue `dir` (P14) ; historique navigation `dir` ALT+←/→ (P10) ; sélection multiple CTRL+ESPACE ; propriétés BPB lecture seule (P34) ; supprimer /112 de l'en-tête (P36) ; indicateur Bootable (P37) ; analyse bootsector via edit_hex, raccourci `B` (P38) | monter depuis dir avec multi-sélection + propriétés étendues |
 | UC19 | `umount` | Démontage + sauvegarde image si modifiée | dialog save |
 | UC20 | `image` | Création .st / .msa depuis le contenu monté | image valide et montable |
 | UC21 | interne | CPU 68000 : registres + MOVE/MOVEQ/LEA/CLR/SWAP | step 10 instructions |
@@ -2453,41 +2453,53 @@ Avis Claude : **ACCEPTÉ — UC10-bis ou intégré dans une UC ultérieure**. Co
 
 ### Arbitrage UC18.1 (2026-06-06)
 
-*UC18.1 implémente la vue D2D mount + commandes mount/umount. Propositions ouvertes de §7 déjà planifiées en UC18.2 (P10, P14). Aucune nouvelle proposition UX/fonctionnelle n'a émergé — UC18.1 est clos.*
+*UC18.1 implémente la vue D2D mount + commandes mount/umount. Propositions ouvertes de §7 déjà planifiées en UC18.2 (P10, P14). Propositions P34–P38 déposées par Tonton Marcel et arbitrées ci-dessous.*
 
-**P34 — Panneau latéral : ajout des propriétés head/sector/tracks modifiables**
+**P34 — Panneau latéral : ajout des propriétés head/sector/tracks modifiables** → **ACCEPTÉ MODIFIÉ — UC18.2**
 
 Les disquettes ATARI ST ont différents formats (head/sectors/tracks) en fonction des démos ou applications, le standard étant 720Ko obtenus par 2 heads / 9 sectors / 80 tracks & 512 BPS. Mais certaines disquettes peuvent augmenter leur capacité par 2 heads / 11 sectors / 82 tracks et être correctement lues par le lecteur de disquette et le WD1772. Le panneau latéral de mount peut offrir le moyen de modifier les paramètres dans la limite du raisonnable (head 1-2, sectors 9-11, tracks 79-82), ces paramètres seront utilisés lors de la sauvegarde image .st / .msa
 
-Avis Claude : à renseigner
+Avis Claude : ACCEPTÉ MODIFIÉ. Les démos ATARI ST utilisent très rarement les formats non-standard (9 secteurs / 80 pistes est quasi-universel) ; afficher les propriétés BPB en lecture seule couvre 95 % du besoin. **UC18.2 ajoute l'affichage lecture seule** des paramètres BPB dans le panneau propriétés (heads, sectors/track, tracks, BPS — déjà dans `image_st_t`, coût nul) ; **UC20 ajoute la modification** lors de la création d'image.
 
-**P35 — Prévoir une sauvegarde .st / .msa et répertoire en local en option**
+**P35 — Prévoir une sauvegarde .st / .msa et répertoire en local en option** → **ACCEPTÉ — UC19**
 
-Afin de permettre un reversement .st => répertoire local, la sauvegarde de l'image disquette lors de la commande umount peut se faire par une boite de dialogue avec 3 cases à cocher: l'une génère un fichier disk.st, la deuxième un fichier disk.msa, et la 3ème un répertoire 'disk' avec le contenu identique à la fenêtre 'mount' : par contre, ce répertoire ne peut remplacer le répertoire source utilisé par 'mount' afin de ne pas supprimer de fichier en local. Schéma de principe d'une suppression de fichier dans la disquette: 
+Afin de permettre un reversement .st => répertoire local, la sauvegarde de l'image disquette lors de la commande umount peut se faire par une boite de dialogue avec 3 cases à cocher: l'une génère un fichier disk.st, la deuxième un fichier disk.msa, et la 3ème un répertoire 'disk' avec le contenu identique à la fenêtre 'mount' : par contre, ce répertoire ne peut remplacer le répertoire source utilisé par 'mount' afin de ne pas supprimer de fichier en local. Schéma de principe d'une suppression de fichier dans la disquette:
 - ouverture disquette par 'mount' du répertoire sélectionné par 'dir'
 - travail sur le contenu de la disquette, par exemple, DEL sur un fichier
 - 'umount' ouvre la boite de dialogue ou 'umount --st --msa --dir' génère disk.st, disk.msa et un nouveau répertoire 'disk' dans le répertoire source de 'dir'
 - la fenêtre 'mount' est close, le répertoire source est inchangé
 
-Avis Claude: à renseigner
+Avis Claude : ACCEPTÉ. La boîte de dialogue à 3 cases est le périmètre naturel de UC19 (`umount`). UC18.1 a déjà posé `bDirty` — UC19 exploitera ce flag. L'option `umount --st --msa --dir` sans dialog est pratique pour les scripts. Le répertoire cible `disk/` est toujours créé à côté de la source, jamais en remplacement. Planifié UC19.
 
-**P36 - Première ligne A:\ indique le nombre de fichiers sur 112**
+**P36 - Première ligne A:\ indique le nombre de fichiers sur 112** → **ACCEPTÉ — UC18.2**
 
 Information " / 112" perturbante dans la première ligne (même s'il s'agit de la limite du nombre de fichier de la root dir, comme indiqué dans le header). Proposition d'intégrer cette information dans le panneau des propriétés - pas besoin que cette propriété soit modifiable, sauf si on veut conserver une cohérence de la gestion des propriétés avec P34.
 
-Avis Claude: à renseigner
+Avis Claude : ACCEPTÉ. L'info est bien une propriété de disquette mais redondante dans l'en-tête de la liste. UC18.2 : déplacer dans le panneau propriétés ("Root dir capacity: 112 entries") et simplifier l'en-tête à `"A:\\ [SRC]  N files"` sans le `/112`. Si P34 ajoute les propriétés BPB, RDE (Root Directory Entries) y trouve naturellement sa place.
 
-**P37 - Ajouter la propriété modifiable "Bootable Disk" dans mount**
+**P37 - Ajouter la propriété modifiable "Bootable Disk" dans mount** → **ACCEPTÉ MODIFIÉ — UC18.2 lecture seule, UC19 écriture**
 
 Permet de rendre le disk bootable (modif bootsector) et/ou de détecter s'il est bootable
 
-Avis Claude: à renseigner
+Avis Claude : ACCEPTÉ avec découpage. La détection "bootable" sur ATARI ST est plus riche que le seul checksum WD1772 : elle comprend la présence d'un `JMP`/`BRA` en octets[0:1] du bootsector, la somme de contrôle (mots 16-bit big-endian ≡ 0x1234 mod 0x10000), et d'autres indicateurs comme la présence du dossier AUTO sur la FAT. UC18.2 ajoute l'indicateur "Bootable: YES/NO" en lecture seule dans le panneau propriétés (critère checksum WD1772 + JMP/BRA). Des images de test ATARI ST réelles (boot / non-boot) valideront les cas lors de UC18.2. La modification du checksum (rendre bootable) est différée à UC19 avec confirmation utilisateur.
 
-**P38 - Analyse bootsector de l'image disque**
+**P38 - Analyse bootsector de l'image disque** → **ACCEPTÉ — UC18.2**
 
-Un raccourci clavier permet d'ouvrir un panneau affichant le contenu du bootsector, en particulier s'il contient du code ou tout autre contenu (e.g. texte, signature, loader, ...). Le panneau peut contenir une vue hexadécimale basée sur celle existante UC9 en accompagnement des infos du panneau. Sans surcharger la solution technique, une fenêtre UC9 peut simplement remplacer le panneau et indiquer les informations clés du bootsector dans le titre de la fenêtre (bootable disk, H2/S9/T80, 720ko -- boot contains code(e.g. medium res code)/loader(e.g. not FAT12 filesystem)/packer(e.g. typical demo packers - Orion Sly Packer)/signature(e.g. text print on boot)/protection(e.g. Rob Northern Copylock, Yoda Lock-O-matic, ...))
+Un raccourci clavier permet d'ouvrir un panneau affichant le contenu du bootsector, en particulier s'il contient du code ou tout autre contenu (e.g. texte, signature, loader, ...). Le panneau peut contenir une vue hexadécimale basée sur celle existante UC9 en accompagnement des infos du panneau. Sans surcharger la solution technique, une fenêtre UC9 peut simplement remplacer le panneau et indiquer les informations clés du bootsector dans le titre de la fenêtre (bootable disk, H2/S9/T80, 720ko -- boot contains code(e.g. medium res code)/loader(e.g. not FAT12 filesystem)/packer(e.g. typical demo packers - Orion Sly Packer)/signature(e.g. text print on boot)/protection(e.g. Rob Northern Copylock, Yoda Lock-O-matic, ...)) ou même indiquer ces messages directement dans la console (Bootsector Infos: ...)
 
-Avis Claude: à renseigner
+Avis Claude : ACCEPTÉ. Réutiliser `edit_hex_open()` sur les 512 octets du bootsector est la bonne approche — aucun nouveau composant. UC18.2 : raccourci `B` dans `mount_handle_key()` → extrait `aDisk[0..511]` dans un fichier temporaire → `edit_hex_open()`. Le titre de la fenêtre indique les infos clés détectées par une heuristique simple : `"ST4Ever - Edit: bootsector [H2/S9/T80 720Ko — code]"`. Cette détection fait office de **placeholder** : Tonton Marcel proposera un dataset de bootsectors types pour enrichir et calibrer la détection (code/loader/packer/signature/protection) dans un UC ultérieur dédié. La heuristique initiale UC18.2 se limite aux critères les plus discriminants (bootable + JMP/BRA vs BPB vs texte en clair).
+
+---
+
+| Proposition | Décision | UC cible |
+|-------------|----------|----------|
+| P34 (géométrie BPB lecture seule) | ACCEPTÉ MODIFIÉ | UC18.2 |
+| P35 (dialog umount save .st/.msa/dir) | ACCEPTÉ | UC19 |
+| P36 (supprimer /112 de l'en-tête liste) | ACCEPTÉ | UC18.2 |
+| P37 (indicateur Bootable lecture seule) | ACCEPTÉ MODIFIÉ | UC18.2 |
+| P38 (analyse bootsector via edit_hex) | ACCEPTÉ | UC18.2 |
+
+*Toutes les propositions P34–P38 ont été arbitrées — UC18.1 est clos.*
 
 
 
