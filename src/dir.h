@@ -53,7 +53,15 @@
  * Flat list capacity
  * ------------------------------------------------------------------ */
 
-#define DIR_FLAT_MAX  4096   /* max visible (expanded) tree entries   */
+#define DIR_FLAT_MAX        4096  /* max visible (expanded) tree entries   */
+
+/* ------------------------------------------------------------------
+ * P10: navigation history depth (ALT+←/→)
+ * P14: multi-selection capacity (CTRL+SPACE)
+ * ------------------------------------------------------------------ */
+
+#define DIR_NAV_HIST_MAX    16    /* max entries in ALT+←/→ history        */
+#define DIR_MULTI_SEL_MAX   16    /* max simultaneously multi-selected files*/
 
 /* ------------------------------------------------------------------
  * Tree node
@@ -118,6 +126,15 @@ typedef struct dir_view_s
     char              szLastSelected[ST_MAX_PATH]; /* P11: last file   */
                                                    /* committed via    */
                                                    /* ENTER or SPACE   */
+
+    /* P10: navigation history (ALT+←/→) --------------------------------*/
+    char              aszNavHistory[DIR_NAV_HIST_MAX][ST_MAX_PATH];
+    int               iNavHistHead;     /* index of current dir in history  */
+    int               iNavHistCount;    /* total valid entries stored        */
+
+    /* P14: multi-file selection (CTRL+SPACE) ----------------------------*/
+    char              aszMultiSel[DIR_MULTI_SEL_MAX][ST_MAX_PATH];
+    int               iMultiSelCount;   /* number of multi-selected files   */
 } dir_view_t;
 
 /* ------------------------------------------------------------------

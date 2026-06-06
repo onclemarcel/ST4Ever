@@ -16,6 +16,7 @@
  */
 
 #include "mount.h"
+#include "edit_hex.h"
 #include "image_msa.h"
 #include "file.h"
 #include "trace.h"
@@ -37,7 +38,119 @@ static const renderer_color_t g_mnt_clrSel     = {0.20f,0.30f,0.65f,1.0f};
 static const renderer_color_t g_mnt_clrLabel   = {0.00f,0.85f,0.85f,1.0f};
 static const renderer_color_t g_mnt_clrValue   = {0.80f,0.80f,0.80f,1.0f};
 static const renderer_color_t g_mnt_clrDirty   = {0.95f,0.50f,0.10f,1.0f};
-static const renderer_color_t g_mnt_clrHint    = {0.45f,0.45f,0.45f,1.0f};
+static const renderer_color_t g_mnt_clrHint      = {0.45f,0.45f,0.45f,1.0f};
+static const renderer_color_t g_mnt_clrBootY     = {0.20f,0.90f,0.20f,1.0f};
+static const renderer_color_t g_mnt_clrBootN     = {0.55f,0.55f,0.55f,1.0f};
+
+#ifdef ST_PLATFORM_WINDOWS
+#  define MOUNT_BOOT_TMP  ".\\st4ever_boot.bin"
+#else
+#  define MOUNT_BOOT_TMP  "/tmp/st4ever_boot.bin"
+#endif
+
+/* ------------------------------------------------------------------
+ * Internal: WD1772 bootability check
+ * ------------------------------------------------------------------ */
+
+/* P37: sum of the 256 LE16 words in the 512-byte bootsector must
+ * equal 0x1234 (mod 0x10000) for the WD1772 to execute it. */
+static st_bool_t mount_check_bootable(const st_u8_t *pBoot)
+{
+    st_u32_t uiSum;
+    int      i;
+
+    uiSum = 0;
+    for (i = 0; i < 512; i += 2)
+    {
+        st_u16_t uiWord = (st_u16_t)( ((st_u16_t)pBoot[i]) |
+                                       ((st_u16_t)pBoot[i + 1] << 8) );
+        uiSum += uiWord;
+    }
+    return ((uiSum & 0xFFFFu) == 0x1234u) ? ST_TRUE : ST_FALSE;
+}
+
+/* P38: write the 512-byte bootsector to a temp file and open the
+ * hex editor on it.  Stores the view handle in ptView->ptBootHexView.
+ * Called from the window thread. */
+static void mount_open_bootsector(mount_view_t *ptView)
+{
+    st_u8_t          *pDisk    = NULL;
+    file_t           *ptFile   = NULL;
+    edit_hex_view_t **pptHexV;
+    char              szTitle[80];
+    st_bool_t         bBoot;
+    st_u16_t          uiSPT;
+    st_u16_t          uiHeads;
+    st_u16_t          uiTracks;
+
+    if (ptView->ptImg == NULL)
+        return;
+    if (image_st_get_disk(ptView->ptImg, &pDisk) != ST_NO_ERROR ||
+        pDisk == NULL)
+        return;
+
+    /* Close existing bootsector view if any */
+    pptHexV = (edit_hex_view_t **)&ptView->ptBootHexView;
+    if (*pptHexV != NULL)
+    {
+        edit_hex_close(pptHexV);
+        ptView->ptBootHexView = NULL;
+    }
+
+    /* Write bootsector bytes to temp file */
+    if (file_open(MOUNT_BOOT_TMP, FILE_MODE_WRITE, &ptFile) != ST_NO_ERROR)
+    {
+        LOG_ERROR("mount: cannot write bootsector temp file '%s'",
+                  MOUNT_BOOT_TMP);
+        return;
+    }
+    if (file_write(ptFile, pDisk, 512) != ST_NO_ERROR)
+    {
+        file_close(&ptFile);
+        LOG_ERROR("mount: bootsector write failed");
+        return;
+    }
+    file_close(&ptFile);
+
+    /* Heuristic title info */
+    bBoot  = mount_check_bootable(pDisk);
+    /* BPB: SPT @0x18 LE16, HEADS @0x1A LE16, TS @0x13 LE16 */
+    uiSPT    = (st_u16_t)( (st_u16_t)pDisk[0x18] |
+                            ((st_u16_t)pDisk[0x19] << 8) );
+    uiHeads  = (st_u16_t)( (st_u16_t)pDisk[0x1A] |
+                            ((st_u16_t)pDisk[0x1B] << 8) );
+    uiTracks = (st_u16_t)( (st_u16_t)pDisk[0x13] |
+                            ((st_u16_t)pDisk[0x14] << 8) );
+    if (uiSPT == 0)    uiSPT    = IST_SPT;
+    if (uiHeads == 0)  uiHeads  = IST_HEADS;
+    if (uiTracks == 0) uiTracks = IST_TRACKS;
+
+    snprintf(szTitle, sizeof(szTitle),
+             "bootsector [H%u/S%u/T%u %uKo - %s]",
+             (unsigned)uiHeads, (unsigned)uiSPT, (unsigned)uiTracks,
+             (unsigned)(((st_u32_t)uiHeads * uiSPT * uiTracks * IST_BPS)
+                        / 1024u),
+             bBoot ? "bootable" : "not bootable");
+
+    if (ptView->ptLineCtx != NULL)
+    {
+        if (edit_hex_open(MOUNT_BOOT_TMP, ptView->ptLineCtx,
+                          (edit_hex_view_t **)&ptView->ptBootHexView)
+            != ST_NO_ERROR)
+        {
+            LOG_ERROR("mount: edit_hex_open bootsector failed");
+            ptView->ptBootHexView = NULL;
+            return;
+        }
+        /* Override window title with bootsector info */
+        if (ptView->ptBootHexView != NULL)
+        {
+            edit_hex_view_t *ptHex;
+            ptHex = (edit_hex_view_t *)ptView->ptBootHexView;
+            gui_set_title(ptHex->hWnd, szTitle);
+        }
+    }
+}
 
 /* ------------------------------------------------------------------
  * Internal: refresh entry list from image
@@ -152,8 +265,8 @@ static void mount_render(mount_view_t *ptView)
     default:            szSrc = "DIR";  break;
     }
     snprintf(szLine, sizeof(szLine),
-             " A:\\  [%s]  %d / %d file%s",
-             szSrc, ptView->iEntryCount, IST_RDE,
+             " A:\\  [%s]  %d file%s",
+             szSrc, ptView->iEntryCount,
              ptView->iEntryCount == 1 ? "" : "s");
     tText.fX = 4.0f;
     tText.fY = 0.0f;
@@ -232,10 +345,60 @@ static void mount_render(mount_view_t *ptView)
     PROP_ROW(szP, &g_mnt_clrValue);
     iPr++;  /* blank */
 
-    PROP_ROW("Files:", &g_mnt_clrLabel);
-    snprintf(szLine, sizeof(szLine), "  %d / %d",
-             ptView->iEntryCount, IST_RDE);
-    PROP_ROW(szLine, &g_mnt_clrValue);
+    /* P34: BPB geometry (read-only) */
+    {
+        st_u8_t  *pDisk = NULL;
+        st_u16_t  uiSPT    = IST_SPT;
+        st_u16_t  uiHeads  = IST_HEADS;
+        st_u16_t  uiTracks = IST_TRACKS;
+        st_u16_t  uiRDE    = IST_RDE;
+
+        if (ptView->ptImg != NULL &&
+            image_st_get_disk(ptView->ptImg, &pDisk) == ST_NO_ERROR &&
+            pDisk != NULL)
+        {
+            st_u16_t v;
+            v = (st_u16_t)( (st_u16_t)pDisk[0x18] |
+                             ((st_u16_t)pDisk[0x19] << 8) );
+            if (v != 0) uiSPT = v;
+            v = (st_u16_t)( (st_u16_t)pDisk[0x1A] |
+                             ((st_u16_t)pDisk[0x1B] << 8) );
+            if (v != 0) uiHeads = v;
+            v = (st_u16_t)( (st_u16_t)pDisk[0x13] |
+                             ((st_u16_t)pDisk[0x14] << 8) );
+            if (v != 0) uiTracks = v;
+            v = (st_u16_t)( (st_u16_t)pDisk[0x11] |
+                             ((st_u16_t)pDisk[0x12] << 8) );
+            if (v != 0) uiRDE = v;
+
+            PROP_ROW("Geometry:", &g_mnt_clrLabel);
+            snprintf(szLine, sizeof(szLine), "  H%u/S%u/T%u  %uKo",
+                     (unsigned)uiHeads, (unsigned)uiSPT,
+                     (unsigned)uiTracks,
+                     (unsigned)(((st_u32_t)uiHeads * uiSPT * uiTracks *
+                                 IST_BPS) / 1024u));
+            PROP_ROW(szLine, &g_mnt_clrValue);
+
+            PROP_ROW("Bootable:", &g_mnt_clrLabel);
+            if (mount_check_bootable(pDisk))
+                PROP_ROW("  Yes", &g_mnt_clrBootY);
+            else
+                PROP_ROW("  No",  &g_mnt_clrBootN);
+
+            /* P36: Files with root dir capacity from BPB */
+            PROP_ROW("Files:", &g_mnt_clrLabel);
+            snprintf(szLine, sizeof(szLine), "  %d / %u  (root)",
+                     ptView->iEntryCount, (unsigned)uiRDE);
+            PROP_ROW(szLine, &g_mnt_clrValue);
+        }
+        else
+        {
+            PROP_ROW("Files:", &g_mnt_clrLabel);
+            snprintf(szLine, sizeof(szLine), "  %d / %d",
+                     ptView->iEntryCount, IST_RDE);
+            PROP_ROW(szLine, &g_mnt_clrValue);
+        }
+    }
 
     uiFreeBytes = 0;
     if (ptView->ptImg != NULL)
@@ -260,6 +423,7 @@ static void mount_render(mount_view_t *ptView)
     iPr++;  /* blank */
     PROP_ROW("[UP/DOWN] Navigate", &g_mnt_clrHint);
     PROP_ROW("[DEL]     Remove",   &g_mnt_clrHint);
+    PROP_ROW("[B]       Bootsector", &g_mnt_clrHint);
     PROP_ROW("[ESC]     Close",    &g_mnt_clrHint);
 
     if (ptView->iSelectedEntry >= 0 &&
@@ -361,6 +525,16 @@ static void mount_handle_key(mount_view_t *ptView,
         return;
 
     default:
+        /* P38: 'B'/'b' opens bootsector in hex editor */
+        if (eKey >= GUI_KEY_PRINTABLE)
+        {
+            char cCh;
+            cCh = (char)((int)eKey - (int)GUI_KEY_PRINTABLE);
+            if (cCh == 'B' || cCh == 'b')
+            {
+                mount_open_bootsector(ptView);
+            }
+        }
         return;
     }
 
@@ -617,6 +791,7 @@ st_error_t mount_view_open(const char     *szPath,
     }
     memset(ptView, 0, sizeof(mount_view_t));
     ptView->iSelectedEntry = -1;
+    ptView->ptLineCtx      = ptLineCtx;
     strncpy(ptView->szSrcPath, szEffPath, ST_MAX_PATH - 1);
 
     /* Load or create the disk image */
@@ -704,6 +879,15 @@ st_error_t mount_view_close(mount_view_t **pptView)
 
     ptView = *pptView;
     LOG_TRACE("ptView=%p", (void *)ptView);
+
+    /* P38: close bootsector hex viewer if open */
+    if (ptView->ptBootHexView != NULL)
+    {
+        edit_hex_view_t *ptHex;
+        ptHex = (edit_hex_view_t *)ptView->ptBootHexView;
+        edit_hex_close(&ptHex);
+        ptView->ptBootHexView = NULL;
+    }
 
     if (ptView->hWnd != NULL)
     {
@@ -801,4 +985,11 @@ st_error_t mount_view_add_file(mount_view_t *ptView,
     LOG_INFO("added '%s' to disk (%d files total)",
              szName, ptView->iEntryCount);
     return ST_NO_ERROR;
+}
+
+st_bool_t mount_is_bootable(const st_u8_t *pBootSect)
+{
+    if (pBootSect == NULL)
+        return ST_FALSE;
+    return mount_check_bootable(pBootSect);
 }

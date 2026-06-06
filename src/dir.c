@@ -48,12 +48,13 @@
  * Colour palette (static to avoid repeated compound-literal allocs)
  * ------------------------------------------------------------------ */
 
-static const renderer_color_t g_dir_clrBg      = {0.09f, 0.09f, 0.14f, 1.0f};
-static const renderer_color_t g_dir_clrSel     = {0.20f, 0.30f, 0.65f, 1.0f};
-static const renderer_color_t g_dir_clrLastSel = {0.04f, 0.28f, 0.10f, 1.0f};
-static const renderer_color_t g_dir_clrDir     = {0.00f, 0.85f, 0.85f, 1.0f};
-static const renderer_color_t g_dir_clrFile    = {0.80f, 0.80f, 0.80f, 1.0f};
-static const renderer_color_t g_dir_clrDD      = {0.95f, 0.90f, 0.10f, 1.0f};
+static const renderer_color_t g_dir_clrBg       = {0.09f, 0.09f, 0.14f, 1.0f};
+static const renderer_color_t g_dir_clrSel      = {0.20f, 0.30f, 0.65f, 1.0f};
+static const renderer_color_t g_dir_clrLastSel  = {0.04f, 0.28f, 0.10f, 1.0f};
+static const renderer_color_t g_dir_clrMultiSel = {0.28f, 0.15f, 0.55f, 1.0f};
+static const renderer_color_t g_dir_clrDir      = {0.00f, 0.85f, 0.85f, 1.0f};
+static const renderer_color_t g_dir_clrFile     = {0.80f, 0.80f, 0.80f, 1.0f};
+static const renderer_color_t g_dir_clrDD       = {0.95f, 0.90f, 0.10f, 1.0f};
 
 /* ------------------------------------------------------------------
  * Forward declarations (internal helpers)
@@ -93,12 +94,22 @@ static void dir_update_title(dir_view_t *ptView, gui_window_t hWnd);
 
 static void dir_scroll_to_sel(dir_view_t *ptView);
 static void dir_activate_sel(dir_view_t *ptView, gui_window_t hWnd);
-static void dir_navigate_up(dir_view_t *ptView);
+static void dir_navigate_up(dir_view_t *ptView, gui_window_t hWnd);
+
+/* P10: nav history helpers */
+static void dir_nav_history_push(dir_view_t *ptView, const char *szNewPath);
+static void dir_navigate_to(dir_view_t  *ptView, const char *szNewPath,
+                              gui_window_t hWnd);
+
+/* P14: multi-selection helpers */
+static st_bool_t dir_is_multi_sel(const dir_view_t *ptView, const char *szPath);
+static void      dir_toggle_multi_sel(dir_view_t *ptView, const char *szPath);
 
 static void dir_render(dir_view_t *ptView);
 static void dir_handle_key(dir_view_t  *ptView,
                              gui_window_t hWnd,
-                             gui_key_t    eKey);
+                             gui_key_t    eKey,
+                             st_u8_t      uiMods);
 static void dir_handle_click(dir_view_t  *ptView,
                                gui_window_t hWnd,
                                int          iX,
@@ -710,44 +721,129 @@ static void dir_scroll_to_sel(dir_view_t *ptView)
         ptView->iScrollOffset = 0;
 }
 
-static void dir_navigate_up(dir_view_t *ptView)
+/* P10: push szNewPath onto the navigation history, truncating forward
+ * entries.  If the history is full, the oldest entry is evicted. */
+static void dir_nav_history_push(dir_view_t *ptView, const char *szNewPath)
 {
-    char szParent[ST_MAX_PATH];
+    int iNewHead;
+    int i;
 
-    dir_get_parent_path(ptView->szRootPath, szParent, sizeof(szParent));
+    /* Truncate forward history beyond current head */
+    iNewHead = ptView->iNavHistHead + 1;
 
-    if (strcmp(szParent, ptView->szRootPath) == 0) return; /* at root */
-
-    /* Free current tree */
-    dir_node_free_tree(ptView->ptRoot);
-    ptView->ptRoot = NULL;
-
-    strncpy(ptView->szRootPath, szParent, ST_MAX_PATH - 1);
-    ptView->szRootPath[ST_MAX_PATH - 1] = '\0';
-
-    ptView->ptRoot = dir_node_create();
-    if (ptView->ptRoot == NULL)
+    if (iNewHead >= DIR_NAV_HIST_MAX)
     {
-        LOG_ERROR("dir_navigate_up: dir_node_create failed");
+        /* Evict oldest entry (shift the ring left by one) */
+        for (i = 0; i < DIR_NAV_HIST_MAX - 1; i++)
+        {
+            strncpy(ptView->aszNavHistory[i],
+                    ptView->aszNavHistory[i + 1], ST_MAX_PATH - 1);
+            ptView->aszNavHistory[i][ST_MAX_PATH - 1] = '\0';
+        }
+        iNewHead = DIR_NAV_HIST_MAX - 1;
+    }
+
+    strncpy(ptView->aszNavHistory[iNewHead], szNewPath, ST_MAX_PATH - 1);
+    ptView->aszNavHistory[iNewHead][ST_MAX_PATH - 1] = '\0';
+    ptView->iNavHistHead  = iNewHead;
+    ptView->iNavHistCount = iNewHead + 1;
+}
+
+/* P10: navigate the view to szNewPath, rebuilding the tree.  Does NOT
+ * update navigation history — callers are responsible for that. */
+static void dir_navigate_to(dir_view_t  *ptView,
+                              const char  *szNewPath,
+                              gui_window_t hWnd)
+{
+    dir_node_t *ptNewRoot;
+
+    ptNewRoot = dir_node_create();
+    if (ptNewRoot == NULL)
+    {
+        LOG_ERROR("dir_navigate_to: dir_node_create failed");
         return;
     }
 
-    strncpy(ptView->ptRoot->szPath, szParent, ST_MAX_PATH - 1);
-    strncpy(ptView->ptRoot->szName, szParent, ST_MAX_PATH - 1);
-    ptView->ptRoot->bIsDir          = ST_TRUE;
-    ptView->ptRoot->bExpanded       = ST_TRUE;
-    ptView->ptRoot->bChildrenLoaded = ST_FALSE;
-    ptView->ptRoot->iDepth          = -1;
+    strncpy(ptNewRoot->szPath, szNewPath, ST_MAX_PATH - 1);
+    strncpy(ptNewRoot->szName, szNewPath, ST_MAX_PATH - 1);
+    ptNewRoot->bIsDir          = ST_TRUE;
+    ptNewRoot->bExpanded       = ST_TRUE;
+    ptNewRoot->bChildrenLoaded = ST_FALSE;
+    ptNewRoot->iDepth          = -1;
 
-    dir_node_load_children(ptView->ptRoot, ptView->bShowHidden);
+    dir_node_load_children(ptNewRoot, ptView->bShowHidden);
+
+    /* Free old tree only after new one is ready */
+    dir_node_free_tree(ptView->ptRoot);
+    ptView->ptRoot = ptNewRoot;
+
+    strncpy(ptView->szRootPath, szNewPath, ST_MAX_PATH - 1);
+    ptView->szRootPath[ST_MAX_PATH - 1] = '\0';
 
     ptView->iFlatCount    = 0;
     ptView->iScrollOffset = 0;
     ptView->iSelectedFlat = -1;
     dir_flat_rebuild(ptView);
 
+    dir_update_title(ptView, hWnd);
+}
+
+static void dir_navigate_up(dir_view_t *ptView, gui_window_t hWnd)
+{
+    char szParent[ST_MAX_PATH];
+
+    dir_get_parent_path(ptView->szRootPath, szParent, sizeof(szParent));
+    if (strcmp(szParent, ptView->szRootPath) == 0)
+        return; /* already at filesystem root */
+
+    dir_nav_history_push(ptView, szParent);
+    dir_navigate_to(ptView, szParent, hWnd);
+
     LOG_INFO("dir: navigated up to '%s' (%d entries)",
              szParent, ptView->iFlatCount);
+}
+
+/* P14: check if szPath is in the multi-selection set */
+static st_bool_t dir_is_multi_sel(const dir_view_t *ptView, const char *szPath)
+{
+    int i;
+    for (i = 0; i < ptView->iMultiSelCount; i++)
+    {
+        if (strcmp(ptView->aszMultiSel[i], szPath) == 0)
+            return ST_TRUE;
+    }
+    return ST_FALSE;
+}
+
+/* P14: toggle szPath in/out of the multi-selection set */
+static void dir_toggle_multi_sel(dir_view_t *ptView, const char *szPath)
+{
+    int i;
+    int j;
+
+    for (i = 0; i < ptView->iMultiSelCount; i++)
+    {
+        if (strcmp(ptView->aszMultiSel[i], szPath) == 0)
+        {
+            /* Remove by shifting remaining entries down */
+            for (j = i; j < ptView->iMultiSelCount - 1; j++)
+            {
+                strncpy(ptView->aszMultiSel[j],
+                        ptView->aszMultiSel[j + 1], ST_MAX_PATH - 1);
+                ptView->aszMultiSel[j][ST_MAX_PATH - 1] = '\0';
+            }
+            ptView->iMultiSelCount--;
+            return;
+        }
+    }
+
+    if (ptView->iMultiSelCount < DIR_MULTI_SEL_MAX)
+    {
+        strncpy(ptView->aszMultiSel[ptView->iMultiSelCount],
+                szPath, ST_MAX_PATH - 1);
+        ptView->aszMultiSel[ptView->iMultiSelCount][ST_MAX_PATH - 1] = '\0';
+        ptView->iMultiSelCount++;
+    }
 }
 
 static void dir_activate_sel(dir_view_t *ptView, gui_window_t hWnd)
@@ -759,8 +855,7 @@ static void dir_activate_sel(dir_view_t *ptView, gui_window_t hWnd)
 
     if (ptView->iSelectedFlat == -1)
     {
-        dir_navigate_up(ptView);
-        dir_update_title(ptView, hWnd);
+        dir_navigate_up(ptView, hWnd);
         return;
     }
 
@@ -850,6 +945,7 @@ static void dir_render(dir_view_t *ptView)
             }
         }
 
+        /* Layer 1 (bottom): P11 green — last committed selection */
         if (bLastSel == ST_TRUE)
         {
             tRect.fX = 0.0f;
@@ -860,6 +956,23 @@ static void dir_render(dir_view_t *ptView)
                                &g_dir_clrLastSel);
         }
 
+        /* Layer 2 (middle): P14 purple — multi-selected files */
+        if (iRow > 0)
+        {
+            dir_flat_entry_t *ptFE = &ptView->aptFlat[iRow - 1];
+            if (!ptFE->ptNode->bIsDir
+            &&  dir_is_multi_sel(ptView, ptFE->ptNode->szPath))
+            {
+                tRect.fX = 0.0f;
+                tRect.fY = (float)iY;
+                tRect.fW = (float)ptView->iWndWidth;
+                tRect.fH = (float)ptView->iCellH;
+                renderer_fill_rect(ptView->hRenderer, &tRect,
+                                   &g_dir_clrMultiSel);
+            }
+        }
+
+        /* Layer 3 (top): blue — keyboard/cursor selection */
         if (bSelected == ST_TRUE)
         {
             tRect.fX = 0.0f;
@@ -916,7 +1029,8 @@ static void dir_render(dir_view_t *ptView)
 
 static void dir_handle_key(dir_view_t  *ptView,
                              gui_window_t hWnd,
-                             gui_key_t    eKey)
+                             gui_key_t    eKey,
+                             st_u8_t      uiMods)
 {
     int       iVisRows;
     int       iTotalRows;
@@ -998,62 +1112,107 @@ static void dir_handle_key(dir_view_t  *ptView,
         break;
 
     case GUI_KEY_SPACE:
-        /* P13: SPACE = pure selection — update szSelected, no expand */
         if (ptView->iSelectedFlat >= 0)
         {
             dir_node_t *ptNode;
             ptNode = ptView->aptFlat[ptView->iSelectedFlat].ptNode;
-            if (ptView->ptLineCtx != NULL)
+            if (uiMods & GUI_MOD_CTRL)
             {
-                /* UC4.3: mutex-safe accessor */
-                line_set_selected(ptView->ptLineCtx,
-                                  ptNode->szPath);
-                /* P11: record last-selected for secondary indicator */
-                strncpy(ptView->szLastSelected, ptNode->szPath,
-                        ST_MAX_PATH - 1);
-                ptView->szLastSelected[ST_MAX_PATH - 1] = '\0';
-                LOG_INFO("dir: SPACE selected '%s'",
-                         ptNode->szPath);
+                /* P14: CTRL+SPACE = toggle multi-selection (files only) */
+                if (!ptNode->bIsDir)
+                {
+                    dir_toggle_multi_sel(ptView, ptNode->szPath);
+                    bRedraw = ST_TRUE;
+                    LOG_INFO("dir: multi-sel toggle '%s' (count=%d)",
+                             ptNode->szPath, ptView->iMultiSelCount);
+                }
+            }
+            else
+            {
+                /* P13: SPACE = pure selection — update szSelected, no expand */
+                if (ptView->ptLineCtx != NULL)
+                {
+                    line_set_selected(ptView->ptLineCtx, ptNode->szPath);
+                    /* P11: record last-selected for secondary indicator */
+                    strncpy(ptView->szLastSelected, ptNode->szPath,
+                            ST_MAX_PATH - 1);
+                    ptView->szLastSelected[ST_MAX_PATH - 1] = '\0';
+                    LOG_INFO("dir: SPACE selected '%s'", ptNode->szPath);
+                }
             }
         }
         break;
 
     case GUI_KEY_LEFT:
-        /* P12: collapse expanded directory */
-        if (ptView->iSelectedFlat >= 0)
+        if (uiMods & GUI_MOD_ALT)
         {
-            dir_node_t *ptNode;
-            ptNode = ptView->aptFlat[ptView->iSelectedFlat].ptNode;
-            if (ptNode->bIsDir == ST_TRUE
-            &&  ptNode->bExpanded == ST_TRUE)
+            /* P10: ALT+← = navigate history back */
+            if (ptView->iNavHistHead > 0)
             {
-                ptNode->bExpanded  = ST_FALSE;
-                ptView->iFlatCount = 0;
-                dir_flat_rebuild(ptView);
-                dir_scroll_to_sel(ptView);
+                ptView->iNavHistHead--;
+                dir_navigate_to(ptView,
+                                ptView->aszNavHistory[ptView->iNavHistHead],
+                                hWnd);
                 bRedraw = ST_TRUE;
+                LOG_INFO("dir: history back to '%s'",
+                         ptView->aszNavHistory[ptView->iNavHistHead]);
+            }
+        }
+        else
+        {
+            /* P12: collapse expanded directory */
+            if (ptView->iSelectedFlat >= 0)
+            {
+                dir_node_t *ptNode;
+                ptNode = ptView->aptFlat[ptView->iSelectedFlat].ptNode;
+                if (ptNode->bIsDir == ST_TRUE
+                &&  ptNode->bExpanded == ST_TRUE)
+                {
+                    ptNode->bExpanded  = ST_FALSE;
+                    ptView->iFlatCount = 0;
+                    dir_flat_rebuild(ptView);
+                    dir_scroll_to_sel(ptView);
+                    bRedraw = ST_TRUE;
+                }
             }
         }
         break;
 
     case GUI_KEY_RIGHT:
-        /* P12: expand collapsed directory (lazy-load children if needed) */
-        if (ptView->iSelectedFlat >= 0)
+        if (uiMods & GUI_MOD_ALT)
         {
-            dir_node_t *ptNode;
-            ptNode = ptView->aptFlat[ptView->iSelectedFlat].ptNode;
-            if (ptNode->bIsDir == ST_TRUE
-            &&  ptNode->bExpanded == ST_FALSE)
+            /* P10: ALT+→ = navigate history forward */
+            if (ptView->iNavHistHead < ptView->iNavHistCount - 1)
             {
-                if (ptNode->bChildrenLoaded == ST_FALSE)
-                {
-                    dir_node_load_children(ptNode, ptView->bShowHidden);
-                }
-                ptNode->bExpanded  = ST_TRUE;
-                ptView->iFlatCount = 0;
-                dir_flat_rebuild(ptView);
-                dir_scroll_to_sel(ptView);
+                ptView->iNavHistHead++;
+                dir_navigate_to(ptView,
+                                ptView->aszNavHistory[ptView->iNavHistHead],
+                                hWnd);
                 bRedraw = ST_TRUE;
+                LOG_INFO("dir: history forward to '%s'",
+                         ptView->aszNavHistory[ptView->iNavHistHead]);
+            }
+        }
+        else
+        {
+            /* P12: expand collapsed directory (lazy-load children if needed) */
+            if (ptView->iSelectedFlat >= 0)
+            {
+                dir_node_t *ptNode;
+                ptNode = ptView->aptFlat[ptView->iSelectedFlat].ptNode;
+                if (ptNode->bIsDir == ST_TRUE
+                &&  ptNode->bExpanded == ST_FALSE)
+                {
+                    if (ptNode->bChildrenLoaded == ST_FALSE)
+                    {
+                        dir_node_load_children(ptNode, ptView->bShowHidden);
+                    }
+                    ptNode->bExpanded  = ST_TRUE;
+                    ptView->iFlatCount = 0;
+                    dir_flat_rebuild(ptView);
+                    dir_scroll_to_sel(ptView);
+                    bRedraw = ST_TRUE;
+                }
             }
         }
         break;
@@ -1214,7 +1373,9 @@ static void dir_event_callback(gui_window_t  hWnd,
         break;
 
     case GUI_EVT_KEY_DOWN:
-        dir_handle_key(ptView, hWnd, ptEvent->uData.tKey.eKey);
+        dir_handle_key(ptView, hWnd,
+                       ptEvent->uData.tKey.eKey,
+                       ptEvent->uData.tKey.uiMods);
         break;
 
     case GUI_EVT_MOUSE_DOWN:
@@ -1311,6 +1472,12 @@ st_error_t dir_open(const char     *szPath,
     ptView->iSelectedFlat = -1;   /* ".." selected by default */
     ptView->iCellH        = 20;   /* overridden on first PAINT */
     ptView->iCellW        = 10;
+
+    /* P10: seed navigation history with the initial root */
+    strncpy(ptView->aszNavHistory[0], szRoot, ST_MAX_PATH - 1);
+    ptView->aszNavHistory[0][ST_MAX_PATH - 1] = '\0';
+    ptView->iNavHistHead  = 0;
+    ptView->iNavHistCount = 1;
 
     /* Create and populate root node */
     ptView->ptRoot = dir_node_create();

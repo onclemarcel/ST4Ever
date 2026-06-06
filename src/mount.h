@@ -27,7 +27,9 @@
  *   open) and iEntryCount (only written by the window thread on DEL).
  *
  * UC18.1 : D2D view, mount / umount commands, add-file API.
- * UC18.2 : drag-and-drop integration with dir view (P14).
+ * UC18.2 : BPB properties (P34), P36 header cleanup, bootable (P37),
+ *           bootsector hex viewer (P38), dir nav history (P10),
+ *           dir multi-select (P14).
  * UC19   : umount with optional image-save dialog.
  * UC20   : image creation from mounted content.
  */
@@ -85,6 +87,11 @@ typedef struct mount_view_s
     int                iWndHeight;
     int                iCellW;   /* Monospace cell width  (px)           */
     int                iCellH;   /* Monospace cell height (px)           */
+
+    /* P38: bootsector hex viewer (edit_hex_view_t* stored as void*)     */
+    void              *ptBootHexView;
+    /* Back-ref to console context for P38 edit_hex_open                 */
+    line_context_t    *ptLineCtx;
 } mount_view_t;
 
 /* ------------------------------------------------------------------
@@ -152,5 +159,21 @@ st_error_t mount_view_close(mount_view_t **pptView);
  */
 st_error_t mount_view_add_file(mount_view_t *ptView,
                                 const char   *szSrcPath);
+
+/*
+ * mount_is_bootable() - Test whether a 512-byte bootsector is Atari ST
+ *                       bootable.
+ *
+ * Uses the WD1772 checksum: the sum of the 256 LE16 words in the sector
+ * must equal 0x1234 (mod 0x10000).
+ *
+ * Parameters:
+ *   pBootSect [in] : Pointer to a 512-byte bootsector buffer.
+ *
+ * Returns:
+ *   ST_TRUE  if the WD1772 checksum matches.
+ *   ST_FALSE if pBootSect is NULL or the checksum does not match.
+ */
+st_bool_t mount_is_bootable(const st_u8_t *pBootSect);
 
 #endif /* MOUNT_H */

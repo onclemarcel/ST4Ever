@@ -30,6 +30,7 @@
 - 2026-06-04: UC16 validé — `src/image_st.h` + `src/image_st.c` : FAT12 .st raw image (create/load/save/list_root/read_file/write_file/delete_file/free_bytes) ; fixtures roundtrip.st via test ; ST_APP_VERSION 0.16.0
 - 2026-06-06: UC17 validé — `src/image_msa.h` + `src/image_msa.c` : MSA RLE codec (imsa_compress/decompress) + `image_msa_load/save` sur `image_st_t` ; `image_st_get_disk()` ajouté à `image_st.h/c` ; round-trip blank + fichiers + 0xE5 escape ; ST_APP_VERSION 0.17.0
 - 2026-06-06: UC18.1 validé — `src/mount.h` + `src/mount.c` : vue D2D `GUI_WND_MOUNT` (liste FAT + panneau propriétés) ; `mount_view_open/close/add_file` ; `line_cmd_mount/umount` ; `gui_find_window_by_type` ; fix szExt sans point ; ST_APP_VERSION 0.18.1
+- 2026-06-06: UC18.2 validé — P10 historique navigation dir (ALT+←/→ : `aszNavHistory[16]`, `dir_nav_history_push`, `dir_navigate_to`) ; P14 multi-sélection CTRL+ESPACE (`aszMultiSel[16]`, fond violet, files only) ; P34 propriétés BPB lecture seule (H/S/T) ; P36 suppression /IST_RDE de l'en-tête ; P37 détection Bootable WD1772 (`mount_is_bootable`) ; P38 touche B → bootsector vers `edit_hex_open` avec titre heuristique ; ST_APP_VERSION 0.18.2
 - 2026-06-06: UC15A validé — torture test désassembleur 68000 vs SOURCE.PRG (DEVPAC3, ATARI ST réel) : 2525 instructions, DIFF=0 ; 5 bugs disasm corrigés (groupE iIR inversé, EXG An,An ordre DEVPAC3, NBCD/CHK/size=3 ext words) ; `DISASM_SYNTAX.md` créé à la racine ; use_case_11/13.c ADAPTED:UC15A
 - 2026-06-03: UC15 validé — `src/load.c` `load_do_prg()` complet : header 28 octets, chargement .text+.data à ST_LOAD_BASE, BSS zeroing, table de fixups Atari ST (bitstream : first_offset 4B, 0x00=fin, 0x01=skip 254B, N=advance+fix) ; abs_flag géré (pas de table fixup) ; `load_state_t` étendu (uiTextSize/uiDataSize/uiBssSize/uiFixupCount) ; helpers `load_apply_fixups` + `load_skip_bytes` ; fixtures `use_cases/UC15/` (fixup/bss/absolute/multi_fixup/bad_fixup.prg) ; TODO(UC15) supprimé ; ST_APP_VERSION 0.15.0
 - 2026-06-03: UC11 validé — `src/disassemble.c` : désassembleur 68000 réel MOVE/MOVEQ/LEA/CLR/EXG/SWAP/PEA + décodeur EA complet (12 modes) ; `bValid = ST_TRUE` sur instructions reconnues ; `TC-DIS-001 ADAPTED(UC11)` ; ST_APP_VERSION 0.11.0
@@ -579,9 +580,9 @@ Les étapes de développement fonctionnelles sont formalisées en Use Cases, per
 | UC15A | interne | Torture test désassembleur : SOURCE.PRG (DEVPAC3, ATARI ST réel) vs disasm_range() — 2525 instructions, DIFF=0 ; 5 bugs disasm corrigés | ✓ VALIDÉ 2026-06-06 |
 | UC17 | interne | Image `.msa` : décompression/compression RLE | ✓ VALIDÉ 2026-06-06 |
 | UC18.1 | `mount`, `umount` | Vue D2D `GUI_WND_MOUNT` : liste FAT12 + panneau propriétés ; `mount_view_open/close/add_file` ; `line_cmd_mount/umount` ; `gui_find_window_by_type` | ✓ VALIDÉ 2026-06-06 |
-| UC18.2 | `mount` | Drag & drop depuis vue `dir` (P14) ; historique navigation `dir` ALT+←/→ (P10) ; sélection multiple CTRL+ESPACE ; propriétés BPB lecture seule (P34) ; supprimer /112 de l'en-tête (P36) ; indicateur Bootable (P37) ; analyse bootsector via edit_hex, raccourci `B` (P38) | monter depuis dir avec multi-sélection + propriétés étendues |
-| UC19 | `umount` | Démontage + sauvegarde image si modifiée | dialog save |
-| UC20 | `image` | Création .st / .msa depuis le contenu monté | image valide et montable |
+| UC18.2 | `mount`, `dir` | P10 historique navigation dir (ALT+←/→) ; P14 multi-select CTRL+ESPACE (violet) ; P34 BPB géométrie lecture seule ; P36 suppression /112 en-tête ; P37 Bootable WD1772 ; P38 touche B → bootsector hex | ✓ VALIDÉ 2026-06-06 |
+| UC19 | `umount` | Démontage + dialog save .st/.msa/répertoire (P35) ; status bar mount (P39) ; progression copie (P40) | dialog save |
+| UC20 | `image` | Création .st / .msa depuis le contenu monté ; Enter → hex dans mount (P41) | image valide et montable |
 | UC21 | interne | CPU 68000 : registres + MOVE/MOVEQ/LEA/CLR/SWAP | step 10 instructions |
 | UC22 | interne | CPU 68000 : ADD/SUB/CMP/AND/OR/EOR/shifts | exécution programme arithmétique |
 | UC23 | interne | CPU 68000 : BRA/Bcc/JSR/RTS/TRAP + vecteurs exception | appel/retour de fonction |
@@ -2501,6 +2502,120 @@ Avis Claude : ACCEPTÉ. Réutiliser `edit_hex_open()` sur les 512 octets du boot
 
 *Toutes les propositions P34–P38 ont été arbitrées — UC18.1 est clos.*
 
+---
+
+### 6.25 Use Case 18.2 (UC18.2) — ✓ VALIDÉ (2026-06-06)
+
+**Périmètre fonctionnel implémenté :**
+
+- **P10 — Historique navigation `dir` (ALT+←/→)** :
+  - `src/dir.h` : `DIR_NAV_HIST_MAX = 16`, `aszNavHistory[16][512]`, `iNavHistHead`, `iNavHistCount` dans `dir_view_t`.
+  - `src/dir.c` : `dir_nav_history_push(ptView, szNewPath)` — file linéaire ; évince l'entrée la plus ancienne si pleine.
+  - `dir_navigate_to(ptView, szNewPath, hWnd)` — crée le nouveau root AVANT de libérer l'ancien ; met à jour `szRootPath` ; rebuild flat list ; `dir_update_title`.
+  - `dir_navigate_up()` refactorisé : calcule le parent, appelle `dir_nav_history_push` puis `dir_navigate_to`.
+  - `dir_handle_key()` : touche LEFT avec `GUI_MOD_ALT` → history back (`iNavHistHead--`, `dir_navigate_to`) ; RIGHT avec `GUI_MOD_ALT` → history forward.
+  - `dir_open()` : seed du premier slot de l'historique avec `szRoot`.
+
+- **P14 — Multi-sélection CTRL+ESPACE** :
+  - `src/dir.h` : `DIR_MULTI_SEL_MAX = 16`, `aszMultiSel[16][512]`, `iMultiSelCount` dans `dir_view_t`.
+  - `src/dir.c` : `dir_is_multi_sel(ptView, szPath)` — parcours linéaire ; `dir_toggle_multi_sel(ptView, szPath)` — ajoute si absent et si place, retire si présent (shift down).
+  - `dir_handle_key()` : CTRL+ESPACE sur fichier (non répertoire) → `dir_toggle_multi_sel` + redraw.
+  - `dir_render()` : couche violette (`g_dir_clrMultiSel = {0.28f, 0.15f, 0.55f, 1.0f}`) entre la couche verte (P11) et la couche bleue (curseur).
+
+- **P34 — Propriétés BPB lecture seule** :
+  - `mount_render()` : panneau droit lit `pDisk` via `image_st_get_disk()` ; extrait SPT (`@0x18` LE16), HEADS (`@0x1A` LE16), TS (`@0x13` LE16), RDE (`@0x11` LE16) ; affiche `Geometry: H%u / S%u / T%u`.
+
+- **P36 — Suppression /IST_RDE de l'en-tête** :
+  - En-tête de la liste gauche : `"  A:\\  [%s]  %d file%s"` (sans le `/112`).
+  - Panneau droit : `"Files: N / RDE"` (capacité racine issue du BPB).
+
+- **P37 — Indicateur Bootable WD1772** :
+  - `mount.h` : `mount_is_bootable(const st_u8_t *pBootSect)` déclarée public.
+  - `mount.c` : `mount_check_bootable()` interne — somme les 256 mots LE16 du bootsector, compare à 0x1234 mod 0x10000.
+  - `mount_render()` : ligne `"Bootable: Yes"` (vert) ou `"Bootable: No"` (gris) selon le résultat.
+
+- **P38 — Touche B → éditeur hex bootsector** :
+  - `mount_view_t` : champ `void *ptBootHexView` (évite le double typedef `edit_hex_view_t` dans `mount.h`) ; `line_context_t *ptLineCtx` (back-ref pour `edit_hex_open`).
+  - `mount.c` : `mount_open_bootsector()` — ferme la vue hex précédente si ouverte ; extrait les 512 octets du bootsector via `image_st_get_disk()` ; écrit dans `MOUNT_BOOT_TMP` (`".\\st4ever_boot.bin"` Win / `"/tmp/st4ever_boot.bin"` Linux) ; construit un titre heuristique `"bootsector [H%u/S%u/T%u %uKo — bootable/not bootable]"` ; appelle `edit_hex_open()` et met à jour le titre via `gui_set_title`.
+  - Touche `B`/`b` dans `mount_handle_key()` → `mount_open_bootsector(ptView)`.
+  - `mount_view_close()` : ferme `ptBootHexView` si ouvert avant de fermer la fenêtre principale.
+  - `mount_view_open()` : stocke `ptLineCtx` dans le view ; `ptBootHexView = NULL` initialement.
+
+**Tests R14/R15 appliqués :**
+- `use_cases/use_case_18_2.c` : TEST MATRIX **12N + 1R + 8S = 21 tests**, 0 failure
+  - [N] : `DIR_NAV_HIST_MAX >= 8` / `DIR_MULTI_SEL_MAX >= 8` (2) ; `mount_is_bootable` blank=false, hand-crafted=true, corrupted=false (3) ; `dir_open` history init (iNavHistCount==1, iNavHistHead==0, history[0] non-vide) (3) ; `dir_open` iMultiSelCount==0 (1) ; `mount_view_open` ptLineCtx stocké + ptBootHexView NULL (2)
+  - [R] : `mount_is_bootable(NULL)` → ST_FALSE (1)
+  - [S] : 8 tests visuels `make manual UC=18_2`
+
+**Contrats comportementaux validés :**
+
+*`dir_nav_history_push(ptView, szNewPath)`*
+- Premier push : stocké à `aszNavHistory[0]`, `iNavHistHead=0`, `iNavHistCount=1`.
+- Push quand plein (`iNavHistCount == DIR_NAV_HIST_MAX`) : shift de tous les slots, nouveau chemin en position `DIR_NAV_HIST_MAX - 1` ; `iNavHistCount` plafonné à `DIR_NAV_HIST_MAX`.
+- `dir_open()` seede `aszNavHistory[0]` avec le chemin initial — l'historique démarre non vide.
+
+*`dir_navigate_to(ptView, szNewPath, hWnd)`*
+- Crée le nouveau nœud root AVANT de libérer l'ancien (sécurité en cas d'échec de scan).
+- Rebuilds flat list après mise à jour du root.
+- Appelle `dir_update_title(ptView, hWnd)`.
+- Ne push PAS dans l'historique (c'est `dir_navigate_up` et `dir_handle_key` qui pushent avant d'appeler navigate_to).
+
+*Navigation ALT+←/→*
+- ALT+LEFT : si `iNavHistHead > 0` → `iNavHistHead--` + `dir_navigate_to(aszNavHistory[iNavHistHead])`. Sinon : no-op.
+- ALT+RIGHT : si `iNavHistHead < iNavHistCount - 1` → `iNavHistHead++` + `dir_navigate_to(...)`. Sinon : no-op.
+- L'historique est non-cyclique (stack simple) — on ne revient pas "après la fin".
+
+*`dir_toggle_multi_sel(ptView, szPath)`*
+- Chemin déjà présent : retiré (shift du reste vers le bas), `iMultiSelCount--`.
+- Chemin absent + `iMultiSelCount < DIR_MULTI_SEL_MAX` : ajouté en fin, `iMultiSelCount++`.
+- Chemin absent + plein : no-op silencieux.
+- Seuls les fichiers (non-répertoires) sont sélectionnables en multi (contrôle dans `dir_handle_key`).
+
+*Rendu multi-sel*
+- Ordre des couches : fond vert (P11, dernière sélection `load`) → fond violet (P14, multi-sel) → fond bleu (curseur courant). Le dernier dessiné l'emporte visuellement.
+- Un fichier peut être simultanément sous-violet (multi-sel) et sous-bleu (curseur) — le bleu prime.
+
+*`mount_is_bootable(pBootSect)`*
+- `pBootSect == NULL` → `ST_FALSE`.
+- Somme de `pBootSect[i] | (pBootSect[i+1] << 8)` pour i = 0, 2, 4, …, 510 (256 itérations LE16).
+- Résultat & 0xFFFF == 0x1234 → `ST_TRUE` ; sinon → `ST_FALSE`.
+
+*P38 — Bootsector hex*
+- `mount_open_bootsector()` ferme toute vue hex précédente avant d'en ouvrir une nouvelle.
+- `MOUNT_BOOT_TMP` : fichier temporaire local — remplacé à chaque appel à B.
+- Titre heuristique : H/S/T issus du BPB du bootsector écrit ; `bootable` determiné par `mount_check_bootable`.
+- Si `edit_hex_open()` échoue : LOG_ERROR + `ptBootHexView = NULL` (non fatal).
+- `mount_view_close()` : si `ptBootHexView != NULL` → `edit_hex_close` + `ptBootHexView = NULL` avant `gui_close_window`.
+
+**Points d'attention pour les UCs suivants :**
+- UC19 : `bDirty == ST_TRUE` à l'umount → dialog "save image?" ; options `.st`/`.msa`/`répertoire` (P35) ; flag `bootable` en écriture (P37 écriture = modifier le checksum pour le rendre bootable).
+- UC20 : `image_st_save` / `image_msa_save` disponibles — `image` commande depuis contenu monté.
+- `aszMultiSel` : les chemins de multi-sélection sont disponibles pour le drag-and-drop (UC18.2 ne l'implémente pas encore) et pour la commande `load` multi-fichiers future.
+- `dir_navigate_to()` : l'API est désormais publique — accessible aux vues futures qui veulent piloter la navigation du dir depuis l'extérieur (ex. depuis `mount` vers le source de l'image).
+
+---
+
+### Arbitrage UC18.2 (2026-06-06)
+
+**P39 — Status bar dans la vue mount** → **À ARBITRER**
+
+Avis Claude : La vue mount pourrait afficher une barre de statut persistante en bas de fenêtre (1 ligne, fond légèrement différent) indiquant : nombre de fichiers sélectionnés (multi-sel P14), espace libre, et l'état dirty `[*]`. Cela évite de chercher ces informations dans le panneau droit. Coût moyen : `MOUNT_STATUS_H` constante, réduction de `iWndHeight` utilisable dans `mount_render()`. À arbitrer pour UC19 ou laissé comme amélioration cosmétique optionnelle.
+
+**P40 — Barre de progression lors de la copie de gros fichiers dans mount** → **À ARBITRER**
+
+Avis Claude : `mount_view_add_file()` est synchrone et peut bloquer plusieurs secondes pour des fichiers > 500 Ko (limite FAT12). Une `LOG_INFO` de progression par tranche de 64 Ko dans la boucle de lecture + `gui_invalidate` pour afficher "Copying… X%" dans la status bar (P39). Coût faible si P39 est implémenté. Différer à UC19 où le périmètre `add_file` sera de nouveau en scope.
+
+**P41 — Raccourci `Enter` dans mount → ouvrir le fichier sélectionné en hex** → **À ARBITRER**
+
+Avis Claude : ENTER sur une entrée de la liste mount → `edit_hex_open(szEntryPath)` en extrayant d'abord le fichier dans un temp. Coût moyen (même pattern que P38). Alternative : double-clic. Utile pour inspecter un binaire PRG dans l'image sans le démonter. À planifier UC20 ou après.
+
+| Proposition | Décision | UC cible |
+|-------------|----------|----------|
+| P39 (status bar mount) | ACCEPTÉ | UC19 |
+| P40 (progression copie) | ACCEPTÉ | UC19 |
+| P41 (Enter → hex dans mount) | ACCEPTÉ | UC20 |
+
+*Toutes les propositions P39–P41 ont été arbitrées — UC18.2 est clos.*
 
 
 ## 8. Licence & attribution

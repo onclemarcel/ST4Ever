@@ -33,6 +33,7 @@
 | 2.8 | 2026-06-06 | UC15A | Claude/OMC | UC15A validated — disassembler torture test vs DEVPAC3 SOURCE.PRG (2525 instructions, DIFF=0); 5 disasm bugs fixed (groupE iIR, EXG An,An order, NBCD/CHK/size=3 ext words); DISASM_SYNTAX.md created; REQ-DIS-024..030 ADAPTED; TC-DIS-200..219 ADAPTED(UC15A) |
 | 2.9 | 2026-06-06 | UC17  | Claude/OMC | UC17 validated — image_msa.h/c: MSA RLE codec (imsa_compress/decompress, escape 0xE5, raw fallback); image_msa_load/save layered on image_st_t; image_st_get_disk() added; UFR-DSK-005..007 §1.8 updated; REQ-MSA-001..010 §2.15 new; §4.18 new; §5.50..51 new |
 | 3.0 | 2026-06-06 | UC18.1 | Claude/OMC | UC18.1 validated — mount.h/c: GUI_WND_MOUNT D2D view (FAT list + properties panel); mount_view_open/close/add_file; gui_find_window_by_type; line_cmd_mount/umount; fix szExt without dot; UFR-MNT-001..004 §1.9 new; REQ-MNT-001..012 §2.16 new; §4.19 new; §5.52..53 new |
+| 3.1 | 2026-06-06 | UC18.2 | Claude/OMC | UC18.2 validated — P10 dir history (ALT+←/→): aszNavHistory[16], dir_nav_history_push, dir_navigate_to; P14 dir multi-sel (CTRL+SPACE): aszMultiSel[16], dir_toggle_multi_sel, purple layer; P34 BPB geometry read-only; P36 header without /RDE; P37 mount_is_bootable WD1772 checksum; P38 B key → bootsector edit_hex; UFR-DIR-014..015 §1.6 new; UFR-MNT-005..007 §1.9 new; REQ-DIR-024..027 §2.8 new; REQ-MNT-013..017 §2.16 updated/new; §4.19 updated; §5.54..55 new |
 
 ---
 
@@ -210,6 +211,8 @@ through one or more test cases in Section 5.
 | UFR-LOD-007 | For relocatable PRG files (abs_flag=0), `load` shall apply the Atari ST fixup relocation table: each longword address in `.text`+`.data` pointed to by the fixup table shall be incremented by `ST_LOAD_BASE`; a fixup offset that points outside `.text`+`.data` shall cause `load` to return an error without modifying the previously loaded state. | ✓ UC15 | UC15 |
 | UFR-LOD-008 | For absolute PRG files (abs_flag=1), `load` shall skip fixup processing entirely; the fixup table is absent from the file. | ✓ UC15 | UC15 |
 | UFR-DIR-013 | When a file is committed via ENTER or SPACE in the dir view, a dark green secondary background (`g_dir_clrLastSel`) shall be rendered on that row in `dir_render()`, visually distinct from the navigation-cursor highlight. The indicator persists when the cursor moves; a new commit updates it. (P11) | ✓ UC7 | UC7 |
+| UFR-DIR-014 | ALT+LEFT shall navigate to the previous path in the directory view's navigation history; ALT+RIGHT shall navigate to the next path. The history shall be seeded with the initial path at `dir_open()` time and updated each time the root changes via `dir_navigate_up()` or explicit navigation. The history stack is non-cyclical (max `DIR_NAV_HIST_MAX` entries). (P10) | ✓ UC18.2 | UC18.2 |
+| UFR-DIR-015 | CTRL+SPACE shall toggle multi-selection of the currently focused **file** entry (not directories). The multi-selected set is displayed with a purple background (`g_dir_clrMultiSel`), distinct from the green last-committed indicator (P11) and the blue cursor highlight. The set holds up to `DIR_MULTI_SEL_MAX` paths. (P14) | ✓ UC18.2 | UC18.2 |
 
 ### 1.7 Editor Views — `EDT` (UC8 text editor ✓, UC9 hex+ASCII ✓, UC10 hex+disasm ✓)
 
@@ -250,6 +253,9 @@ through one or more test cases in Section 5.
 | UFR-MNT-002  | The mount view shall display a left panel listing FAT root entries (name, size) and a right panel showing disk properties (source type, total files, free bytes, modified flag). | ✓ UC18.1 | UC18.1 |
 | UFR-MNT-003  | The mount view shall allow the user to add files from the PC file system via `mount_view_add_file()`, and delete selected entries via the DEL key; both actions shall update the in-memory image and refresh the view. | ✓ UC18.1 | UC18.1 |
 | UFR-MNT-004  | `umount` shall close the mount view. If the in-memory image is dirty (modified since open), the user shall be notified (warning log). A full save dialog is planned for UC19. | ✓ UC18.1 | UC18.1 |
+| UFR-MNT-005  | The mount view right panel shall display the BPB (BIOS Parameter Block) geometry fields read-only: heads, sectors/track, tracks, and the root directory entry capacity (RDE). The left panel header shall **not** include the `/RDE` suffix; that capacity is shown only in the right panel. (P34, P36) | ✓ UC18.2 | UC18.2 |
+| UFR-MNT-006  | The mount view right panel shall display a "Bootable" indicator determined by the WD1772 checksum: the sum of the 256 LE16 words of the bootsector shall equal `0x1234 mod 0x10000`. `mount_is_bootable()` returns `ST_TRUE` if so, `ST_FALSE` otherwise (including `NULL` input). (P37) | ✓ UC18.2 | UC18.2 |
+| UFR-MNT-007  | The `B` key in the mount view shall extract the 512-byte bootsector from `aDisk[0..511]` to a temporary file and open it via `edit_hex_open()`. The window title shall include a heuristic description (heads/sectors/tracks, bootable flag). Only one bootsector view shall be open at a time; pressing `B` again replaces the previous view. (P38) | ✓ UC18.2 | UC18.2 |
 | UFR-CON-070  | `mount [path]` shall emulate an Atari ST floppy drive A:\ from the given directory.                                                               | ✓ UC18.1     | UC18.1   |
 | UFR-CON-071  | `umount` shall eject the emulated floppy, offering to save a disk image if modified.                                                               | TODO UC19    | UC19     |
 
@@ -454,6 +460,10 @@ requirement that will expose it (`UFR-EXE-*`, planned UC21–27).
 | REQ-DIR-020  | After `ShowWindow()`, the Win32 window thread shall call `SetForegroundWindow()` and `SetFocus()` so the view receives keyboard input immediately. | UFR-GUI-007 | ✓ UC4.1 | UC4.1 |
 | REQ-DIR-021  | In `dir_handle_key()`, the `H`/`h` printable key shall toggle `ptView->bShowHidden`, call `dir_node_reload_children(ptRoot, bShowHidden)`, rebuild the flat list, and reset `iSelectedFlat = -2` and `iScrollOffset = 0`. (P21) | UFR-DIR-011 | ✓ UC5 | UC5 |
 | REQ-DIR-023  | When a file node is committed via ENTER (`dir_activate_sel()`) or SPACE, `dir_view_t.szLastSelected` shall be updated with the node's full path; `dir_render()` shall draw `g_dir_clrLastSel` (dark green) on the matching row before the nav-highlight; directories and the `..` row shall never set `szLastSelected`; an empty `szLastSelected` means no green indicator. (P11) | UFR-DIR-013 | ✓ UC7 | UC7 |
+| REQ-DIR-024  | `dir_open()` shall seed `aszNavHistory[0]` with the initial root path; `iNavHistHead = 0`, `iNavHistCount = 1`. On each navigation that changes the root path (navigate-up or explicit navigate), `dir_nav_history_push()` shall append the new path before calling `dir_navigate_to()`. `dir_navigate_to()` shall not push by itself. | UFR-DIR-014 | ✓ UC18.2 | UC18.2 |
+| REQ-DIR-025  | ALT+LEFT in `dir_handle_key()` (detected via `uiMods & GUI_MOD_ALT`): if `iNavHistHead > 0`, decrement `iNavHistHead` and call `dir_navigate_to(aszNavHistory[iNavHistHead])`. ALT+RIGHT: if `iNavHistHead < iNavHistCount - 1`, increment `iNavHistHead` and call `dir_navigate_to(...)`. At the boundary: no-op. | UFR-DIR-014 | ✓ UC18.2 | UC18.2 |
+| REQ-DIR-026  | CTRL+SPACE in `dir_handle_key()` (detected via `uiMods & GUI_MOD_CTRL`): if the focused entry is a file (not a directory, not `..`), call `dir_toggle_multi_sel(ptView, szPath)` and redraw. `dir_toggle_multi_sel()` adds the path if not present and `iMultiSelCount < DIR_MULTI_SEL_MAX`; removes it with shift-down if already present. Directories are never added to the multi-sel set. | UFR-DIR-015 | ✓ UC18.2 | UC18.2 |
+| REQ-DIR-027  | `dir_render()` shall draw a purple layer (`g_dir_clrMultiSel`) on each file row whose path is in `aszMultiSel[]`, between the green P11 layer and the blue cursor layer. `dir_open()` shall initialise `iMultiSelCount = 0`. | UFR-DIR-015 | ✓ UC18.2 | UC18.2 |
 | REQ-DIR-022  | In `dir_handle_key()`, `GUI_KEY_F5` shall call `dir_refresh_tree()`, which: (1) collects all currently-expanded dir paths via DFS into a stack-local array (max 256); (2) reloads the root's direct children; (3) for each saved path, navigates the new tree component-by-component, loading children and setting `bExpanded=ST_TRUE` at each level; missing components (dir deleted) are silently ignored. The flat list is rebuilt and the existing selection is clamped to valid range. (P22) | UFR-DIR-012 | ✓ UC5 | UC5 |
 
 ---
@@ -696,8 +706,11 @@ requirement that will expose it (`UFR-EXE-*`, planned UC21–27).
 | REQ-MNT-010  | `file_stat_t.szExt` stores the extension without the leading dot (e.g., `"st"` not `".st"`). All comparisons in `mount_view_open()` and `line_cmd_mount()` shall compare against the dot-free form. | UFR-MNT-001 | ✓ UC18.1 | UC18.1 |
 | REQ-MNT-011  | The window title shall follow R18 format: `"ST4Ever - Mount: A:\\ [SRC]"` where `[SRC]` is `DIR`, `ST`, or `MSA` according to `mount_src_t`. | UFR-MNT-002 | ✓ UC18.1 | UC18.1 |
 | REQ-MNT-012  | The right properties panel shall display: Source type, source path, file count, free bytes, total bytes, and a "modified" indicator (`bDirty`). Mouse scroll wheel shall scroll the file list when focused on it. | UFR-MNT-002 | ✓ UC18.1 | UC18.1 |
-| REQ-MNT-013  | **(UC18.2)** The properties panel shall display BPB geometry fields in read-only mode: heads, sectors/track, tracks, bytes/sector, root dir capacity (RDE), and a "Bootable: YES/NO" indicator. Bootability is determined by: (1) WD1772 checksum (sum of bootsector words ≡ 0x1234 mod 0x10000) AND (2) bytes[0:1] form a valid `JMP`/`BRA` opcode. The `/N` root-dir count shall be removed from the left panel header. | UFR-MNT-002 | TODO UC18.2 | UC18.2 |
-| REQ-MNT-014  | **(UC18.2)** Keyboard shortcut `B` in the mount view shall extract `aDisk[0..511]` (bootsector) to a temporary file and open it via `edit_hex_open()`. The edit_hex window title shall include detected bootsector type as a heuristic placeholder (e.g., `[code]`, `[BPB]`, `[text]`). Detection shall be refined in a later UC using a curated bootsector dataset. | UFR-MNT-002 | TODO UC18.2 | UC18.2 |
+| REQ-MNT-013  | The properties panel shall display BPB geometry fields in read-only mode: heads (`@0x1A` LE16), sectors/track (`@0x18` LE16), tracks (`@0x13` LE16), root dir capacity RDE (`@0x11` LE16). The `/RDE` count shall be removed from the left panel header (kept in right panel as `Files: N / RDE`). The "Bootable: Yes/No" indicator uses `mount_check_bootable()` (WD1772 checksum). (P34, P36, P37) | UFR-MNT-005, UFR-MNT-006 | ✓ UC18.2 | UC18.2 |
+| REQ-MNT-014  | Keyboard shortcut `B`/`b` in `mount_handle_key()` shall call `mount_open_bootsector()`: extract 512 bytes from `aDisk` via `image_st_get_disk()`, write to `MOUNT_BOOT_TMP`, call `edit_hex_open()` with a heuristic title `"bootsector [H%u/S%u/T%u %uKo — bootable/not bootable]"`. If a previous bootsector view is already open, it shall be closed first. If `edit_hex_open()` fails, `ptBootHexView = NULL` and LOG_ERROR (non-fatal). (P38) | UFR-MNT-007 | ✓ UC18.2 | UC18.2 |
+| REQ-MNT-015  | `mount_view_open()` shall store `ptLineCtx` in `ptView->ptLineCtx` for use by `mount_open_bootsector()`. `ptView->ptBootHexView` shall be initialised to NULL at open time. | UFR-MNT-007 | ✓ UC18.2 | UC18.2 |
+| REQ-MNT-016  | `mount_view_close()` shall close any open bootsector hex view (`ptBootHexView != NULL` → `edit_hex_close()`) before calling `gui_close_window()`. | UFR-MNT-007 | ✓ UC18.2 | UC18.2 |
+| REQ-MNT-017  | `mount_is_bootable(pBootSect)` shall return `ST_FALSE` if `pBootSect == NULL`. Otherwise it shall sum the 256 LE16 words of the 512-byte buffer and return `ST_TRUE` iff the result `& 0xFFFF == 0x1234`, `ST_FALSE` otherwise. | UFR-MNT-006 | ✓ UC18.2 | UC18.2 |
 
 ---
 
@@ -1853,7 +1866,7 @@ Matches the `.st` interleaved layout: track 0 side 0, track 0 side 1, track 1 si
 
 ### 4.19 Mount View — `mount.h` / `mount.c`
 
-> Design ref: CLAUDE.md §6.24; UC18.1 validated 2026-06-06
+> Design ref: CLAUDE.md §6.24 (UC18.1) + §6.25 (UC18.2); UC18.1 validated 2026-06-06, UC18.2 validated 2026-06-06
 
 **Role:** D2D GUI view (`GUI_WND_MOUNT`) presenting a FAT12 disk image as an emulated Atari ST floppy `A:\`. Sources: PC directory (in-memory fresh image), `.st` raw image, `.msa` RLE-compressed image. Left panel: FAT root entry list. Right panel: disk properties.
 
@@ -1861,9 +1874,10 @@ Matches the `.st` interleaved layout: track 0 side 0, track 0 side 1, track 1 si
 
 | Function                                       | REQ(s)                            | Description                                                                                              |
 |------------------------------------------------|-----------------------------------|----------------------------------------------------------------------------------------------------------|
-| `mount_view_open(szPath, ptLineCtx, pptView)`  | REQ-MNT-001..004, REQ-MNT-010..011 | Resolve source (dir/st/msa), load/create `image_st_t`, open `GUI_WND_MOUNT` window thread               |
-| `mount_view_close(pptView)`                    | REQ-MNT-005                       | Close window thread (join), free `image_st_t`, set `*pptView = NULL`; idempotent on `&NULL`             |
+| `mount_view_open(szPath, ptLineCtx, pptView)`  | REQ-MNT-001..004, REQ-MNT-010..011, REQ-MNT-015 | Resolve source (dir/st/msa), load/create `image_st_t`, store `ptLineCtx`, open `GUI_WND_MOUNT` window thread |
+| `mount_view_close(pptView)`                    | REQ-MNT-005, REQ-MNT-016          | Close bootsector hex view if open, close window thread (join), free `image_st_t`, set `*pptView = NULL` |
 | `mount_view_add_file(ptView, szSrcPath)`       | REQ-MNT-006                       | Stat + read PC file, call `image_st_write_file()`, set `bDirty`, refresh entry list, invalidate view    |
+| `mount_is_bootable(pBootSect)`                 | REQ-MNT-017                       | NULL guard; sum 256 LE16 words of 512-byte bootsector; return ST_TRUE iff result & 0xFFFF == 0x1234     |
 
 **Key internal functions:**
 
@@ -1871,8 +1885,10 @@ Matches the `.st` interleaved layout: track 0 side 0, track 0 side 1, track 1 si
 |----------------------------------------|-----------------|---------------------------------------------------------------------------------------------|
 | `mount_refresh(ptView)`                | REQ-MNT-003     | Snapshot FAT via `image_st_list_root()` into `ptView->aEntries[]` + `iEntryCount`          |
 | `mount_scroll_to_sel(ptView)`          | REQ-MNT-007     | Clamp `iScrollOffset` so `iSelectedEntry` is in the visible region                         |
-| `mount_render(ptView)`                 | REQ-MNT-002,011,012 | begin_draw → left panel (header + file list) → separator → right panel (properties)    |
-| `mount_handle_key(ptView, eKey)`       | REQ-MNT-007,008 | UP/DOWN/PgUp/PgDn/Home/End navigation + DEL delete + ESC close                             |
+| `mount_render(ptView)`                 | REQ-MNT-002,011..013 | begin_draw → left panel (header + file list) → separator → right panel (properties + BPB + bootable)  |
+| `mount_handle_key(ptView, eKey)`       | REQ-MNT-007,008,014 | UP/DOWN/PgUp/PgDn/Home/End navigation + DEL delete + ESC close + **B → bootsector hex** |
+| `mount_open_bootsector(ptView)`        | REQ-MNT-014..016   | Extract 512-byte bootsector → temp file → `edit_hex_open()` with heuristic title; close prior view first |
+| `mount_check_bootable(pBoot)`          | REQ-MNT-017         | Static helper: sum 256 LE16 words of `pBoot[512]`, return `(sum & 0xFFFF) == 0x1234`   |
 | `mount_handle_click(ptView, iX, iY)`  | REQ-MNT-007     | Left-click on list panel selects entry by pixel-to-index mapping                           |
 | `mount_handle_scroll(ptView, iDelta)` | REQ-MNT-012     | Mouse scroll wheel: clamp `iScrollOffset`                                                   |
 | `mount_event_callback(hWnd, ptEvt)`   | REQ-MNT-002..008 | PAINT (lazy renderer), RESIZE, KEY_DOWN, MOUSE_DOWN, SCROLL, CLOSE                        |
@@ -1894,6 +1910,14 @@ Matches the `.st` interleaved layout: track 0 side 0, track 0 side 1, track 1 si
 | `MOUNT_SRC_DIR`      | 0     | Source is a PC directory (new in-memory image)       |
 | `MOUNT_SRC_ST`       | 1     | Source is a `.st` raw disk image                     |
 | `MOUNT_SRC_MSA`      | 2     | Source is a `.msa` RLE-compressed disk image         |
+| `MOUNT_BOOT_TMP`     | `".\\st4ever_boot.bin"` / `"/tmp/st4ever_boot.bin"` | Temp file for bootsector extraction (P38, UC18.2) |
+
+**New `mount_view_t` fields (UC18.2):**
+
+| Field              | Type            | Description                                              |
+|--------------------|-----------------|----------------------------------------------------------|
+| `ptBootHexView`    | `void *`        | `edit_hex_view_t *` stored opaque; NULL if no view open  |
+| `ptLineCtx`        | `line_context_t *` | Back-reference to console context for `edit_hex_open()` |
 
 **Dependencies:**
 
@@ -1922,6 +1946,52 @@ Same pattern as `dir_view_t` and `trace_view_t`: `mount_view_open()` calls `gui_
 | `g_mnt_clrPropKey` | #8888CC                | Property key label text            |
 | `g_mnt_clrPropVal` | #DDDDDD                | Property value text                |
 | `g_mnt_clrDirty`   | #FFAA44 (amber)        | "Modified" indicator text          |
+| `g_mnt_clrBootY`   | #33E433 (bright green) | "Bootable: Yes" indicator text (UC18.2) |
+| `g_mnt_clrBootN`   | #8C8C8C (grey)         | "Bootable: No" indicator text (UC18.2)  |
+
+---
+
+### 4.20 Directory View — UC18.2 additions — `dir.h` / `dir.c`
+
+> Design ref: CLAUDE.md §6.25; UC18.2 validated 2026-06-06
+
+**New `dir_view_t` fields (UC18.2):**
+
+| Field                | Type           | Description                                                     |
+|----------------------|----------------|-----------------------------------------------------------------|
+| `aszNavHistory[16][512]` | `char[][]` | Linear navigation history; slot 0 seeded at `dir_open()`       |
+| `iNavHistHead`       | `int`          | Index of current position in the history (0 = oldest entry shown) |
+| `iNavHistCount`      | `int`          | Total number of valid slots in `aszNavHistory`                  |
+| `aszMultiSel[16][512]` | `char[][]`   | Paths of CTRL+SPACE-selected files (files only, not dirs)       |
+| `iMultiSelCount`     | `int`          | Number of paths currently in `aszMultiSel`; 0 at `dir_open()`  |
+
+**New constants (UC18.2):**
+
+| Constant             | Value | Meaning                                     |
+|----------------------|-------|---------------------------------------------|
+| `DIR_NAV_HIST_MAX`   | 16    | Maximum navigation history entries          |
+| `DIR_MULTI_SEL_MAX`  | 16    | Maximum multi-selection entries             |
+
+**New internal functions (UC18.2):**
+
+| Function                                   | REQ(s)               | Description                                                   |
+|--------------------------------------------|----------------------|---------------------------------------------------------------|
+| `dir_nav_history_push(ptView, szNewPath)`  | REQ-DIR-024          | Append path to history; shift-evict oldest when full          |
+| `dir_navigate_to(ptView, szNewPath, hWnd)` | REQ-DIR-024,025      | Create new root, free old, rebuild flat list, update title    |
+| `dir_is_multi_sel(ptView, szPath)`         | REQ-DIR-026,027      | Linear scan; return ST_TRUE if path is in multi-sel set       |
+| `dir_toggle_multi_sel(ptView, szPath)`     | REQ-DIR-026          | Add if absent + room; remove (shift down) if present          |
+
+**Updated rendering layer order in `dir_render()` (UC18.2):**
+
+1. Green layer (`g_dir_clrLastSel`) — P11 last-committed file
+2. Purple layer (`g_dir_clrMultiSel`) — P14 CTRL+SPACE multi-selected files
+3. Blue layer (`g_dir_clrSel`) — cursor/navigation highlight
+
+**New colour:**
+
+| Variable            | RGB approx           | Usage                                        |
+|---------------------|----------------------|----------------------------------------------|
+| `g_dir_clrMultiSel` | #472688 (dark violet)| CTRL+SPACE multi-selected file background     |
 
 ---
 
@@ -4364,3 +4434,85 @@ Each INTENT maps to one or more test blocks in `use_cases/use_case_18_1.c`.
 | UFR-MNT-003  | REQ-MNT-006                         | TC-MNT-005..006, TC-MNT-050..052, TC-MNT-S005                              | UC18.1   |
 | UFR-MNT-004  | REQ-MNT-005, REQ-MNT-008..009       | TC-MNT-003..004, TC-MNT-007, TC-MNT-020..021, TC-MNT-036..038, TC-MNT-060, TC-MNT-S007 | UC18.1 |
 | UFR-CON-070  | REQ-MNT-001..004                    | TC-MNT-030..038 (via line_cmd_mount integration)                            | UC18.1   |
+
+
+---
+
+### 5.54 INTENT Catalog -- UC18.2
+
+Each INTENT maps to one or more test blocks in `use_cases/use_case_18_2.c`.
+
+| ID            | INTENT text                                                                                         |
+|---------------|-----------------------------------------------------------------------------------------------------|
+| INT-MNT-020   | DIR_NAV_HIST_MAX and DIR_MULTI_SEL_MAX constants shall be at least 8                               |
+| INT-MNT-021   | mount_is_bootable(NULL) shall return ST_FALSE (NULL guard)                                         |
+| INT-MNT-022   | A blank 512-byte sector (all zeros) shall not be detected as bootable                              |
+| INT-MNT-023   | A hand-crafted sector whose LE16 word sum equals 0x1234 shall be detected as bootable              |
+| INT-MNT-024   | Flipping any byte of the bootable sector shall make mount_is_bootable() return ST_FALSE            |
+| INT-MNT-025   | dir_open() shall seed aszNavHistory[0] with the root path; iNavHistHead==0, iNavHistCount==1       |
+| INT-MNT-026   | dir_open() shall initialise iMultiSelCount to 0                                                    |
+| INT-MNT-027   | mount_view_open() shall store ptLineCtx in ptView->ptLineCtx                                       |
+| INT-MNT-028   | mount_view_open() shall initialise ptView->ptBootHexView to NULL                                   |
+
+---
+
+### 5.55 Test Cases -- UC18.2 (dir history, multi-sel, mount BPB/bootable/bootsector)
+
+**Fixture files** (created in `use_cases/UC18_2/` at test start):
+- `boot.st` -- blank `.st` image containing DEMO.PRG (16B)
+
+| TC             | Description                                                                                      | Kind | UFR             | REQ           | INT          | Notes               | Status      |
+|----------------|--------------------------------------------------------------------------------------------------|------|-----------------|---------------|--------------|---------------------|-------------|
+| TC-MNT-070     | DIR_NAV_HIST_MAX >= 8                                                                            | [N]  | UFR-DIR-014     | REQ-DIR-024   | INT-MNT-020  |                     | PASS UC18.2 |
+| TC-MNT-071     | DIR_MULTI_SEL_MAX >= 8                                                                           | [N]  | UFR-DIR-015     | REQ-DIR-026   | INT-MNT-020  |                     | PASS UC18.2 |
+| TC-MNT-072     | mount_is_bootable(NULL) == ST_FALSE                                                              | [R]  | UFR-MNT-006     | REQ-MNT-017   | INT-MNT-021  |                     | PASS UC18.2 |
+| TC-MNT-073     | Blank 512-byte sector (all zeros) -> not bootable                                                | [N]  | UFR-MNT-006     | REQ-MNT-017   | INT-MNT-022  |                     | PASS UC18.2 |
+| TC-MNT-074     | Hand-crafted sector (word[0]=0x1234, rest=0) -> bootable                                        | [N]  | UFR-MNT-006     | REQ-MNT-017   | INT-MNT-023  |                     | PASS UC18.2 |
+| TC-MNT-075     | Flip byte[0] of bootable sector -> not bootable                                                 | [N]  | UFR-MNT-006     | REQ-MNT-017   | INT-MNT-024  |                     | PASS UC18.2 |
+| TC-MNT-076     | dir_open("src",...) -> iNavHistCount == 1                                                        | [N]  | UFR-DIR-014     | REQ-DIR-024   | INT-MNT-025  |                     | PASS UC18.2 |
+| TC-MNT-077     | dir_open("src",...) -> iNavHistHead == 0                                                         | [N]  | UFR-DIR-014     | REQ-DIR-024   | INT-MNT-025  |                     | PASS UC18.2 |
+| TC-MNT-078     | dir_open("src",...) -> aszNavHistory[0][0] != NUL                                               | [N]  | UFR-DIR-014     | REQ-DIR-024   | INT-MNT-025  |                     | PASS UC18.2 |
+| TC-MNT-079     | dir_open("src",...) -> iMultiSelCount == 0                                                       | [N]  | UFR-DIR-015     | REQ-DIR-027   | INT-MNT-026  |                     | PASS UC18.2 |
+| TC-MNT-080     | mount_view_open(boot.st,...) -> ptView->ptLineCtx == &ctx                                        | [N]  | UFR-MNT-007     | REQ-MNT-015   | INT-MNT-027  |                     | PASS UC18.2 |
+| TC-MNT-081     | mount_view_open(boot.st,...) -> ptView->ptBootHexView == NULL                                    | [N]  | UFR-MNT-007     | REQ-MNT-015   | INT-MNT-028  |                     | PASS UC18.2 |
+| TC-MNT-S010    | Right panel shows Geometry: H2/S9/T80 and Bootable: No                                         | [S]  | UFR-MNT-005,006 | REQ-MNT-013   | INT-MNT-022  | make manual UC=18_2 | SKIP        |
+| TC-MNT-S011    | Right panel shows Files: N / 112 (root dir capacity)                                           | [S]  | UFR-MNT-005     | REQ-MNT-013   | INT-MNT-022  | make manual UC=18_2 | SKIP        |
+| TC-MNT-S012    | Left panel header shows N file(s) without /112                                                  | [S]  | UFR-MNT-005     | REQ-MNT-013   | INT-MNT-022  | make manual UC=18_2 | SKIP        |
+| TC-MNT-S013    | Pressing B opens a hex editor window with bootsector title                                      | [S]  | UFR-MNT-007     | REQ-MNT-014   | INT-MNT-028  | make manual UC=18_2 | SKIP        |
+| TC-MNT-S014    | CTRL+SPACE in dir view toggles purple highlight on a file                                       | [S]  | UFR-DIR-015     | REQ-DIR-026,027 | INT-MNT-026 | make manual UC=18_2 | SKIP        |
+| TC-MNT-S015    | ALT+LEFT in dir view after navigating into a subdir -> goes back                                | [S]  | UFR-DIR-014     | REQ-DIR-025   | INT-MNT-025  | make manual UC=18_2 | SKIP        |
+| TC-MNT-S016    | ALT+RIGHT in dir view after ALT+LEFT -> goes forward                                           | [S]  | UFR-DIR-014     | REQ-DIR-025   | INT-MNT-025  | make manual UC=18_2 | SKIP        |
+| TC-MNT-S017    | ESC closes the mount window                                                                     | [S]  | UFR-MNT-004     | REQ-MNT-008   | INT-MNT-027  | make manual UC=18_2 | SKIP        |
+
+#### Test Summary -- UC18.2
+
+| Kind        | Count | Notes                                                  |
+|-------------|-------|--------------------------------------------------------|
+| [N] Nominal | 12    | constants, history init, multi-sel init, bootable, mount open |
+| [R] Robust  |  1    | mount_is_bootable(NULL)                                |
+| [S] Skipped |  8    | visual -- run `make manual UC=18_2`                    |
+| **Total**   | **21** |                                                       |
+
+#### REQ -> TC coverage (UC18.2)
+
+| REQ           | TC(s)                                      | Status  |
+|---------------|--------------------------------------------|---------|
+| REQ-DIR-024   | TC-MNT-076..078                            | UC18.2  |
+| REQ-DIR-025   | TC-MNT-S015, TC-MNT-S016                  | UC18.2  |
+| REQ-DIR-026   | TC-MNT-071, TC-MNT-079, TC-MNT-S014       | UC18.2  |
+| REQ-DIR-027   | TC-MNT-079, TC-MNT-S014                   | UC18.2  |
+| REQ-MNT-013   | TC-MNT-S010..012                          | UC18.2  |
+| REQ-MNT-014   | TC-MNT-S013                               | UC18.2  |
+| REQ-MNT-015   | TC-MNT-080, TC-MNT-081                    | UC18.2  |
+| REQ-MNT-016   | (covered by TC-MNT-081 + close sequence)  | UC18.2  |
+| REQ-MNT-017   | TC-MNT-072..075                           | UC18.2  |
+
+#### UFR traceability update (UC18.2)
+
+| UFR           | REQ(s)                           | TC(s)                                                  | Status  |
+|---------------|----------------------------------|--------------------------------------------------------|---------|
+| UFR-DIR-014   | REQ-DIR-024, REQ-DIR-025         | TC-MNT-070, TC-MNT-076..078, TC-MNT-S015..016         | UC18.2  |
+| UFR-DIR-015   | REQ-DIR-026, REQ-DIR-027         | TC-MNT-071, TC-MNT-079, TC-MNT-S014                   | UC18.2  |
+| UFR-MNT-005   | REQ-MNT-013                      | TC-MNT-S010..012                                       | UC18.2  |
+| UFR-MNT-006   | REQ-MNT-017                      | TC-MNT-072..075, TC-MNT-S010                           | UC18.2  |
+| UFR-MNT-007   | REQ-MNT-014..016                 | TC-MNT-080..081, TC-MNT-S013                           | UC18.2  |
