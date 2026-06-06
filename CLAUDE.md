@@ -28,6 +28,7 @@
 - 2026-06-03: UC13 validé — `src/disassemble.c` étendu : ASL/ASR/LSL/LSR/ROXL/ROXR/ROL/ROR (formes registre immédiat + registre Dn + mémoire .W), BTST/BCHG/BCLR/BSET (#imm statique + Dn dynamique) ; groupe 0xE `disasm_groupE` ; group 0x0 étendu `disasm_bit_static/dynamic` ; tables `g_aszShiftMnem`, `g_aszShiftMemMnem`, `g_aszBitOp` ; ST_APP_VERSION 0.13.0
 - 2026-06-03: UC14 validé — `src/disassemble.c` étendu : NOP/RTE/RTS/RTR, TRAP #N, LINK An/UNLK An, JSR/JMP (toutes EA contrôle), BRA/BSR/Bcc court (.S, 8-bit) et long (16-bit) ; groupe 0x6 `disasm_group6` ; `disasm_no_operand` helper ; `g_aszBcc[16]` ; bloc 0x4Exx dans `disasm_misc4` ; `use_case_11.c`+`use_case_12.c` : ADAPTED(UC14) RTS ; ST_APP_VERSION 0.14.0
 - 2026-06-04: UC16 validé — `src/image_st.h` + `src/image_st.c` : FAT12 .st raw image (create/load/save/list_root/read_file/write_file/delete_file/free_bytes) ; fixtures roundtrip.st via test ; ST_APP_VERSION 0.16.0
+- 2026-06-06: UC17 validé — `src/image_msa.h` + `src/image_msa.c` : MSA RLE codec (imsa_compress/decompress) + `image_msa_load/save` sur `image_st_t` ; `image_st_get_disk()` ajouté à `image_st.h/c` ; round-trip blank + fichiers + 0xE5 escape ; ST_APP_VERSION 0.17.0
 - 2026-06-06: UC15A validé — torture test désassembleur 68000 vs SOURCE.PRG (DEVPAC3, ATARI ST réel) : 2525 instructions, DIFF=0 ; 5 bugs disasm corrigés (groupE iIR inversé, EXG An,An ordre DEVPAC3, NBCD/CHK/size=3 ext words) ; `DISASM_SYNTAX.md` créé à la racine ; use_case_11/13.c ADAPTED:UC15A
 - 2026-06-03: UC15 validé — `src/load.c` `load_do_prg()` complet : header 28 octets, chargement .text+.data à ST_LOAD_BASE, BSS zeroing, table de fixups Atari ST (bitstream : first_offset 4B, 0x00=fin, 0x01=skip 254B, N=advance+fix) ; abs_flag géré (pas de table fixup) ; `load_state_t` étendu (uiTextSize/uiDataSize/uiBssSize/uiFixupCount) ; helpers `load_apply_fixups` + `load_skip_bytes` ; fixtures `use_cases/UC15/` (fixup/bss/absolute/multi_fixup/bad_fixup.prg) ; TODO(UC15) supprimé ; ST_APP_VERSION 0.15.0
 - 2026-06-03: UC11 validé — `src/disassemble.c` : désassembleur 68000 réel MOVE/MOVEQ/LEA/CLR/EXG/SWAP/PEA + décodeur EA complet (12 modes) ; `bValid = ST_TRUE` sur instructions reconnues ; `TC-DIS-001 ADAPTED(UC11)` ; ST_APP_VERSION 0.11.0
@@ -575,7 +576,7 @@ Les étapes de développement fonctionnelles sont formalisées en Use Cases, per
 | UC15 | interne | Format PRG : parser header + sections + fixups + chargement mémoire ST | ✓ VALIDÉ 2026-06-03 |
 | UC16 | interne | Image `.st` : lecture/écriture raw + FAT12 | ✓ VALIDÉ 2026-06-04 |
 | UC15A | interne | Torture test désassembleur : SOURCE.PRG (DEVPAC3, ATARI ST réel) vs disasm_range() — 2525 instructions, DIFF=0 ; 5 bugs disasm corrigés | ✓ VALIDÉ 2026-06-06 |
-| UC17 | interne | Image `.msa` : décompression/compression RLE | round-trip .msa |
+| UC17 | interne | Image `.msa` : décompression/compression RLE | ✓ VALIDÉ 2026-06-06 |
 | UC18 | `mount` | Vue arbre disquette Win32/GDI + X11, drag & drop depuis `dir` ; sélection multiple dans `dir` via CTRL+ESPACE/SHIFT+ESPACE (P14, même répertoire uniquement) pour drag & drop multi-fichiers ; historique navigation `dir` ALT+←/→ Précédent/Suivant (P10) | monter répertoire en A:\ |
 | UC19 | `umount` | Démontage + sauvegarde image si modifiée | dialog save |
 | UC20 | `image` | Création .st / .msa depuis le contenu monté | image valide et montable |
@@ -2033,6 +2034,78 @@ Référence complète des différences syntaxiques : **`DISASM_SYNTAX.md`** à l
 ### Arbitrage UC15A (2026-06-06)
 
 *UC15A est un UC de validation interne (torture test désassembleur). Aucune proposition UX/fonctionnelle n'a émergé — UC15A est clos.*
+
+---
+
+### 6.23 Use Case 17 (UC17) — ✓ VALIDÉ (2026-06-06)
+
+**Périmètre fonctionnel implémenté :**
+- `src/image_msa.h` (nouveau) : constantes MSA (`IMSA_HDR_SIZE=10`, `IMSA_MAGIC=0x0E0F`, `IMSA_ESCAPE=0xE5`, `IMSA_SPT`, `IMSA_SIDES_HDR=1`, `IMSA_TRACK_FIRST/LAST`, `IMSA_TRACK_BYTES=4608`) + API publique `image_msa_load()` et `image_msa_save()`.
+- `src/image_msa.c` (nouveau) : codec MSA RLE complet :
+  - `imsa_rd16be(p)` / `imsa_wr16be(p, v)` : helpers big-endian 16-bit (lectures/écritures header + data_length).
+  - `imsa_decompress(pIn, uiInLen, pOut, uiOutLen)` : expansion RLE — byte ≠ 0xE5 = copie directe ; 0xE5 = séquence 3 octets (run_byte + count_hi + count_lo) ; vérification overflow à chaque run ; validation `uiOut == uiOutLen` en fin.
+  - `imsa_compress(pIn, uiInLen, pOut, uiOutMax)` : RLE MSA — runs de 0xE5 (même count=1) encodés systématiquement ; runs ≥ 5 octets identiques encodés ; retourne 0 si la sortie compressée déborderait `uiOutMax` (caller utilise alors la piste brute).
+  - `image_msa_load()` : ouverture fichier + lecture header 10 octets + validation (magic 0x0E0F, SPT>0, sides≤1, first≤last<80) + `image_st_create()` + `image_st_get_disk()` + boucle sur toutes les pistes/faces : lecture 2 octets data_length → si data_length == IMSA_TRACK_BYTES → `memcpy` brut, sinon `imsa_decompress`.
+  - `image_msa_save()` : validation paramètres + `image_st_get_disk()` + écriture header + boucle sur 80 pistes × 2 faces : `imsa_compress` → si compressé < brut, écrire compressé ; sinon écrire brut.
+- `src/image_st.h` : ajout déclaration `image_st_get_disk(ptImg, ppDisk)`.
+- `src/image_st.c` : implémentation `image_st_get_disk()` — accès sécurisé (NULL guards) au champ `aDisk` de l'opaque `struct image_st_s`. Maintient l'encapsulation : aucun .h externe ne voit la définition complète de la struct.
+- `use_cases/UC17/` : répertoire créé à l'exécution du test ; fixtures `blank.msa`, `files.msa`, `bad_magic.msa`, `truncated.msa`, `bad_geo.msa` créées par le test.
+- `src/common.h` : `ST_APP_VERSION` → `"0.17.0"`.
+
+**Architecture du codec :**
+- `image_msa.c` n'accède jamais directement à la struct `image_st_s`. Il passe exclusivement par `image_st_get_disk()` pour obtenir le pointeur `aDisk`. Cela garantit que l'opacité de `image_st_t` n'est pas brisée par le module codec.
+- La décision raw/compressé se fait piste par piste à la sauvegarde. Si une piste ne compresse pas (ex : piste contenant des données aléatoires ou quasi-aléatoires), elle est stockée brute avec `data_length == IMSA_TRACK_BYTES`. Le lecteur détecte ce cas via `data_length == IMSA_TRACK_BYTES` → `memcpy` direct.
+- Le buffer de compression `aBuf[IMSA_TRACK_BYTES]` est alloué sur la pile dans `image_msa_save()` (4608 octets). Acceptable : IMSA_TRACK_BYTES est borné et connu à la compilation.
+- Compression d'une piste vide (tout à zéro) : 4 octets `{0xE5, 0x00, 0x12, 0x00}` (= run de 4608 octets de 0x00). 160 pistes × 4 octets = 640 octets vs 737 280 pour un `.st` équivalent.
+
+**Tests R14/R15 appliqués :**
+- `use_cases/use_case_17.c` : TEST MATRIX **15N + 10R + 0S = 25 tests**, 0 failure
+  - [R] : NULL guards load/save (4) ; NULL guards get_disk (2) ; load nonexistent (1) ; bad magic (1) ; truncated (1) ; bad geometry (1)
+  - [N] : blank round-trip (5 : create+save+stat exists+stat compression+load+list_root+free_bytes) ; files round-trip (10 : create+3 writes+save+load+list_root 3 entries+3 tailles+3 contenus+free_bytes)
+
+**Contrats comportementaux validés :**
+
+*`image_st_get_disk(ptImg, ppDisk)`*
+- `ptImg == NULL` ou `ppDisk == NULL` → `ST_ERROR`
+- Succès : `*ppDisk = ptImg->aDisk` — pointeur valide jusqu'à `image_st_close()`
+
+*`image_msa_load(szPath, pptImg)`*
+- `szPath == NULL` ou `pptImg == NULL` → `ST_ERROR`
+- Fichier inexistant → `ST_ERROR` (délégué à `file_open`)
+- Magic ≠ 0x0E0F → `ST_ERROR` + LOG_ERROR
+- SPT == 0 ou sides > 1 ou first > last ou last ≥ 80 → `ST_ERROR` + LOG_ERROR
+- data_length > IMSA_TRACK_BYTES → `ST_ERROR` + LOG_ERROR
+- En cas d'erreur de décompression : `image_st_close(&ptImg)` + `file_close` + return ST_ERROR. `*pptImg` reste NULL.
+- Succès : `*pptImg` → nouvelle `image_st_t` BPB-formatée avec toutes les pistes décompressées
+
+*`image_msa_save(ptImg, szPath)`*
+- `ptImg == NULL` ou `szPath == NULL` → `ST_ERROR`
+- Erreur d'écriture → `file_close` + return ST_ERROR (fichier peut être tronqué)
+- Succès : fichier MSA complet, header + 160 blocs (80 pistes × 2 faces), chaque bloc = 2 octets data_length + N octets data
+
+*`imsa_decompress()` — invariants*
+- Byte non-escape → copie verbatim ; overflow output → `ST_ERROR`
+- Séquence escape tronquée (< 3 octets restants) → `ST_ERROR`
+- Run count == 0 ou `uiOut + count > uiOutLen` → `ST_ERROR`
+- En fin : `uiOut != uiOutLen` → `ST_ERROR` (piste mal encodée)
+
+*`imsa_compress()` — invariants*
+- 0xE5 (escape byte) : toujours encodé en séquence, même pour count=1. Literal 0xE5 interdit dans le flux MSA.
+- Run de N octets non-escape < 5 : copie brute (N bytes < 4 bytes séquence)
+- Run de N octets ≥ 5 : séquence (4 bytes < N bytes brut)
+- Si `uiOut + 4 > uiOutMax` (séquence) ou `uiOut + N > uiOutMax` (brut) → retour 0 (pas de compression)
+- Retour 0 → `image_msa_save()` stocke la piste brute avec data_length = IMSA_TRACK_BYTES
+
+**Points d'attention pour les UCs suivants :**
+- UC18 (`mount`) : `image_msa_load()` est désormais disponible — `line_cmd_mount()` peut accepter les `.msa` comme les `.st`. Même interface `image_st_t` pour les deux formats.
+- UC20 (`image`) : `image_msa_save()` permettra de créer un `.msa` depuis un contenu monté, en plus du `.st` existant.
+- Extension `.stx` (UC future optionnelle) : serait un 3ème codec sur la même base `image_st_t`. L'architecture `image_st_get_disk()` permet d'en ajouter sans modifier `image_st.c`.
+
+---
+
+### Arbitrage UC17 (2026-06-06)
+
+*UC17 est un UC purement interne (codec MSA RLE). Aucune proposition UX/fonctionnelle n'a émergé — UC17 est clos.*
 
 ---
 

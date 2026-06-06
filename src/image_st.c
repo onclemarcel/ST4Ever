@@ -740,3 +740,15 @@ st_error_t image_st_free_bytes(image_st_t *ptImg, st_u32_t *puiFreeBytes)
     *puiFreeBytes = (st_u32_t)uiFree * (st_u32_t)IST_SPC * IST_BPS;
     return ST_NO_ERROR;
 }
+
+st_error_t image_st_get_disk(image_st_t *ptImg, st_u8_t **ppDisk)
+{
+    if (ptImg == NULL || ppDisk == NULL)
+    {
+        LOG_ERROR("NULL parameter: ptImg=%p ppDisk=%p",
+                  (void *)ptImg, (void *)ppDisk);
+        return ST_ERROR;
+    }
+    *ppDisk = ptImg->aDisk;
+    return ST_NO_ERROR;
+}

@@ -266,4 +266,22 @@ st_error_t image_st_delete_file(image_st_t *ptImg, const char *szName);
 st_error_t image_st_free_bytes(image_st_t *ptImg,
                                 st_u32_t   *puiFreeBytes);
 
+/*
+ * image_st_get_disk() - Return a pointer to the raw disk image buffer.
+ *
+ * Exposes the internal IST_DISK_SIZE-byte array so that codec modules
+ * (e.g. image_msa.c) can read or overwrite the raw disk bytes without
+ * access to the private struct layout.  The pointer remains valid until
+ * image_st_close() is called on ptImg.
+ *
+ * Parameters:
+ *   ptImg  [in]  : Image handle.
+ *   ppDisk [out] : Receives a pointer to aDisk[IST_DISK_SIZE].
+ *
+ * Returns:
+ *   ST_NO_ERROR on success.
+ *   ST_ERROR    if any pointer is NULL.
+ */
+st_error_t image_st_get_disk(image_st_t *ptImg, st_u8_t **ppDisk);
+
 #endif /* IMAGE_ST_H */

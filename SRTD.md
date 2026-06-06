@@ -31,6 +31,7 @@
 | 2.6 | 2026-06-03 | UC15  | Claude/OMC | UC15 validated — load_do_prg() complete: PRG header parse, BSS zeroing, fixup relocation bitstream (abs_flag supported); load_state_t extended (uiTextSize/DataSize/BssSize/FixupCount); UFR-LOD-004 updated, UFR-LOD-006..008; REQ-LOD-015..022; §4.12 updated; §5.44..45 new |
 | 2.7 | 2026-06-05 | UC16  | Claude/OMC | UC16 validated — image_st.h/c: FAT12 .st image create/load/save/list_root/read_file/write_file/delete_file/free_bytes; UFR-DSK-001..004 §1.8 new; REQ-IST-001..012 §2.14 new; §4.13 updated; §4.17 new; §5.46..47 new |
 | 2.8 | 2026-06-06 | UC15A | Claude/OMC | UC15A validated — disassembler torture test vs DEVPAC3 SOURCE.PRG (2525 instructions, DIFF=0); 5 disasm bugs fixed (groupE iIR, EXG An,An order, NBCD/CHK/size=3 ext words); DISASM_SYNTAX.md created; REQ-DIS-024..030 ADAPTED; TC-DIS-200..219 ADAPTED(UC15A) |
+| 2.9 | 2026-06-06 | UC17  | Claude/OMC | UC17 validated — image_msa.h/c: MSA RLE codec (imsa_compress/decompress, escape 0xE5, raw fallback); image_msa_load/save layered on image_st_t; image_st_get_disk() added; UFR-DSK-005..007 §1.8 updated; REQ-MSA-001..010 §2.15 new; §4.18 new; §5.50..51 new |
 
 ---
 
@@ -226,7 +227,7 @@ through one or more test cases in Section 5.
 | UFR-HEX-004 | CTRL+S shall save the file in-place (replace-mode, fixed size); the title bar shall show `[*]` when dirty and remove it after a successful save. ESC closes with a trace log entry if dirty. | ✓ UC9 | UC9 |
 | UFR-HEX-005 | The hex editor shall display a disassembly panel to the right of the ASCII column showing 68000 instructions decoded from the file content. The panel shall be toggled with F2 (default on). TAB shall cycle three zones: HEX → ASCII → DISASM → HEX. Navigation in the DISASM zone (↑↓/PgUp/PgDn) shall move by instruction and keep the hex cursor synchronised; conversely, cursor movement in HEX/ASCII shall keep the DISASM highlight synchronised. The DISASM zone is read-only. Clicking in the DISASM panel shall switch to DISASM zone and position the cursor at the clicked instruction. Mouse scroll in the DISASM zone shall scroll the disasm panel independently of the hex panel. | ✓ UC10 | UC10 |
 
-### 1.8 Disk Image — `DSK` (UC16 .st ✓; UC17 .msa TODO; UC20 create TODO)
+### 1.8 Disk Image — `DSK` (UC16 .st ✓; UC17 .msa ✓; UC20 create TODO)
 
 | ID          | Requirement                                                                                                                                      | Status    | UC   |
 |-------------|--------------------------------------------------------------------------------------------------------------------------------------------------|-----------|------|
@@ -234,6 +235,9 @@ through one or more test cases in Section 5.
 | UFR-DSK-002 | The application shall enumerate root directory entries of a loaded `.st` image, providing name, size, and attributes for each file.              | ✓ UC16    | UC16 |
 | UFR-DSK-003 | The application shall read, write, and delete files in the root directory of an in-memory `.st` image using standard FAT12 8.3 naming rules.     | ✓ UC16    | UC16 |
 | UFR-DSK-004 | The application shall save a modified in-memory `.st` image back to a file, producing a valid 737,280-byte image readable by external emulators. | ✓ UC16    | UC16 |
+| UFR-DSK-005 | The application shall load a `.msa` (Magic Shadow Archiver) disk image file, decompress its per-track RLE data, and expose the same `image_st_t` interface as a `.st` image. | ✓ UC17 | UC17 |
+| UFR-DSK-006 | The application shall save an in-memory `image_st_t` to a `.msa` file, compressing each track with MSA RLE when the compressed form is shorter than the raw 4608-byte track. | ✓ UC17 | UC17 |
+| UFR-DSK-007 | The application shall provide a safe accessor `image_st_get_disk()` that exposes the raw byte buffer of an `image_st_t` to codec modules without breaking the opaque struct encapsulation. | ✓ UC17 | UC17 |
 
 ### 1.9 Floppy Mount / Emulation — `MNT` (TODO UC18–19)
 
@@ -594,6 +598,25 @@ requirement that will expose it (`UFR-EXE-*`, planned UC21–27).
 | REQ-IST-010  | `image_st_write_file()` shall return `ST_ERROR` if the disk is full (no free cluster) or the root directory is full (no free or deleted slot). On disk-full, all partially-allocated clusters shall be freed before returning `ST_ERROR`. | UFR-DSK-003 | ✓ UC16 | UC16 |
 | REQ-IST-011  | `image_st_delete_file()` shall return `ST_ERROR` if `ptImg` or `szName` is NULL or if the file is not found. On success the full FAT12 chain shall be freed (all entries set to IST_FAT_FREE) and the directory entry first byte set to 0xE5. | UFR-DSK-003 | ✓ UC16 | UC16 |
 | REQ-IST-012  | `image_st_free_bytes()` shall return `ST_ERROR` if any pointer is NULL. On success `*puiFreeBytes` shall equal the count of IST_FAT_FREE (0x000) entries in FAT1 for clusters IST_CLUSTER_FIRST through IST_CLUSTER_FIRST+IST_DATA_CLUSTERS−1, multiplied by IST_SPC × IST_BPS. | UFR-DSK-004 | ✓ UC16 | UC16 |
+
+---
+
+### 2.15 MSA Codec — `image_msa.h` / `image_msa.c`
+
+> Design ref: CLAUDE.md §6.23; depends on `image_st.h` (UC16) + `file.h` (UC6)
+
+| ID           | Software Requirement                                                                                                                                                                                                                           | Parent UFR  | Status   | UC   |
+|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------|----------|------|
+| REQ-MSA-001  | `image_msa_load(NULL,*)` or `image_msa_load(*,NULL)` shall return `ST_ERROR`. A nonexistent or unreadable `.msa` file shall return `ST_ERROR`. | UFR-DSK-005 | ✓ UC17 | UC17 |
+| REQ-MSA-002  | `image_msa_save(NULL,*)` or `image_msa_save(*,NULL)` shall return `ST_ERROR`. | UFR-DSK-006 | ✓ UC17 | UC17 |
+| REQ-MSA-003  | A round-trip (save then load) shall produce an `image_st_t` with identical FAT12 content: same root directory entries, same file sizes, same byte-for-byte file content. | UFR-DSK-005 | ✓ UC17 | UC17 |
+| REQ-MSA-004  | A blank `image_st_t` saved to `.msa` shall produce a file smaller than IST_DISK_SIZE / 10 (compression ratio ≥ 10× for a zeroed disk). | UFR-DSK-006 | ✓ UC17 | UC17 |
+| REQ-MSA-005  | Files containing the escape byte (0xE5) shall round-trip exactly; `imsa_compress()` shall always encode 0xE5 as an escape sequence (even count=1), and `imsa_decompress()` shall reconstruct them correctly. | UFR-DSK-005 | ✓ UC17 | UC17 |
+| REQ-MSA-006  | `image_msa_load()` shall reject files with: wrong magic (≠ 0x0E0F), SPT == 0, sides > 1, first > last, or last ≥ IST_TRACKS. All shall return `ST_ERROR`; `*pptImg` shall remain NULL. | UFR-DSK-005 | ✓ UC17 | UC17 |
+| REQ-MSA-007  | `imsa_decompress()` shall return `ST_ERROR` if: a run overflow occurs (count would exceed output buffer), a truncated escape sequence is detected (< 3 bytes remaining), or the total output is not exactly `uiOutLen` bytes. | UFR-DSK-005 | ✓ UC17 | UC17 |
+| REQ-MSA-008  | `imsa_compress()` shall return 0 if the compressed output would equal or exceed `uiOutMax` bytes; the caller shall then write the raw track at `data_length == IMSA_TRACK_BYTES`. | UFR-DSK-006 | ✓ UC17 | UC17 |
+| REQ-MSA-009  | When saving, each track shall be written as 2 bytes `data_length` (big-endian) followed by `data_length` bytes of data; if `data_length == IMSA_TRACK_BYTES` the data is raw; otherwise it is MSA-RLE encoded. | UFR-DSK-006 | ✓ UC17 | UC17 |
+| REQ-MSA-010  | `image_st_get_disk(NULL,*)` or `image_st_get_disk(*,NULL)` shall return `ST_ERROR`. On success, `*ppDisk` shall point to the internal `aDisk[]` array of the image and remain valid until `image_st_close()`. | UFR-DSK-007 | ✓ UC17 | UC17 |
 
 ---
 
@@ -1724,13 +1747,76 @@ struct image_st_s {
 | `malloc()` / `free()` / `memset()` / `memcpy()` | [CRT] | Image allocation, BPB format, data I/O |
 | `toupper()` / `strlen()` / `strncpy()` / `strcmp()` / `memcmp()` | [CRT] | 8.3 name normalisation and comparison |
 
+**Current consumers:**
+
+| Consumer   | Usage                                                                               |
+|------------|-------------------------------------------------------------------------------------|
+| UC17 .msa  | `image_msa_load()` decompresses MSA → same `image_st_t.aDisk`; `image_msa_save()` compresses back |
+
 **Future consumers:**
 
 | Future UC  | Usage                                                                               |
 |------------|-------------------------------------------------------------------------------------|
-| UC17 .msa  | `image_msa_load()` decompresses MSA → same `image_st_t.aDisk`; `image_msa_save()` compresses back |
 | UC18 mount | `mount_open()` calls `image_st_load()` for `.st` files; GUI lists via `image_st_list_root()` |
 | UC20 image | `image_st_save()` already available; UC20 adds the PC-directory→FAT12 population loop |
+
+---
+
+### 4.18 MSA Codec — `image_msa.h` / `image_msa.c`
+
+> Design ref: CLAUDE.md §6.23; UC17 validated 2026-06-06
+
+**Role:** Per-track RLE codec for Atari ST MSA (Magic Shadow Archiver) disk images, layered on `image_st_t`.
+
+**Public API:**
+
+| Function                                    | REQ(s)                            | Description                                                                                 |
+|---------------------------------------------|-----------------------------------|---------------------------------------------------------------------------------------------|
+| `image_msa_load(szPath, pptImg)`            | REQ-MSA-001, REQ-MSA-003..007    | Open `.msa`, validate header, decompress all tracks, populate new `image_st_t`             |
+| `image_msa_save(ptImg, szPath)`             | REQ-MSA-002, REQ-MSA-008..009    | Compress each track (fallback raw if no gain), write 10-byte header + track blocks          |
+
+**Key internal functions:**
+
+| Function                                                    | REQ(s)         | Description                                                              |
+|-------------------------------------------------------------|----------------|--------------------------------------------------------------------------|
+| `imsa_rd16be(p)` / `imsa_wr16be(p, v)`                     | —              | Big-endian 16-bit read/write helpers (header fields + data_length words) |
+| `imsa_decompress(pIn, uiInLen, pOut, uiOutLen)`             | REQ-MSA-007    | Expand MSA RLE: non-0xE5 → copy; 0xE5 → 3-byte escape sequence          |
+| `imsa_compress(pIn, uiInLen, pOut, uiOutMax)`               | REQ-MSA-008    | Compress with MSA RLE; 0xE5 always escaped; runs ≥ 5 encoded; returns 0 on overflow |
+
+**Also modified — `image_st.h` / `image_st.c`:**
+
+| Function                                    | REQ(s)         | Description                                                                        |
+|---------------------------------------------|----------------|------------------------------------------------------------------------------------|
+| `image_st_get_disk(ptImg, ppDisk)`          | REQ-MSA-010    | Safe accessor: returns `*ppDisk = ptImg->aDisk`; NULL guards both params           |
+
+**MSA format constants:**
+
+| Constant           | Value               | Meaning                                 |
+|--------------------|---------------------|-----------------------------------------|
+| `IMSA_HDR_SIZE`    | 10                  | Header size in bytes                    |
+| `IMSA_MAGIC`       | 0x0E0F              | Magic word (big-endian)                 |
+| `IMSA_ESCAPE`      | 0xE5                | RLE escape byte                         |
+| `IMSA_SPT`         | IST_SPT = 9         | Sectors per track (in header)           |
+| `IMSA_SIDES_HDR`   | 1                   | Sides field: 1 = double-sided           |
+| `IMSA_TRACK_FIRST` | 0                   | First track                             |
+| `IMSA_TRACK_LAST`  | IST_TRACKS−1 = 79   | Last track                              |
+| `IMSA_TRACK_BYTES` | IST_SPT×IST_SECTOR_SIZE = 4608 | Uncompressed bytes per track |
+
+**Dependencies:**
+
+| Module     | Symbol            | Purpose                                                       |
+|------------|-------------------|---------------------------------------------------------------|
+| `image_st` | `image_st_create()` / `image_st_close()` / `image_st_get_disk()` | Create/close image; access raw disk bytes |
+| `file.h`   | `file_open()` / `file_read()` / `file_write()` / `file_close()` | Sequential byte I/O                        |
+| CRT        | `memcpy()` / `memset()`        | Track copy on raw path                  |
+
+**Track offset calculation:**
+
+```c
+uiOffset = (iTrack * IST_SIDES + iSide) * (IST_SPT * IST_SECTOR_SIZE);
+```
+
+Matches the `.st` interleaved layout: track 0 side 0, track 0 side 1, track 1 side 0, …
 
 ---
 
@@ -3985,3 +4071,79 @@ Source: `use_cases/use_case_15A.c`
 | TC-DIS-208   | ASL.W D3,D0                    | ASL.W #3,D0                     | groupE iIR bit was inverted             |
 | TC-DIS-209   | LSR.B D2,D1                    | LSR.B #2,D1                     | same                                   |
 | TC-DIS-210   | ROR.L D0,D5                    | ROR.L #8,D5                     | same (bit5=0 → imm, "0 means 8")      |
+
+---
+
+### 5.50 INTENT Catalog — UC17
+
+| ID           | Intent                                                                                        |
+|--------------|-----------------------------------------------------------------------------------------------|
+| INT-MSA-001  | NULL path to `image_msa_load` must return ST_ERROR immediately                               |
+| INT-MSA-002  | NULL `pptImg` to `image_msa_load` must return ST_ERROR                                       |
+| INT-MSA-003  | NULL `ptImg` to `image_msa_save` must return ST_ERROR                                        |
+| INT-MSA-004  | NULL path to `image_msa_save` must return ST_ERROR                                           |
+| INT-MSA-005  | `image_st_get_disk` with NULL `ptImg` must return ST_ERROR                                   |
+| INT-MSA-006  | `image_st_get_disk` with NULL `ppDisk` must return ST_ERROR                                  |
+| INT-MSA-010  | A blank image saved as `.msa` then reloaded must be identical (same free_bytes, 0 entries)   |
+| INT-MSA-011  | MSA compression must produce a file smaller than IST_DISK_SIZE/10 for a blank image          |
+| INT-MSA-020  | Files written to an image must survive a `.msa` save/load cycle (sizes and content intact)   |
+| INT-MSA-021  | Files containing 0xE5 bytes must round-trip exactly; codec must escape/restore them correctly |
+| INT-MSA-030  | Loading a nonexistent file must return ST_ERROR; handle stays NULL                           |
+| INT-MSA-031  | A file with wrong magic must be rejected; handle stays NULL                                  |
+| INT-MSA-032  | A truncated MSA file must be rejected during header read; handle stays NULL                  |
+| INT-MSA-033  | A MSA file with impossible geometry (sides=5) must be rejected; handle stays NULL            |
+
+---
+
+### 5.51 Test Cases — UC17 (MSA disk image — RLE codec + round-trip)
+
+| TC           | Description                                                                                        | Type | Parent UFR  | REQ          | INT          | Notes                             | Result    |
+|--------------|----------------------------------------------------------------------------------------------------|------|-------------|--------------|--------------|-----------------------------------|-----------|
+| TC-MSA-001   | `image_msa_load(NULL, &p)` -> ST_ERROR                                                             | [R]  | UFR-DSK-005 | REQ-MSA-001  | INT-MSA-001  |                                   | PASS UC17 |
+| TC-MSA-002   | `image_msa_load("x.msa", NULL)` -> ST_ERROR                                                        | [R]  | UFR-DSK-005 | REQ-MSA-001  | INT-MSA-002  |                                   | PASS UC17 |
+| TC-MSA-003   | `image_msa_save(NULL, "x.msa")` -> ST_ERROR                                                        | [R]  | UFR-DSK-006 | REQ-MSA-002  | INT-MSA-003  |                                   | PASS UC17 |
+| TC-MSA-004   | `image_msa_save(ptImg, NULL)` -> ST_ERROR                                                          | [R]  | UFR-DSK-006 | REQ-MSA-002  | INT-MSA-004  |                                   | PASS UC17 |
+| TC-MSA-005   | `image_st_get_disk(NULL, &p)` -> ST_ERROR                                                          | [R]  | UFR-DSK-007 | REQ-MSA-010  | INT-MSA-005  |                                   | PASS UC17 |
+| TC-MSA-006   | `image_st_get_disk(ptImg, NULL)` -> ST_ERROR                                                       | [R]  | UFR-DSK-007 | REQ-MSA-010  | INT-MSA-006  |                                   | PASS UC17 |
+| TC-MSA-010   | Blank image: `image_st_create` + `image_msa_save` -> ST_NO_ERROR                                  | [N]  | UFR-DSK-006 | REQ-MSA-003  | INT-MSA-010  |                                   | PASS UC17 |
+| TC-MSA-011   | Blank `.msa` file exists on disk after save                                                        | [N]  | UFR-DSK-006 | REQ-MSA-004  | INT-MSA-011  |                                   | PASS UC17 |
+| TC-MSA-012   | Blank `.msa` file size > `IMSA_HDR_SIZE` (header written)                                         | [N]  | UFR-DSK-006 | REQ-MSA-004  | INT-MSA-011  |                                   | PASS UC17 |
+| TC-MSA-013   | Blank `.msa` size < IST_DISK_SIZE/10 (compression ratio >=10x)                                    | [N]  | UFR-DSK-006 | REQ-MSA-004  | INT-MSA-011  | blank = mostly zeros              | PASS UC17 |
+| TC-MSA-014   | `image_msa_load(blank.msa, &p)` -> ST_NO_ERROR                                                    | [N]  | UFR-DSK-005 | REQ-MSA-003  | INT-MSA-010  |                                   | PASS UC17 |
+| TC-MSA-015   | `list_root` on reloaded blank -> count = 0                                                         | [N]  | UFR-DSK-005 | REQ-MSA-003  | INT-MSA-010  |                                   | PASS UC17 |
+| TC-MSA-016   | `free_bytes` matches between original and reloaded blank image                                     | [N]  | UFR-DSK-005 | REQ-MSA-003  | INT-MSA-010  |                                   | PASS UC17 |
+| TC-MSA-020   | Image with HELLO.PRG+DATA.BIN+ESC.BIN saved and reloaded -> `list_root` count = 3                 | [N]  | UFR-DSK-005 | REQ-MSA-003  | INT-MSA-020  |                                   | PASS UC17 |
+| TC-MSA-021   | Reloaded HELLO.PRG: size = 32                                                                      | [N]  | UFR-DSK-005 | REQ-MSA-003  | INT-MSA-020  |                                   | PASS UC17 |
+| TC-MSA-022   | Reloaded DATA.BIN: size = 512                                                                      | [N]  | UFR-DSK-005 | REQ-MSA-003  | INT-MSA-020  |                                   | PASS UC17 |
+| TC-MSA-023   | Reloaded ESC.BIN: size = 16                                                                        | [N]  | UFR-DSK-005 | REQ-MSA-003  | INT-MSA-020  |                                   | PASS UC17 |
+| TC-MSA-024   | Reloaded HELLO.PRG: memcmp content == original 32-byte PRG stub                                   | [N]  | UFR-DSK-005 | REQ-MSA-003  | INT-MSA-020  |                                   | PASS UC17 |
+| TC-MSA-025   | Reloaded DATA.BIN: memcmp content == original 512-byte 0..255 pattern                             | [N]  | UFR-DSK-005 | REQ-MSA-003  | INT-MSA-020  |                                   | PASS UC17 |
+| TC-MSA-026   | Reloaded ESC.BIN (16 x 0xE5): memcmp content == original escape byte pattern                      | [N]  | UFR-DSK-005 | REQ-MSA-005  | INT-MSA-021  | 0xE5 escape byte round-trip       | PASS UC17 |
+| TC-MSA-027   | `free_bytes` matches between original and reloaded files image                                     | [N]  | UFR-DSK-005 | REQ-MSA-003  | INT-MSA-020  |                                   | PASS UC17 |
+| TC-MSA-030   | `image_msa_load("no_such.msa", &p)` -> ST_ERROR and `*pptImg == NULL`                             | [R]  | UFR-DSK-005 | REQ-MSA-001  | INT-MSA-030  |                                   | PASS UC17 |
+| TC-MSA-031   | Load `bad_magic.msa` (magic=0xDEAD) -> ST_ERROR and `*pptImg == NULL`                             | [R]  | UFR-DSK-005 | REQ-MSA-006  | INT-MSA-031  |                                   | PASS UC17 |
+| TC-MSA-032   | Load `truncated.msa` (4 bytes, header incomplete) -> ST_ERROR and `*pptImg == NULL`               | [R]  | UFR-DSK-005 | REQ-MSA-006  | INT-MSA-032  |                                   | PASS UC17 |
+| TC-MSA-033   | Load `bad_geo.msa` (sides=5, geometry invalid) -> ST_ERROR and `*pptImg == NULL`                  | [R]  | UFR-DSK-005 | REQ-MSA-006  | INT-MSA-033  |                                   | PASS UC17 |
+
+#### REQ -> TC coverage (UC17)
+
+| REQ          | TC(s)                                                    | Status   |
+|--------------|----------------------------------------------------------|----------|
+| REQ-MSA-001  | TC-MSA-001, TC-MSA-002, TC-MSA-030                       | UC17     |
+| REQ-MSA-002  | TC-MSA-003, TC-MSA-004                                   | UC17     |
+| REQ-MSA-003  | TC-MSA-010, TC-MSA-014..016, TC-MSA-020..025, TC-MSA-027 | UC17     |
+| REQ-MSA-004  | TC-MSA-011..013                                          | UC17     |
+| REQ-MSA-005  | TC-MSA-026                                               | UC17     |
+| REQ-MSA-006  | TC-MSA-031..033                                          | UC17     |
+| REQ-MSA-007  | (imsa_decompress internal — covered by round-trip tests) | UC17     |
+| REQ-MSA-008  | (imsa_compress internal — covered by TC-MSA-013)         | UC17     |
+| REQ-MSA-009  | (format invariant — validated by complete round-trip)    | UC17     |
+| REQ-MSA-010  | TC-MSA-005, TC-MSA-006                                   | UC17     |
+
+#### UFR traceability update (UC17)
+
+| UFR         | REQ(s)                           | TC(s)                                                      | Status |
+|-------------|----------------------------------|------------------------------------------------------------|--------|
+| UFR-DSK-005 | REQ-MSA-001, REQ-MSA-003..007    | TC-MSA-001..002, TC-MSA-010..016, TC-MSA-020..027, TC-MSA-030..033 | UC17 |
+| UFR-DSK-006 | REQ-MSA-002, REQ-MSA-008..009    | TC-MSA-003..004, TC-MSA-010..016, TC-MSA-020..027         | UC17   |
+| UFR-DSK-007 | REQ-MSA-010                      | TC-MSA-005..006                                            | UC17   |
