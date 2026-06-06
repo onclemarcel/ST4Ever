@@ -31,6 +31,7 @@
 - 2026-06-06: UC17 validé — `src/image_msa.h` + `src/image_msa.c` : MSA RLE codec (imsa_compress/decompress) + `image_msa_load/save` sur `image_st_t` ; `image_st_get_disk()` ajouté à `image_st.h/c` ; round-trip blank + fichiers + 0xE5 escape ; ST_APP_VERSION 0.17.0
 - 2026-06-06: UC18.1 validé — `src/mount.h` + `src/mount.c` : vue D2D `GUI_WND_MOUNT` (liste FAT + panneau propriétés) ; `mount_view_open/close/add_file` ; `line_cmd_mount/umount` ; `gui_find_window_by_type` ; fix szExt sans point ; ST_APP_VERSION 0.18.1
 - 2026-06-06: UC18.2 validé — P10 historique navigation dir (ALT+←/→ : `aszNavHistory[16]`, `dir_nav_history_push`, `dir_navigate_to`) ; P14 multi-sélection CTRL+ESPACE (`aszMultiSel[16]`, fond violet, files only) ; P34 propriétés BPB lecture seule (H/S/T) ; P36 suppression /IST_RDE de l'en-tête ; P37 détection Bootable WD1772 (`mount_is_bootable`) ; P38 touche B → bootsector vers `edit_hex_open` avec titre heuristique ; ST_APP_VERSION 0.18.2
+- 2026-06-07: UC19 validé — P35 dialog `umount` save (.st/.msa/répertoire) + flags `--st`/`--msa`/`--dir` bypass ; P39 status bar D2D (fond `g_mnt_clrStatusBg`, free KB + file count + `[*]`) ; P40 `mount_view_add_file` lecture par chunks 64 Ko avec progression LOG_INFO + gui_invalidate ; `mount_save_image(eFmt, szOutPath)` API publique ; `iVisRows -2` dans tous les handlers ; ST_APP_VERSION 0.19.0
 - 2026-06-06: UC15A validé — torture test désassembleur 68000 vs SOURCE.PRG (DEVPAC3, ATARI ST réel) : 2525 instructions, DIFF=0 ; 5 bugs disasm corrigés (groupE iIR inversé, EXG An,An ordre DEVPAC3, NBCD/CHK/size=3 ext words) ; `DISASM_SYNTAX.md` créé à la racine ; use_case_11/13.c ADAPTED:UC15A
 - 2026-06-03: UC15 validé — `src/load.c` `load_do_prg()` complet : header 28 octets, chargement .text+.data à ST_LOAD_BASE, BSS zeroing, table de fixups Atari ST (bitstream : first_offset 4B, 0x00=fin, 0x01=skip 254B, N=advance+fix) ; abs_flag géré (pas de table fixup) ; `load_state_t` étendu (uiTextSize/uiDataSize/uiBssSize/uiFixupCount) ; helpers `load_apply_fixups` + `load_skip_bytes` ; fixtures `use_cases/UC15/` (fixup/bss/absolute/multi_fixup/bad_fixup.prg) ; TODO(UC15) supprimé ; ST_APP_VERSION 0.15.0
 - 2026-06-03: UC11 validé — `src/disassemble.c` : désassembleur 68000 réel MOVE/MOVEQ/LEA/CLR/EXG/SWAP/PEA + décodeur EA complet (12 modes) ; `bValid = ST_TRUE` sur instructions reconnues ; `TC-DIS-001 ADAPTED(UC11)` ; ST_APP_VERSION 0.11.0
@@ -581,8 +582,9 @@ Les étapes de développement fonctionnelles sont formalisées en Use Cases, per
 | UC17 | interne | Image `.msa` : décompression/compression RLE | ✓ VALIDÉ 2026-06-06 |
 | UC18.1 | `mount`, `umount` | Vue D2D `GUI_WND_MOUNT` : liste FAT12 + panneau propriétés ; `mount_view_open/close/add_file` ; `line_cmd_mount/umount` ; `gui_find_window_by_type` | ✓ VALIDÉ 2026-06-06 |
 | UC18.2 | `mount`, `dir` | P10 historique navigation dir (ALT+←/→) ; P14 multi-select CTRL+ESPACE (violet) ; P34 BPB géométrie lecture seule ; P36 suppression /112 en-tête ; P37 Bootable WD1772 ; P38 touche B → bootsector hex | ✓ VALIDÉ 2026-06-06 |
-| UC19 | `umount` | Démontage + dialog save .st/.msa/répertoire (P35) ; status bar mount (P39) ; progression copie (P40) | dialog save |
+| UC19 | `umount` | Démontage + dialog save .st/.msa/répertoire (P35) ; status bar mount (P39) ; progression copie (P40) | ✓ VALIDÉ 2026-06-07 |
 | UC20 | `image` | Création .st / .msa depuis le contenu monté ; Enter → hex dans mount (P41) | image valide et montable |
+| UC20A | `st2msa`, `msa2st` | Conversion batch .st↔.msa (P42) : `--all` traite tous les fichiers du répertoire `dir`, `--dir <path>` répertoire explicite, `-r` récursif sous-répertoires | conversion réussie, fichiers produits valides |
 | UC21 | interne | CPU 68000 : registres + MOVE/MOVEQ/LEA/CLR/SWAP | step 10 instructions |
 | UC22 | interne | CPU 68000 : ADD/SUB/CMP/AND/OR/EOR/shifts | exécution programme arithmétique |
 | UC23 | interne | CPU 68000 : BRA/Bcc/JSR/RTS/TRAP + vecteurs exception | appel/retour de fonction |
@@ -2616,6 +2618,107 @@ Avis Claude : ENTER sur une entrée de la liste mount → `edit_hex_open(szEntry
 | P41 (Enter → hex dans mount) | ACCEPTÉ | UC20 |
 
 *Toutes les propositions P39–P41 ont été arbitrées — UC18.2 est clos.*
+
+---
+
+### Arbitrage proposition UC20A (2026-06-07)
+
+**P42 — Commandes batch `st2msa` / `msa2st`** → **ACCEPTÉ — UC20A**
+
+Conversion en lot d'images disque dans un répertoire, en exploitant directement `image_st_load/save` et `image_msa_load/save` (UC16/UC17, déjà validés). Périmètre :
+- `st2msa [--dir <path>] [--all] [-r]` : convertit les fichiers `.st` trouvés en `.msa` du même nom dans le même répertoire.
+- `msa2st [--dir <path>] [--all] [-r]` : inverse.
+- Sans `--dir` : utilise le répertoire courant de `dir` (via `line_get_selected` ou `szCwd`).
+- `--all` : traite tous les fichiers du type source trouvés (sans `--all`, ne traite que le fichier sélectionné).
+- `-r` : descend récursivement dans les sous-répertoires via `file_list_dir()` en boucle.
+- Option `--zip` : **EXCLUE** — hors scope ATARI ST ; un script bash externe gère l'extraction des archives ZIP.
+
+| Proposition | Décision | UC cible |
+|-------------|----------|----------|
+| P42 (st2msa / msa2st batch) | ACCEPTÉ (sans --zip) | UC20A |
+
+*Proposition P42 arbitrée — section §7 à jour.*
+
+---
+
+### 6.26 Use Case 19 (UC19) — ✓ VALIDÉ (2026-06-07)
+
+**Périmètre fonctionnel implémenté :**
+
+- **P39 — Status bar dans la vue mount** :
+  - Constantes couleur : `g_mnt_clrStatusBg = {0.11f,0.11f,0.18f,1.0f}` (fond bleu nuit légèrement différent du fond principal) ; `g_mnt_clrStatusTx = {0.70f,0.70f,0.70f,1.0f}` (texte gris clair).
+  - `mount_render()` : `iVisRows = (iWndHeight / iCellH) - 2` (une ligne réservée en haut = header, une ligne réservée en bas = status bar). Fond coloré `g_mnt_clrStatusBg` sur toute la largeur à `y = (iWndHeight/iCellH - 1) * iCellH`. Texte : `"  Free: %u KB  |  %d file(s)"` + `"  [*] unsaved"` si `bDirty`.
+  - `mount_handle_key()`, `mount_handle_click()`, `mount_handle_scroll()` : `iVisRows` mis à jour de `-1` → `-2` (cohérence avec render).
+
+- **P40 — Progression copie dans `mount_view_add_file()`** :
+  - Constante `MOUNT_PROGRESS_CHUNK = 65536u` (64 Ko).
+  - Remplace le `file_read()` monolithique par une boucle : `remaining = uiSize - uiOffset` → `uiChunk = min(remaining, MOUNT_PROGRESS_CHUNK)` → `file_read` → `uiOffset += uiChunkRead` → si pas terminé : `LOG_INFO("copying '%s': %u%%", szBaseName, uiOffset*100/uiSize)` + `gui_invalidate(ptView->hWnd)`.
+  - Le status bar se met à jour visuellement pendant la copie de gros fichiers.
+
+- **P35 — Dialog save à l'umount + API `mount_save_image()`** :
+  - `mount_save_fmt_t` enum : `MOUNT_SAVE_ST=0`, `MOUNT_SAVE_MSA=1`, `MOUNT_SAVE_DIR=2`.
+  - `mount_save_image(ptView, eFmt, szOutPath)` :
+    - `MOUNT_SAVE_ST` : `image_st_save(ptView->ptImg, szOutPath)`.
+    - `MOUNT_SAVE_MSA` : `image_msa_save(ptView->ptImg, szOutPath)`.
+    - `MOUNT_SAVE_DIR` : `file_mkdir(szOutPath)` + `image_st_list_root()` + boucle : `malloc(uiSize)` + `image_st_read_file()` + `file_open(FILE_MODE_WRITE)` + `file_write()` + `file_close()` + `free()`. Répertoire non écrasé si existant (EEXIST toléré dans `file_mkdir`).
+    - Sur succès : `ptView->bDirty = ST_FALSE`.
+  - `line_cmd_umount()` réécrit :
+    - **Flags `--st` / `--msa` / `--dir [path]`** : détectés dans la boucle argv → calcul de `szOutPath` depuis `ptCtx->szCwd` (`disk.st`, `disk.msa`, `disk/` ou chemin explicite après `--dir`) → `mount_save_image()` immédiat sans dialog.
+    - **Dialog interactif** si `bDirty == ST_TRUE` et aucun flag : prompt console multilignes + `console_read_key()` :
+      - `1` → `MOUNT_SAVE_ST` → `cwd/disk.st`
+      - `2` → `MOUNT_SAVE_MSA` → `cwd/disk.msa`
+      - `3` → `MOUNT_SAVE_DIR` → `cwd/disk/`
+      - `n` / ESC / autres → abandon (pas de sauvegarde)
+    - Label `do_close:` : `mount_view_close()` + message "Disk unmounted." + `line_update_console_title()`.
+    - Disk propre (`bDirty == ST_FALSE`) : fermeture directe sans dialog.
+
+**Tests R14/R15 appliqués :**
+- `use_cases/use_case_19.c` : TEST MATRIX **14N + 5R + 8S = 27 tests**, 0 failure
+  - [R] : `mount_save_image(NULL view)`, `(NULL path)`, `(bad fmt=99)` → ST_ERROR ; `mount_view_add_file(NULL,path)`, `(view,NULL)` → ST_ERROR
+  - [N] : save .st (ST_NO_ERROR + exists + size==737280 + bDirty cleared + reload 2 files) ; save .msa (ST_NO_ERROR + exists + size<737280 + bDirty cleared) ; save dir (ST_NO_ERROR + dir exists + HELLO.PRG 64B + README.TXT 5B + bDirty cleared)
+  - [S] : 8 tests visuels `make manual UC=19`
+
+**Contrats comportementaux validés :**
+
+*`mount_save_image(ptView, eFmt, szOutPath)`*
+- `ptView == NULL` ou `szOutPath == NULL` → `ST_ERROR`
+- `ptView->ptImg == NULL` → `ST_ERROR`
+- `eFmt` inconnu (> MOUNT_SAVE_DIR) → `ST_ERROR`
+- `MOUNT_SAVE_ST` : écrit 737 280 octets exacts (IST_DISK_SIZE) ; fichier reloadable via `image_st_load()`
+- `MOUNT_SAVE_MSA` : fichier compressé < IST_DISK_SIZE pour un disque partiellement rempli
+- `MOUNT_SAVE_DIR` : crée le répertoire (EEXIST toléré) ; un fichier extrait par entrée racine valide ; taille exacte respectée ; sous-répertoires ignorés (FAT12 root = flat)
+- Sur succès : `ptView->bDirty = ST_FALSE`
+
+*P40 — lecture chunked dans `mount_view_add_file()`*
+- Fichier < `MOUNT_PROGRESS_CHUNK` : 1 seule itération, pas de `LOG_INFO` intermédiaire (condition `uiOffset < uiSize`)
+- Fichier > `MOUNT_PROGRESS_CHUNK` : une itération par chunk, `LOG_INFO("copying '%s': %u%%")` à chaque chunk intermédiaire
+- `gui_invalidate()` appelé à chaque chunk intermédiaire (status bar mise à jour visuellement)
+- Comportement final (erreur / succès) identique au code UC18.1 (inchangé)
+
+*`line_cmd_umount()` — dialog save*
+- `bDirty == ST_FALSE` : `do_close` directement, pas de dialog
+- Flag `--st` : `szOutPath = szCwd + "\\disk.st"` ; `mount_save_image(MOUNT_SAVE_ST)` ; `do_close` si succès
+- Flag `--msa` : `szOutPath = szCwd + "\\disk.msa"` ; `mount_save_image(MOUNT_SAVE_MSA)` ; `do_close`
+- Flag `--dir [path]` : `szOutPath = szDirArg` ou `szCwd + "\\disk\\"` ; `mount_save_image(MOUNT_SAVE_DIR)` ; `do_close`
+- Dialog interactif : `console_read_key()` (single keypress raw) ; `1/2/3` → save + do_close ; `n`/ESC → do_close sans save ; autres touches → redisplay dialog
+- `do_close` : `mount_view_close(&g_line_ptMountView)` + `g_line_ptMountView = NULL` + `line_print_msg("Disk unmounted.")` + `line_update_console_title(ptCtx)` + `return ST_NO_ERROR`
+
+*Status bar (P39)*
+- Fond `g_mnt_clrStatusBg` sur toute la largeur de la fenêtre à la dernière ligne de cellule
+- Texte : `"  Free: X KB  |  N file(s)"` ; si `bDirty` : append `"  [*] unsaved"`
+- `iVisRows = (iWndHeight/iCellH) - 2` dans render + tous les handlers : la liste de fichiers ne déborde jamais dans la status bar
+
+**Points d'attention pour les UCs suivants :**
+- UC20 : `image_st_save()` et `image_msa_save()` disponibles depuis UC16/UC17 — la commande `image` crée une image depuis le contenu monté. `mount_save_image()` est l'API partagée.
+- UC20A : `st2msa`/`msa2st` batch — utilisent directement `image_st_load/save` et `image_msa_load/save` sans passer par la vue mount.
+- P41 (ENTER → hex dans mount) : toujours planifié UC20.
+- Bootable-write (P37 écriture) : modifier le checksum WD1772 pour rendre un disque bootable — différé UC20 avec confirmation utilisateur.
+
+---
+
+### Arbitrage UC19 (2026-06-07)
+
+*UC19 implémente P35/P39/P40. Propositions P41 et Bootable-write déjà planifiées à UC20. Aucune nouvelle proposition UX/fonctionnelle n'a émergé — UC19 est clos.*
 
 
 ## 8. Licence & attribution

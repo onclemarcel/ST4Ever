@@ -4516,3 +4516,104 @@ Each INTENT maps to one or more test blocks in `use_cases/use_case_18_2.c`.
 | UFR-MNT-005   | REQ-MNT-013                      | TC-MNT-S010..012                                       | UC18.2  |
 | UFR-MNT-006   | REQ-MNT-017                      | TC-MNT-072..075, TC-MNT-S010                           | UC18.2  |
 | UFR-MNT-007   | REQ-MNT-014..016                 | TC-MNT-080..081, TC-MNT-S013                           | UC18.2  |
+
+---
+
+### 5.56 INTENT Catalog -- UC19
+
+Each INTENT maps to one or more test blocks in `use_cases/use_case_19.c`.
+
+| ID            | INTENT text                                                                                                    |
+|---------------|----------------------------------------------------------------------------------------------------------------|
+| INT-MNT-029   | mount_save_image(NULL, ...) shall return ST_ERROR without crash                                               |
+| INT-MNT-030   | mount_save_image with NULL szOutPath shall return ST_ERROR                                                    |
+| INT-MNT-031   | mount_save_image with an unknown format shall return ST_ERROR                                                  |
+| INT-MNT-032   | mount_save_image MOUNT_SAVE_ST shall write a valid reloadable raw .st file and clear bDirty                   |
+| INT-MNT-033   | mount_save_image MOUNT_SAVE_MSA shall write a compressed .msa smaller than 737280 bytes and clear bDirty      |
+| INT-MNT-034   | mount_save_image MOUNT_SAVE_DIR shall create the directory, extract each file, and clear bDirty               |
+| INT-MNT-035   | mount_view_add_file() NULL guards shall remain ST_ERROR after P40 chunked-read refactor                       |
+
+---
+
+### 5.57 Test Cases -- UC19 (umount dialog + status bar + progress)
+
+**Fixture files** (created in `use_cases/UC19/` at test start):
+- `src.st` -- blank image with HELLO.PRG (64 B) and README.TXT (5 B)
+
+| TC             | Description                                                                                      | Kind | UFR             | REQ             | INT          | Notes               | Status      |
+|----------------|--------------------------------------------------------------------------------------------------|------|-----------------|-----------------|--------------|---------------------|-------------|
+| TC-MNT-082     | mount_save_image(NULL, ST, path) == ST_ERROR                                                     | [R]  | UFR-MNT-008     | REQ-MNT-018     | INT-MNT-029  |                     | PASS UC19   |
+| TC-MNT-083     | mount_save_image(view, ST, NULL) == ST_ERROR                                                     | [R]  | UFR-MNT-008     | REQ-MNT-018     | INT-MNT-030  |                     | PASS UC19   |
+| TC-MNT-084     | mount_save_image(view, fmt=99, path) == ST_ERROR                                                 | [R]  | UFR-MNT-008     | REQ-MNT-018     | INT-MNT-031  |                     | PASS UC19   |
+| TC-MNT-085a    | mount_save_image(view, ST, path) == ST_NO_ERROR                                                  | [N]  | UFR-MNT-008     | REQ-MNT-018     | INT-MNT-032  |                     | PASS UC19   |
+| TC-MNT-085b    | saved .st file exists on disk                                                                    | [N]  | UFR-MNT-008     | REQ-MNT-018     | INT-MNT-032  |                     | PASS UC19   |
+| TC-MNT-085c    | saved .st file size == 737280                                                                    | [N]  | UFR-MNT-008     | REQ-MNT-018     | INT-MNT-032  |                     | PASS UC19   |
+| TC-MNT-085d    | bDirty cleared to ST_FALSE after .st save                                                        | [N]  | UFR-MNT-008     | REQ-MNT-018     | INT-MNT-032  |                     | PASS UC19   |
+| TC-MNT-085e    | reloaded .st image reports 2 files in list_root                                                  | [N]  | UFR-MNT-008     | REQ-MNT-018     | INT-MNT-032  |                     | PASS UC19   |
+| TC-MNT-086a    | mount_save_image(view, MSA, path) == ST_NO_ERROR                                                 | [N]  | UFR-MNT-008     | REQ-MNT-018     | INT-MNT-033  |                     | PASS UC19   |
+| TC-MNT-086b    | saved .msa file exists on disk                                                                   | [N]  | UFR-MNT-008     | REQ-MNT-018     | INT-MNT-033  |                     | PASS UC19   |
+| TC-MNT-086c    | saved .msa size < 737280 (RLE compression)                                                       | [N]  | UFR-MNT-008     | REQ-MNT-018     | INT-MNT-033  |                     | PASS UC19   |
+| TC-MNT-086d    | bDirty cleared to ST_FALSE after .msa save                                                       | [N]  | UFR-MNT-008     | REQ-MNT-018     | INT-MNT-033  |                     | PASS UC19   |
+| TC-MNT-087a    | mount_save_image(view, DIR, path) == ST_NO_ERROR                                                 | [N]  | UFR-MNT-008     | REQ-MNT-018     | INT-MNT-034  |                     | PASS UC19   |
+| TC-MNT-087b    | output directory exists after SAVE_DIR                                                           | [N]  | UFR-MNT-008     | REQ-MNT-018     | INT-MNT-034  |                     | PASS UC19   |
+| TC-MNT-087c    | HELLO.PRG extracted to directory with correct size (64 B)                                        | [N]  | UFR-MNT-008     | REQ-MNT-018     | INT-MNT-034  |                     | PASS UC19   |
+| TC-MNT-087d    | README.TXT extracted to directory with correct size (5 B)                                        | [N]  | UFR-MNT-008     | REQ-MNT-018     | INT-MNT-034  |                     | PASS UC19   |
+| TC-MNT-087e    | bDirty cleared to ST_FALSE after dir save                                                        | [N]  | UFR-MNT-008     | REQ-MNT-018     | INT-MNT-034  |                     | PASS UC19   |
+| TC-MNT-088a    | mount_view_add_file(NULL, path) == ST_ERROR                                                      | [R]  | UFR-MNT-004     | REQ-MNT-019     | INT-MNT-035  |                     | PASS UC19   |
+| TC-MNT-088b    | mount_view_add_file(view, NULL) == ST_ERROR                                                      | [R]  | UFR-MNT-004     | REQ-MNT-019     | INT-MNT-035  |                     | PASS UC19   |
+| TC-MNT-S018    | Status bar visible at bottom of mount window with Free KB and file count                         | [S]  | UFR-MNT-009     | REQ-MNT-020     | INT-MNT-032  | make manual UC=19   | SKIP        |
+| TC-MNT-S019    | Status bar shows [*] when disk is dirty (after DEL)                                              | [S]  | UFR-MNT-009     | REQ-MNT-020     | INT-MNT-032  | make manual UC=19   | SKIP        |
+| TC-MNT-S020    | umount with dirty disk shows interactive save dialog in console                                   | [S]  | UFR-MNT-008     | REQ-MNT-021     | INT-MNT-032  | make manual UC=19   | SKIP        |
+| TC-MNT-S021    | Dialog choice 1 saves disk.st in cwd                                                             | [S]  | UFR-MNT-008     | REQ-MNT-021     | INT-MNT-032  | make manual UC=19   | SKIP        |
+| TC-MNT-S022    | Dialog choice 2 saves disk.msa in cwd                                                            | [S]  | UFR-MNT-008     | REQ-MNT-021     | INT-MNT-033  | make manual UC=19   | SKIP        |
+| TC-MNT-S023    | Dialog choice 3 extracts disk/ directory in cwd                                                  | [S]  | UFR-MNT-008     | REQ-MNT-021     | INT-MNT-034  | make manual UC=19   | SKIP        |
+| TC-MNT-S024    | umount --st saves without interactive dialog                                                      | [S]  | UFR-MNT-008     | REQ-MNT-021     | INT-MNT-032  | make manual UC=19   | SKIP        |
+| TC-MNT-S025    | umount --msa saves without interactive dialog                                                     | [S]  | UFR-MNT-008     | REQ-MNT-021     | INT-MNT-033  | make manual UC=19   | SKIP        |
+
+#### Test Summary -- UC19
+
+| Kind        | Count | Notes                                                              |
+|-------------|-------|--------------------------------------------------------------------|
+| [N] Nominal |  14   | save .st/.msa/dir round-trips, bDirty cleared, reload check       |
+| [R] Robust  |   5   | NULL guards (view, path, bad fmt), add_file NULL guards            |
+| [S] Skipped |   8   | visual + interactive dialog -- run make manual UC=19               |
+| **Total**   | **27** |                                                                   |
+
+#### New UFRs -- UC19
+
+| ID           | Description                                                                                        | Source   |
+|--------------|----------------------------------------------------------------------------------------------------|----------|
+| UFR-MNT-008  | The user shall save the in-memory disk image as .st, .msa, or extracted directory                 | P35 UC19 |
+| UFR-MNT-009  | The mount window shall display a persistent status bar (free space, file count, dirty flag)        | P39 UC19 |
+
+#### New REQs -- UC19
+
+| ID           | Description                                                                                                          | UFR          | Status  |
+|--------------|----------------------------------------------------------------------------------------------------------------------|--------------|---------|
+| REQ-MNT-018  | mount_save_image() shall succeed for SAVE_ST/MSA/DIR; return ST_ERROR on NULL ptView, NULL path, or unknown format   | UFR-MNT-008  | UC19    |
+| REQ-MNT-019  | mount_view_add_file() NULL guards shall return ST_ERROR (unchanged after P40 chunked refactor)                        | UFR-MNT-004  | UC19    |
+| REQ-MNT-020  | mount_render() shall display a status bar row (iVisRows-2) with Free KB, file count, and [*] if dirty                | UFR-MNT-009  | UC19    |
+| REQ-MNT-021  | line_cmd_umount() shall prompt save dialog when bDirty; --st/--msa/--dir flags bypass dialog                          | UFR-MNT-008  | UC19    |
+
+#### mount.c Public API -- UC19 additions
+
+| Function                                          | REQ(s)                           | Description                                         |
+|---------------------------------------------------|----------------------------------|-----------------------------------------------------|
+| mount_save_image(ptView, eFmt, szOutPath)         | REQ-MNT-018                      | Save in-memory image as .st / .msa / directory      |
+| mount_view_add_file() -- P40 refactor             | REQ-MNT-019                      | Chunked read with LOG_INFO progress per 64 KB chunk |
+
+#### REQ -> TC coverage (UC19)
+
+| REQ           | TC(s)                                       | Status  |
+|---------------|---------------------------------------------|---------|
+| REQ-MNT-018   | TC-MNT-082..087e, TC-MNT-S020..S025         | UC19    |
+| REQ-MNT-019   | TC-MNT-088a, TC-MNT-088b                    | UC19    |
+| REQ-MNT-020   | TC-MNT-S018, TC-MNT-S019                    | UC19    |
+| REQ-MNT-021   | TC-MNT-S020..S025                            | UC19    |
+
+#### UFR traceability update (UC19)
+
+| UFR           | REQ(s)                           | TC(s)                                                        | Status  |
+|---------------|----------------------------------|--------------------------------------------------------------|---------|
+| UFR-MNT-008   | REQ-MNT-018, REQ-MNT-021         | TC-MNT-082..088b, TC-MNT-S018..S025                          | UC19    |
+| UFR-MNT-009   | REQ-MNT-020                      | TC-MNT-S018..S019                                            | UC19    |

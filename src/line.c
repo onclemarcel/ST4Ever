@@ -21,6 +21,8 @@
  *        P24: g_line_bColors = isatty(stdout) at line_init().
  *        trace clear (P27), trace level <lvl> (P28) sub-commands.
  * UC18.1: line_cmd_mount() / line_cmd_umount() + g_line_ptMountView.
+ * UC19:   line_cmd_umount() interactive save dialog (P35).
+ *         --st / --msa / --dir flags bypass dialog.
  */
 
 #include "line.h"
@@ -1735,7 +1737,15 @@ static st_error_t line_cmd_mount(const parsed_cmd_t *ptParsed,
 static st_error_t line_cmd_umount(const parsed_cmd_t *ptParsed,
                                    line_context_t     *ptCtx)
 {
-    ST_UNUSED(ptParsed);
+    mount_save_fmt_t  eSaveFmt;
+    char              szOutPath[ST_MAX_PATH];
+    char              szBase[ST_MAX_PATH];
+    const char       *szArg;
+    const char       *szDirArg;
+    int               iKey;
+    int               i;
+    st_bool_t         bSaveRequested;
+    st_bool_t         bHaveFlag;
 
     if (g_line_ptMountView == NULL)
     {
@@ -1743,10 +1753,151 @@ static st_error_t line_cmd_umount(const parsed_cmd_t *ptParsed,
         return ST_NO_ERROR;
     }
 
-    if (g_line_ptMountView->bDirty)
-        line_print_warning("disk has unsaved changes — "
-                           "use 'image' to save before unmounting.");
+    /* --- Parse flags --st / --msa / --dir <path> --- */
+    eSaveFmt      = MOUNT_SAVE_ST;   /* default, used only when flag set */
+    szOutPath[0]  = '\0';
+    szDirArg      = NULL;
+    bHaveFlag     = ST_FALSE;
 
+    for (i = 0; i < ptParsed->iArgc; i++)
+    {
+        szArg = ptParsed->aszArgv[i];
+        if (strcmp(szArg, "--st") == 0)
+        {
+            eSaveFmt  = MOUNT_SAVE_ST;
+            bHaveFlag = ST_TRUE;
+        }
+        else if (strcmp(szArg, "--msa") == 0)
+        {
+            eSaveFmt  = MOUNT_SAVE_MSA;
+            bHaveFlag = ST_TRUE;
+        }
+        else if (strcmp(szArg, "--dir") == 0)
+        {
+            eSaveFmt  = MOUNT_SAVE_DIR;
+            bHaveFlag = ST_TRUE;
+            if (i + 1 < ptParsed->iArgc)
+            {
+                szDirArg = ptParsed->aszArgv[i + 1];
+                i++;
+            }
+        }
+        else
+        {
+            line_print_warning("unknown flag '%s' — ignored.", szArg);
+        }
+    }
+
+    /* --- Determine output path when flag given --- */
+    if (bHaveFlag)
+    {
+        if (eSaveFmt == MOUNT_SAVE_DIR)
+        {
+            if (szDirArg != NULL)
+                strncpy(szOutPath, szDirArg, ST_MAX_PATH - 1);
+            else
+                snprintf(szOutPath, sizeof(szOutPath),
+                         "%s/disk", ptCtx->szCwd);
+        }
+        else
+        {
+            snprintf(szOutPath, sizeof(szOutPath), "%s/disk%s",
+                     ptCtx->szCwd,
+                     (eSaveFmt == MOUNT_SAVE_MSA) ? ".msa" : ".st");
+        }
+        szOutPath[ST_MAX_PATH - 1] = '\0';
+
+        line_print_msg("Saving to '%s'...", szOutPath);
+        if (mount_save_image(g_line_ptMountView, eSaveFmt,
+                             szOutPath) == ST_NO_ERROR)
+            line_print_msg("Saved.");
+        else
+            line_print_error("save failed.");
+        goto do_close;
+    }
+
+    /* --- Interactive dialog when disk is dirty --- */
+    bSaveRequested = ST_FALSE;
+    if (g_line_ptMountView->bDirty)
+    {
+        /* Build a default base name from the source path */
+        strncpy(szBase, g_line_ptMountView->szSrcPath, ST_MAX_PATH - 1);
+        szBase[ST_MAX_PATH - 1] = '\0';
+        /* Strip trailing slashes */
+        {
+            int iLast = (int)strlen(szBase) - 1;
+            while (iLast > 0 &&
+                   (szBase[iLast] == '/' || szBase[iLast] == '\\'))
+            {
+                szBase[iLast] = '\0';
+                iLast--;
+            }
+        }
+
+        printf("\n");
+        line_print_msg(
+            "Disk has unsaved changes. Save before unmounting?");
+        printf("%s  [1]%s Save as .st     -> %s/disk.st\n",
+               c_yellow(), c_reset(), ptCtx->szCwd);
+        printf("%s  [2]%s Save as .msa    -> %s/disk.msa\n",
+               c_yellow(), c_reset(), ptCtx->szCwd);
+        printf("%s  [3]%s Extract to dir  -> %s/disk/\n",
+               c_yellow(), c_reset(), ptCtx->szCwd);
+        printf("%s  [n]%s Discard changes\n",
+               c_yellow(), c_reset());
+        printf("Choice: ");
+        fflush(stdout);
+
+        iKey = 0;
+        if (console_read_key(&iKey) == ST_NO_ERROR)
+        {
+            printf("%c\n", (char)iKey);
+            if (iKey == (int)'1')
+            {
+                eSaveFmt = MOUNT_SAVE_ST;
+                snprintf(szOutPath, sizeof(szOutPath),
+                         "%s/disk.st", ptCtx->szCwd);
+                bSaveRequested = ST_TRUE;
+            }
+            else if (iKey == (int)'2')
+            {
+                eSaveFmt = MOUNT_SAVE_MSA;
+                snprintf(szOutPath, sizeof(szOutPath),
+                         "%s/disk.msa", ptCtx->szCwd);
+                bSaveRequested = ST_TRUE;
+            }
+            else if (iKey == (int)'3')
+            {
+                eSaveFmt = MOUNT_SAVE_DIR;
+                snprintf(szOutPath, sizeof(szOutPath),
+                         "%s/disk", ptCtx->szCwd);
+                bSaveRequested = ST_TRUE;
+            }
+            else
+            {
+                printf("\n");
+                line_print_msg("Changes discarded.");
+            }
+        }
+        else
+        {
+            printf("\n");
+            line_print_msg("(could not read input — discarding changes)");
+        }
+
+        if (bSaveRequested)
+        {
+            szOutPath[ST_MAX_PATH - 1] = '\0';
+            line_print_msg("Saving to '%s'...", szOutPath);
+            if (mount_save_image(g_line_ptMountView, eSaveFmt,
+                                 szOutPath) == ST_NO_ERROR)
+                line_print_msg("Saved.");
+            else
+                line_print_error("save failed.");
+        }
+    }
+
+do_close:
     mount_view_close(&g_line_ptMountView);
     g_line_ptMountView = NULL;
     line_print_msg("Disk unmounted.");

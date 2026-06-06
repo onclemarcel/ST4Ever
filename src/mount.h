@@ -176,4 +176,37 @@ st_error_t mount_view_add_file(mount_view_t *ptView,
  */
 st_bool_t mount_is_bootable(const st_u8_t *pBootSect);
 
+/*
+ * mount_save_fmt_t - Output format for mount_save_image().
+ */
+typedef enum mount_save_fmt_s
+{
+    MOUNT_SAVE_ST  = 0,   /* Write as raw .st disk image    */
+    MOUNT_SAVE_MSA = 1,   /* Write as compressed .msa image */
+    MOUNT_SAVE_DIR = 2    /* Extract all files to directory  */
+} mount_save_fmt_t;
+
+/*
+ * mount_save_image() - Persist the in-memory disk image to a file or dir.
+ *
+ * For MOUNT_SAVE_ST  : calls image_st_save(szOutPath).
+ * For MOUNT_SAVE_MSA : calls image_msa_save(szOutPath).
+ * For MOUNT_SAVE_DIR : creates szOutPath directory then extracts every
+ *                      root-dir entry via image_st_read_file() + file.h.
+ * On success, ptView->bDirty is cleared.
+ *
+ * Parameters:
+ *   ptView    [in/out] : Open mount view with a valid disk image.
+ *   eFmt      [in]     : Desired output format.
+ *   szOutPath [in]     : Destination file path (SAVE_ST/MSA) or directory
+ *                        name (SAVE_DIR).
+ *
+ * Returns:
+ *   ST_NO_ERROR on success.
+ *   ST_ERROR    on NULL input, no disk image, or I/O failure.
+ */
+st_error_t mount_save_image(mount_view_t    *ptView,
+                             mount_save_fmt_t eFmt,
+                             const char      *szOutPath);
+
 #endif /* MOUNT_H */

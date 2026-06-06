@@ -1,96 +1,93 @@
-17:57:23 [TRC ] line_init:2512  ptCtx=0000006dd034f650
-17:57:23 [INF ] line_history_load:566  history loaded from 'C:\Users\march/.st4ever_history' (0 entries)
-17:57:23 [INF ] line_init:2549  console initialised, cwd='C:\msys\home\claude\ST4Ever'
-17:57:23 [TRC ] file_mkdir:296  szPath='use_cases/UC18_2'
-17:57:23 [INF ] file_mkdir:312  mkdir 'use_cases/UC18_2' (already exists)
-17:57:23 [TRC ] dir_open:1422  szPath=00007ff697230264 ptLineCtx=0000006dd034f650 bShowHidden=0 pptView=0000006dd034f648
-17:57:23 [TRC ] gui_open_window:158  ptDesc=0000006dd034f3d0 phWnd=00000196044582a0
-17:57:23 [TRC ] gui_platform_window_create:503  ptWnd=000001960445ecb0
-17:57:23 [TRC ] platform_thread_create:128  pptThread=000001960445ecd8 pfnEntry=00007ff6972251de pArg=000001960445ecb0
-17:57:23 [INF ] platform_thread_create:166  thread created (HANDLE=0000000000000174)
-17:57:23 [TRC ] renderer_create:27  hWnd=000001960445ecb0 phCtx=00000196044582a8
-17:57:23 [TRC ] renderer_platform_create:188  ptCtx=00000196049070e0 hWnd=000001960445ecb0
-17:57:23 [INF ] renderer_platform_create:322  D2D renderer created: mono cell=7.1x15.2
-17:57:23 [INF ] renderer_create:55  renderer created for window 000001960445ecb0
-17:57:23 [INF ] gui_platform_window_create:559  platform window created: HWND=0000000000360680
-17:57:23 [INF ] gui_open_window:205  window opened: title='ST4Ever - Dir: src'
-17:57:23 [INF ] dir_open:1527  dir view opened: 'src' (51 flat entries)
-17:57:23 [TRC ] dir_close:1536  pptView=0000006dd034f648
-17:57:23 [TRC ] gui_close_window:214  hWnd=000001960445ecb0
-17:57:23 [TRC ] gui_platform_window_close:567  ptWnd=000001960445ecb0
-17:57:23 [TRC ] platform_thread_join:174  ptThread=000001960445ed30
-17:57:23 [TRC ] renderer_destroy:198  phCtx=00000196044582a8
-17:57:23 [TRC ] renderer_platform_destroy:329  ptCtx=00000196049070e0
-17:57:23 [INF ] renderer_destroy:211  renderer destroyed
-17:57:23 [INF ] win_wnd_thread:457  window thread exiting: 'ST4Ever - Dir: src'
-17:57:23 [TRC ] platform_thread_destroy:195  pptThread=000001960445ecd8
-17:57:23 [INF ] gui_close_window:240  window closed
-17:57:23 [INF ] dir_close:1575  dir view closed
-17:57:23 [TRC ] dir_open:1422  szPath=00007ff697230264 ptLineCtx=0000006dd034f650 bShowHidden=0 pptView=0000006dd034f648
-17:57:23 [TRC ] gui_open_window:158  ptDesc=0000006dd034f3d0 phWnd=00000196044582a0
-17:57:23 [TRC ] gui_platform_window_create:503  ptWnd=0000019604951440
-17:57:23 [TRC ] platform_thread_create:128  pptThread=0000019604951468 pfnEntry=00007ff6972251de pArg=0000019604951440
-17:57:23 [INF ] platform_thread_create:166  thread created (HANDLE=000000000000033c)
-17:57:23 [TRC ] renderer_create:27  hWnd=0000019604951440 phCtx=00000196044582a8
-17:57:23 [TRC ] renderer_platform_create:188  ptCtx=000001960495a3d0 hWnd=0000019604951440
-17:57:23 [INF ] renderer_platform_create:322  D2D renderer created: mono cell=7.1x15.2
-17:57:23 [INF ] renderer_create:55  renderer created for window 0000019604951440
-17:57:23 [INF ] gui_platform_window_create:559  platform window created: HWND=00000000005903cc
-17:57:23 [INF ] gui_open_window:205  window opened: title='ST4Ever - Dir: src'
-17:57:23 [INF ] dir_open:1527  dir view opened: 'src' (51 flat entries)
-17:57:23 [TRC ] dir_close:1536  pptView=0000006dd034f648
-17:57:23 [TRC ] gui_close_window:214  hWnd=0000019604951440
-17:57:23 [TRC ] gui_platform_window_close:567  ptWnd=0000019604951440
-17:57:23 [TRC ] platform_thread_join:174  ptThread=000001960495a4d0
-17:57:23 [TRC ] renderer_destroy:198  phCtx=00000196044582a8
-17:57:23 [TRC ] renderer_platform_destroy:329  ptCtx=000001960495a3d0
-17:57:23 [INF ] renderer_destroy:211  renderer destroyed
-17:57:23 [INF ] win_wnd_thread:457  window thread exiting: 'ST4Ever - Dir: src'
-17:57:23 [TRC ] platform_thread_destroy:195  pptThread=0000019604951468
-17:57:23 [INF ] gui_close_window:240  window closed
-17:57:23 [INF ] dir_close:1575  dir view closed
-17:57:23 [TRC ] image_st_create:352  pptImg=0000006dd034f400
-17:57:23 [INF ] image_st_create:373  blank .st image created in memory (737280 bytes)
-17:57:23 [TRC ] image_st_write_file:604  ptImg=0000019608950080 name='DEMO.PRG' size=16
-17:57:23 [INF ] image_st_write_file:687  written 'DEMO.PRG' (16 bytes)
-17:57:23 [TRC ] image_st_save:435  ptImg=0000019608950080 szPath='use_cases/UC18_2/boot.st'
-17:57:23 [TRC ] file_open:148  szPath='use_cases/UC18_2/boot.st' eMode=1
-17:57:23 [INF ] file_open:189  opened 'use_cases/UC18_2/boot.st' mode=1
-17:57:23 [INF ] file_close:282  closed 'use_cases/UC18_2/boot.st'
-17:57:23 [INF ] image_st_save:458  saved 'use_cases/UC18_2/boot.st' (737280 bytes)
-17:57:23 [TRC ] image_st_close:464  pptImg=0000006dd034f400
-17:57:23 [TRC ] mount_view_open:759  szPath=use_cases/UC18_2/boot.st pptView=0000006dd034f640
-17:57:23 [TRC ] image_st_load:383  szPath='use_cases/UC18_2/boot.st'
-17:57:23 [TRC ] file_open:148  szPath='use_cases/UC18_2/boot.st' eMode=0
-17:57:23 [INF ] file_open:189  opened 'use_cases/UC18_2/boot.st' mode=0
-17:57:23 [INF ] file_close:282  closed 'use_cases/UC18_2/boot.st'
-17:57:23 [INF ] image_st_load:427  loaded 'use_cases/UC18_2/boot.st'
-17:57:23 [TRC ] image_st_list_root:488  ptImg=0000019608950080 iMax=112
-17:57:23 [TRC ] gui_open_window:158  ptDesc=0000006dd034f3d0 phWnd=000001960494fef0
-17:57:23 [TRC ] gui_platform_window_create:503  ptWnd=000001960494fb90
-17:57:23 [TRC ] platform_thread_create:128  pptThread=000001960494fbb8 pfnEntry=00007ff6972251de pArg=000001960494fb90
-17:57:23 [INF ] platform_thread_create:166  thread created (HANDLE=00000000000004bc)
-17:57:23 [TRC ] renderer_create:27  hWnd=000001960494fb90 phCtx=000001960494fef8
-17:57:23 [TRC ] renderer_platform_create:188  ptCtx=000001960495a490 hWnd=000001960494fb90
-17:57:23 [INF ] renderer_platform_create:322  D2D renderer created: mono cell=7.1x15.2
-17:57:23 [INF ] renderer_create:55  renderer created for window 000001960494fb90
-17:57:23 [TRC ] image_st_free_bytes:725  ptImg=0000019608950080
-17:57:23 [INF ] gui_platform_window_create:559  platform window created: HWND=00000000002c0640
-17:57:23 [INF ] gui_open_window:205  window opened: title='ST4Ever - Mount: A:\ [ST]'
-17:57:23 [INF ] mount_view_open:862  mount view opened: 'use_cases/UC18_2/boot.st' (1 files)
-17:57:23 [TRC ] mount_view_close:881  ptView=000001960494fef0
-17:57:23 [TRC ] gui_close_window:214  hWnd=000001960494fb90
-17:57:23 [TRC ] gui_platform_window_close:567  ptWnd=000001960494fb90
-17:57:23 [TRC ] platform_thread_join:174  ptThread=000001960495a450
-17:57:23 [TRC ] renderer_destroy:198  phCtx=000001960494fef8
-17:57:23 [TRC ] renderer_platform_destroy:329  ptCtx=000001960495a490
-17:57:23 [INF ] renderer_destroy:211  renderer destroyed
-17:57:23 [INF ] win_wnd_thread:457  window thread exiting: 'ST4Ever - Mount: A:\ [ST]'
-17:57:23 [TRC ] platform_thread_destroy:195  pptThread=000001960494fbb8
-17:57:23 [INF ] gui_close_window:240  window closed
-17:57:23 [TRC ] image_st_close:464  pptImg=000001960494ff00
-17:57:23 [INF ] mount_view_close:903  mount view closed
-17:57:23 [TRC ] line_shutdown:2679  ptCtx=0000006dd034f650
-17:57:23 [INF ] line_history_save:520  history saved to 'C:\Users\march/.st4ever_history' (0 entries)
-17:57:23 [INF ] line_shutdown:2726  console shutdown complete
-17:57:23 [INF ] trace_shutdown:804  ST4Ever 0.18.2 shutting down - trace closing
+01:06:38 [TRC ] line_init:2663  ptCtx=0000007ed934f680
+01:06:38 [INF ] line_history_load:568  history loaded from 'C:\Users\march/.st4ever_history' (0 entries)
+01:06:38 [INF ] line_init:2700  console initialised, cwd='C:\msys\home\claude\ST4Ever'
+01:06:38 [TRC ] file_mkdir:296  szPath='use_cases/UC19'
+01:06:38 [INF ] file_mkdir:312  mkdir 'use_cases/UC19' (already exists)
+01:06:38 [TRC ] image_st_create:352  pptImg=0000007ed934e9c0
+01:06:38 [INF ] image_st_create:373  blank .st image created in memory (737280 bytes)
+01:06:38 [TRC ] image_st_write_file:604  ptImg=000001a4d2c00080 name='HELLO.PRG' size=64
+01:06:38 [INF ] image_st_write_file:687  written 'HELLO.PRG' (64 bytes)
+01:06:38 [TRC ] image_st_write_file:604  ptImg=000001a4d2c00080 name='README.TXT' size=5
+01:06:38 [INF ] image_st_write_file:687  written 'README.TXT' (5 bytes)
+01:06:38 [TRC ] image_st_save:435  ptImg=000001a4d2c00080 szPath='use_cases/UC19/src.st'
+01:06:38 [TRC ] file_open:148  szPath='use_cases/UC19/src.st' eMode=1
+01:06:38 [INF ] file_open:189  opened 'use_cases/UC19/src.st' mode=1
+01:06:38 [INF ] file_close:282  closed 'use_cases/UC19/src.st'
+01:06:38 [INF ] image_st_save:458  saved 'use_cases/UC19/src.st' (737280 bytes)
+01:06:38 [TRC ] image_st_close:464  pptImg=0000007ed934e9c0
+01:06:38 [ERR ] mount_save_image:803  NULL parameter: ptView=0000000000000000 szOutPath=00007ff71ff31040
+01:06:38 [TRC ] mount_view_open:906  szPath=use_cases/UC19/src.st pptView=0000007ed934f678
+01:06:38 [TRC ] image_st_load:383  szPath='use_cases/UC19/src.st'
+01:06:38 [TRC ] file_open:148  szPath='use_cases/UC19/src.st' eMode=0
+01:06:38 [INF ] file_open:189  opened 'use_cases/UC19/src.st' mode=0
+01:06:38 [INF ] file_close:282  closed 'use_cases/UC19/src.st'
+01:06:38 [INF ] image_st_load:427  loaded 'use_cases/UC19/src.st'
+01:06:38 [TRC ] image_st_list_root:488  ptImg=000001a4d2c00080 iMax=112
+01:06:38 [TRC ] gui_open_window:158  ptDesc=0000007ed934e990 phWnd=000001a4d2d082a0
+01:06:38 [TRC ] gui_platform_window_create:503  ptWnd=000001a4d2cb4090
+01:06:38 [TRC ] platform_thread_create:128  pptThread=000001a4d2cb40b8 pfnEntry=00007ff71ff263fe pArg=000001a4d2cb4090
+01:06:38 [INF ] platform_thread_create:166  thread created (HANDLE=0000000000000184)
+01:06:38 [TRC ] renderer_create:27  hWnd=000001a4d2cb4090 phCtx=000001a4d2d082a8
+01:06:38 [TRC ] renderer_platform_create:188  ptCtx=000001a4d2cb4e50 hWnd=000001a4d2cb4090
+01:06:38 [INF ] renderer_platform_create:322  D2D renderer created: mono cell=7.1x15.2
+01:06:38 [INF ] renderer_create:55  renderer created for window 000001a4d2cb4090
+01:06:38 [TRC ] image_st_free_bytes:725  ptImg=000001a4d2c00080
+01:06:38 [TRC ] image_st_free_bytes [x2]
+01:06:38 [INF ] gui_platform_window_create:559  platform window created: HWND=0000000000380984
+01:06:38 [INF ] gui_open_window:205  window opened: title='ST4Ever - Mount: A:\ [ST]'
+01:06:38 [INF ] mount_view_open:1009  mount view opened: 'use_cases/UC19/src.st' (2 files)
+01:06:38 [ERR ] mount_save_image:803  NULL parameter: ptView=000001a4d2d082a0 szOutPath=0000000000000000
+01:06:38 [ERR ] mount_save_image:882  mount_save_image: unknown format 99
+01:06:38 [TRC ] image_st_save:435  ptImg=000001a4d2c00080 szPath='use_cases/UC19/saved.st'
+01:06:38 [TRC ] file_open:148  szPath='use_cases/UC19/saved.st' eMode=1
+01:06:38 [INF ] file_open:189  opened 'use_cases/UC19/saved.st' mode=1
+01:06:38 [INF ] file_close:282  closed 'use_cases/UC19/saved.st'
+01:06:38 [INF ] image_st_save:458  saved 'use_cases/UC19/saved.st' (737280 bytes)
+01:06:38 [INF ] mount_save_image:889  mount_save_image: saved to 'use_cases/UC19/saved.st'
+01:06:38 [TRC ] image_st_load:383  szPath='use_cases/UC19/saved.st'
+01:06:38 [TRC ] file_open:148  szPath='use_cases/UC19/saved.st' eMode=0
+01:06:38 [INF ] file_open:189  opened 'use_cases/UC19/saved.st' mode=0
+01:06:38 [INF ] file_close:282  closed 'use_cases/UC19/saved.st'
+01:06:38 [INF ] image_st_load:427  loaded 'use_cases/UC19/saved.st'
+01:06:38 [TRC ] image_st_list_root:488  ptImg=000001a4d8d6efd0 iMax=112
+01:06:38 [TRC ] image_st_close:464  pptImg=0000007ed934f670
+01:06:38 [TRC ] image_msa_save:319  ptImg=000001a4d2c00080 szPath=use_cases/UC19/saved.msa
+01:06:38 [TRC ] file_open:148  szPath='use_cases/UC19/saved.msa' eMode=1
+01:06:38 [INF ] file_open:189  opened 'use_cases/UC19/saved.msa' mode=1
+01:06:38 [INF ] file_close:282  closed 'use_cases/UC19/saved.msa'
+01:06:38 [INF ] image_msa_save:381  MSA saved 'use_cases/UC19/saved.msa'
+01:06:38 [INF ] mount_save_image:889  mount_save_image: saved to 'use_cases/UC19/saved.msa'
+01:06:38 [TRC ] file_mkdir:296  szPath='use_cases/UC19/extracted'
+01:06:38 [INF ] file_mkdir:312  mkdir 'use_cases/UC19/extracted' (already exists)
+01:06:38 [TRC ] image_st_list_root:488  ptImg=000001a4d2c00080 iMax=112
+01:06:38 [TRC ] image_st_read_file:540  ptImg=000001a4d2c00080 cluster=2 size=64
+01:06:38 [TRC ] file_open:148  szPath='use_cases/UC19/extracted/HELLO.PRG' eMode=1
+01:06:38 [INF ] file_open:189  opened 'use_cases/UC19/extracted/HELLO.PRG' mode=1
+01:06:38 [INF ] file_close:282  closed 'use_cases/UC19/extracted/HELLO.PRG'
+01:06:38 [INF ] mount_save_image:877  mount_save_image: extracted 'HELLO.PRG'
+01:06:38 [TRC ] image_st_read_file:540  ptImg=000001a4d2c00080 cluster=3 size=5
+01:06:38 [TRC ] file_open:148  szPath='use_cases/UC19/extracted/README.TXT' eMode=1
+01:06:38 [INF ] file_open:189  opened 'use_cases/UC19/extracted/README.TXT' mode=1
+01:06:38 [INF ] file_close:282  closed 'use_cases/UC19/extracted/README.TXT'
+01:06:38 [INF ] mount_save_image:877  mount_save_image: extracted 'README.TXT'
+01:06:38 [INF ] mount_save_image:889  mount_save_image: saved to 'use_cases/UC19/extracted'
+01:06:38 [TRC ] mount_view_add_file:1067  ptView=0000000000000000 szSrcPath=use_cases/UC19/src.st
+01:06:38 [ERR ] mount_view_add_file:1072  NULL parameter: ptView=0000000000000000 szSrcPath=00007ff71ff3102a
+01:06:38 [TRC ] mount_view_add_file:1067  ptView=000001a4d2d082a0 szSrcPath=NULL
+01:06:38 [ERR ] mount_view_add_file:1072  NULL parameter: ptView=000001a4d2d082a0 szSrcPath=0000000000000000
+01:06:38 [TRC ] mount_view_close:1028  ptView=000001a4d2d082a0
+01:06:38 [TRC ] gui_close_window:214  hWnd=000001a4d2cb4090
+01:06:38 [TRC ] gui_platform_window_close:567  ptWnd=000001a4d2cb4090
+01:06:38 [TRC ] platform_thread_join:174  ptThread=000001a4d2cb4110
+01:06:38 [TRC ] renderer_destroy:198  phCtx=000001a4d2d082a8
+01:06:38 [TRC ] renderer_platform_destroy:329  ptCtx=000001a4d2cb4e50
+01:06:38 [INF ] renderer_destroy:211  renderer destroyed
+01:06:38 [INF ] win_wnd_thread:457  window thread exiting: ''
+01:06:38 [TRC ] platform_thread_destroy:195  pptThread=000001a4d2cb40b8
+01:06:38 [INF ] gui_close_window:240  window closed
+01:06:38 [TRC ] image_st_close:464  pptImg=000001a4d2d082b0
+01:06:38 [INF ] mount_view_close:1050  mount view closed
+01:06:38 [TRC ] line_shutdown:2830  ptCtx=0000007ed934f680
+01:06:38 [INF ] line_history_save:522  history saved to 'C:\Users\march/.st4ever_history' (0 entries)
+01:06:38 [INF ] line_shutdown:2877  console shutdown complete
+01:06:38 [INF ] trace_shutdown:804  ST4Ever 0.19.0 shutting down - trace closing

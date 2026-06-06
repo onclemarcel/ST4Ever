@@ -41,6 +41,11 @@ static const renderer_color_t g_mnt_clrDirty   = {0.95f,0.50f,0.10f,1.0f};
 static const renderer_color_t g_mnt_clrHint      = {0.45f,0.45f,0.45f,1.0f};
 static const renderer_color_t g_mnt_clrBootY     = {0.20f,0.90f,0.20f,1.0f};
 static const renderer_color_t g_mnt_clrBootN     = {0.55f,0.55f,0.55f,1.0f};
+static const renderer_color_t g_mnt_clrStatusBg  = {0.11f,0.11f,0.18f,1.0f};
+static const renderer_color_t g_mnt_clrStatusTx  = {0.70f,0.70f,0.70f,1.0f};
+
+/* Chunk size for progress reporting during file copy (P40) */
+#define MOUNT_PROGRESS_CHUNK 65536u
 
 #ifdef ST_PLATFORM_WINDOWS
 #  define MOUNT_BOOT_TMP  ".\\st4ever_boot.bin"
@@ -216,8 +221,8 @@ static void mount_render(mount_view_t *ptView)
     if (ptView->hRenderer == NULL || ptView->iCellH == 0)
         return;
 
-    /* Rows available for files (below the header row) */
-    iVisRows = (ptView->iWndHeight / ptView->iCellH) - 1;
+    /* Rows available for files (header takes row 0, status bar takes last) */
+    iVisRows = (ptView->iWndHeight / ptView->iCellH) - 2;
     if (iVisRows < 1)
         iVisRows = 1;
 
@@ -437,6 +442,43 @@ static void mount_render(mount_view_t *ptView)
 
 #undef PROP_ROW
 
+    /* === Status bar (P39) — bottom row across full window width === */
+    {
+        int      iSbRow;
+        char     szStatus[128];
+        st_u32_t uiSbFree = 0;
+        int      iPos     = 0;
+
+        iSbRow = (ptView->iWndHeight / ptView->iCellH) - 1;
+
+        /* Background */
+        tRect.fX = 0.0f;
+        tRect.fY = (float)(iSbRow * ptView->iCellH);
+        tRect.fW = (float)ptView->iWndWidth;
+        tRect.fH = (float)ptView->iCellH;
+        renderer_fill_rect(ptView->hRenderer, &tRect, &g_mnt_clrStatusBg);
+
+        /* Build status text */
+        if (ptView->ptImg != NULL)
+            image_st_free_bytes(ptView->ptImg, &uiSbFree);
+        iPos += snprintf(szStatus + iPos, sizeof(szStatus) - (size_t)iPos,
+                         "  Free: %u KB  |  %d file%s",
+                         (unsigned)(uiSbFree / 1024u),
+                         ptView->iEntryCount,
+                         ptView->iEntryCount == 1 ? "" : "s");
+        if (ptView->bDirty)
+            snprintf(szStatus + iPos, sizeof(szStatus) - (size_t)iPos,
+                     "  [*] unsaved");
+
+        tText.fX = 4.0f;
+        tText.fY = (float)(iSbRow * ptView->iCellH);
+        tText.fW = (float)(ptView->iWndWidth - 8);
+        tText.fH = (float)ptView->iCellH;
+        renderer_draw_text(ptView->hRenderer, szStatus,
+                           &tText, &g_mnt_clrStatusTx,
+                           RENDERER_FONT_MONO, RENDERER_ALIGN_LEFT);
+    }
+
     renderer_end_draw(ptView->hRenderer);
 }
 
@@ -453,7 +495,7 @@ static void mount_handle_key(mount_view_t *ptView,
 
     if (ptView->iCellH == 0)
         return;
-    iVisRows = (ptView->iWndHeight / ptView->iCellH) - 1;
+    iVisRows = (ptView->iWndHeight / ptView->iCellH) - 2;
     if (iVisRows < 1)
         iVisRows = 1;
     iOld = ptView->iSelectedEntry;
@@ -563,7 +605,7 @@ static void mount_handle_click(mount_view_t *ptView,
     if (iRow == 0)
         return;   /* header, no file selection */
 
-    iVisRows = (ptView->iWndHeight / ptView->iCellH) - 1;
+    iVisRows = (ptView->iWndHeight / ptView->iCellH) - 2;
     if (iRow > iVisRows)
         return;
 
@@ -588,7 +630,7 @@ static void mount_handle_scroll(mount_view_t *ptView,
 
     if (ptView->iCellH == 0)
         return;
-    iVisRows = (ptView->iWndHeight / ptView->iCellH) - 1;
+    iVisRows = (ptView->iWndHeight / ptView->iCellH) - 2;
     if (iVisRows < 1)
         iVisRows = 1;
     iMax = ptView->iEntryCount - iVisRows;
@@ -743,6 +785,111 @@ static void mount_dir_cb(const char        *szFull,
 /* ==================================================================
  * Public API
  * ================================================================== */
+
+st_error_t mount_save_image(mount_view_t    *ptView,
+                              mount_save_fmt_t eFmt,
+                              const char      *szOutPath)
+{
+    image_st_dirent_t  aEntries[IST_RDE];
+    st_u8_t           *pBuf    = NULL;
+    file_t            *ptFile  = NULL;
+    char               szFilePath[ST_MAX_PATH];
+    int                iCount  = 0;
+    int                i;
+    st_error_t         eResult = ST_NO_ERROR;
+
+    if (ptView == NULL || szOutPath == NULL)
+    {
+        LOG_ERROR("NULL parameter: ptView=%p szOutPath=%p",
+                  (void *)ptView, (void *)szOutPath);
+        return ST_ERROR;
+    }
+    if (ptView->ptImg == NULL)
+    {
+        LOG_ERROR("mount_save_image: no disk image loaded");
+        return ST_ERROR;
+    }
+
+    switch (eFmt)
+    {
+    case MOUNT_SAVE_ST:
+        eResult = image_st_save(ptView->ptImg, szOutPath);
+        break;
+
+    case MOUNT_SAVE_MSA:
+        eResult = image_msa_save(ptView->ptImg, szOutPath);
+        break;
+
+    case MOUNT_SAVE_DIR:
+        if (file_mkdir(szOutPath) != ST_NO_ERROR)
+        {
+            LOG_ERROR("mount_save_image: cannot create dir '%s'", szOutPath);
+            return ST_ERROR;
+        }
+        if (image_st_list_root(ptView->ptImg, aEntries, IST_RDE,
+                                &iCount) != ST_NO_ERROR)
+        {
+            LOG_ERROR("mount_save_image: list_root failed");
+            return ST_ERROR;
+        }
+        for (i = 0; i < iCount; i++)
+        {
+            if (aEntries[i].bIsDir || aEntries[i].uiSize == 0)
+                continue;
+
+            pBuf = (st_u8_t *)malloc((size_t)aEntries[i].uiSize);
+            if (pBuf == NULL)
+            {
+                LOG_ERROR("malloc failed for '%s'", aEntries[i].szName);
+                eResult = ST_ERROR;
+                continue;
+            }
+            if (image_st_read_file(ptView->ptImg,
+                                    aEntries[i].uiCluster,
+                                    aEntries[i].uiSize,
+                                    pBuf,
+                                    aEntries[i].uiSize) != ST_NO_ERROR)
+            {
+                LOG_ERROR("read_file failed for '%s'", aEntries[i].szName);
+                free(pBuf);
+                pBuf    = NULL;
+                eResult = ST_ERROR;
+                continue;
+            }
+            snprintf(szFilePath, sizeof(szFilePath), "%s/%s",
+                     szOutPath, aEntries[i].szName);
+            if (file_open(szFilePath, FILE_MODE_WRITE, &ptFile) != ST_NO_ERROR)
+            {
+                LOG_ERROR("cannot open '%s' for write", szFilePath);
+                free(pBuf);
+                pBuf    = NULL;
+                eResult = ST_ERROR;
+                continue;
+            }
+            if (file_write(ptFile, pBuf, aEntries[i].uiSize) != ST_NO_ERROR)
+            {
+                LOG_ERROR("write failed for '%s'", szFilePath);
+                eResult = ST_ERROR;
+            }
+            file_close(&ptFile);
+            free(pBuf);
+            pBuf = NULL;
+            LOG_INFO("mount_save_image: extracted '%s'", aEntries[i].szName);
+        }
+        break;
+
+    default:
+        LOG_ERROR("mount_save_image: unknown format %d", (int)eFmt);
+        return ST_ERROR;
+    }
+
+    if (eResult == ST_NO_ERROR)
+    {
+        ptView->bDirty = ST_FALSE;
+        LOG_INFO("mount_save_image: saved to '%s'", szOutPath);
+    }
+    return eResult;
+}
 
 st_error_t mount_view_open(const char     *szPath,
                              line_context_t *ptLineCtx,
@@ -908,10 +1055,13 @@ st_error_t mount_view_add_file(mount_view_t *ptView,
                                 const char   *szSrcPath)
 {
     file_stat_t  tStat;
-    file_t      *ptFile  = NULL;
-    st_u8_t     *pBuf    = NULL;
+    file_t      *ptFile      = NULL;
+    st_u8_t     *pBuf        = NULL;
     const char  *szName;
-    size_t       uiRead  = 0;
+    size_t       uiRead      = 0;
+    size_t       uiChunkRead = 0;
+    size_t       uiOffset    = 0;
+    size_t       uiChunk;
     st_error_t   eResult;
 
     LOG_TRACE("ptView=%p szSrcPath=%s",
@@ -964,7 +1114,31 @@ st_error_t mount_view_add_file(mount_view_t *ptView,
             free(pBuf);
             return ST_ERROR;
         }
-        file_read(ptFile, pBuf, (size_t)tStat.uiSize, &uiRead);
+
+        /* P40: read in chunks and report progress per chunk */
+        uiOffset = 0;
+        while (uiOffset < (size_t)tStat.uiSize)
+        {
+            uiChunk = (size_t)tStat.uiSize - uiOffset;
+            if (uiChunk > MOUNT_PROGRESS_CHUNK)
+                uiChunk = MOUNT_PROGRESS_CHUNK;
+            uiChunkRead = 0;
+            if (file_read(ptFile, pBuf + uiOffset,
+                          uiChunk, &uiChunkRead) != ST_NO_ERROR)
+                break;
+            if (uiChunkRead == 0)
+                break;
+            uiOffset += uiChunkRead;
+            if (uiOffset < (size_t)tStat.uiSize &&
+                ptView->hWnd != NULL)
+            {
+                LOG_INFO("copying '%s': %u%%", szName,
+                         (unsigned)((uiOffset * 100u) /
+                                    (size_t)tStat.uiSize));
+                gui_invalidate(ptView->hWnd);
+            }
+        }
+        uiRead = uiOffset;
         file_close(&ptFile);
         eResult = image_st_write_file(ptView->ptImg, szName,
                                        pBuf, (st_u32_t)uiRead);
