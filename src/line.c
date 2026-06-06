@@ -23,6 +23,9 @@
  * UC18.1: line_cmd_mount() / line_cmd_umount() + g_line_ptMountView.
  * UC19:   line_cmd_umount() interactive save dialog (P35).
  *         --st / --msa / --dir flags bypass dialog.
+ * UC20:   line_cmd_image() — create .st/.msa from mounted content or dir.
+ *         P41: ENTER in mount → selected file → edit_hex (mount.c).
+ *         P37: 'F' in mount / --bootable flag → mount_make_bootable().
  */
 
 #include "line.h"
@@ -1906,6 +1909,127 @@ do_close:
 }
 
 /* ------------------------------------------------------------------
+ * image — create or save a .st/.msa disk image
+ * ------------------------------------------------------------------ */
+
+static st_error_t line_cmd_image(const parsed_cmd_t *ptParsed,
+                                  line_context_t     *ptCtx)
+{
+    mount_view_t    *ptTmpView = NULL;
+    char             szSrcPath[ST_MAX_PATH];
+    char             szOutPath[ST_MAX_PATH];
+    char             szCwdBuf[ST_MAX_PATH];
+    file_stat_t      tStat;
+    mount_save_fmt_t eFmt      = MOUNT_SAVE_ST;
+    st_bool_t        bBootable = ST_FALSE;
+    st_bool_t        bHavePath = ST_FALSE;
+    const char      *szExt;
+    size_t           uiCwdLen;
+    int              i;
+    st_error_t       eResult;
+
+    LOG_TRACE("argc=%d", ptParsed->iArgc);
+
+    /* Parse arguments (skip argv[0] = command name) */
+    szOutPath[0] = '\0';
+    for (i = 1; i < ptParsed->iArgc; i++)
+    {
+        if (strcmp(ptParsed->aszArgv[i], "--msa") == 0)
+            eFmt = MOUNT_SAVE_MSA;
+        else if (strcmp(ptParsed->aszArgv[i], "--st") == 0)
+            eFmt = MOUNT_SAVE_ST;
+        else if (strcmp(ptParsed->aszArgv[i], "--bootable") == 0)
+            bBootable = ST_TRUE;
+        else if (ptParsed->aszArgv[i][0] != '-' && !bHavePath)
+        {
+            strncpy(szOutPath, ptParsed->aszArgv[i], ST_MAX_PATH - 1);
+            szOutPath[ST_MAX_PATH - 1] = '\0';
+            bHavePath = ST_TRUE;
+        }
+        else
+        {
+            line_print_warning("image: unknown argument '%s'",
+                               ptParsed->aszArgv[i]);
+        }
+    }
+
+    szExt = (eFmt == MOUNT_SAVE_MSA) ? "msa" : "st";
+
+    /* Build the cwd-based default output path when none provided */
+    strncpy(szCwdBuf, ptCtx->szCwd, ST_MAX_PATH - 1);
+    szCwdBuf[ST_MAX_PATH - 1] = '\0';
+    uiCwdLen = strlen(szCwdBuf);
+    if (uiCwdLen > 0 &&
+        szCwdBuf[uiCwdLen - 1] != '/' &&
+        szCwdBuf[uiCwdLen - 1] != '\\')
+    {
+        szCwdBuf[uiCwdLen]     = '/';
+        szCwdBuf[uiCwdLen + 1] = '\0';
+    }
+
+    /* Case 1: mount view already open — save its content */
+    if (g_line_ptMountView != NULL)
+    {
+        if (!bHavePath)
+            snprintf(szOutPath, sizeof(szOutPath), "%sdisk.%s",
+                     szCwdBuf, szExt);
+        if (bBootable)
+            mount_make_bootable(g_line_ptMountView->ptImg);
+        eResult = mount_save_image(g_line_ptMountView, eFmt, szOutPath);
+        if (eResult == ST_NO_ERROR)
+            line_print_msg("Image saved: %s", szOutPath);
+        else
+            line_print_error("Failed to save image.");
+        return ST_NO_ERROR;
+    }
+
+    /* Case 2: create image from a directory (selected or cwd) */
+    szSrcPath[0] = '\0';
+    line_get_selected(ptCtx, szSrcPath, ST_MAX_PATH);
+    if (szSrcPath[0] == '\0')
+    {
+        strncpy(szSrcPath, ptCtx->szCwd, ST_MAX_PATH - 1);
+        szSrcPath[ST_MAX_PATH - 1] = '\0';
+    }
+
+    memset(&tStat, 0, sizeof(tStat));
+    if (file_stat(szSrcPath, &tStat) != ST_NO_ERROR ||
+        !tStat.bExists || !tStat.bIsDir)
+    {
+        line_print_warning(
+            "image: select a directory with 'dir' or open a disk with "
+            "'mount' before using 'image'.");
+        return ST_NO_ERROR;
+    }
+
+    if (!bHavePath)
+        snprintf(szOutPath, sizeof(szOutPath), "%sdisk.%s",
+                 szCwdBuf, szExt);
+
+    /* Silently mount the directory to build the image (no GUI window) */
+    eResult = mount_view_open(szSrcPath, ptCtx, &ptTmpView);
+    if (eResult != ST_NO_ERROR || ptTmpView == NULL)
+    {
+        line_print_error("image: failed to create disk from '%s'", szSrcPath);
+        return ST_NO_ERROR;
+    }
+
+    if (bBootable)
+        mount_make_bootable(ptTmpView->ptImg);
+
+    eResult = mount_save_image(ptTmpView, eFmt, szOutPath);
+    mount_view_close(&ptTmpView);
+
+    if (eResult == ST_NO_ERROR)
+        line_print_msg("Image saved: %s", szOutPath);
+    else
+        line_print_error("Failed to save image.");
+
+    line_update_console_title(ptCtx);
+    return ST_NO_ERROR;
+}
+
+/* ------------------------------------------------------------------
  * Dispatch table  (indexed by cmd_id_t value)
  * ------------------------------------------------------------------ */
 
@@ -1920,7 +2044,7 @@ static const cmd_handler_fn g_line_aHandlers[CMD_COUNT] =
     /* CMD_DIR        */ line_cmd_dir,
     /* CMD_LOAD       */ line_cmd_load,
     /* CMD_EDIT       */ line_cmd_edit,
-    /* CMD_IMAGE      */ line_cmd_stub,
+    /* CMD_IMAGE      */ line_cmd_image,
     /* CMD_MOUNT      */ line_cmd_mount,
     /* CMD_UMOUNT     */ line_cmd_umount,
     /* CMD_WHERE      */ line_cmd_where,

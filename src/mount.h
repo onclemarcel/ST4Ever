@@ -10,6 +10,9 @@
  *     Row 0  : header "A:\  [SRC]  N file(s)"  (yellow, always visible)
  *     Row 1+ : file list "  FILENAME.EXT   12345"  (scrollable)
  *     DEL = remove selected file.  UP/DOWN/PgUp/PgDn = navigate.
+ *     ENTER = open selected file in hex editor (P41).
+ *     F = fix bootsector checksum (make bootable, P37).
+ *     B = open bootsector in hex editor (P38).
  *     ESC = close.  Left-click = select.  Scroll wheel = scroll.
  *   Right panel (remainder):
  *     Disk properties: source type, path, file count, free/total space,
@@ -31,7 +34,7 @@
  *           bootsector hex viewer (P38), dir nav history (P10),
  *           dir multi-select (P14).
  * UC19   : umount with optional image-save dialog.
- * UC20   : image creation from mounted content.
+ * UC20   : image command, ENTER→hex (P41), make-bootable (P37 write).
  */
 
 #ifndef MOUNT_H
@@ -90,7 +93,9 @@ typedef struct mount_view_s
 
     /* P38: bootsector hex viewer (edit_hex_view_t* stored as void*)     */
     void              *ptBootHexView;
-    /* Back-ref to console context for P38 edit_hex_open                 */
+    /* P41: selected-file hex viewer (edit_hex_view_t* stored as void*) */
+    void              *ptFileHexView;
+    /* Back-ref to console context for P38/P41 edit_hex_open             */
     line_context_t    *ptLineCtx;
 } mount_view_t;
 
@@ -175,6 +180,23 @@ st_error_t mount_view_add_file(mount_view_t *ptView,
  *   ST_FALSE if pBootSect is NULL or the checksum does not match.
  */
 st_bool_t mount_is_bootable(const st_u8_t *pBootSect);
+
+/*
+ * mount_make_bootable() - Adjust the WD1772 checksum so the bootsector
+ *                         is executed on boot.
+ *
+ * Modifies the first LE16 word in the 512-byte bootsector of ptImg so
+ * that the sum of all 256 LE16 words equals 0x1234 (mod 0x10000).
+ * After this call mount_is_bootable() returns ST_TRUE.
+ *
+ * Parameters:
+ *   ptImg [in/out] : Mounted disk image with a valid bootsector.
+ *
+ * Returns:
+ *   ST_NO_ERROR on success.
+ *   ST_ERROR    if ptImg is NULL or image_st_get_disk() fails.
+ */
+st_error_t mount_make_bootable(image_st_t *ptImg);
 
 /*
  * mount_save_fmt_t - Output format for mount_save_image().

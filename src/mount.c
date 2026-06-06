@@ -49,8 +49,10 @@ static const renderer_color_t g_mnt_clrStatusTx  = {0.70f,0.70f,0.70f,1.0f};
 
 #ifdef ST_PLATFORM_WINDOWS
 #  define MOUNT_BOOT_TMP  ".\\st4ever_boot.bin"
+#  define MOUNT_FILE_TMP  ".\\st4ever_mnt_file.bin"
 #else
 #  define MOUNT_BOOT_TMP  "/tmp/st4ever_boot.bin"
+#  define MOUNT_FILE_TMP  "/tmp/st4ever_mnt_file.bin"
 #endif
 
 /* ------------------------------------------------------------------
@@ -152,6 +154,100 @@ static void mount_open_bootsector(mount_view_t *ptView)
         {
             edit_hex_view_t *ptHex;
             ptHex = (edit_hex_view_t *)ptView->ptBootHexView;
+            gui_set_title(ptHex->hWnd, szTitle);
+        }
+    }
+}
+
+/* P41: extract the selected file to a temp file and open the hex
+ * editor on it.  Stores the view handle in ptView->ptFileHexView.
+ * Called from the window thread on ENTER key. */
+static void mount_open_file_hex(mount_view_t *ptView)
+{
+    image_st_dirent_t *ptEntry;
+    st_u8_t           *pBuf    = NULL;
+    file_t            *ptFile  = NULL;
+    edit_hex_view_t  **pptHexV;
+    char               szTitle[128];
+
+    if (ptView->ptImg == NULL ||
+        ptView->iSelectedEntry < 0 ||
+        ptView->iSelectedEntry >= ptView->iEntryCount)
+        return;
+
+    ptEntry = &ptView->aEntries[ptView->iSelectedEntry];
+
+    /* Close existing file hex viewer if any */
+    pptHexV = (edit_hex_view_t **)&ptView->ptFileHexView;
+    if (*pptHexV != NULL)
+    {
+        edit_hex_close(pptHexV);
+        ptView->ptFileHexView = NULL;
+    }
+
+    if (ptEntry->uiSize == 0)
+    {
+        LOG_INFO("mount: selected file '%s' is empty, nothing to open",
+                 ptEntry->szName);
+        return;
+    }
+
+    pBuf = (st_u8_t *)malloc((size_t)ptEntry->uiSize);
+    if (pBuf == NULL)
+    {
+        LOG_ERROR("mount_open_file_hex: malloc failed for '%s'",
+                  ptEntry->szName);
+        return;
+    }
+
+    if (image_st_read_file(ptView->ptImg,
+                            ptEntry->uiCluster,
+                            ptEntry->uiSize,
+                            pBuf,
+                            ptEntry->uiSize) != ST_NO_ERROR)
+    {
+        LOG_ERROR("mount_open_file_hex: read failed for '%s'",
+                  ptEntry->szName);
+        free(pBuf);
+        return;
+    }
+
+    /* Write to temp file */
+    if (file_open(MOUNT_FILE_TMP, FILE_MODE_WRITE, &ptFile) != ST_NO_ERROR)
+    {
+        LOG_ERROR("mount_open_file_hex: cannot write temp file '%s'",
+                  MOUNT_FILE_TMP);
+        free(pBuf);
+        return;
+    }
+    if (file_write(ptFile, pBuf, ptEntry->uiSize) != ST_NO_ERROR)
+    {
+        LOG_ERROR("mount_open_file_hex: write failed");
+        file_close(&ptFile);
+        free(pBuf);
+        return;
+    }
+    file_close(&ptFile);
+    free(pBuf);
+
+    snprintf(szTitle, sizeof(szTitle),
+             "A:\\ %s  [%u bytes]", ptEntry->szName,
+             (unsigned)ptEntry->uiSize);
+
+    if (ptView->ptLineCtx != NULL)
+    {
+        if (edit_hex_open(MOUNT_FILE_TMP, ptView->ptLineCtx,
+                          (edit_hex_view_t **)&ptView->ptFileHexView)
+            != ST_NO_ERROR)
+        {
+            LOG_ERROR("mount_open_file_hex: edit_hex_open failed");
+            ptView->ptFileHexView = NULL;
+            return;
+        }
+        if (ptView->ptFileHexView != NULL)
+        {
+            edit_hex_view_t *ptHex;
+            ptHex = (edit_hex_view_t *)ptView->ptFileHexView;
             gui_set_title(ptHex->hWnd, szTitle);
         }
     }
@@ -427,8 +523,10 @@ static void mount_render(mount_view_t *ptView)
 
     iPr++;  /* blank */
     PROP_ROW("[UP/DOWN] Navigate", &g_mnt_clrHint);
+    PROP_ROW("[ENTER]   Open hex", &g_mnt_clrHint);
     PROP_ROW("[DEL]     Remove",   &g_mnt_clrHint);
     PROP_ROW("[B]       Bootsector", &g_mnt_clrHint);
+    PROP_ROW("[F]       Fix boot", &g_mnt_clrHint);
     PROP_ROW("[ESC]     Close",    &g_mnt_clrHint);
 
     if (ptView->iSelectedEntry >= 0 &&
@@ -566,8 +664,13 @@ static void mount_handle_key(mount_view_t *ptView,
         gui_request_close(hWnd);
         return;
 
+    case GUI_KEY_ENTER:
+        /* P41: open selected file in hex editor */
+        mount_open_file_hex(ptView);
+        return;
+
     default:
-        /* P38: 'B'/'b' opens bootsector in hex editor */
+        /* P38: 'B'/'b' opens bootsector; P37: 'F'/'f' makes bootable */
         if (eKey >= GUI_KEY_PRINTABLE)
         {
             char cCh;
@@ -575,6 +678,18 @@ static void mount_handle_key(mount_view_t *ptView,
             if (cCh == 'B' || cCh == 'b')
             {
                 mount_open_bootsector(ptView);
+            }
+            else if (cCh == 'F' || cCh == 'f')
+            {
+                if (ptView->ptImg != NULL)
+                {
+                    if (mount_make_bootable(ptView->ptImg) == ST_NO_ERROR)
+                    {
+                        ptView->bDirty = ST_TRUE;
+                        LOG_INFO("bootsector checksum fixed - disk is now bootable");
+                        gui_invalidate(hWnd);
+                    }
+                }
             }
         }
         return;
@@ -1036,6 +1151,15 @@ st_error_t mount_view_close(mount_view_t **pptView)
         ptView->ptBootHexView = NULL;
     }
 
+    /* P41: close selected-file hex viewer if open */
+    if (ptView->ptFileHexView != NULL)
+    {
+        edit_hex_view_t *ptHex;
+        ptHex = (edit_hex_view_t *)ptView->ptFileHexView;
+        edit_hex_close(&ptHex);
+        ptView->ptFileHexView = NULL;
+    }
+
     if (ptView->hWnd != NULL)
     {
         gui_close_window(ptView->hWnd);
@@ -1166,4 +1290,47 @@ st_bool_t mount_is_bootable(const st_u8_t *pBootSect)
     if (pBootSect == NULL)
         return ST_FALSE;
     return mount_check_bootable(pBootSect);
+}
+
+st_error_t mount_make_bootable(image_st_t *ptImg)
+{
+    st_u8_t  *pDisk   = NULL;
+    st_u32_t  uiSum   = 0;
+    st_u16_t  uiWord0;
+    st_u16_t  uiNewWord0;
+    int       i;
+
+    if (ptImg == NULL)
+    {
+        LOG_ERROR("mount_make_bootable: ptImg is NULL");
+        return ST_ERROR;
+    }
+    if (image_st_get_disk(ptImg, &pDisk) != ST_NO_ERROR || pDisk == NULL)
+    {
+        LOG_ERROR("mount_make_bootable: cannot get disk buffer");
+        return ST_ERROR;
+    }
+
+    /* Compute current sum of all 256 LE16 words */
+    for (i = 0; i < 512; i += 2)
+    {
+        st_u16_t uiW = (st_u16_t)( (st_u16_t)pDisk[i] |
+                                     ((st_u16_t)pDisk[i + 1] << 8) );
+        uiSum += uiW;
+    }
+    uiSum &= 0xFFFFu;
+
+    /* Current word[0] */
+    uiWord0 = (st_u16_t)( (st_u16_t)pDisk[0] |
+                            ((st_u16_t)pDisk[1] << 8) );
+
+    /* new_word0: adjust so (sum - word0 + new_word0) mod 0x10000 == 0x1234 */
+    uiNewWord0 = (st_u16_t)((0x1234u - (uiSum - uiWord0)) & 0xFFFFu);
+
+    /* Write back LE16 */
+    pDisk[0] = (st_u8_t)(uiNewWord0 & 0xFFu);
+    pDisk[1] = (st_u8_t)((uiNewWord0 >> 8) & 0xFFu);
+
+    LOG_INFO("mount_make_bootable: checksum fixed (word[0]=$%04X)", uiNewWord0);
+    return ST_NO_ERROR;
 }

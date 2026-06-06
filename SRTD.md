@@ -4617,3 +4617,88 @@ Each INTENT maps to one or more test blocks in `use_cases/use_case_19.c`.
 |---------------|----------------------------------|--------------------------------------------------------------|---------|
 | UFR-MNT-008   | REQ-MNT-018, REQ-MNT-021         | TC-MNT-082..088b, TC-MNT-S018..S025                          | UC19    |
 | UFR-MNT-009   | REQ-MNT-020                      | TC-MNT-S018..S019                                            | UC19    |
+
+---
+
+### 5.58 INTENT Catalog — UC20
+
+| ID            | Intent                                                                                          |
+|---------------|-------------------------------------------------------------------------------------------------|
+| INT-MNT-036   | mount_make_bootable(NULL) shall return ST_ERROR without crash                                   |
+| INT-MNT-037   | A blank image not bootable; after mount_make_bootable() WD1772 checksum == 0x1234              |
+| INT-MNT-038   | mount_save_image from an open mount view saves a valid .st/.msa file                            |
+| INT-MNT-039   | mount_view_open on a directory creates a populated image; save produces a valid .st             |
+| INT-MNT-040   | mount_view_open on a .st file dispatches correctly regardless of prior state                    |
+
+### 5.59 Test Cases — UC20 (image command + P41 file hex + P37 bootable)
+
+#### User-Facing Requirements (UC20)
+
+| ID          | Requirement                                                                               |
+|-------------|-------------------------------------------------------------------------------------------|
+| UFR-MNT-010 | User can create .st / .msa image from mounted content or a directory via `image` command  |
+| UFR-MNT-011 | User can open a mounted file in the hex editor by pressing ENTER (P41)                    |
+| UFR-MNT-012 | User can make a disk bootable by pressing F in the mount view (P37 write)                 |
+
+#### System Requirements (UC20)
+
+| ID          | Requirement                                                                                    |
+|-------------|------------------------------------------------------------------------------------------------|
+| REQ-MNT-022 | mount_make_bootable() computes WD1772 checksum and patches bootsector word[0] in-place        |
+| REQ-MNT-023 | line_cmd_image() saves image from open mount view or creates transient view from directory     |
+| REQ-MNT-024 | mount_open_file_hex() extracts selected FAT entry to temp file and opens in edit_hex           |
+
+#### Test Cases (UC20)
+
+| TC ID        | INTENT ref    | Description                                                               | Type | Status |
+|--------------|---------------|---------------------------------------------------------------------------|------|--------|
+| TC-MNT-089   | INT-MNT-036   | mount_make_bootable(NULL) == ST_ERROR                                     | [R]  | UC20   |
+| TC-MNT-090a  | INT-MNT-037   | image_st_create blank + mount_is_bootable == ST_FALSE                     | [N]  | UC20   |
+| TC-MNT-090b  | INT-MNT-037   | mount_make_bootable returns ST_NO_ERROR                                   | [N]  | UC20   |
+| TC-MNT-090c  | INT-MNT-037   | mount_is_bootable after make_bootable == ST_TRUE                          | [N]  | UC20   |
+| TC-MNT-090d  | INT-MNT-037   | WD1772 checksum == 0x1234 directly verified                               | [N]  | UC20   |
+| TC-MNT-090e  | INT-MNT-037   | mount_make_bootable idempotent (×2) == ST_NO_ERROR                        | [N]  | UC20   |
+| TC-MNT-090f  | INT-MNT-037   | image still bootable after second make_bootable call                      | [N]  | UC20   |
+| TC-MNT-090g  | INT-MNT-037   | Hand-crafted bootable sector (word[0]=0x1234) passes mount_is_bootable    | [N]  | UC20   |
+| TC-MNT-091a  | INT-MNT-038   | mount_view_open .st == ST_NO_ERROR + iEntryCount == 2                     | [N]  | UC20   |
+| TC-MNT-091b  | INT-MNT-038   | mount_save_image .msa == ST_NO_ERROR                                      | [N]  | UC20   |
+| TC-MNT-091c  | INT-MNT-038   | .msa file exists + size < 737280                                          | [N]  | UC20   |
+| TC-MNT-091d  | INT-MNT-038   | mount_save_image .st == ST_NO_ERROR + size == 737280                      | [N]  | UC20   |
+| TC-MNT-092a  | INT-MNT-039   | mount_view_open dir == ST_NO_ERROR + iEntryCount == 2                     | [N]  | UC20   |
+| TC-MNT-092b  | INT-MNT-039   | dir image saved as .st == ST_NO_ERROR                                     | [N]  | UC20   |
+| TC-MNT-092c  | INT-MNT-039   | reloaded dir image has 2 files                                            | [N]  | UC20   |
+| TC-MNT-093   | INT-MNT-040   | mount_view_open .st again == ST_NO_ERROR                                  | [R]  | UC20   |
+| TC-MNT-094   | INT-MNT-036   | mount_make_bootable(NULL) regression == ST_ERROR                          | [R]  | UC20   |
+| TC-MNT-095   | INT-MNT-040   | mount_view_close(&NULL) == ST_NO_ERROR (idempotent)                       | [R]  | UC20   |
+| TC-MNT-S026  | INT-MNT-041   | ENTER in mount opens selected file in hex editor (visual)                 | [S]  | UC20   |
+| TC-MNT-S027  | INT-MNT-041   | Hex editor title shows "A:\\ FILENAME [N bytes]" (visual)                | [S]  | UC20   |
+| TC-MNT-S028  | INT-MNT-042   | F key triggers make_bootable + Bootable:Yes in panel (visual)             | [S]  | UC20   |
+| TC-MNT-S029  | INT-MNT-042   | F key sets [*] unsaved in status bar (visual)                             | [S]  | UC20   |
+| TC-MNT-S030  | INT-MNT-043   | 'image' with mount open saves disk.st (visual)                            | [S]  | UC20   |
+| TC-MNT-S031  | INT-MNT-043   | 'image --msa' creates disk.msa (visual)                                   | [S]  | UC20   |
+| TC-MNT-S032  | INT-MNT-043   | 'image' without mount uses selected dir (visual)                          | [S]  | UC20   |
+| TC-MNT-S033  | INT-MNT-043   | 'image --bootable' produces bootable .st (visual)                         | [S]  | UC20   |
+
+#### Public API — UC20 additions
+
+| Function                                    | REQ(s)        | Description                                               |
+|---------------------------------------------|---------------|-----------------------------------------------------------|
+| mount_make_bootable(ptImg)                  | REQ-MNT-022   | Patch bootsector WD1772 checksum to 0x1234                |
+| mount_open_file_hex(ptView) [static]        | REQ-MNT-024   | Extract selected FAT entry → temp file → edit_hex_open    |
+| line_cmd_image(ptParsed, ptCtx) [static]    | REQ-MNT-023   | image command handler — save .st/.msa from mount or dir   |
+
+#### REQ → TC coverage (UC20)
+
+| REQ           | TC(s)                                            | Status  |
+|---------------|--------------------------------------------------|---------|
+| REQ-MNT-022   | TC-MNT-089, TC-MNT-090a..g, TC-MNT-094          | UC20    |
+| REQ-MNT-023   | TC-MNT-091a..d, TC-MNT-092a..c, TC-MNT-093      | UC20    |
+| REQ-MNT-024   | TC-MNT-S026, TC-MNT-S027                         | UC20    |
+
+#### UFR traceability update (UC20)
+
+| UFR           | REQ(s)                           | TC(s)                                               | Status  |
+|---------------|----------------------------------|-----------------------------------------------------|---------|
+| UFR-MNT-010   | REQ-MNT-023                      | TC-MNT-091a..d, TC-MNT-092a..c, TC-MNT-S030..S033  | UC20    |
+| UFR-MNT-011   | REQ-MNT-024                      | TC-MNT-S026, TC-MNT-S027                            | UC20    |
+| UFR-MNT-012   | REQ-MNT-022                      | TC-MNT-089..090g, TC-MNT-S028..S029                 | UC20    |

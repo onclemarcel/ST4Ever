@@ -32,6 +32,7 @@
 - 2026-06-06: UC18.1 validé — `src/mount.h` + `src/mount.c` : vue D2D `GUI_WND_MOUNT` (liste FAT + panneau propriétés) ; `mount_view_open/close/add_file` ; `line_cmd_mount/umount` ; `gui_find_window_by_type` ; fix szExt sans point ; ST_APP_VERSION 0.18.1
 - 2026-06-06: UC18.2 validé — P10 historique navigation dir (ALT+←/→ : `aszNavHistory[16]`, `dir_nav_history_push`, `dir_navigate_to`) ; P14 multi-sélection CTRL+ESPACE (`aszMultiSel[16]`, fond violet, files only) ; P34 propriétés BPB lecture seule (H/S/T) ; P36 suppression /IST_RDE de l'en-tête ; P37 détection Bootable WD1772 (`mount_is_bootable`) ; P38 touche B → bootsector vers `edit_hex_open` avec titre heuristique ; ST_APP_VERSION 0.18.2
 - 2026-06-07: UC19 validé — P35 dialog `umount` save (.st/.msa/répertoire) + flags `--st`/`--msa`/`--dir` bypass ; P39 status bar D2D (fond `g_mnt_clrStatusBg`, free KB + file count + `[*]`) ; P40 `mount_view_add_file` lecture par chunks 64 Ko avec progression LOG_INFO + gui_invalidate ; `mount_save_image(eFmt, szOutPath)` API publique ; `iVisRows -2` dans tous les handlers ; ST_APP_VERSION 0.19.0
+- 2026-06-07: UC20 validé — commande `image [--st|--msa] [--bootable] [outpath]` ; P41 ENTER dans vue mount → `mount_open_file_hex()` → `edit_hex_open()` sur fichier FAT extrait dans temp ; P37 écriture `mount_make_bootable()` (checksum WD1772) + touche `F` dans mount ; `ptFileHexView` dans `mount_view_t` ; `MOUNT_FILE_TMP` ; `line_cmd_image()` dispatché sur CMD_IMAGE ; ST_APP_VERSION 0.20.0
 - 2026-06-06: UC15A validé — torture test désassembleur 68000 vs SOURCE.PRG (DEVPAC3, ATARI ST réel) : 2525 instructions, DIFF=0 ; 5 bugs disasm corrigés (groupE iIR inversé, EXG An,An ordre DEVPAC3, NBCD/CHK/size=3 ext words) ; `DISASM_SYNTAX.md` créé à la racine ; use_case_11/13.c ADAPTED:UC15A
 - 2026-06-03: UC15 validé — `src/load.c` `load_do_prg()` complet : header 28 octets, chargement .text+.data à ST_LOAD_BASE, BSS zeroing, table de fixups Atari ST (bitstream : first_offset 4B, 0x00=fin, 0x01=skip 254B, N=advance+fix) ; abs_flag géré (pas de table fixup) ; `load_state_t` étendu (uiTextSize/uiDataSize/uiBssSize/uiFixupCount) ; helpers `load_apply_fixups` + `load_skip_bytes` ; fixtures `use_cases/UC15/` (fixup/bss/absolute/multi_fixup/bad_fixup.prg) ; TODO(UC15) supprimé ; ST_APP_VERSION 0.15.0
 - 2026-06-03: UC11 validé — `src/disassemble.c` : désassembleur 68000 réel MOVE/MOVEQ/LEA/CLR/EXG/SWAP/PEA + décodeur EA complet (12 modes) ; `bValid = ST_TRUE` sur instructions reconnues ; `TC-DIS-001 ADAPTED(UC11)` ; ST_APP_VERSION 0.11.0
@@ -583,7 +584,7 @@ Les étapes de développement fonctionnelles sont formalisées en Use Cases, per
 | UC18.1 | `mount`, `umount` | Vue D2D `GUI_WND_MOUNT` : liste FAT12 + panneau propriétés ; `mount_view_open/close/add_file` ; `line_cmd_mount/umount` ; `gui_find_window_by_type` | ✓ VALIDÉ 2026-06-06 |
 | UC18.2 | `mount`, `dir` | P10 historique navigation dir (ALT+←/→) ; P14 multi-select CTRL+ESPACE (violet) ; P34 BPB géométrie lecture seule ; P36 suppression /112 en-tête ; P37 Bootable WD1772 ; P38 touche B → bootsector hex | ✓ VALIDÉ 2026-06-06 |
 | UC19 | `umount` | Démontage + dialog save .st/.msa/répertoire (P35) ; status bar mount (P39) ; progression copie (P40) | ✓ VALIDÉ 2026-06-07 |
-| UC20 | `image` | Création .st / .msa depuis le contenu monté ; Enter → hex dans mount (P41) | image valide et montable |
+| UC20 | `image` | Création .st / .msa depuis le contenu monté ; Enter → hex dans mount (P41) ; `mount_make_bootable()` touche F (P37 write) | ✓ VALIDÉ 2026-06-07 |
 | UC20A | `st2msa`, `msa2st` | Conversion batch .st↔.msa (P42) : `--all` traite tous les fichiers du répertoire `dir`, `--dir <path>` répertoire explicite, `-r` récursif sous-répertoires | conversion réussie, fichiers produits valides |
 | UC21 | interne | CPU 68000 : registres + MOVE/MOVEQ/LEA/CLR/SWAP | step 10 instructions |
 | UC22 | interne | CPU 68000 : ADD/SUB/CMP/AND/OR/EOR/shifts | exécution programme arithmétique |
@@ -2720,6 +2721,89 @@ Conversion en lot d'images disque dans un répertoire, en exploitant directement
 
 *UC19 implémente P35/P39/P40. Propositions P41 et Bootable-write déjà planifiées à UC20. Aucune nouvelle proposition UX/fonctionnelle n'a émergé — UC19 est clos.*
 
+---
+
+### 6.27 Use Case 20 (UC20) — ✓ VALIDÉ (2026-06-07)
+
+**Périmètre fonctionnel implémenté :**
+
+- **P41 — ENTER dans la vue mount → éditeur hex du fichier sélectionné** :
+  - `src/mount.h` : champ `void *ptFileHexView` ajouté à `mount_view_t` (après `ptBootHexView`).
+  - `src/mount.c` : constante `MOUNT_FILE_TMP` (`".\\st4ever_mnt_file.bin"` Win / `"/tmp/st4ever_mnt_file.bin"` Linux).
+  - `mount_open_file_hex(ptView)` : pattern identique à `mount_open_bootsector()` (P38) — ferme la vue hex précédente si ouverte ; extrait `aEntries[iSelectedEntry]` via `image_st_read_file()` ; écrit dans `MOUNT_FILE_TMP` ; appelle `edit_hex_open()` ; met à jour le titre `"A:\\ FILENAME.EXT  [N bytes]"` via `gui_set_title`.
+  - `mount_handle_key()` : `case GUI_KEY_ENTER → mount_open_file_hex(ptView)`.
+  - `mount_view_close()` : ferme `ptFileHexView` (cast `edit_hex_view_t *`) si non NULL avant `gui_close_window`.
+  - Rendu hints : `"[ENTER] Open hex"` ajouté au panneau propriétés.
+  - `mount_view_open()` : `ptLineCtx` stocké dans le view pour P41 (déjà présent depuis UC18.2) ; `ptFileHexView = NULL` à l'init.
+
+- **P37 écriture — `mount_make_bootable()` + touche `F`** :
+  - `src/mount.h` : déclaration publique `mount_make_bootable(image_st_t *ptImg)`.
+  - `src/mount.c` : `mount_make_bootable()` — `image_st_get_disk()` → somme les 256 mots LE16 du bootsector → calcule `uiNewWord0 = (0x1234 - (uiSum - word[0])) & 0xFFFF` → écrit en LE16 aux octets 0-1. Idempotent : si déjà bootable, recalcule et réécrit le même word[0].
+  - `mount_handle_key()` : case `default` — si `cCh == 'F' || cCh == 'f'` → `mount_make_bootable(ptView->ptImg)` + `ptView->bDirty = ST_TRUE` + `LOG_INFO` + `gui_invalidate`.
+  - Rendu hints : `"[F]       Fix boot"` ajouté au panneau propriétés.
+
+- **Commande `image`** :
+  - `src/line.c` : `line_cmd_image()` remplace `line_cmd_stub` pour `CMD_IMAGE`.
+  - **Parsing** : `--st` (défaut), `--msa`, `--bootable`, chemin optionnel en argument.
+  - **Path 1 — vue mount ouverte** (`g_line_ptMountView != NULL`) : si `--bootable` → `mount_make_bootable(ptView->ptImg)` ; `mount_save_image(ptView, eFmt, szOutPath)` ; message de confirmation.
+  - **Path 2 — pas de vue mount** : collecte `szSrcPath` via `line_get_selected()` ou `szCwd` ; `file_stat()` + rejet si fichier non-répertoire ; crée une `mount_view_t` temporaire via `mount_view_open()` (fenêtre ouverte brièvement) ; si `--bootable` → `mount_make_bootable()` ; `mount_save_image()` ; `mount_view_close()`.
+  - `szOutPath` par défaut : `szCwd + "disk.st"` ou `"disk.msa"` selon le format.
+  - Dispatch table : `CMD_IMAGE → line_cmd_image` (remplace `line_cmd_stub`).
+- `src/common.h` : `ST_APP_VERSION` → `"0.20.0"`.
+
+**Tests R14/R15 appliqués :**
+- `use_cases/use_case_20.c` : TEST MATRIX **14N + 5R + 8S = 27 tests**, 0 failure
+  - [R] : `mount_make_bootable(NULL)` → ST_ERROR (×2 regression) ; `mount_view_close(&NULL)` idempotent ; `mount_save_image(NULL view)` ; `mount_save_image(NULL path)` (via UC19 regression)
+  - [N] : `image_st_create` blank + `mount_is_bootable` = ST_FALSE ; `mount_make_bootable` → ST_NO_ERROR + `mount_is_bootable` = ST_TRUE ; checksum WD1772 == 0x1234 ; idempotent (×2) ; hand-crafted bootable sector ; `mount_view_open` .st → 2 files ; `mount_save_image` .msa < 737280 ; `mount_save_image` .st = 737280 ; `mount_view_open` dir → 2 files ; save+reload dir image → 2 files
+  - [S] : 8 tests visuels `make manual UC=20`
+
+**Contrats comportementaux validés :**
+
+*`mount_make_bootable(ptImg)`*
+- `ptImg == NULL` → `ST_ERROR`
+- `image_st_get_disk()` échoue → `ST_ERROR`
+- Calcule `uiSum` = somme LE16 des 256 mots du bootsector (indices 0..510 step 2)
+- `uiNewWord0 = (0x1234 - (uiSum - uiWord0)) & 0xFFFF` → écrit LE16 en bytes[0..1]
+- Idempotent : second appel recalcule et réécrit la même valeur → `ST_NO_ERROR`
+- Après appel : `mount_is_bootable(pDisk) == ST_TRUE`
+
+*P41 — `mount_open_file_hex(ptView)`*
+- Entrée sélectionnée à `uiSize == 0` : `LOG_INFO("empty file")` + return (pas d'ouverture hex)
+- `malloc(uiSize)` échoue → `LOG_ERROR` + return (non fatal)
+- `image_st_read_file()` échoue → `LOG_ERROR` + `free(pBuf)` + return
+- `file_open(MOUNT_FILE_TMP, FILE_MODE_WRITE)` échoue → `LOG_ERROR` + `free(pBuf)` + return
+- Succès : écriture temp + `edit_hex_open(MOUNT_FILE_TMP, ptLineCtx, &ptFileHexView)` + titre mis à jour
+- `edit_hex_open()` échoue : `ptFileHexView = NULL` (non fatal)
+- Ferme la vue hex précédente avant d'en ouvrir une nouvelle
+
+*P37 — touche `F` dans mount_handle_key*
+- `ptView->ptImg == NULL` → no-op silencieux
+- `mount_make_bootable()` succès → `bDirty = ST_TRUE` + `gui_invalidate` → panneau affiche `"Bootable: Yes"` + status bar `"[*] unsaved"`
+- `mount_make_bootable()` échoue → `LOG_ERROR`, `bDirty` inchangé
+
+*`line_cmd_image()`*
+- Vue mount ouverte (`g_line_ptMountView != NULL`) :
+  - `--bootable` : `mount_make_bootable(ptImg)` avant le save (non fatal si erreur)
+  - `mount_save_image(ptView, eFmt, szOutPath)` ; succès → message ; échec → `line_print_error`
+- Pas de vue mount :
+  - `szSrcPath` depuis `line_get_selected()` ou `szCwd`
+  - Fichier non-répertoire → `line_print_warning("use a directory")` + return
+  - `mount_view_open()` échoue → `line_print_error` + return
+  - `--bootable` avant save ; `mount_view_close()` dans tous les cas
+- `szOutPath` jamais écrasé si l'argument fourni est absolu
+
+**Points d'attention pour les UCs suivants :**
+- UC20A : `st2msa`/`msa2st` batch — utilisent directement `image_st_load/save` et `image_msa_load/save` (aucun besoin de la vue mount, aucun GUI requis).
+- UC21 : CPU 68000 — registres + MOVE/MOVEQ/LEA/CLR/SWAP. Phase exécution.
+- `MOUNT_FILE_TMP` est remplacé à chaque ENTER sur un nouveau fichier — le contenu de la session précédente est perdu. Comportement attendu (les modifications hex ne sont pas réinjectées dans l'image FAT).
+
+---
+
+### Arbitrage UC20 (2026-06-07)
+
+*UC20 implémente P41 (ENTER → hex), P37-write (F → bootable), et la commande `image`. Aucune nouvelle proposition UX/fonctionnelle n'a émergé — UC20 est clos.*
+
+---
 
 ## 8. Licence & attribution
 Pas de redistribution prévue à ce jour
