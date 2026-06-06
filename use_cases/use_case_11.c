@@ -326,11 +326,14 @@ int main(void)
     /* EXG D3,D7 = 0xC747 */
     UC11_CHECK_1W("EXG D3,D7", 0xC7, 0x47, "EXG", "D3,D7");
 
-    /* EXG A0,A1 = 0xC149 */
-    UC11_CHECK_1W("EXG A0,A1", 0xC1, 0x49, "EXG", "A0,A1");
+    /* EXG A0,A1 = 0xC149 — bits11-9=A0(iRx), bits2-0=A1(iRy) */
+    /* ADAPTED:UC15A — DEVPAC3 puts first source operand in bits2-0 (iRy),
+     * so disassembler outputs A{iRy},A{iRx} = A1,A0 */
+    UC11_CHECK_1W("EXG A1,A0", 0xC1, 0x49, "EXG", "A1,A0");
 
-    /* EXG A3,A5 = 0xC74D */
-    UC11_CHECK_1W("EXG A3,A5", 0xC7, 0x4D, "EXG", "A3,A5");
+    /* EXG A3,A5 = 0xC74D — bits11-9=A3(iRx), bits2-0=A5(iRy) */
+    /* ADAPTED:UC15A — iRy first: A5,A3 */
+    UC11_CHECK_1W("EXG A5,A3", 0xC7, 0x4D, "EXG", "A5,A3");
 
     /* EXG D0,A1 = 0xC189 */
     UC11_CHECK_1W("EXG D0,A1", 0xC1, 0x89, "EXG", "D0,A1");

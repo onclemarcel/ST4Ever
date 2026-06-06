@@ -28,6 +28,7 @@
 - 2026-06-03: UC13 validé — `src/disassemble.c` étendu : ASL/ASR/LSL/LSR/ROXL/ROXR/ROL/ROR (formes registre immédiat + registre Dn + mémoire .W), BTST/BCHG/BCLR/BSET (#imm statique + Dn dynamique) ; groupe 0xE `disasm_groupE` ; group 0x0 étendu `disasm_bit_static/dynamic` ; tables `g_aszShiftMnem`, `g_aszShiftMemMnem`, `g_aszBitOp` ; ST_APP_VERSION 0.13.0
 - 2026-06-03: UC14 validé — `src/disassemble.c` étendu : NOP/RTE/RTS/RTR, TRAP #N, LINK An/UNLK An, JSR/JMP (toutes EA contrôle), BRA/BSR/Bcc court (.S, 8-bit) et long (16-bit) ; groupe 0x6 `disasm_group6` ; `disasm_no_operand` helper ; `g_aszBcc[16]` ; bloc 0x4Exx dans `disasm_misc4` ; `use_case_11.c`+`use_case_12.c` : ADAPTED(UC14) RTS ; ST_APP_VERSION 0.14.0
 - 2026-06-04: UC16 validé — `src/image_st.h` + `src/image_st.c` : FAT12 .st raw image (create/load/save/list_root/read_file/write_file/delete_file/free_bytes) ; fixtures roundtrip.st via test ; ST_APP_VERSION 0.16.0
+- 2026-06-06: UC15A validé — torture test désassembleur 68000 vs SOURCE.PRG (DEVPAC3, ATARI ST réel) : 2525 instructions, DIFF=0 ; 5 bugs disasm corrigés (groupE iIR inversé, EXG An,An ordre DEVPAC3, NBCD/CHK/size=3 ext words) ; `DISASM_SYNTAX.md` créé à la racine ; use_case_11/13.c ADAPTED:UC15A
 - 2026-06-03: UC15 validé — `src/load.c` `load_do_prg()` complet : header 28 octets, chargement .text+.data à ST_LOAD_BASE, BSS zeroing, table de fixups Atari ST (bitstream : first_offset 4B, 0x00=fin, 0x01=skip 254B, N=advance+fix) ; abs_flag géré (pas de table fixup) ; `load_state_t` étendu (uiTextSize/uiDataSize/uiBssSize/uiFixupCount) ; helpers `load_apply_fixups` + `load_skip_bytes` ; fixtures `use_cases/UC15/` (fixup/bss/absolute/multi_fixup/bad_fixup.prg) ; TODO(UC15) supprimé ; ST_APP_VERSION 0.15.0
 - 2026-06-03: UC11 validé — `src/disassemble.c` : désassembleur 68000 réel MOVE/MOVEQ/LEA/CLR/EXG/SWAP/PEA + décodeur EA complet (12 modes) ; `bValid = ST_TRUE` sur instructions reconnues ; `TC-DIS-001 ADAPTED(UC11)` ; ST_APP_VERSION 0.11.0
 - 2026-06-02: UC10 validé — `edit_hex.h/c` étendu : panneau désassembleur D2D synchronisé (zone HEX_ZONE_DISASM, cache 512 instructions, `ehex_disasm_cache_update/find_cursor/scroll_to_cursor/render`) ; TAB cycle 3 zones HEX→ASCII→DISASM→HEX ; F2 toggle ; sync bidirectionnel hex↔disasm ; fenêtre plus large (1320px) avec disasm ; `EDIT_HEX_WND_WIDTH_DISASM/STD/HEIGHT` ; ST_APP_VERSION 0.10.0
@@ -573,6 +574,7 @@ Les étapes de développement fonctionnelles sont formalisées en Use Cases, per
 | UC14 | interne | Désassembleur : BRA/BSR/Bcc/JMP/JSR/RTS/RTR/RTE/TRAP | ✓ VALIDÉ 2026-06-03 |
 | UC15 | interne | Format PRG : parser header + sections + fixups + chargement mémoire ST | ✓ VALIDÉ 2026-06-03 |
 | UC16 | interne | Image `.st` : lecture/écriture raw + FAT12 | ✓ VALIDÉ 2026-06-04 |
+| UC15A | interne | Torture test désassembleur : SOURCE.PRG (DEVPAC3, ATARI ST réel) vs disasm_range() — 2525 instructions, DIFF=0 ; 5 bugs disasm corrigés | ✓ VALIDÉ 2026-06-06 |
 | UC17 | interne | Image `.msa` : décompression/compression RLE | round-trip .msa |
 | UC18 | `mount` | Vue arbre disquette Win32/GDI + X11, drag & drop depuis `dir` ; sélection multiple dans `dir` via CTRL+ESPACE/SHIFT+ESPACE (P14, même répertoire uniquement) pour drag & drop multi-fichiers ; historique navigation `dir` ALT+←/→ Précédent/Suivant (P10) | monter répertoire en A:\ |
 | UC19 | `umount` | Démontage + sauvegarde image si modifiée | dialog save |
@@ -1961,6 +1963,76 @@ Les étapes de développement fonctionnelles sont formalisées en Use Cases, per
 ### Arbitrage UC16 (2026-06-04)
 
 *UC16 est un UC purement interne (FAT12 .st image). Aucune proposition UX/fonctionnelle n'a émergé — UC16 est clos.*
+
+---
+
+### 6.22 Use Case 15A (UC15A) — ✓ VALIDÉ (2026-06-06)
+
+**Périmètre fonctionnel implémenté :**
+
+UC15A est un UC de validation croisée : il charge `use_cases/UC15A/SOURCE.PRG` (programme assemblé avec DEVPAC3 sur ATARI ST réel, 0 erreur) dans la RAM émulée, désassemble la section `.text` via `disasm_range()`, parse le source DEVPAC3 `SOURCE.S`, et compare instruction par instruction. Objectif : DIFF = 0.
+
+**Bugs disasm corrigés dans `src/disassemble.c` :**
+
+1. **`disasm_groupE` — bit `iIR` inversé** : le bit 5 de l'opcode groupe-E distingue mode immédiat (`i=0` → `#count,Dn`) et mode registre (`i=1` → `Dcnt,Dn`). Le code précédent avait les deux branches `if (iIR)` / `else` échangées — toutes les shifts immédiat/registre produisaient le mauvais format. Correction : swap des deux branches. Impact : 76 DIFFs résolus ; `use_case_13.c` ADAPTED sur 10 assertions.
+
+2. **`disasm_exg` — ordre An,An DEVPAC3** : pour `EXG An,Am`, DEVPAC3 encode le premier opérande source dans les bits 2-0 (champ `iRy`) et le second dans les bits 11-9 (`iRx`) — convention inverse du PRM Motorola. L'affichage `A{iRx},A{iRy}` était incorrect ; corrigé en `A{iRy},A{iRx}`. Impact : 5 DIFFs résolus ; `use_case_11.c` ADAPTED sur 2 assertions.
+
+3. **NBCD et CHK.W ont des extension words** : ces instructions tombaient en DC.W avec `iWordCount=1`, décalant tout le flux binaire. Ajout de `disasm_ea_ext_cnt()` helper et détection `0x4800` (NBCD) + `0xF1C0==0x4180` (CHK.W) avant le fallback final. Impact : résolution du décalage de comptage (57 instructions fantômes).
+
+4. **NEGX/NEG/NOT/TST — taille 3 avec extension words** : les opcodes de ces instructions avec `size=3` (p.ex. `MOVE.W EA,SR`) utilisent une EA qui peut avoir des mots d'extension ; le DC.W émis ignorait ces mots. Corrigé via `disasm_ea_ext_cnt()`. Impact : inclus dans les 57 instructions ci-dessus.
+
+**Infrastructure de test `use_cases/use_case_15A.c` :**
+
+- `uc15a_normalize()` : normalisation cosmétique (espaces, commentaires en ligne)
+- `uc15a_extract_instr()` : extraction de la mnémonique+opérandes depuis une ligne SOURCE.S (skip labels, directives, commentaires)
+- `uc15a_apply_compat()` : pipeline de 7 transformations COMPAT (`.L`/`.W` suffix, `#N`→`#$N`, negatifs)
+- `uc15a_strip_hex_zeros()` : `$00000000` → `$0`
+- `uc15a_neg_to_unsigned32()` : `#-$4000` → `#$FFFFC000`
+- `uc15a_truncation_compat()` : `#$FFFFFFFF` vs `#$FF` — suffixe tronqué OK
+- `uc15a_add_to_addi()` : `ADD.B #x,Dn` → `ADDI.B #x,Dn`
+- `uc15a_imm_to_decimal()` : `#$N` → `#N` pour normaliser ADDQ/SUBQ/BTST
+- `uc15a_classify()` : pipeline MATCH → DCW → PCREL → COMPAT → DIFF
+
+Référence complète des différences syntaxiques : **`DISASM_SYNTAX.md`** à la racine du projet.
+
+**Tests R14/R15 appliqués :**
+- `use_cases/use_case_15A.c` : TEST MATRIX **13N + 3R + 0S = 16 tests**, 0 failure
+  - [N] : normalize/extract helpers (3) ; st_init + load_init + load_file SOURCE.PRG (5) ; disasm_range .text (2) ; SOURCE.S parse count == disasm count (1) ; DIFF==0 + total cohérence (2)
+  - [R] : normalize/extract robustesse NULL/vide (3)
+
+**Score final :**
+
+| Instructions SOURCE.S | MATCH | DCW | PCREL | COMPAT | DIFF |
+|-----------------------|-------|-----|-------|--------|------|
+| 2525                  | 963   | 270 | 495   | 797    | **0** |
+
+**Contrats comportementaux validés (ADAPTED:UC15A sur UC13/UC11) :**
+
+*`disasm_groupE` — formes registre (après correction iIR)*
+- `iIR == 1` (bit5=1) → opérandes `D{count},Dn` (count = register number, 0 = D0 — **pas** de règle "0 signifie 8")
+- `iIR == 0` (bit5=0) → opérandes `#count,Dn` (count = immediate, 0 **encode 8**)
+- Tous les opcodes de test UC13 shifts immédiat/registre ont été revérifiés et les assertions corrigées avec ADAPTED:UC15A
+
+*`disasm_exg` — EXG An,An*
+- Premier opérande source DEVPAC3 → bits 2-0 (`iRy`) ; deuxième → bits 11-9 (`iRx`)
+- Affichage : `A{iRy},A{iRx}` (ordre DEVPAC3 round-trip)
+- EXG Dx,Dy et EXG Dx,Ay non affectés (autres encodings)
+
+*Extension words sur DC.W — invariant flux binaire*
+- Toute instruction décodée en DC.W **doit** comptabiliser ses mots d'extension dans `iWordCount` pour maintenir l'alignement du flux désassemblé
+- `disasm_ea_ext_cnt(iMode, iReg)` est le helper canonique : mode 5→1, 6→1, 7.0→1, 7.1→2, 7.2→1, 7.3→1, 7.4→0
+
+**Points d'attention pour les UCs suivants :**
+- UC21 : MOVEM, DBcc, Scc, MOVEP (~175 DCW restants) — décodage prévu lors de l'implémentation CPU 68000
+- UC24 : MOVE.W SR/CCR, TAS, ILLEGAL, RESET, STOP (~95 DCW restants) — nécessitent le contexte mode superviseur
+- `DISASM_SYNTAX.md` à enrichir à chaque nouveau groupe d'instructions décodé
+
+---
+
+### Arbitrage UC15A (2026-06-06)
+
+*UC15A est un UC de validation interne (torture test désassembleur). Aucune proposition UX/fonctionnelle n'a émergé — UC15A est clos.*
 
 ---
 

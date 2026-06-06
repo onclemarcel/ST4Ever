@@ -30,6 +30,7 @@
 | 2.5 | 2026-06-03 | UC14  | Claude/OMC | UC14 validated — control flow: NOP/RTS/RTE/RTR/TRAP/LINK/UNLK/JSR/JMP + BRA/BSR/Bcc (short+long); group4 completed, group6 new; REQ-DIS-009✓ REQ-DIS-031..038; TC-DIS-300..363; §5.42..43 new; TC-DIS-157 ADAPTED closed |
 | 2.6 | 2026-06-03 | UC15  | Claude/OMC | UC15 validated — load_do_prg() complete: PRG header parse, BSS zeroing, fixup relocation bitstream (abs_flag supported); load_state_t extended (uiTextSize/DataSize/BssSize/FixupCount); UFR-LOD-004 updated, UFR-LOD-006..008; REQ-LOD-015..022; §4.12 updated; §5.44..45 new |
 | 2.7 | 2026-06-05 | UC16  | Claude/OMC | UC16 validated — image_st.h/c: FAT12 .st image create/load/save/list_root/read_file/write_file/delete_file/free_bytes; UFR-DSK-001..004 §1.8 new; REQ-IST-001..012 §2.14 new; §4.13 updated; §4.17 new; §5.46..47 new |
+| 2.8 | 2026-06-06 | UC15A | Claude/OMC | UC15A validated — disassembler torture test vs DEVPAC3 SOURCE.PRG (2525 instructions, DIFF=0); 5 disasm bugs fixed (groupE iIR, EXG An,An order, NBCD/CHK/size=3 ext words); DISASM_SYNTAX.md created; REQ-DIS-024..030 ADAPTED; TC-DIS-200..219 ADAPTED(UC15A) |
 
 ---
 
@@ -626,8 +627,8 @@ requirement that will expose it (`UFR-EXE-*`, planned UC21–27).
 | REQ-DIS-007 | Shall decode ADD / SUB / CMP / MULU / DIVS / AND / OR / EOR / NOT / NEG.                              | UFR-HEX-005   | ✓ UC12        | UC12  |
 | REQ-DIS-008 | Shall decode ASL/ASR/LSL/LSR/ROL/ROR/ROXL/ROXR (register immediate, register Dn, and memory .W forms) and BTST/BCHG/BCLR/BSET (static #imm and dynamic Dn forms). | UFR-HEX-005 | ✓ UC13 | UC13 |
 | REQ-DIS-009 | Shall decode BRA/BSR/Bcc (short and long displacement), JMP/JSR (all control EA modes), NOP/RTS/RTR/RTE, TRAP #N, LINK An/UNLK An. | UFR-HEX-005 | ✓ UC14 | UC14 |
-| REQ-DIS-024 | Register-form shift/rotate (immediate count): format `1110 cccc d ss 1 tt rrr`; count field=0 → displayed as #8; direction bit: 1=left, 0=right; size field: 00=.B, 01=.W, 10=.L; type: 00=AS, 01=LS, 10=ROX, 11=RO; operands `#N,Dn`. | UFR-HEX-005 | ✓ UC13 | UC13 |
-| REQ-DIS-025 | Register-form shift/rotate (register count): format `1110 cccc d ss 0 tt rrr`; operands `Dn,Dn`. | UFR-HEX-005 | ✓ UC13 | UC13 |
+| REQ-DIS-024 | **ADAPTED:UC15A** — Register-form shift/rotate (immediate count): format `1110 cccc d ss 0 tt rrr` (**bit5=0** = immediate); count field=0 → displayed as #8; direction bit: 1=left, 0=right; size field: 00=.B, 01=.W, 10=.L; type: 00=AS, 01=LS, 10=ROX, 11=RO; operands `#N,Dn`. *UC13 tests used inverted opcodes (bit5=1); corrected in UC15A.* | UFR-HEX-005 | ✓ UC15A | UC15A |
+| REQ-DIS-025 | **ADAPTED:UC15A** — Register-form shift/rotate (register count): format `1110 cccc d ss 1 tt rrr` (**bit5=1** = register); count field = Dn number (no "0 means 8" rule); operands `Dn,Dn`. *UC13 tests used inverted opcodes (bit5=0); corrected in UC15A.* | UFR-HEX-005 | ✓ UC15A | UC15A |
 | REQ-DIS-026 | Memory-form shift/rotate: format `1110 xxx 11 EA` (bits 7-6 = 11 selects memory form); always `.W`; mnemonic indexed by bits 10-8 (0=ASR..7=ROL); bit 11 set → DC.W; EA mode 0 (Dn) or mode 1 (An) → DC.W; extension words consumed for abs.W addressing. | UFR-HEX-005 | ✓ UC13 | UC13 |
 | REQ-DIS-027 | Static bit ops (BTST/BCHG/BCLR/BSET #imm): opcode `0000 1000 op EA` + extension word #bit; op field indexes BTST/BCHG/BCLR/BSET; An mode (mode=1) → DC.W; `iWordCount = 2 + EA_ext_words`; operands `#N,EA`. | UFR-HEX-005 | ✓ UC13 | UC13 |
 | REQ-DIS-028 | Dynamic bit ops (BTST/BCHG/BCLR/BSET Dn): opcode `0000 Dn 1 op EA`; An mode → DC.W; `iWordCount = 1 + EA_ext_words`; operands `Dn,EA`. | UFR-HEX-005 | ✓ UC13 | UC13 |
@@ -3384,8 +3385,8 @@ All opcodes hand-crafted from MC68000 PRM.
 | TC-DIS-046  | 0x4840 → SWAP D0 (SWAP takes priority over PEA)                 | [N]  | UFR-HEX-005  | REQ-DIS-014       | INT-DIS-017  | mnemonic=="SWAP"                                     | PASS UC11 |
 | TC-DIS-047  | `EXG D0,D1` (0xC141)                                             | [N]  | UFR-HEX-005  | REQ-DIS-006       | INT-DIS-018  | "EXG" / "D0,D1"                                      | PASS UC11 |
 | TC-DIS-048  | `EXG D3,D7` (0xC747)                                             | [N]  | UFR-HEX-005  | REQ-DIS-006       | INT-DIS-018  | "EXG" / "D3,D7"                                      | PASS UC11 |
-| TC-DIS-049  | `EXG A0,A1` (0xC149)                                             | [N]  | UFR-HEX-005  | REQ-DIS-006       | INT-DIS-018  | "EXG" / "A0,A1"                                      | PASS UC11 |
-| TC-DIS-050  | `EXG A3,A5` (0xC74D)                                             | [N]  | UFR-HEX-005  | REQ-DIS-006       | INT-DIS-018  | "EXG" / "A3,A5"                                      | PASS UC11 |
+| TC-DIS-049  | **ADAPTED:UC15A** `EXG A1,A0` (0xC149): iRx=A0(bits11-9), iRy=A1(bits2-0); DEVPAC3 encodes first operand in iRy → output `A1,A0` *was `A0,A1`* | [N] | UFR-HEX-005 | REQ-DIS-006 | INT-DIS-018 | "EXG" / "A1,A0" | PASS UC15A |
+| TC-DIS-050  | **ADAPTED:UC15A** `EXG A5,A3` (0xC74D): iRx=A3, iRy=A5 → output `A5,A3` *was `A3,A5`*                                   | [N]  | UFR-HEX-005  | REQ-DIS-006       | INT-DIS-018  | "EXG" / "A5,A3"                                      | PASS UC15A |
 | TC-DIS-051  | `EXG D0,A1` (0xC189)                                             | [N]  | UFR-HEX-005  | REQ-DIS-006       | INT-DIS-018  | "EXG" / "D0,A1"                                      | PASS UC11 |
 | TC-DIS-052  | `MOVE.W d8(A0,D1.W),D0` (0x3030+0x1005) wordCount=2            | [N]  | UFR-HEX-005  | REQ-DIS-010       | INT-DIS-019  | 2 / "MOVE.W" / "$5(A0,D1.W),D0"                     | PASS UC11 |
 | TC-DIS-053  | `MOVE.W $0(A0,A1.L),D0` (0x3030+0x9800)                        | [N]  | UFR-HEX-005  | REQ-DIS-010       | INT-DIS-019  | "$0(A0,A1.L),D0"                                    | PASS UC11 |
@@ -3576,17 +3577,17 @@ Source: `use_cases/use_case_13.c`
 
 | ID           | Functional description                                                                                                       | Type | UFR          | REQ          | INTENT      | Expected outcome                    | Status    |
 |--------------|------------------------------------------------------------------------------------------------------------------------------|------|--------------|--------------|-------------|-------------------------------------|-----------|
-| TC-DIS-200   | `ASL.W #2,D3` (0xE563): mnem="ASL.W", ops="#2,D3"                                                                          | [N]  | UFR-HEX-005  | REQ-DIS-024  | INT-DIS-042 | mnem+ops correct                    | PASS UC13 |
-| TC-DIS-201   | `ASR.W #3,D0` (0xE660): mnem="ASR.W", ops="#3,D0"                                                                          | [N]  | UFR-HEX-005  | REQ-DIS-024  | INT-DIS-042 | mnem+ops correct                    | PASS UC13 |
-| TC-DIS-202   | `LSL.B #1,D1` (0xE329): mnem="LSL.B", ops="#1,D1"                                                                          | [N]  | UFR-HEX-005  | REQ-DIS-024  | INT-DIS-043 | mnem+ops correct                    | PASS UC13 |
-| TC-DIS-203   | `LSR.L #4,D2` (0xE8AA): mnem="LSR.L", ops="#4,D2"                                                                          | [N]  | UFR-HEX-005  | REQ-DIS-024  | INT-DIS-043 | mnem+ops correct                    | PASS UC13 |
-| TC-DIS-204   | `ROXL.W #1,D5` (0xE375): mnem="ROXL.W", ops="#1,D5"                                                                        | [N]  | UFR-HEX-005  | REQ-DIS-024  | INT-DIS-044 | mnem+ops correct                    | PASS UC13 |
-| TC-DIS-205   | `ROXR.B #2,D4` (0xE434): mnem="ROXR.B", ops="#2,D4"                                                                        | [N]  | UFR-HEX-005  | REQ-DIS-024  | INT-DIS-044 | mnem+ops correct                    | PASS UC13 |
-| TC-DIS-206   | `ROL.L #8,D7` (0xE1BF): count=0 in field → displayed #8                                                                    | [N]  | UFR-HEX-005  | REQ-DIS-024  | INT-DIS-045 | ops="#8,D7"                         | PASS UC13 |
-| TC-DIS-207   | `ROR.W #1,D0` (0xE278): mnem="ROR.W", ops="#1,D0"                                                                          | [N]  | UFR-HEX-005  | REQ-DIS-024  | INT-DIS-045 | mnem+ops correct                    | PASS UC13 |
-| TC-DIS-208   | `ASL.W D3,D0` (0xE740): register count form, ops="D3,D0"                                                                   | [N]  | UFR-HEX-005  | REQ-DIS-025  | INT-DIS-046 | mnem="ASL.W", ops="D3,D0"           | PASS UC13 |
-| TC-DIS-209   | `LSR.B D2,D1` (0xE409): register count form                                                                                 | [N]  | UFR-HEX-005  | REQ-DIS-025  | INT-DIS-046 | mnem="LSR.B", ops="D2,D1"           | PASS UC13 |
-| TC-DIS-210   | `ROR.L D0,D5` (0xE09D): register count form                                                                                 | [N]  | UFR-HEX-005  | REQ-DIS-025  | INT-DIS-046 | mnem="ROR.L", ops="D0,D5"           | PASS UC13 |
+| TC-DIS-200   | **ADAPTED:UC15A** `ASL.W D2,D3` (0xE563, bit5=1 → reg): mnem="ASL.W", ops="D2,D3" *was `#2,D3` (UC13 had iIR inverted)* | [N]  | UFR-HEX-005  | REQ-DIS-025  | INT-DIS-042 | mnem+ops correct                    | PASS UC15A |
+| TC-DIS-201   | **ADAPTED:UC15A** `ASR.W D3,D0` (0xE660, bit5=1 → reg): ops="D3,D0" *was `#3,D0`*                                        | [N]  | UFR-HEX-005  | REQ-DIS-025  | INT-DIS-042 | mnem+ops correct                    | PASS UC15A |
+| TC-DIS-202   | **ADAPTED:UC15A** `LSL.B D1,D1` (0xE329, bit5=1 → reg): ops="D1,D1" *was `#1,D1`*                                        | [N]  | UFR-HEX-005  | REQ-DIS-025  | INT-DIS-043 | mnem+ops correct                    | PASS UC15A |
+| TC-DIS-203   | **ADAPTED:UC15A** `LSR.L D4,D2` (0xE8AA, bit5=1 → reg): ops="D4,D2" *was `#4,D2`*                                        | [N]  | UFR-HEX-005  | REQ-DIS-025  | INT-DIS-043 | mnem+ops correct                    | PASS UC15A |
+| TC-DIS-204   | **ADAPTED:UC15A** `ROXL.W D1,D5` (0xE375, bit5=1 → reg): ops="D1,D5" *was `#1,D5`*                                       | [N]  | UFR-HEX-005  | REQ-DIS-025  | INT-DIS-044 | mnem+ops correct                    | PASS UC15A |
+| TC-DIS-205   | **ADAPTED:UC15A** `ROXR.B D2,D4` (0xE434, bit5=1 → reg): ops="D2,D4" *was `#2,D4`*                                       | [N]  | UFR-HEX-005  | REQ-DIS-025  | INT-DIS-044 | mnem+ops correct                    | PASS UC15A |
+| TC-DIS-206   | **ADAPTED:UC15A** `ROL.L D0,D7` (0xE1BF, bit5=1 → reg): count=0 → D0; ops="D0,D7" *was `#8,D7`; "0 means 8" only for imm mode* | [N] | UFR-HEX-005 | REQ-DIS-025 | INT-DIS-045 | ops="D0,D7"                     | PASS UC15A |
+| TC-DIS-207   | **ADAPTED:UC15A** `ROR.W D1,D0` (0xE278, bit5=1 → reg): ops="D1,D0" *was `#1,D0`*                                        | [N]  | UFR-HEX-005  | REQ-DIS-025  | INT-DIS-045 | mnem+ops correct                    | PASS UC15A |
+| TC-DIS-208   | **ADAPTED:UC15A** `ASL.W #3,D0` (0xE740, bit5=0 → imm): ops="#3,D0" *was `D3,D0`*                                        | [N]  | UFR-HEX-005  | REQ-DIS-024  | INT-DIS-046 | mnem="ASL.W", ops="#3,D0"           | PASS UC15A |
+| TC-DIS-209   | **ADAPTED:UC15A** `LSR.B #2,D1` (0xE409, bit5=0 → imm): ops="#2,D1" *was `D2,D1`*                                        | [N]  | UFR-HEX-005  | REQ-DIS-024  | INT-DIS-046 | mnem="LSR.B", ops="#2,D1"           | PASS UC15A |
+| TC-DIS-210   | **ADAPTED:UC15A** `ROR.L #8,D5` (0xE09D, bit5=0 → imm): count=0 → #8; ops="#8,D5" *was `D0,D5`*                          | [N]  | UFR-HEX-005  | REQ-DIS-024  | INT-DIS-046 | mnem="ROR.L", ops="#8,D5"           | PASS UC15A |
 | TC-DIS-211   | `ASR.W (A0)` (0xE0D0): memory form, mnem="ASR.W", ops="(A0)"                                                               | [N]  | UFR-HEX-005  | REQ-DIS-026  | INT-DIS-047 | memory form 1 word                  | PASS UC13 |
 | TC-DIS-212   | `ASL.W (A1)` (0xE1D1)                                                                                                       | [N]  | UFR-HEX-005  | REQ-DIS-026  | INT-DIS-047 | mnem="ASL.W"                        | PASS UC13 |
 | TC-DIS-213   | `LSR.W (A2)+` (0xE2DA)                                                                                                      | [N]  | UFR-HEX-005  | REQ-DIS-026  | INT-DIS-047 | ops="(A2)+"                         | PASS UC13 |
@@ -3901,3 +3902,86 @@ Source: `use_cases/use_case_16.c`
 | UFR-DSK-002  | REQ-IST-006                                      | TC-IST-006, TC-IST-008..009, TC-IST-013, TC-IST-016, TC-IST-020, TC-IST-032..033 | ✓ UC16 |
 | UFR-DSK-003  | REQ-IST-007..011                                 | TC-IST-007, TC-IST-010..012, TC-IST-015, TC-IST-021..023, TC-IST-034..036, TC-IST-038..039 | ✓ UC16 |
 | UFR-DSK-004  | REQ-IST-005, REQ-IST-012                         | TC-IST-014, TC-IST-017..018, TC-IST-030..031              | ✓ UC16   |
+
+---
+
+### 5.48 INTENT Catalog — UC15A
+
+Source: `use_cases/use_case_15A.c`
+Fixtures: `use_cases/UC15A/SOURCE.PRG`, `use_cases/UC15A/SOURCE.S`
+
+| ID           | INTENT text                                                                                                                                                 |
+|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| INT-DIS-070  | Normalisation helpers robustness: empty string and comment/label lines must not crash or produce artefacts; degenerate inputs return empty/0 correctly.      |
+| INT-DIS-071  | Full torture test pipeline: load SOURCE.PRG into ST RAM, disassemble .text via disasm_range(), parse SOURCE.S expected instructions, compare pair by pair. The count of SOURCE.S instructions must equal the disasm count (no stream misalignment). DIFF must be 0. |
+
+---
+
+### 5.49 Test Cases — UC15A (disassembler torture test vs DEVPAC3 SOURCE.PRG)
+
+Source: `use_cases/use_case_15A.c`
+
+| ID           | Functional description                                                                                                        | Type | UFR          | REQ                       | INTENT      | Expected outcome                                         | Status     |
+|--------------|-------------------------------------------------------------------------------------------------------------------------------|------|--------------|---------------------------|-------------|----------------------------------------------------------|------------|
+| TC-DIS-400   | `uc15a_normalize(NULL, ...)` and `(src, NULL, ...)` → empty output, no crash                                                 | [R]  | UFR-HEX-005  | REQ-DIS-001               | INT-DIS-070 | No crash; output[0]=='\0'                                | PASS UC15A |
+| TC-DIS-401   | `uc15a_extract_instr` on blank line → returns 0 (no instruction extracted)                                                   | [R]  | UFR-HEX-005  | REQ-DIS-001               | INT-DIS-070 | return == 0                                              | PASS UC15A |
+| TC-DIS-402   | `uc15a_extract_instr` on pure comment line (`;...`) → returns 0                                                              | [R]  | UFR-HEX-005  | REQ-DIS-001               | INT-DIS-070 | return == 0                                              | PASS UC15A |
+| TC-DIS-403   | `st_init(&tMachine, NULL)` → ST_NO_ERROR                                                                                     | [N]  | UFR-HEX-005  | REQ-DIS-001               | INT-DIS-071 | ST_NO_ERROR                                              | PASS UC15A |
+| TC-DIS-404   | `load_init(&tMachine)` → ST_NO_ERROR                                                                                         | [N]  | UFR-HEX-005  | REQ-LOD-001               | INT-DIS-071 | ST_NO_ERROR                                              | PASS UC15A |
+| TC-DIS-405   | `load_file("bad/path")` → ST_ERROR (guard)                                                                                   | [R]  | UFR-HEX-005  | REQ-LOD-004               | INT-DIS-071 | ST_ERROR                                                 | PASS UC15A |
+| TC-DIS-406   | `load_file("SOURCE.PRG")` → ST_NO_ERROR; `ptState->bLoaded == ST_TRUE`                                                      | [N]  | UFR-HEX-005  | REQ-LOD-007               | INT-DIS-071 | ST_NO_ERROR; bLoaded=TRUE                                | PASS UC15A |
+| TC-DIS-407   | `ptState->uiTextSize > 0` after loading SOURCE.PRG                                                                           | [N]  | UFR-HEX-005  | REQ-LOD-019               | INT-DIS-071 | uiTextSize > 0                                           | PASS UC15A |
+| TC-DIS-408   | `disasm_range(RAM+ST_LOAD_BASE, uiTextSize, ST_LOAD_BASE, atRes, MAX, &uiN)` → ST_NO_ERROR; uiN > 0                         | [N]  | UFR-HEX-005  | REQ-DIS-002               | INT-DIS-071 | ST_NO_ERROR; uiN > 0                                     | PASS UC15A |
+| TC-DIS-409   | SOURCE.S parsed instruction count > 0                                                                                         | [N]  | UFR-HEX-005  | —                         | INT-DIS-071 | iSrcCount > 0                                            | PASS UC15A |
+| TC-DIS-410   | SOURCE.S instruction count == disasm result count (no stream misalignment — iWordCount correct for all DC.W with ext words)  | [N]  | UFR-HEX-005  | REQ-DIS-002               | INT-DIS-071 | iSrcCount == uiN                                         | PASS UC15A |
+| TC-DIS-411   | DIFF count == 0 after MATCH/DCW/PCREL/COMPAT classification of all 2525 pairs                                                | [N]  | UFR-HEX-005  | REQ-DIS-006..009          | INT-DIS-071 | iDiff == 0                                               | PASS UC15A |
+| TC-DIS-412   | MATCH + DCW + PCREL + COMPAT == total (classification is exhaustive, no unclassified instruction)                            | [N]  | UFR-HEX-005  | REQ-DIS-006..009          | INT-DIS-071 | iMatch+iDcw+iPcrel+iCompat == iTotal                     | PASS UC15A |
+
+#### Test Summary — UC15A
+
+| Module | [N] | [R] | [S] | Total | Result     |
+|--------|-----|-----|-----|-------|------------|
+| DIS    | 10  | 3   | 0   | 13    | ALL PASS   |
+
+#### Final score — SOURCE.S vs disasm_range()
+
+| SOURCE.S instructions | MATCH | DCW | PCREL | COMPAT | DIFF  |
+|-----------------------|-------|-----|-------|--------|-------|
+| 2525                  | 963   | 270 | 495   | 797    | **0** |
+
+#### REQ → TC coverage (UC15A)
+
+| REQ         | TC(s)                                         | Status     |
+|-------------|-----------------------------------------------|------------|
+| REQ-DIS-001 | TC-DIS-400..402 (NULL/blank guards)           | ✓ UC15A    |
+| REQ-DIS-002 | TC-DIS-408, TC-DIS-410                        | ✓ UC15A    |
+| REQ-DIS-006 | TC-DIS-411..412 (MOVE/MOVEQ/LEA/EXG…)        | ✓ UC15A    |
+| REQ-DIS-007 | TC-DIS-411..412 (ADD/SUB/CMP/AND/OR/EOR…)    | ✓ UC15A    |
+| REQ-DIS-008 | TC-DIS-411..412 (shifts/bit ops)              | ✓ UC15A    |
+| REQ-DIS-009 | TC-DIS-411..412 (branches/JMP/JSR/RTS…)      | ✓ UC15A    |
+| REQ-DIS-024 | TC-DIS-208..210 (ADAPTED — imm shift, bit5=0) | ✓ UC15A   |
+| REQ-DIS-025 | TC-DIS-200..207 (ADAPTED — reg shift, bit5=1) | ✓ UC15A   |
+
+#### UFR traceability update (UC15A)
+
+| UFR         | REQ(s)                                              | TC(s)                           | Status    |
+|-------------|-----------------------------------------------------|---------------------------------|-----------|
+| UFR-HEX-005 | REQ-DIS-001..009, REQ-DIS-024..030 (all corrected) | TC-DIS-400..412 + ADAPTED TCs   | ✓ UC15A   |
+
+#### ADAPTED markers summary (UC15A)
+
+| TC           | Previous value (UC13)          | Corrected value (UC15A)         | Root cause                             |
+|--------------|--------------------------------|---------------------------------|----------------------------------------|
+| TC-DIS-049   | EXG A0,A1                      | EXG A1,A0                       | DEVPAC3 EXG An,An: first op in bits 2-0 |
+| TC-DIS-050   | EXG A3,A5                      | EXG A5,A3                       | same as above                          |
+| TC-DIS-200   | ASL.W #2,D3                    | ASL.W D2,D3                     | groupE iIR bit was inverted             |
+| TC-DIS-201   | ASR.W #3,D0                    | ASR.W D3,D0                     | same                                   |
+| TC-DIS-202   | LSL.B #1,D1                    | LSL.B D1,D1                     | same                                   |
+| TC-DIS-203   | LSR.L #4,D2                    | LSR.L D4,D2                     | same                                   |
+| TC-DIS-204   | ROXL.W #1,D5                   | ROXL.W D1,D5                    | same                                   |
+| TC-DIS-205   | ROXR.B #2,D4                   | ROXR.B D2,D4                    | same                                   |
+| TC-DIS-206   | ROL.L #8,D7                    | ROL.L D0,D7                     | same (bit5=1 → D0, not "0 means 8")   |
+| TC-DIS-207   | ROR.W #1,D0                    | ROR.W D1,D0                     | same                                   |
+| TC-DIS-208   | ASL.W D3,D0                    | ASL.W #3,D0                     | groupE iIR bit was inverted             |
+| TC-DIS-209   | LSR.B D2,D1                    | LSR.B #2,D1                     | same                                   |
+| TC-DIS-210   | ROR.L D0,D5                    | ROR.L #8,D5                     | same (bit5=0 → imm, "0 means 8")      |

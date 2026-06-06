@@ -379,6 +379,24 @@ static void disasm_no_operand(const st_u8_t *pBuf, st_u32_t uiAddr,
 }
 
 /* ------------------------------------------------------------------
+ * EA extension word count for DC.W fallback — modes 5/6/7.0-7.3 only.
+ * Mode 7.4 (#imm) is intentionally excluded: special 1-word opcodes
+ * like ILLEGAL ($4AFC) land on mode 7.4 and must stay iWordCount=1.
+ * ------------------------------------------------------------------ */
+
+static int disasm_ea_ext_cnt(int iMode, int iReg)
+{
+    if (iMode == 5) return 1;               /* d16(An)   */
+    if (iMode == 6) return 1;               /* d8(An,Xn) */
+    if (iMode != 7) return 0;
+    if (iReg == 0)  return 1;               /* abs.W     */
+    if (iReg == 1)  return 2;               /* abs.L     */
+    if (iReg == 2)  return 1;               /* d16(PC)   */
+    if (iReg == 3)  return 1;               /* d8(PC,Xn) */
+    return 0;  /* iReg==4 (#imm) intentionally excluded */
+}
+
+/* ------------------------------------------------------------------
  * UC11 / UC12: group 0x4 miscellaneous
  * ------------------------------------------------------------------ */
 
@@ -396,10 +414,23 @@ static void disasm_misc4(const st_u8_t *pBuf, size_t uiBufLen,
     /* --- UC12: NEGX  0100 0000 ss EA -------------------------------- */
     if ((uiOpc & 0xFF00) == 0x4000)
     {
+        int nExt;
         iSz   = (uiOpc >> 6) & 3;
         iMode = (uiOpc >> 3) & 7;
         iReg  = (uiOpc     ) & 7;
-        if (iSz == 3) { disasm_dc_word(pBuf, uiBufLen, uiAddr, ptR); return; }
+        if (iSz == 3)
+        {
+            /* sz=3: MOVE.W SR,<ea> — DC.W but consume EA extension words */
+            nExt = disasm_ea_ext_cnt(iMode, iReg);
+            disasm_dc_word(pBuf, uiBufLen, uiAddr, ptR);
+            if (nExt > 0 && uiBufLen >= (size_t)((1 + nExt) * 2))
+            {
+                ptR->iWordCount = 1 + nExt;
+                disasm_fill_words(ptR, pBuf, uiBufLen);
+                disasm_fmt_line(ptR);
+            }
+            return;
+        }
         disasm_unary_ea(pBuf, uiBufLen, uiAddr, "NEGX", iSz, iMode, iReg, ptR);
         return;
     }
@@ -418,10 +449,23 @@ static void disasm_misc4(const st_u8_t *pBuf, size_t uiBufLen,
     /* --- UC12: NEG   0100 0100 ss EA -------------------------------- */
     if ((uiOpc & 0xFF00) == 0x4400)
     {
+        int nExt;
         iSz   = (uiOpc >> 6) & 3;
         iMode = (uiOpc >> 3) & 7;
         iReg  = (uiOpc     ) & 7;
-        if (iSz == 3) { disasm_dc_word(pBuf, uiBufLen, uiAddr, ptR); return; }
+        if (iSz == 3)
+        {
+            /* sz=3: MOVE.W <ea>,CCR — DC.W but consume EA extension words */
+            nExt = disasm_ea_ext_cnt(iMode, iReg);
+            disasm_dc_word(pBuf, uiBufLen, uiAddr, ptR);
+            if (nExt > 0 && uiBufLen >= (size_t)((1 + nExt) * 2))
+            {
+                ptR->iWordCount = 1 + nExt;
+                disasm_fill_words(ptR, pBuf, uiBufLen);
+                disasm_fmt_line(ptR);
+            }
+            return;
+        }
         disasm_unary_ea(pBuf, uiBufLen, uiAddr, "NEG", iSz, iMode, iReg, ptR);
         return;
     }
@@ -429,10 +473,23 @@ static void disasm_misc4(const st_u8_t *pBuf, size_t uiBufLen,
     /* --- UC12: NOT   0100 0110 ss EA -------------------------------- */
     if ((uiOpc & 0xFF00) == 0x4600)
     {
+        int nExt;
         iSz   = (uiOpc >> 6) & 3;
         iMode = (uiOpc >> 3) & 7;
         iReg  = (uiOpc     ) & 7;
-        if (iSz == 3) { disasm_dc_word(pBuf, uiBufLen, uiAddr, ptR); return; }
+        if (iSz == 3)
+        {
+            /* sz=3: MOVE.W <ea>,SR — DC.W but consume EA extension words */
+            nExt = disasm_ea_ext_cnt(iMode, iReg);
+            disasm_dc_word(pBuf, uiBufLen, uiAddr, ptR);
+            if (nExt > 0 && uiBufLen >= (size_t)((1 + nExt) * 2))
+            {
+                ptR->iWordCount = 1 + nExt;
+                disasm_fill_words(ptR, pBuf, uiBufLen);
+                disasm_fmt_line(ptR);
+            }
+            return;
+        }
         disasm_unary_ea(pBuf, uiBufLen, uiAddr, "NOT", iSz, iMode, iReg, ptR);
         return;
     }
@@ -461,10 +518,25 @@ static void disasm_misc4(const st_u8_t *pBuf, size_t uiBufLen,
     /* --- UC12: TST   0100 1010 ss EA -------------------------------- */
     if ((uiOpc & 0xFF00) == 0x4A00)
     {
+        int nExt;
         iSz   = (uiOpc >> 6) & 3;
         iMode = (uiOpc >> 3) & 7;
         iReg  = (uiOpc     ) & 7;
-        if (iSz == 3) { disasm_dc_word(pBuf, uiBufLen, uiAddr, ptR); return; }
+        if (iSz == 3)
+        {
+            /* sz=3: TAS / ILLEGAL — DC.W, consume EA ext words if any.
+             * mode 7.4 (#imm) is excluded by disasm_ea_ext_cnt so
+             * ILLEGAL ($4AFC) keeps iWordCount=1. */
+            nExt = disasm_ea_ext_cnt(iMode, iReg);
+            disasm_dc_word(pBuf, uiBufLen, uiAddr, ptR);
+            if (nExt > 0 && uiBufLen >= (size_t)((1 + nExt) * 2))
+            {
+                ptR->iWordCount = 1 + nExt;
+                disasm_fill_words(ptR, pBuf, uiBufLen);
+                disasm_fmt_line(ptR);
+            }
+            return;
+        }
         disasm_unary_ea(pBuf, uiBufLen, uiAddr, "TST", iSz, iMode, iReg, ptR);
         return;
     }
@@ -618,9 +690,73 @@ static void disasm_misc4(const st_u8_t *pBuf, size_t uiBufLen,
             disasm_fill_words(ptR, pBuf, uiBufLen);
             disasm_fmt_line(ptR);
         }
+        else if (uiOpc == 0x4E72)  /* STOP #imm — opcode + SR value = 2 words */
+        {
+            disasm_dc_word(pBuf, uiBufLen, uiAddr, ptR);
+            if (uiBufLen >= 4)
+            {
+                ptR->iWordCount = 2;
+                disasm_fill_words(ptR, pBuf, uiBufLen);
+                disasm_fmt_line(ptR);
+            }
+        }
         else
         {
             disasm_dc_word(pBuf, uiBufLen, uiAddr, ptR);
+        }
+        return;
+    }
+
+    /* MOVEM: 0100 1000/1100 1s EA — opcode + register-mask + optional EA-ext.
+     * EXT.W ($4880-$4887) and EXT.L ($48C0-$48C7) are caught above.
+     * Any remaining $48xx/$4Cxx with bit 7 set are MOVEM.
+     */
+    if ((uiOpc & 0xFF80) == 0x4880 || (uiOpc & 0xFF80) == 0x4C80)
+    {
+        int iMvmMode = (uiOpc >> 3) & 7;
+        int iMvmReg  = uiOpc & 7;
+        int nWords   = 2; /* opcode + register-mask */
+        if      (iMvmMode == 5) nWords = 3;                    /* d16(An) */
+        else if (iMvmMode == 6) nWords = 3;                    /* d8(An,Xn) */
+        else if (iMvmMode == 7 && iMvmReg == 0) nWords = 3;   /* abs.W */
+        else if (iMvmMode == 7 && iMvmReg == 1) nWords = 4;   /* abs.L */
+        while (nWords > 1 && (size_t)(nWords * 2) > uiBufLen) nWords--;
+        disasm_dc_word(pBuf, uiBufLen, uiAddr, ptR);
+        ptR->iWordCount = nWords;
+        disasm_fill_words(ptR, pBuf, uiBufLen);
+        disasm_fmt_line(ptR);
+        return;
+    }
+    /* NBCD: 0100 1000 00 EA — 1 opcode word + EA extension words */
+    if ((uiOpc & 0xFFC0) == 0x4800)
+    {
+        int nExt;
+        iMode = (uiOpc >> 3) & 7;
+        iReg  = uiOpc & 7;
+        nExt  = disasm_ea_ext_cnt(iMode, iReg);
+        disasm_dc_word(pBuf, uiBufLen, uiAddr, ptR);
+        if (nExt > 0 && uiBufLen >= (size_t)((1 + nExt) * 2))
+        {
+            ptR->iWordCount = 1 + nExt;
+            disasm_fill_words(ptR, pBuf, uiBufLen);
+            disasm_fmt_line(ptR);
+        }
+        return;
+    }
+
+    /* CHK.W: 0100 DDD 1 10 EA — bit8=1, bits7-6=10 */
+    if ((uiOpc & 0xF1C0) == 0x4180)
+    {
+        int nExt;
+        iMode = (uiOpc >> 3) & 7;
+        iReg  = uiOpc & 7;
+        nExt  = disasm_ea_ext_cnt(iMode, iReg);
+        disasm_dc_word(pBuf, uiBufLen, uiAddr, ptR);
+        if (nExt > 0 && uiBufLen >= (size_t)((1 + nExt) * 2))
+        {
+            ptR->iWordCount = 1 + nExt;
+            disasm_fill_words(ptR, pBuf, uiBufLen);
+            disasm_fmt_line(ptR);
         }
         return;
     }
@@ -649,8 +785,9 @@ static void disasm_exg(const st_u8_t *pBuf,
         snprintf(ptR->szOperands, sizeof(ptR->szOperands),
                  "%s,%s", g_aszDn[iRx], g_aszDn[iRy]);
     else if ((uiOpc & 0xF1F8) == 0xC148)
+        /* DEVPAC3 convention: first An operand is in iRy (bits 2-0) */
         snprintf(ptR->szOperands, sizeof(ptR->szOperands),
-                 "%s,%s", g_aszAn[iRx], g_aszAn[iRy]);
+                 "%s,%s", g_aszAn[iRy], g_aszAn[iRx]);
     else
         snprintf(ptR->szOperands, sizeof(ptR->szOperands),
                  "%s,%s", g_aszDn[iRx], g_aszAn[iRy]);
@@ -1020,8 +1157,18 @@ static void disasm_bit_dynamic(const st_u8_t *pBuf, size_t uiBufLen,
     char     szEA[40];
     int      n;
 
-    /* An mode not valid for bit ops (would be MOVEP) */
-    if (iMode == 1) { disasm_dc_word(pBuf, uiBufLen, uiAddr, ptR); return; }
+    /* An mode → MOVEP (opcode + d16 displacement = 2 words) */
+    if (iMode == 1)
+    {
+        disasm_dc_word(pBuf, uiBufLen, uiAddr, ptR);
+        if (uiBufLen >= 4)
+        {
+            ptR->iWordCount = 2;
+            disasm_fill_words(ptR, pBuf, uiBufLen);
+            disasm_fmt_line(ptR);
+        }
+        return;
+    }
 
     n = disasm_fmt_ea(pBuf + 2, uiBufLen - 2, uiAddr, 0,
                        iMode, iReg, 1, szEA, sizeof(szEA));
@@ -1114,14 +1261,16 @@ static void disasm_groupE(const st_u8_t *pBuf, size_t uiBufLen,
 
     if (iIR)
     {
-        if (iCount == 0) iCount = 8;
+        /* Register mode (i=1): count is in D{iCount} */
         snprintf(ptR->szOperands, sizeof(ptR->szOperands),
-                 "#%d,%s", iCount, g_aszDn[iDn]);
+                 "%s,%s", g_aszDn[iCount], g_aszDn[iDn]);
     }
     else
     {
+        /* Immediate mode (i=0): 3-bit count, 0 encodes as 8 */
+        if (iCount == 0) iCount = 8;
         snprintf(ptR->szOperands, sizeof(ptR->szOperands),
-                 "%s,%s", g_aszDn[iCount], g_aszDn[iDn]);
+                 "#%d,%s", iCount, g_aszDn[iDn]);
     }
     disasm_fmt_line(ptR);
 }
@@ -1167,8 +1316,14 @@ static void disasm_group5(const st_u8_t *pBuf, size_t uiBufLen,
 
     if (iSz == 3)
     {
-        /* Scc / DBcc — not in UC12 scope */
+        /* Scc / DBcc — DC.W; DBcc (mode=001) uses 2 words (opcode + d16) */
         disasm_dc_word(pBuf, uiBufLen, uiAddr, ptR);
+        if (((uiOpc >> 3) & 7) == 1 && uiBufLen >= 4)
+        {
+            ptR->iWordCount = 2;
+            disasm_fill_words(ptR, pBuf, uiBufLen);
+            disasm_fmt_line(ptR);
+        }
     }
     else
     {

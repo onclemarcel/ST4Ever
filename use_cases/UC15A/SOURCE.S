@@ -86,27 +86,27 @@ MOVEB_ST:
         move.b $80000000.l,d6
         move.b $FFFFFFFE.l,d7
         move.b $CAFEBABE.l,d0
-		move.b *-0(pc),d1
+	move.b *-0(pc),d1
 MOVEB_0:move.b MOVEB_0(pc),d0
-		move.b *+0(pc),d2
-		move.b *+2(pc),d3
-		move.b *-2(pc),d4		
-		move.b *+32768(pc),d5
-		move.b *-32766(pc),d6
-		move.b *-0(pc,d0.l),d7
-		move.b *+0(pc,a1.w),d0
+	move.b *+0(pc),d2
+	move.b *+2(pc),d3
+	move.b *-2(pc),d4		
+	move.b *+32768(pc),d5
+	move.b *-32766(pc),d6
+	move.b *-0(pc,d0.l),d7
+	move.b *+0(pc,a1.w),d0
         move.b *+2(pc,d2.l),d1
         move.b *-2(pc,d3.w),d2
-		move.b *+128(pc,d3.l),d3
-		move.b *-126(pc,a4.w),d4
-		move.b MOVEB_ST(pc,a5.l),d5
+	move.b *+128(pc,d3.l),d3
+	move.b *-126(pc,a4.w),d4
+	move.b MOVEB_ST(pc,a5.l),d5
         move.b MOVEB_END(pc,d6.w),d6
-		move.b #0,d3
+	move.b #0,d3
         move.b #1,d4
         move.b #$7F,d5
         move.b #$80,d6
         move.b #$FF,d7
-		move.b #$FFFFFFFF,d1
+	move.b #$FFFFFFFF,d1
 MOVEB_END:
 
 
@@ -128,27 +128,27 @@ MOVEW_ST:
         move.w $80000000.l,d6
         move.w $FFFFFFFE.l,d7
         move.w $DEADBEEE.l,d0
-		move.w *-0(pc),d1
+	move.w *-0(pc),d1
 MOVEW_0: move.w MOVEW_0(pc),d0
-		move.w *+0(pc),d2
-		move.w *+2(pc),d3
-		move.w *-2(pc),d4		
-		move.w *+32768(pc),d5
-		move.w *-32766(pc),d6
-		move.w *-0(pc,d0.l),d7
-		move.w *+0(pc,d1.w),d0
+	move.w *+0(pc),d2
+	move.w *+2(pc),d3
+	move.w *-2(pc),d4		
+	move.w *+32768(pc),d5
+	move.w *-32766(pc),d6
+	move.w *-0(pc,d0.l),d7
+	move.w *+0(pc,d1.w),d0
         move.w *+2(pc,d2.l),d1
         move.w *-2(pc,d3.w),d2
-		move.w *+128(pc,d3.l),d3
-		move.w *-126(pc,d4.w),d4
-		move.w MOVEW_ST(pc,d5.l),d5
+	move.w *+128(pc,d3.l),d3
+	move.w *-126(pc,d4.w),d4
+	move.w MOVEW_ST(pc,d5.l),d5
         move.w MOVEW_END(pc,a6.w),d6
-		move.w #0,d3
+	move.w #0,d3
         move.w #1,d4
         move.w #$FFFF,d5
         move.w #$8000,d6
         move.w #$7FFF,d7
-		move.w #$FFFFFFFF,d1
+	move.w #$FFFFFFFF,d1
 MOVEW_END:
 
 
@@ -170,28 +170,28 @@ MOVEL_ST:
         move.l $80000000.l,d6
         move.l $FFFFFFFE.l,d7
         move.l $2468ACE0.l,d0
-		add.l *-0(pc),d1
-MOVEL_0: add.l MOVEL_0(pc),d0
-		add.l *+0(pc),d2
-		add.l *+2(pc),d3
-		add.l *-2(pc),d4		
-		add.l *+32768(pc),d5
-		add.l *-32766(pc),d6
-		add.l *-0(pc,a0.l),d7
-		add.l *+0(pc,d1.w),d0
-        add.l *+2(pc,a2.w),d1
-        add.l *-2(pc,d3.l),d2
-		add.l *+128(pc,d3.l),d3
-		add.l *-126(pc,d4.w),d4
-		add.l MOVEL_ST(pc,a5.l),d5
-        add.l MOVEL_END(pc,d6.w),d6
-		add.l #0,d3
-        add.l #1,d4
-        add.l #$FFFF,d5
-        add.l #$8000,d6
-        add.l #$7FFF,d7
-		add.l #$12345678,d0
-		add.l #$FFFFFFFF,d1
+	move.l *-0(pc),d1
+MOVEL_0: move.l MOVEL_0(pc),d0
+	move.l *+0(pc),d2
+	move.l *+2(pc),d3
+	move.l *-2(pc),d4		
+	move.l *+32768(pc),d5
+	move.l *-32766(pc),d6
+	move.l *-0(pc,a0.l),d7
+	move.l *+0(pc,d1.w),d0
+        move.l *+2(pc,a2.w),d1
+        move.l *-2(pc,d3.l),d2
+	move.l *+128(pc,d3.l),d3
+	move.l *-126(pc,d4.w),d4
+	move.l MOVEL_ST(pc,a5.l),d5
+        move.l MOVEL_END(pc,d6.w),d6
+	move.l #0,d3
+        move.l #1,d4
+        move.l #$FFFF,d5
+        move.l #$8000,d6
+        move.l #$7FFF,d7
+	move.l #$12345678,d0
+	move.l #$FFFFFFFF,d1
 MOVEL_END:
 
 
@@ -242,45 +242,63 @@ MOVEL_END:
         move.b -(a4),16(a5,d6.w)
         move.b $0000.w,(a6)
         move.b $1234.w,$00000000.l
-		move.w $000FFFFE.l,$1234.w
-MOVEBEA_0:		move.b MOVEBEA_0(pc),d4		
-		move.b *-2(pc),d4		
-		move.b *+32768(pc),d5
-		move.b *-32766(pc),(a6)+
-		move.b *+0(pc,d1.w),(a0)
+	move.w $000FFFFE.l,$1234.w
+MOVEBEA_0: move.b MOVEBEA_0(pc),d4		
+	move.b *-2(pc),d4		
+	move.b *+32768(pc),d5
+	move.b *-32766(pc),(a6)+
+	move.b *+0(pc,d1.w),(a0)
         move.b *+2(pc,d2.l),32766(a1)
         move.b *+126(pc,d2.l),126(a1,a2.w)
         move.b *-2(pc,d3.w),-(a7)
+	move.b #0,d3
+        move.b #1,(a4)
+        move.b #$FF,(a5)+
+        move.b #$80,-(a6)
+        move.b #$7F,32767(a7)
+	move.b #$02,-128(a0,a1.w)
 
         move.w (a0),(a1)
         move.w (a2)+,8(a3)
         move.w -(a4),16(a5,d6.w)
         move.w $0000.w,(a6)
         move.w $7FFE.w,$FFFFFFFE.l
-		move.w $7FFFFFFE.l,$7FFE.w
-MOVEWEA_0:		move.b MOVEWEA_0(pc),d4		
-		move.w *-2(pc),d4		
-		move.w *+32768(pc),d5
-		move.w *-32766(pc),(a6)+
-		move.w *+0(pc,d1.w),(a0)
+	move.w $7FFFFFFE.l,$7FFE.w
+MOVEWEA_0:  move.b MOVEWEA_0(pc),d4		
+	move.w *-2(pc),d4		
+	move.w *+32768(pc),d5
+	move.w *-32766(pc),(a6)+
+	move.w *+0(pc,d1.w),(a0)
         move.w *+2(pc,d2.l),32766(a1)
         move.w *+126(pc,d2.l),126(a1,a4.l)
         move.w *-2(pc,d3.w),-(a7)
+	move.w #0,d3
+        move.w #1,(a4)
+        move.w #$FFFF,(a5)+
+        move.w #$8000,-(a6)
+        move.w #$7FFF,32767(a7)
+	move.w #$FFFFFFFF,-128(a0,a1.w)
 
         move.l (a0),(a1)
         move.l (a2)+,8(a3)
         move.l -(a4),16(a5,d6.w)
         move.l $0000.w,(a6)
         move.l $0ABC.w,$7FFFFFFE.l
-		move.l $00000002.l,$0ABC.w
-MOVELEA_0:		move.b MOVELEA_0(pc),d4
-		move.l *-2(pc),d4		
-		move.l *+32768(pc),d5
-		move.l *-32766(pc),(a6)+
-		move.l *+0(pc,d1.w),(a0)
+	move.l $00000002.l,$0ABC.w
+MOVELEA_0: move.b MOVELEA_0(pc),d4
+	move.l *-2(pc),d4		
+	move.l *+32768(pc),d5
+	move.l *-32766(pc),(a6)+
+	move.l *+0(pc,d1.w),(a0)
         move.l *+2(pc,d2.l),32766(a1)
         move.l *+126(pc,d2.l),126(a1,d2.l)
         move.l *-2(pc,d3.w),-(a7)
+	move.l #0,d3
+        move.l #1,(a4)
+        move.l #$FFFFFFFF,(a5)+
+        move.l #-16384,-(a6)
+        move.l #$12345678,32767(a7)
+	move.l #$7FFFFFFFF,-128(a0,a1.w)
 
 
 ; ======================================================================
@@ -301,27 +319,27 @@ MOVEAW_ST:
         movea.w $80000000.l,a5
         movea.w $FFFFFFFE.l,a6
         movea.w $CAFEBABE.l,a7
-		movea.w *-0(pc),a1
+	movea.w *-0(pc),a1
 MOVEAW_0: movea.w MOVEAW_0(pc),a0
-		movea.w *+0(pc),a2
-		movea.w *+2(pc),a3
-		movea.w *-2(pc),a4		
-		movea.w *+32768(pc),a5
-		movea.w *-32766(pc),a6
-		movea.w *-0(pc,d0.l),a7
-		movea.w *+0(pc,d1.w),a0
+	movea.w *+0(pc),a2
+	movea.w *+2(pc),a3
+	movea.w *-2(pc),a4		
+	movea.w *+32768(pc),a5
+	movea.w *-32766(pc),a6
+	movea.w *-0(pc,d0.l),a7
+	movea.w *+0(pc,d1.w),a0
         movea.w *+2(pc,d2.l),a1
         movea.w *-2(pc,d3.w),a2
-		movea.w *+128(pc,d3.l),a3
-		movea.w *-126(pc,d4.w),a4
-		movea.w MOVEAW_ST(pc,d5.l),a5
+	movea.w *+128(pc,d3.l),a3
+	movea.w *-126(pc,d4.w),a4
+	movea.w MOVEAW_ST(pc,d5.l),a5
         movea.w MOVEAW_END(pc,d6.w),a6
-		movea.w #0,a3
+	movea.w #0,a3
         movea.w #1,a4
         movea.w #$FFFF,a5
         movea.w #$8000,a6
         movea.w #$7FFF,a7
-		movea.w #$FFFFFFFF,a1
+	movea.w #$FFFFFFFF,a1
 MOVEAW_END:
 
 MOVEAL_ST:
@@ -339,28 +357,28 @@ MOVEAL_ST:
         movea.l $80000000.l,a5
         movea.l $FFFFFFFE.l,a6
         movea.l $DEADBEEE.l,a7
-		movea.l *-0(pc),a1
+	movea.l *-0(pc),a1
 MOVEAL_0: movea.l MOVEAL_0(pc),a0
-		movea.l *+0(pc),a2
-		movea.l *+2(pc),a3
-		movea.l *-2(pc),a4		
-		movea.l *+32768(pc),a5
-		movea.l *-32766(pc),a6
-		movea.l *-0(pc,d0.l),a7
-		movea.l *+0(pc,d1.w),a0
+	movea.l *+0(pc),a2
+	movea.l *+2(pc),a3
+	movea.l *-2(pc),a4		
+	movea.l *+32768(pc),a5
+	movea.l *-32766(pc),a6
+	movea.l *-0(pc,d0.l),a7
+	movea.l *+0(pc,d1.w),a0
         movea.l *+2(pc,d2.l),a1
         movea.l *-2(pc,d3.w),a2
-		movea.l *+128(pc,d3.l),a3
-		movea.l *-126(pc,d4.w),a4
-		movea.l MOVEAL_ST(pc,d5.l),a5
+	movea.l *+128(pc,d3.l),a3
+	movea.l *-126(pc,d4.w),a4
+	movea.l MOVEAL_ST(pc,d5.l),a5
         movea.l MOVEAL_END(pc,d6.w),a6
-		movea.l #0,a3
+	movea.l #0,a3
         movea.l #1,a4
         movea.l #$FFFF,a5
         movea.l #$8000,a6
         movea.l #$7FFF,a7
-		movea.l #$12345678,a0
-		movea.l #$FFFFFFFF,a1
+	movea.l #$12345678,a0
+	movea.l #$FFFFFFFF,a1
 MOVEAL_END:
 
 ; ----------------------------------------------------------------------
@@ -1436,12 +1454,12 @@ CMPB_0: cmp.b CMPB_0(pc),d0
 		cmp.b *-126(pc,d4.w),d4
 		cmp.b CMPB_ST(pc,d5.l),d5
         cmp.b CMPB_END(pc,d6.w),d6
-		cmp.b #0,d3
+	cmp.b #0,d3
         cmp.b #1,d4
         cmp.b #$7F,d5
         cmp.b #$80,d6
         cmp.b #$FF,d7
-		cmp.b #$FFFFFFFF,d1
+	cmp.b #$FFFFFFFF,d1
 CMPB_END:
 
 
@@ -1699,7 +1717,8 @@ CMPAL_END:
 ; Notes:
 ; - Sizes: .b, .w, .l where allowed.
 ; - Addressing modes follow Motorola 68000 rules:
-; * Register <-> memory forms for AND/OR/EOR.
+; * Register <-> memory forms for AND/OR
+; * Register -> memory forms for EOR
 ; * NOT and TST operate on <ea> (no An, no PC-relative, no immediate).
 ; - Immediate logical ops to CCR/SR are handled in a separate SR/CCR section.
 
@@ -1786,6 +1805,32 @@ AND_SECTION:
         and.w d4,$80000000.l
         and.w d5,$FFFFFFFE.l
         and.w d6,$12345678.l
+
+
+        ; ================================================================
+        ; AND with PC-relative source <ea> -> Dn
+        ; ================================================================
+
+AND_PC_REL:
+        and.b *-0(pc),d0
+        and.b AND_PC_REL(pc),d1
+        and.b *+2(pc),d2
+        and.b *-2(pc),d3
+        and.b *-0(pc,d0.l),d4
+        and.b *+2(pc,d1.w),d5
+        and.b *-2(pc,d2.l),d6
+
+        and.w *-0(pc),d0
+        and.w *+2(pc),d1
+        and.w AND_PC_REL(pc),d2
+        and.w *-0(pc,d3.w),d3
+        and.w *+2(pc,d4.l),d4
+
+        and.l *-0(pc),d5
+        and.l *+2(pc),d6
+        and.l AND_PC_REL(pc),d7
+        and.l *-0(pc,d0.w),d0
+        and.l *+2(pc,d1.l),d1
 
 
 OR_SECTION:
@@ -1877,6 +1922,32 @@ OR_SECTION:
         or.w d6,$12345678.l
 
 
+        ; ================================================================
+        ; OR with PC-relative source <ea> -> Dn
+        ; ================================================================
+
+OR_PC_REL:
+        or.b *-0(pc),d0
+        or.b OR_PC_REL(pc),d1
+        or.b *+2(pc),d2
+        or.b *-2(pc),d3
+        or.b *-0(pc,d0.l),d4
+        or.b *+2(pc,d1.w),d5
+        or.b *-2(pc,d2.l),d6
+
+        or.w *-0(pc),d0
+        or.w *+2(pc),d1
+        or.w OR_PC_REL(pc),d2
+        or.w *-0(pc,d3.w),d3
+        or.w *+2(pc,d4.l),d4
+
+        or.l *-0(pc),d5
+        or.l *+2(pc),d6
+        or.l OR_PC_REL(pc),d7
+        or.l *-0(pc,d0.w),d0
+        or.l *+2(pc,d1.l),d1
+
+
 EOR_SECTION:
 
         ; ------------------------------------------------------------------
@@ -1887,7 +1958,6 @@ EOR_SECTION:
         ; EOR with destination in memory (Dn -> <ea>)
         ; ================================================================
 
-        eor.b d0,d1
         eor.b d2,d3
         eor.b d0,(a0)
         eor.b d1,(a1)+
@@ -1903,8 +1973,7 @@ EOR_SECTION:
         eor.b d5,$FFFFFFFE.l
         eor.b d6,$12345678.l
 
-        eor.w d0,d1
-        eor.w d2,d3
+        eor.w d4,d5
         eor.w d0,(a0)
         eor.w d1,(a1)+
         eor.w d2,-(a2)
@@ -1919,8 +1988,7 @@ EOR_SECTION:
         eor.w d5,$FFFFFFFE.l
         eor.w d6,$12345678.l
 
-        eor.l d0,d1
-        eor.l d2,d3
+        eor.l d0,d7
         eor.l d0,(a0)
         eor.l d1,(a1)+
         eor.l d2,-(a2)
@@ -2067,10 +2135,10 @@ TST_SECTION:
 
         eori.b #$00,d0
         eori.b #$FF,(a0)
-		eori.b #$12,CCR
+	eori.b #$12,CCR
         eori.w #$0000,d1
         eori.w #$FFFF,$0000.w
-		eori.w #$1234,SR
+	eori.w #$1234,SR
         eori.l #$00000000,d2
         eori.l #$FFFFFFFF,$00000000.l
 
@@ -2650,7 +2718,7 @@ SHIFT_ROTATE_SECTION:
 
 
 ; ======================================================================
-; MEMORY SHIFTS (ONLY ASL/ASR/LSL/LSR, ONLY .w)
+; MEMORY SHIFTS/ROTATES (.w only: ASL/ASR/LSL/LSR/ROL/ROR/ROXL/ROXR)
 ; ======================================================================
 ; Allowed <ea>:
 ;   (An), (An)+, -(An), (d16,An), (d8,An,Xn),
@@ -2716,6 +2784,66 @@ SHIFT_ROTATE_SECTION:
         lsr.w   $FFFFFFFE.l
         lsr.w   $CAFEBABE.l
 
+        ; --- ROL.w <ea> ---
+        rol.w   (a0)
+        rol.w   (a1)+
+        rol.w   -(a2)
+        rol.w   8(a3)
+        rol.w   16(a4,d5.w)
+        rol.w   $0000.w
+        rol.w   $7FFE.w
+        rol.w   $1234.w
+        rol.w   $00000000.l
+        rol.w   $7FFFFFFE.l
+        rol.w   $80000000.l
+        rol.w   $FFFFFFFE.l
+        rol.w   $CAFEBABE.l
+
+        ; --- ROR.w <ea> ---
+        ror.w   (a0)
+        ror.w   (a1)+
+        ror.w   -(a2)
+        ror.w   8(a3)
+        ror.w   16(a4,d5.w)
+        ror.w   $0000.w
+        ror.w   $7FFE.w
+        ror.w   $5678.w
+        ror.w   $00000000.l
+        ror.w   $7FFFFFFE.l
+        ror.w   $80000000.l
+        ror.w   $FFFFFFFE.l
+        ror.w   $13572468.l
+
+        ; --- ROXL.w <ea> ---
+        roxl.w  (a0)
+        roxl.w  (a1)+
+        roxl.w  -(a2)
+        roxl.w  8(a3)
+        roxl.w  16(a4,d5.w)
+        roxl.w  $0000.w
+        roxl.w  $7FFE.w
+        roxl.w  $0ABC.w
+        roxl.w  $00000000.l
+        roxl.w  $7FFFFFFE.l
+        roxl.w  $80000000.l
+        roxl.w  $FFFFFFFE.l
+        roxl.w  $DEADBEEE.l
+
+        ; --- ROXR.w <ea> ---
+        roxr.w  (a0)
+        roxr.w  (a1)+
+        roxr.w  -(a2)
+        roxr.w  8(a3)
+        roxr.w  16(a4,d5.w)
+        roxr.w  $0000.w
+        roxr.w  $7FFE.w
+        roxr.w  $0ABC.w
+        roxr.w  $00000000.l
+        roxr.w  $7FFFFFFE.l
+        roxr.w  $80000000.l
+        roxr.w  $FFFFFFFE.l
+        roxr.w  $CAFEBABE.l
+
 
 ; ======================================================================
 ; Branches / DBcc / Scc
@@ -2768,12 +2896,15 @@ LABEL_BGT:
 LABEL_BLE:
         nop
 
+        dbt  d7,LABEL_DBT  ; condition T (0000) = always true = never loops
         dbra d0,LABEL_DBRA
         dbf d1,LABEL_DBF
         dbhi d2,LABEL_DBHI
         dbeq d3,LABEL_DBEQ
         dbne d4,LABEL_DBNE
 
+LABEL_DBT:
+        nop
 LABEL_DBRA:
         nop
 LABEL_DBF:
@@ -3557,6 +3688,38 @@ NBCD_SBCD_SECTION:
         sbcd -(a7),-(a0) ; wrap-around pairing
 
 ; ----------------------------------------------------------------------
+; ABCD - Add Decimal with Extend
+; ----------------------------------------------------------------------
+; Notes:
+; - ABCD.b Dx,Dy        : register-to-register form
+; - ABCD.b -(Ax),-(Ay)  : memory predecrement form
+; - Size: .b only (implicit, no suffix needed)
+; - Uses the X flag (not relevant here — no execution)
+
+ABCD_SECTION:
+
+; ======================================================================
+; ABCD.b Dx,Dy (register-to-register)
+; ======================================================================
+
+        abcd d0,d1
+        abcd d2,d3
+        abcd d4,d5
+        abcd d6,d7
+        abcd d7,d0 ; wrap-around pairing
+
+
+; ======================================================================
+; ABCD.b -(Ax),-(Ay) (memory predecrement)
+; ======================================================================
+
+        abcd -(a0),-(a1)
+        abcd -(a2),-(a3)
+        abcd -(a4),-(a5)
+        abcd -(a6),-(a7)
+        abcd -(a7),-(a0) ; wrap-around pairing
+
+; ----------------------------------------------------------------------
 ; EXT / SWAP - Sign extension and word/longword swap
 ; ----------------------------------------------------------------------
 ; Notes:
@@ -3851,6 +4014,12 @@ SYSTEM_SECTION:
         rts
         rts
 
+; ======================================================================
+; RTR - Return and Restore Conditions Codes
+; ======================================================================
+
+        rtr
+        rtr
 
 ; ======================================================================
 ; TRAP #<vector> (0–15)

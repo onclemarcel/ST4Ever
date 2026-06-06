@@ -6,7 +6,7 @@ make.exe all --print-data-base --no-builtin-variables --no-builtin-rules --quest
 # This is free software: you are free to change and redistribute it.
 # There is NO WARRANTY, to the extent permitted by law.
 
-# Make data base, printed on Fri Jun 05 18:02:27 2026
+# Make data base, printed on Fri Jun 05 18:17:13 2026
 
 # Variables
 
@@ -43,7 +43,7 @@ OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT = true
 # automatic
 @D = $(patsubst %/,%,$(patsubst %\,%,$(dir $@)))
 # environment
-CHROME_CRASHPAD_PIPE_NAME = \\.\pipe\crashpad_12232_UIWBUKCYZNRYIADI
+CHROME_CRASHPAD_PIPE_NAME = \\.\pipe\crashpad_18568_FUYCECDGAAVVAEST
 # environment
 COPILOT_OTEL_EXPORTER_TYPE = file
 # environment
@@ -101,7 +101,7 @@ MAKEFILE_LIST := Makefile
 # automatic
 @F = $(notdir $@)
 # environment
-VSCODE_PID = 12232
+VSCODE_PID = 18568
 # automatic
 ?D = $(patsubst %/,%,$(patsubst %\,%,$(dir $?)))
 # automatic
@@ -1129,6 +1129,6 @@ manual/use_case_10.exe:
 ps = 333 / hit rate = 34%
 # hash-table stats:
 # Load=217/8192=3%, Rehash=0, Collisions=1/333=0%
-# Finished Make data base on Fri Jun 05 18:02:27 2026
+# Finished Make data base on Fri Jun 05 18:17:13 2026
 
  

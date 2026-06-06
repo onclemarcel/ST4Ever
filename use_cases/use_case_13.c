@@ -103,37 +103,45 @@ int main(void)
      * and "#count,Dn" operands. count=0 in field means 8. */
 
     /* ASL.W #2,D3: 1110 010 1 01 1 00 011 = 0xE563 */
-    UC13_1W("ASL.W #2,D3", 0xE5, 0x63, "ASL.W", "#2,D3");
+    /* ADAPTED:UC15A — bit5=1 (iIR=1) means register-count mode: D{count},Dn */
+    UC13_1W("ASL.W D2,D3", 0xE5, 0x63, "ASL.W", "D2,D3");
 
     /* ASR.W #3,D0: 1110 011 0 01 1 00 000 = 0xE660 */
-    UC13_1W("ASR.W #3,D0", 0xE6, 0x60, "ASR.W", "#3,D0");
+    /* ADAPTED:UC15A — bit5=1 → register mode: D3,D0 */
+    UC13_1W("ASR.W D3,D0", 0xE6, 0x60, "ASR.W", "D3,D0");
 
     /* INTENT[INT-DIS-043 → TC-DIS-208..211 → REQ-DIS-024]:
      * LSL/LSR correct across sizes. */
 
     /* LSL.B #1,D1: 1110 001 1 00 1 01 001 = 0xE329 */
-    UC13_1W("LSL.B #1,D1", 0xE3, 0x29, "LSL.B", "#1,D1");
+    /* ADAPTED:UC15A — bit5=1 → register mode: D1,D1 */
+    UC13_1W("LSL.B D1,D1", 0xE3, 0x29, "LSL.B", "D1,D1");
 
     /* LSR.L #4,D2: 1110 100 0 10 1 01 010 = 0xE8AA */
-    UC13_1W("LSR.L #4,D2", 0xE8, 0xAA, "LSR.L", "#4,D2");
+    /* ADAPTED:UC15A — bit5=1 → register mode: D4,D2 */
+    UC13_1W("LSR.L D4,D2", 0xE8, 0xAA, "LSR.L", "D4,D2");
 
     /* INTENT[INT-DIS-044 → TC-DIS-212..215 → REQ-DIS-024]:
      * ROXL/ROXR correct. */
 
     /* ROXL.W #1,D5: 1110 001 1 01 1 10 101 = 0xE375 */
-    UC13_1W("ROXL.W #1,D5", 0xE3, 0x75, "ROXL.W", "#1,D5");
+    /* ADAPTED:UC15A — bit5=1 → register mode: D1,D5 */
+    UC13_1W("ROXL.W D1,D5", 0xE3, 0x75, "ROXL.W", "D1,D5");
 
     /* ROXR.B #2,D4: 1110 010 0 00 1 10 100 = 0xE434 */
-    UC13_1W("ROXR.B #2,D4", 0xE4, 0x34, "ROXR.B", "#2,D4");
+    /* ADAPTED:UC15A — bit5=1 → register mode: D2,D4 */
+    UC13_1W("ROXR.B D2,D4", 0xE4, 0x34, "ROXR.B", "D2,D4");
 
     /* INTENT[INT-DIS-045 → TC-DIS-216..219 → REQ-DIS-024]:
      * ROL/ROR correct; count=0 in field → displayed as #8. */
 
     /* ROL.L #8,D7: count=000(=8), 1110 000 1 10 1 11 111 = 0xE1BF */
-    UC13_1W("ROL.L #8,D7", 0xE1, 0xBF, "ROL.L", "#8,D7");
+    /* ADAPTED:UC15A — bit5=1 → register mode: count=0 → D0, so D0,D7 */
+    UC13_1W("ROL.L D0,D7", 0xE1, 0xBF, "ROL.L", "D0,D7");
 
     /* ROR.W #1,D0: 1110 001 0 01 1 11 000 = 0xE278 */
-    UC13_1W("ROR.W #1,D0", 0xE2, 0x78, "ROR.W", "#1,D0");
+    /* ADAPTED:UC15A — bit5=1 → register mode: D1,D0 */
+    UC13_1W("ROR.W D1,D0", 0xE2, 0x78, "ROR.W", "D1,D0");
 
     /* ------------------------------------------------------------------ */
     /* Register shifts — register count                                    */
@@ -145,13 +153,16 @@ int main(void)
      * Register-count form uses "Dn,Dn" operands. */
 
     /* ASL.W D3,D0: 1110 011 1 01 0 00 000 = 0xE740 */
-    UC13_1W("ASL.W D3,D0", 0xE7, 0x40, "ASL.W", "D3,D0");
+    /* ADAPTED:UC15A — bit5=0 → immediate mode: count=3 → #3,D0 */
+    UC13_1W("ASL.W #3,D0", 0xE7, 0x40, "ASL.W", "#3,D0");
 
     /* LSR.B D2,D1: 1110 010 0 00 0 01 001 = 0xE409 */
-    UC13_1W("LSR.B D2,D1", 0xE4, 0x09, "LSR.B", "D2,D1");
+    /* ADAPTED:UC15A — bit5=0 → immediate mode: count=2 → #2,D1 */
+    UC13_1W("LSR.B #2,D1", 0xE4, 0x09, "LSR.B", "#2,D1");
 
     /* ROR.L D0,D5: 1110 000 0 10 0 11 101 = 0xE09D */
-    UC13_1W("ROR.L D0,D5", 0xE0, 0x9D, "ROR.L", "D0,D5");
+    /* ADAPTED:UC15A — bit5=0 → immediate mode: count=0 → #8,D5 */
+    UC13_1W("ROR.L #8,D5", 0xE0, 0x9D, "ROR.L", "#8,D5");
 
     /* ------------------------------------------------------------------ */
     /* Memory shifts — word only, count=1                                  */

@@ -13,7 +13,6 @@ gcc -Wall -Wextra -pedantic -std=gnu99 -g -D_GNU_SOURCE -I./src -MMD -MP -c src/
 gcc -Wall -Wextra -pedantic -std=gnu99 -g -D_GNU_SOURCE -I./src -MMD -MP -c src/edit_txt.c -o build/s_edit_txt.o
 gcc -Wall -Wextra -pedantic -std=gnu99 -g -D_GNU_SOURCE -I./src -MMD -MP -c src/exec.c -o build/s_exec.o
 gcc -Wall -Wextra -pedantic -std=gnu99 -g -D_GNU_SOURCE -I./src -MMD -MP -c src/exec_asm.c -o build/s_exec_asm.o
- 
 gcc -Wall -Wextra -pedantic -std=gnu99 -g -D_GNU_SOURCE -I./src -MMD -MP -c src/exec_cpu.c -o build/s_exec_cpu.o
 gcc -Wall -Wextra -pedantic -std=gnu99 -g -D_GNU_SOURCE -I./src -MMD -MP -c src/exec_mem.c -o build/s_exec_mem.o
 gcc -Wall -Wextra -pedantic -std=gnu99 -g -D_GNU_SOURCE -I./src -MMD -MP -c src/exec_mon.c -o build/s_exec_mon.o
