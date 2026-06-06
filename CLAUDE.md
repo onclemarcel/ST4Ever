@@ -2202,12 +2202,6 @@ Référence complète des différences syntaxiques : **`DISASM_SYNTAX.md`** à l
 
 ---
 
-### Arbitrage UC18.1 (2026-06-06)
-
-*UC18.1 implémente la vue D2D mount + commandes mount/umount. Propositions ouvertes de §7 déjà planifiées en UC18.2 (P10, P14). Aucune nouvelle proposition UX/fonctionnelle n'a émergé — UC18.1 est clos.*
-
----
-
 ## 7. Propositions d'améliorations
 
 *Claude et Tonton Marcel déposent ici leurs propositions UX/fonctionnelles au fil des UCs. Avant de clore un UC, les propositions sont passées en revue ensemble : celles agréées sont planifiées dans le tableau section 6 et retirées d'ici. **Un UC est clos quand §7 ne contient plus de propositions non arbitrées pour cet UC.***
@@ -2453,6 +2447,49 @@ Avis Claude : **ACCEPTÉ — UC10-bis ou intégré dans une UC ultérieure**. Co
 ### Arbitrage UC14 (2026-06-03)
 
 *UC14 est un UC purement interne (contrôle de flux 68000). Aucune proposition UX/fonctionnelle n'a émergé — UC14 est clos.*
+
+
+---
+
+### Arbitrage UC18.1 (2026-06-06)
+
+*UC18.1 implémente la vue D2D mount + commandes mount/umount. Propositions ouvertes de §7 déjà planifiées en UC18.2 (P10, P14). Aucune nouvelle proposition UX/fonctionnelle n'a émergé — UC18.1 est clos.*
+
+**P34 — Panneau latéral : ajout des propriétés head/sector/tracks modifiables**
+
+Les disquettes ATARI ST ont différents formats (head/sectors/tracks) en fonction des démos ou applications, le standard étant 720Ko obtenus par 2 heads / 9 sectors / 80 tracks & 512 BPS. Mais certaines disquettes peuvent augmenter leur capacité par 2 heads / 11 sectors / 82 tracks et être correctement lues par le lecteur de disquette et le WD1772. Le panneau latéral de mount peut offrir le moyen de modifier les paramètres dans la limite du raisonnable (head 1-2, sectors 9-11, tracks 79-82), ces paramètres seront utilisés lors de la sauvegarde image .st / .msa
+
+Avis Claude : à renseigner
+
+**P35 — Prévoir une sauvegarde .st / .msa et répertoire en local en option**
+
+Afin de permettre un reversement .st => répertoire local, la sauvegarde de l'image disquette lors de la commande umount peut se faire par une boite de dialogue avec 3 cases à cocher: l'une génère un fichier disk.st, la deuxième un fichier disk.msa, et la 3ème un répertoire 'disk' avec le contenu identique à la fenêtre 'mount' : par contre, ce répertoire ne peut remplacer le répertoire source utilisé par 'mount' afin de ne pas supprimer de fichier en local. Schéma de principe d'une suppression de fichier dans la disquette: 
+- ouverture disquette par 'mount' du répertoire sélectionné par 'dir'
+- travail sur le contenu de la disquette, par exemple, DEL sur un fichier
+- 'umount' ouvre la boite de dialogue ou 'umount --st --msa --dir' génère disk.st, disk.msa et un nouveau répertoire 'disk' dans le répertoire source de 'dir'
+- la fenêtre 'mount' est close, le répertoire source est inchangé
+
+Avis Claude: à renseigner
+
+**P36 - Première ligne A:\ indique le nombre de fichiers sur 112**
+
+Information " / 112" perturbante dans la première ligne (même s'il s'agit de la limite du nombre de fichier de la root dir, comme indiqué dans le header). Proposition d'intégrer cette information dans le panneau des propriétés - pas besoin que cette propriété soit modifiable, sauf si on veut conserver une cohérence de la gestion des propriétés avec P34.
+
+Avis Claude: à renseigner
+
+**P37 - Ajouter la propriété modifiable "Bootable Disk" dans mount**
+
+Permet de rendre le disk bootable (modif bootsector) et/ou de détecter s'il est bootable
+
+Avis Claude: à renseigner
+
+**P38 - Analyse bootsector de l'image disque**
+
+Un raccourci clavier permet d'ouvrir un panneau affichant le contenu du bootsector, en particulier s'il contient du code ou tout autre contenu (e.g. texte, signature, loader, ...). Le panneau peut contenir une vue hexadécimale basée sur celle existante UC9 en accompagnement des infos du panneau. Sans surcharger la solution technique, une fenêtre UC9 peut simplement remplacer le panneau et indiquer les informations clés du bootsector dans le titre de la fenêtre (bootable disk, H2/S9/T80, 720ko -- boot contains code(e.g. medium res code)/loader(e.g. not FAT12 filesystem)/packer(e.g. typical demo packers - Orion Sly Packer)/signature(e.g. text print on boot)/protection(e.g. Rob Northern Copylock, Yoda Lock-O-matic, ...))
+
+Avis Claude: à renseigner
+
+
 
 ## 8. Licence & attribution
 Pas de redistribution prévue à ce jour

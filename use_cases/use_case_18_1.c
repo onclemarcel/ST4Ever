@@ -229,7 +229,7 @@ int main(void)
     }
     printf("  fixtures created OK\n");
 
-    /* --- [N] Open .st image --- */
+    /* --- [N] Open .st image + visual tests while window is open --- */
     printf("\n--- [N] MOUNT_SRC_ST ---\n");
     ptView = NULL;
     eResult = mount_view_open(szStFiles, &tLineCtx, &ptView);
@@ -254,6 +254,23 @@ int main(void)
         UC_TEST("[N] find GUI_WND_MOUNT (open) -> hFound != NULL",
                 eResult == ST_NO_ERROR && hFound != NULL);
 
+        /* [S] Visual tests — window is open right now */
+        printf("\n--- [S] Visual tests (mount .st open) ---\n");
+        TEST_MANUAL("[S] mount .st view visible, title A:\\ [ST]",
+                    "Is the mount window open with correct title?");
+        TEST_MANUAL("[S] file list shows 2 entries (FILE1.DAT, FILE2.BIN)",
+                    "Does the left panel list two files?");
+        TEST_MANUAL("[S] right panel shows properties (Source, Files, Free)",
+                    "Is the properties panel populated?");
+        TEST_MANUAL("[S] UP/DOWN keys navigate and highlight selection",
+                    "Does keyboard navigation work?");
+        TEST_MANUAL("[S] DEL removes selected file (entry count decrements)",
+                    "Is a file removed on DEL? (close window via ESC after)");
+        TEST_MANUAL("[S] Scroll wheel scrolls the file list",
+                    "Does mouse wheel scroll the list?");
+        TEST_MANUAL("[S] ESC closes the window",
+                    "Press ESC to close the window. Did it close?");
+
         eResult = mount_view_close(&ptView);
         UC_TEST("[N] mount_view_close -> ST_NO_ERROR",
                 eResult == ST_NO_ERROR);
@@ -261,7 +278,7 @@ int main(void)
                 ptView == NULL);
     }
 
-    /* --- [N] Open .msa image --- */
+    /* --- [N] Open .msa image + visual test --- */
     printf("\n--- [N] MOUNT_SRC_MSA ---\n");
     ptView = NULL;
     eResult = mount_view_open(szMsaFile, &tLineCtx, &ptView);
@@ -273,6 +290,8 @@ int main(void)
                 ptView->eSrc == MOUNT_SRC_MSA);
         UC_TEST("[N] mount .msa -> iEntryCount == 2",
                 ptView->iEntryCount == 2);
+        TEST_MANUAL("[S] mount .msa: window shows MSA tag in title",
+                    "Does the MSA window show [MSA] in title? (close via ESC)");
         mount_view_close(&ptView);
     }
 
@@ -306,25 +325,6 @@ int main(void)
     eResult = mount_view_close(&ptView);
     UC_TEST("[N] mount_view_close(&NULL) idempotent",
             eResult == ST_NO_ERROR);
-
-    /* --- [S] Visual tests --- */
-    printf("\n--- [S] Visual tests (run make manual UC=18_1) ---\n");
-    TEST_MANUAL("[S] mount .st view visible, title A:\\ [ST]",
-                "Is the mount window open with correct title?");
-    TEST_MANUAL("[S] file list shows 2 entries (FILE1.DAT, FILE2.BIN)",
-                "Does the left panel list two files?");
-    TEST_MANUAL("[S] right panel shows properties (Source, Files, Free)",
-                "Is the properties panel populated?");
-    TEST_MANUAL("[S] UP/DOWN keys navigate and highlight selection",
-                "Does keyboard navigation work?");
-    TEST_MANUAL("[S] DEL removes selected file (entry count decrements)",
-                "Is a file removed on DEL?");
-    TEST_MANUAL("[S] Scroll wheel scrolls the file list",
-                "Does mouse wheel scroll the list?");
-    TEST_MANUAL("[S] ESC closes the window",
-                "Does ESC close the mount view?");
-    TEST_MANUAL("[S] mount .msa: window shows MSA tag in title",
-                "Does the MSA image open with [MSA] in title?");
 
 shutdown:
     /* Cleanup */
