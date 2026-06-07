@@ -411,20 +411,26 @@ static void test_cpu(void)
 
     /*
      * INTENT[INT-CPU-005 → TC-CPU-006 → REQ-CPU-007/008]:
-     * cpu_step must fetch the MOVEQ #42,D0 opcode and advance PC.
-     * NOTE: UC1 stub behaviour - PC advances by 2 per step.
-     * ADAPTED when UC21 implements real 68000 decode and execution.
+     * cpu_step must fetch the MOVEQ #42,D0 opcode, advance PC by 2,
+     * and execute it (D0=42 after UC21 real decode).
+     * ADAPTED: UC21 - real MOVEQ decode: D0==42, PC+2 still holds
+     *   (MOVEQ is a 1-word instruction).
      */
-    UC_CHECK("[N] cpu_step() #1 (MOVEQ stub)",
+    UC_CHECK("[N] cpu_step() #1 (MOVEQ #42,D0)",
              cpu_step(&tCpu, &tMachine, &tResult));
     UC_TEST("[N] step #1 PC advanced by 2",
             tResult.uiPCAfter == UI_LOAD_ADDR + 2);
     UC_TEST("[N] step #1 opcode == 0x702A (MOVEQ #42,D0)",
             tResult.uiOpcode == 0x702A);
+    /* ADAPTED: UC21 - D0 now actually holds 42 after real MOVEQ decode */
+    UC_TEST("[N] step #1 D0==42 after MOVEQ",
+            tCpu.auDn[0] == 42u);
 
     /* INTENT[INT-CPU-006 → TC-CPU-007 → REQ-CPU-007]:
-     * cpu_step must fetch the RTS opcode on the second step */
-    UC_CHECK("[N] cpu_step() #2 (RTS stub)",
+     * cpu_step must fetch the RTS opcode on the second step.
+     * ADAPTED: UC21 - RTS (0x4E75) is in group 0x4/misc4; it hits
+     *   LOG_TODO (UC23) but returns ST_NO_ERROR (non-fatal). */
+    UC_CHECK("[N] cpu_step() #2 (RTS — LOG_TODO UC23)",
              cpu_step(&tCpu, &tMachine, &tResult));
     UC_TEST("[N] step #2 opcode == 0x4E75 (RTS)",
             tResult.uiOpcode == 0x4E75);

@@ -34,6 +34,10 @@
 | 2.9 | 2026-06-06 | UC17  | Claude/OMC | UC17 validated — image_msa.h/c: MSA RLE codec (imsa_compress/decompress, escape 0xE5, raw fallback); image_msa_load/save layered on image_st_t; image_st_get_disk() added; UFR-DSK-005..007 §1.8 updated; REQ-MSA-001..010 §2.15 new; §4.18 new; §5.50..51 new |
 | 3.0 | 2026-06-06 | UC18.1 | Claude/OMC | UC18.1 validated — mount.h/c: GUI_WND_MOUNT D2D view (FAT list + properties panel); mount_view_open/close/add_file; gui_find_window_by_type; line_cmd_mount/umount; fix szExt without dot; UFR-MNT-001..004 §1.9 new; REQ-MNT-001..012 §2.16 new; §4.19 new; §5.52..53 new |
 | 3.1 | 2026-06-06 | UC18.2 | Claude/OMC | UC18.2 validated — P10 dir history (ALT+←/→): aszNavHistory[16], dir_nav_history_push, dir_navigate_to; P14 dir multi-sel (CTRL+SPACE): aszMultiSel[16], dir_toggle_multi_sel, purple layer; P34 BPB geometry read-only; P36 header without /RDE; P37 mount_is_bootable WD1772 checksum; P38 B key → bootsector edit_hex; UFR-DIR-014..015 §1.6 new; UFR-MNT-005..007 §1.9 new; REQ-DIR-024..027 §2.8 new; REQ-MNT-013..017 §2.16 updated/new; §4.19 updated; §5.54..55 new |
+| 3.2 | 2026-06-07 | UC19   | Claude/OMC | UC19 validated — P35 umount dialog save (.st/.msa/dir) + flags --st/--msa/--dir bypass; P39 status bar (free KB + file count + [*]); P40 mount_view_add_file chunked 64 KB with progress; mount_save_image() public API; iVisRows -2 in all handlers; §5.56..57 new |
+| 3.3 | 2026-06-07 | UC20   | Claude/OMC | UC20 validated — image command (--st/--msa/--bootable/outpath); P41 ENTER → edit_hex on FAT file (MOUNT_FILE_TMP); P37 write mount_make_bootable() (checksum WD1772) + F key; ptFileHexView in mount_view_t; §5.58..59 new |
+| 3.4 | 2026-06-07 | UC20A  | Claude/OMC | UC20A validated — st2msa/msa2st batch: line_cmd_convert + line_conv_one + line_conv_dir_rec recursive via file_list_fn; --all/--dir/−r; conv_ctx_t/conv_rec_ctx_t; line_conv_replace_ext; §5.60..61 new |
+| 3.5 | 2026-06-07 | UC21   | Claude/OMC | UC21 validated — real MC68000 execution: MOVE/MOVEA/MOVEQ/LEA/CLR/SWAP; cpu_fetch_word, cpu_ea_read/write/calc_addr (12-mode EA), cpu_flags_nz/clr_vc; partial Dn writes; A7 byte ±2; REQ-CPU-008 ADAPTED, REQ-CPU-009 ✓; REQ-CPU-012..021 new; §1.10 new UFR-EXE-001..005; §4.5 updated; §5.62..63 new |
 
 ---
 
@@ -264,9 +268,20 @@ through one or more test cases in Section 5.
 | UFR-MNT-011  | ENTER on a selected file in the mount view shall extract the FAT entry to `MOUNT_FILE_TMP` and open it via `edit_hex_open()`; only one file hex view is open at a time; pressing ENTER on a new file closes the previous view first. (P41) | ✓ UC20      | UC20     |
 | UFR-MNT-012  | The `F` key in the mount view shall patch bootsector word[0] so that the sum of the 256 LE16 words equals `0x1234 mod 0x10000`; the `Bootable` indicator shall update to `Yes` and the dirty flag shall be set. The operation is idempotent. (P37 write) | ✓ UC20      | UC20     |
 
-### 1.10 Execution Engine — `EXE` (TODO UC21–27)
+### 1.10 Execution Engine — `EXE`
 
-*Requirements will be detailed when UC21–UC27 are planned.*
+> Design ref: CLAUDE.md §1.1.7, §5 R2, §6.29; MC68000 Programmer's Reference Manual
+
+| ID           | User/System Functional Requirement                                                                                                    | Status       | UC    |
+|--------------|---------------------------------------------------------------------------------------------------------------------------------------|--------------|-------|
+| UFR-EXE-001  | The CPU emulator shall fetch, decode, and execute MC68000 instructions from ST machine RAM, updating registers and SR flags per the Motorola specification. | ✓ UC21 (partial) | UC21 |
+| UFR-EXE-002  | The CPU emulator shall implement the full 12-mode EA decoder: Dn, An, (An), (An)+, -(An), d16(An), d8(An,Xn), abs.W, abs.L, d16(PC), d8(PC,Xn), #imm. | ✓ UC21       | UC21  |
+| UFR-EXE-003  | Byte and word writes to data registers shall preserve the unaffected upper bits; only MOVEQ and long-size operations replace all 32 bits. | ✓ UC21       | UC21  |
+| UFR-EXE-004  | MOVEA shall not affect SR flags; MOVEA.W shall sign-extend the 16-bit source to 32 bits before writing An.                            | ✓ UC21       | UC21  |
+| UFR-EXE-005  | The -(A7) and (A7)+ addressing modes with byte size shall adjust A7 by 2 (not 1) to maintain word alignment on the supervisor stack. | ✓ UC21       | UC21  |
+| UFR-EXE-006  | The CPU emulator shall implement ADD/SUB/CMP/AND/OR/EOR/shifts with correct SR flags (N, Z, V, C, X).                                | TODO UC22    | UC22  |
+| UFR-EXE-007  | The CPU emulator shall implement BRA/Bcc/JSR/RTS/TRAP + exception vector dispatch.                                                   | TODO UC23    | UC23  |
+| UFR-EXE-008  | The execution monitor shall provide step, run, stop, and breakpoint controls with a register/memory display view.                     | TODO UC25    | UC25  |
 
 ---
 
@@ -373,21 +388,31 @@ requirement that will expose it (`UFR-EXE-*`, planned UC21–27).
 ### 2.4 CPU 68000 Emulator — `CPU.h` / `CPU.c`
 
 > Design ref: CLAUDE.md §5 R2; MC68000 Programmer's Reference Manual
-> Parent UFR: none at UC1 level — will link to `UFR-EXE-*` when UC21–25 expose execution.
+> Parent UFR: UFR-EXE-001..008 (§1.10)
 
-| ID          | Software Requirement                                                                                   | Parent UFR    | Status        | UC    |
-|-------------|--------------------------------------------------------------------------------------------------------|---------------|---------------|-------|
-| REQ-CPU-001 | `cpu_init(NULL, *)` and `cpu_init(*, NULL)` shall return `ST_ERROR`.                                  | — (see UC25)  | ✓ UC1         | UC1   |
-| REQ-CPU-002 | `cpu_init()` shall read the initial SSP from the reset vector at address `0x000000`.                   | — (see UC25)  | ✓ UC1         | UC1   |
-| REQ-CPU-003 | `cpu_init()` shall read the initial PC from the reset vector at address `0x000004`.                    | — (see UC25)  | ✓ UC1         | UC1   |
-| REQ-CPU-004 | `cpu_init()` shall set the SR supervisor bit (`CPU_SR_S`) and interrupt mask to 7 (`SR = 0x2700`).    | — (see UC25)  | ✓ UC1         | UC1   |
-| REQ-CPU-005 | `cpu_init()` shall set `eState = CPU_STATE_RUNNING`.                                                   | — (see UC25)  | ✓ UC1         | UC1   |
-| REQ-CPU-006 | `cpu_step(NULL, *, *)` and `cpu_step(*, NULL, *)` shall return `ST_ERROR`.                             | — (see UC25)  | ✓ UC1         | UC1   |
-| REQ-CPU-007 | `cpu_step()` shall fetch the opcode word at the current PC and return it in `ptResult->uiOpcode`.     | — (see UC25)  | ✓ UC1         | UC1   |
-| REQ-CPU-008 | Stub: `cpu_step()` shall advance PC by 2 per call. Full decode implemented in UC21.                   | — (see UC21)  | ADAPTED(UC21) | UC21  |
-| REQ-CPU-009 | `cpu_step()` shall decode and execute MOVE / MOVEQ / LEA / CLR / SWAP.                                | — (see UC21)  | TODO UC21     | UC21  |
-| REQ-CPU-010 | `cpu_step()` shall decode and execute ADD / SUB / CMP / AND / OR / EOR / shifts.                      | — (see UC22)  | TODO UC22     | UC22  |
-| REQ-CPU-011 | `cpu_step()` shall decode and execute BRA / Bcc / JSR / RTS / TRAP + exception vectors.               | — (see UC23)  | TODO UC23     | UC23  |
+| ID          | Software Requirement                                                                                                                          | Parent UFR    | Status        | UC    |
+|-------------|-----------------------------------------------------------------------------------------------------------------------------------------------|---------------|---------------|-------|
+| REQ-CPU-001 | `cpu_init(NULL, *)` and `cpu_init(*, NULL)` shall return `ST_ERROR`.                                                                         | UFR-EXE-001   | ✓ UC1         | UC1   |
+| REQ-CPU-002 | `cpu_init()` shall read the initial SSP from the reset vector at address `0x000000`.                                                          | UFR-EXE-001   | ✓ UC1         | UC1   |
+| REQ-CPU-003 | `cpu_init()` shall read the initial PC from the reset vector at address `0x000004`.                                                           | UFR-EXE-001   | ✓ UC1         | UC1   |
+| REQ-CPU-004 | `cpu_init()` shall set the SR supervisor bit (`CPU_SR_S`) and interrupt mask to 7 (`SR = 0x2700`).                                           | UFR-EXE-001   | ✓ UC1         | UC1   |
+| REQ-CPU-005 | `cpu_init()` shall set `eState = CPU_STATE_RUNNING`.                                                                                          | UFR-EXE-001   | ✓ UC1         | UC1   |
+| REQ-CPU-006 | `cpu_step(NULL, *, *)` and `cpu_step(*, NULL, *)` shall return `ST_ERROR`.                                                                    | UFR-EXE-001   | ✓ UC1         | UC1   |
+| REQ-CPU-007 | `cpu_step()` shall fetch the opcode word at the current PC and return it in `ptResult->uiOpcode`.                                            | UFR-EXE-001   | ✓ UC1         | UC1   |
+| REQ-CPU-008 | Stub: `cpu_step()` advances PC by 2; ADAPTED UC21: `cpu_step()` advances PC by the full instruction length (opcode + extension words).       | UFR-EXE-001   | ADAPTED(UC21) | UC21  |
+| REQ-CPU-009 | `cpu_step()` shall decode and execute MOVE.B/W/L, MOVEA.W/L, MOVEQ, LEA, CLR.B/W/L, SWAP.                                                   | UFR-EXE-001   | ✓ UC21        | UC21  |
+| REQ-CPU-010 | `cpu_step()` shall decode and execute ADD/ADDA/ADDI/ADDQ/ADDX, SUB/SUBA/SUBI/SUBQ/SUBX, CMP/CMPA/CMPI/CMPM, AND/ANDI, OR/ORI, EOR/EORI, shifts/rotations, with correct SR flags N/Z/V/C/X. | UFR-EXE-006   | TODO UC22     | UC22  |
+| REQ-CPU-011 | `cpu_step()` shall decode and execute BRA/BSR/Bcc (short+long), JMP, JSR/RTS/RTR/RTE, TRAP, LINK/UNLK + exception vector dispatch.          | UFR-EXE-007   | TODO UC23     | UC23  |
+| REQ-CPU-012 | `cpu_ea_read()` shall implement all 12 EA modes; (An)+ shall increment An after the read; -(An) shall decrement An before.                   | UFR-EXE-002   | ✓ UC21        | UC21  |
+| REQ-CPU-013 | For (A7)+ and -(A7) with byte size, A7 shall be adjusted by 2 (not 1) to preserve word alignment.                                           | UFR-EXE-005   | ✓ UC21        | UC21  |
+| REQ-CPU-014 | `cpu_ea_write()` with Dn destination and byte size shall preserve bits 31–8; with word size shall preserve bits 31–16.                       | UFR-EXE-003   | ✓ UC21        | UC21  |
+| REQ-CPU-015 | MOVE with An destination shall be decoded as MOVEA and shall not modify SR flags.                                                             | UFR-EXE-004   | ✓ UC21        | UC21  |
+| REQ-CPU-016 | MOVEA.W shall sign-extend the 16-bit source value to 32 bits before writing the address register.                                            | UFR-EXE-004   | ✓ UC21        | UC21  |
+| REQ-CPU-017 | MOVEQ shall sign-extend the 8-bit immediate in bits 7–0 of the opcode to 32 bits and write the full Dn; bit 8 of the opcode must be 0.       | UFR-EXE-001   | ✓ UC21        | UC21  |
+| REQ-CPU-018 | CLR shall write 0 to the destination EA and unconditionally set N=0, Z=1, V=0, C=0.                                                          | UFR-EXE-001   | ✓ UC21        | UC21  |
+| REQ-CPU-019 | LEA shall use control-mode EA only (modes 2/5/6/7.0/7.1/7.2/7.3) and write the computed address to An without modifying SR.                 | UFR-EXE-001   | ✓ UC21        | UC21  |
+| REQ-CPU-020 | SWAP shall exchange bits 31–16 and bits 15–0 of Dn, then set N and Z from the 32-bit result and clear V and C.                              | UFR-EXE-001   | ✓ UC21        | UC21  |
+| REQ-CPU-021 | MOVE/CLR shall set N from bit `MSB(size)` of the result, Z if the result equals 0, and clear V and C.                                        | UFR-EXE-001   | ✓ UC21        | UC21  |
 
 ### 2.5 GUI Framework — `gui.h` / `gui.c` / `win_gui.c`
 
@@ -1079,28 +1104,77 @@ st_read_byte(addr)
 
 ### 4.5 CPU 68000 Emulator — `CPU.c`
 
-**Role:** model the MC68000 register file.  UC1 stub: reads reset vectors,
-sets supervisor mode SR=0x2700, and on each `cpu_step()` fetches the opcode
-word and advances PC+2 without decoding.
+**Role:** model the MC68000 register file and execute instructions from ST machine
+RAM.  UC21 implements real instruction execution for MOVE/MOVEA/MOVEQ/LEA/CLR/SWAP
+with a full 12-mode EA decoder.  Earlier stub (UC1) only fetched the opcode and
+advanced PC+2 — ADAPTED(UC21).
+
+**Key internal structures and constants (UC21):**
+
+```c
+#define SZ_BYTE  0
+#define SZ_WORD  1
+#define SZ_LONG  2
+static const st_u32_t g_auiMask[3] = { 0xFFu, 0xFFFFu, 0xFFFFFFFFu };
+static const st_u32_t g_auiMsb[3]  = { 0x80u, 0x8000u, 0x80000000u };
+```
 
 **Public API:**
 
-| Function                                          | REQ(s)                           | Description                              |
-|---------------------------------------------------|----------------------------------|------------------------------------------|
-| `cpu_init(ptCpu, ptMachine)`                      | REQ-CPU-001..005                 | Read reset vectors, set SR=0x2700        |
-| `cpu_reset(ptCpu, ptMachine)`                     | REQ-CPU-002, REQ-CPU-003         | Re-read reset vectors                    |
-| `cpu_step(ptCpu, ptMachine, ptResult)`            | REQ-CPU-006..008                 | Fetch + decode + execute one instruction |
-| `cpu_raise_exception(ptCpu, ptMachine, uiVector)` | REQ-CPU-011                      | Push exception frame, jump to vector     |
+| Function                                          | REQ(s)                              | Description                                              |
+|---------------------------------------------------|-------------------------------------|----------------------------------------------------------|
+| `cpu_init(ptCpu, ptMachine)`                      | REQ-CPU-001..005                    | Read reset vectors, set SR=0x2700                        |
+| `cpu_reset(ptCpu, ptMachine)`                     | REQ-CPU-002, REQ-CPU-003            | Re-read reset vectors                                    |
+| `cpu_step(ptCpu, ptMachine, ptResult)`            | REQ-CPU-006..009, REQ-CPU-012..021  | Fetch + decode + execute one instruction                 |
+| `cpu_raise_exception(ptCpu, ptMachine, uiVector)` | REQ-CPU-011                         | Push exception frame, jump to vector (TODO UC23)         |
+
+**Key internal functions (UC21):**
+
+| Function                                                             | REQ(s)               | Description                                                        |
+|----------------------------------------------------------------------|----------------------|--------------------------------------------------------------------|
+| `cpu_fetch_word(ptCpu, ptMachine)`                                   | REQ-CPU-007, -008    | Read word at PC, advance PC+=2                                     |
+| `cpu_flags_nz(ptCpu, uiVal, iSz)`                                    | REQ-CPU-021          | Update N (MSB of result) and Z (result==0)                         |
+| `cpu_flags_clr_vc(ptCpu)`                                            | REQ-CPU-018, -020    | Clear V and C unconditionally                                      |
+| `cpu_ea_read(ptCpu, ptMachine, iMode, iReg, iSz, puiVal)`           | REQ-CPU-012, -013    | Read value from any of the 12 EA modes; consume extension words     |
+| `cpu_ea_write(ptCpu, ptMachine, iMode, iReg, iSz, uiVal)`           | REQ-CPU-014          | Write value; Dn partial writes preserve upper bits                  |
+| `cpu_ea_calc_addr(ptCpu, ptMachine, iMode, iReg, puiAddr)`          | REQ-CPU-019          | Compute effective address (control EAs, for LEA)                   |
+| `cpu_exec_move(ptCpu, ptMachine, uiOpc)`                             | REQ-CPU-009, -015, -016 | MOVE/MOVEA dispatch; dest EA in bits [11-9]/[8-6] (reversed)    |
+| `cpu_exec_moveq(ptCpu, uiOpc)`                                       | REQ-CPU-017          | Sign-extend 8-bit imm to 32-bit, write full Dn                     |
+| `cpu_exec_clr(ptCpu, ptMachine, uiOpc)`                              | REQ-CPU-018          | Write 0 + set N=0,Z=1,V=0,C=0                                      |
+| `cpu_exec_lea(ptCpu, ptMachine, uiOpc)`                              | REQ-CPU-019          | Compute control EA address → An, no SR change                      |
+| `cpu_exec_swap(ptCpu, uiOpc)`                                        | REQ-CPU-020          | Swap 32-bit halves; N/Z from 32-bit result, clear V/C              |
+| `cpu_exec_misc4(ptCpu, ptMachine, uiOpc)`                            | REQ-CPU-009          | Group 0x4 dispatcher: LEA / SWAP / CLR / LOG_TODO                  |
+
+**EA mode dispatch summary (cpu_ea_read / cpu_ea_write / cpu_ea_calc_addr):**
+
+| Mode | Encoding  | Behaviour                                                        | Ext words |
+|------|-----------|------------------------------------------------------------------|-----------|
+| 0    | Dn        | Data register direct; partial write preserves upper bits         | 0         |
+| 1    | An        | Address register direct; no partial write (always 32-bit)        | 0         |
+| 2    | (An)      | Memory indirect                                                  | 0         |
+| 3    | (An)+     | Memory indirect, post-increment (A7+byte → +2)                   | 0         |
+| 4    | -(An)     | Memory indirect, pre-decrement (A7−byte → −2)                    | 0         |
+| 5    | d16(An)   | Base + signed 16-bit displacement                                | 1         |
+| 6    | d8(An,Xn) | Brief format: base + sign-extended index + 8-bit displacement    | 1         |
+| 7.0  | abs.W     | Absolute short: sign-extend 16-bit to 24-bit address             | 1         |
+| 7.1  | abs.L     | Absolute long                                                    | 2         |
+| 7.2  | d16(PC)   | PC-relative: addr = ext_word_addr + disp16                       | 1         |
+| 7.3  | d8(PC,Xn) | PC-relative brief format                                         | 1         |
+| 7.4  | #imm      | Immediate: 1 ext word (B/W), 2 ext words (L)                     | 1 or 2    |
 
 **External dependencies:**
 
-| Call           | Tag   | Purpose                                      |
-|----------------|-------|----------------------------------------------|
-| `st_read_long` | [ST4] | Read SSP/PC reset vectors from ST machine    |
-| `st_read_word` | [ST4] | Fetch opcode word at PC                      |
-| `memset`       | [CRT] | Zero register file on init                   |
+| Call               | Tag   | Purpose                                             |
+|--------------------|-------|-----------------------------------------------------|
+| `st_read_long`     | [ST4] | Read SSP/PC reset vectors; read 32-bit memory       |
+| `st_read_word`     | [ST4] | Fetch opcode word and extension words at PC         |
+| `st_write_word`    | [ST4] | Write word to memory EA (MOVE/CLR to memory)        |
+| `st_read_byte`     | [ST4] | Read byte from memory EA                            |
+| `st_write_byte`    | [ST4] | Write byte to memory EA                             |
+| `memset`           | [CRT] | Zero register file on init                          |
 
-**TODO(UC21–23):** full opcode decode tables and execution handlers.
+**TODO(UC22):** ADD/SUB/CMP/AND/OR/EOR/shifts with SR flags N/Z/V/C/X.
+**TODO(UC23):** BRA/Bcc/JSR/RTS/TRAP + exception vector dispatch.
 
 ---
 
@@ -4762,3 +4836,114 @@ Each INTENT maps to one or more test blocks in `use_cases/use_case_19.c`.
 |---------------|-------------------------------------|----------------------------------------|----------|
 | UFR-CON-092   | REQ-CON-032, REQ-CON-033, REQ-CON-034 | TC-CON-130, TC-CON-132, TC-CON-134..136, TC-CON-139..141, TC-CON-148..150, TC-CON-152 | UC20A |
 | UFR-CON-093   | REQ-CON-032, REQ-CON-033, REQ-CON-034 | TC-CON-131, TC-CON-133, TC-CON-136..138, TC-CON-142..144, TC-CON-151, TC-CON-153 | UC20A |
+
+---
+
+### 5.62 INTENT Catalog — UC21
+
+> Source: `use_cases/use_case_21.c`; chain: UFR-EXE-* → REQ-CPU-* → INT-CPU-* → TC-CPU-*
+
+| INTENT ID    | Description                                                                       |
+|--------------|-----------------------------------------------------------------------------------|
+| INT-CPU-001  | MOVEQ decodes 8-bit signed immediate, sign-extends to 32 bits, writes full Dn     |
+| INT-CPU-002  | MOVE.L/W/B between registers; partial Dn writes preserve upper bits               |
+| INT-CPU-003  | MOVEA.W sign-extends to 32 bits before writing An; no SR modification             |
+| INT-CPU-004  | LEA computes control EA address into An; no flags affected                        |
+| INT-CPU-005  | CLR writes 0 to EA; unconditionally N=0, Z=1, V=0, C=0                           |
+| INT-CPU-006  | SWAP exchanges high and low 16-bit halves of Dn; N/Z from 32-bit result           |
+| INT-CPU-007  | Sequence of 10 instructions executes correctly; PC lands exactly after last       |
+| INT-CPU-008  | Memory EA modes (An), (An)+, -(An), d16(An) read and write correctly              |
+| INT-CPU-009  | NULL ptCpu / NULL ptMachine → ST_ERROR; stopped CPU no-op                         |
+
+---
+
+### 5.63 Test Cases — UC21 (MC68000 execution — MOVE/MOVEQ/LEA/CLR/SWAP)
+
+**Test matrix: 47N + 8R + 0S = 55 tests — 0 failures**
+
+| TC ID       | Type | INTENT       | Description                                                           | Status  |
+|-------------|------|--------------|-----------------------------------------------------------------------|---------|
+| TC-CPU-001  | [N]  | INT-CPU-001  | MOVEQ #$42,D0 → D0==0x42, Z=0, N=0                                   | ✓ UC21  |
+| TC-CPU-002  | [N]  | INT-CPU-001  | MOVEQ #0,D1 → D1==0, Z=1, N=0                                        | ✓ UC21  |
+| TC-CPU-003  | [N]  | INT-CPU-001  | MOVEQ #-1 (0xFF), D2 → D2==0xFFFFFFFF (sign-extend), Z=0, N=1        | ✓ UC21  |
+| TC-CPU-004  | [N]  | INT-CPU-001  | MOVEQ bit 8 set → no-crash (LOG_TODO, ST_NO_ERROR)                    | ✓ UC21  |
+| TC-CPU-005  | [N]  | INT-CPU-002  | MOVE.L D2,D3 → D3==D2 (full 32-bit), flags updated                   | ✓ UC21  |
+| TC-CPU-006  | [N]  | INT-CPU-002  | MOVE.W D0,D4 → D4 low word updated, upper 16 bits preserved           | ✓ UC21  |
+| TC-CPU-007  | [N]  | INT-CPU-002  | MOVE.B #$FF,D6 → D6 low byte=0xFF, bits 31-8 preserved                | ✓ UC21  |
+| TC-CPU-008  | [N]  | INT-CPU-002  | MOVE.W #$1234,D4 → D4 word=0x1234, upper preserved                   | ✓ UC21  |
+| TC-CPU-009  | [N]  | INT-CPU-002  | MOVE.L A0,D5 → D5==A0 value                                           | ✓ UC21  |
+| TC-CPU-010  | [N]  | INT-CPU-003  | MOVEA.W #$8000,A1 → A1==0xFFFF8000 (sign-extend), no SR change        | ✓ UC21  |
+| TC-CPU-011  | [N]  | INT-CPU-003  | MOVEA.L D0,A2 → A2==D0, no SR change                                  | ✓ UC21  |
+| TC-CPU-012  | [N]  | INT-CPU-004  | LEA $0800.W,A0 → A0==0x0800, SR unchanged                             | ✓ UC21  |
+| TC-CPU-013  | [N]  | INT-CPU-004  | LEA (A1),A2 → A2==A1 value, SR unchanged                              | ✓ UC21  |
+| TC-CPU-014  | [N]  | INT-CPU-004  | LEA does not modify SR (N/Z/V/C all unchanged after)                  | ✓ UC21  |
+| TC-CPU-015  | [N]  | INT-CPU-005  | CLR.L D3 → D3==0, N=0, Z=1, V=0, C=0                                 | ✓ UC21  |
+| TC-CPU-016  | [N]  | INT-CPU-005  | CLR.W D5 → D5 low word=0, upper 16 bits preserved, flags set          | ✓ UC21  |
+| TC-CPU-017  | [N]  | INT-CPU-005  | CLR.B D0 → D0 low byte=0, bits 31-8 preserved, flags set              | ✓ UC21  |
+| TC-CPU-018  | [N]  | INT-CPU-006  | SWAP D3 (0x12345678) → D3==0x56781234, N/Z from 32-bit result         | ✓ UC21  |
+| TC-CPU-019  | [N]  | INT-CPU-006  | SWAP D3 (0x00000000) → D3==0, Z=1, N=0, V=0, C=0                     | ✓ UC21  |
+| TC-CPU-020  | [N]  | INT-CPU-006  | SWAP D0 (0x00FF0000) → D0==0x000000FF, N=0, Z=0                       | ✓ UC21  |
+| TC-CPU-021  | [N]  | INT-CPU-007  | 10-instruction sequence at 0x0800 fully executes; iInstrCount==10     | ✓ UC21  |
+| TC-CPU-022  | [N]  | INT-CPU-007  | PC after 10 instructions == 0x081A (sum of instruction lengths)       | ✓ UC21  |
+| TC-CPU-023  | [N]  | INT-CPU-007  | D0..D2, A0..A1 hold expected values after the full sequence           | ✓ UC21  |
+| TC-CPU-024  | [N]  | INT-CPU-007  | SR flags in expected state after the last instruction of the seq      | ✓ UC21  |
+| TC-CPU-025  | [N]  | INT-CPU-008  | MOVE.W (A0),D0 reads word from memory correctly                       | ✓ UC21  |
+| TC-CPU-026  | [N]  | INT-CPU-008  | MOVE.W D1,(A1) writes word to memory at A1                            | ✓ UC21  |
+| TC-CPU-027  | [N]  | INT-CPU-008  | MOVE.W (A0)+,D2 reads word then increments A0 by 2                    | ✓ UC21  |
+| TC-CPU-028  | [N]  | INT-CPU-008  | MOVE.W -(A1),D3 decrements A1 by 2 then reads word                    | ✓ UC21  |
+| TC-CPU-029  | [N]  | INT-CPU-008  | MOVE.W d16(A0),D4 reads word at A0 + signed displacement              | ✓ UC21  |
+| TC-CPU-030  | [N]  | INT-CPU-002  | MOVE.L flags: N=1 for negative result, Z=0                            | ✓ UC21  |
+| TC-CPU-031  | [N]  | INT-CPU-002  | MOVE.L flags: N=0, Z=1 for zero result                                | ✓ UC21  |
+| TC-CPU-032  | [N]  | INT-CPU-002  | MOVE.W flags: V=0, C=0 always (data movement, not arithmetic)         | ✓ UC21  |
+| TC-CPU-033  | [N]  | INT-CPU-005  | CLR memory (A1): CLR.L (A1) writes 0 to RAM                          | ✓ UC21  |
+| TC-CPU-034  | [N]  | INT-CPU-004  | LEA d16(A0),A1 with displacement 4: A1 == A0 + 4                      | ✓ UC21  |
+| TC-CPU-035  | [N]  | INT-CPU-001  | MOVEQ sets V=0, C=0 unconditionally                                   | ✓ UC21  |
+| TC-CPU-036  | [N]  | INT-CPU-006  | SWAP all-bits-set: 0xFFFFFFFF stays 0xFFFFFFFF; N=1, Z=0              | ✓ UC21  |
+| TC-CPU-037  | [N]  | INT-CPU-003  | MOVEA.W positive (#$0100) → A1==0x00000100 (no sign-ext needed)       | ✓ UC21  |
+| TC-CPU-038  | [N]  | INT-CPU-007  | cpu_step returns ST_NO_ERROR for every instr in 10-instr sequence     | ✓ UC21  |
+| TC-CPU-039  | [N]  | INT-CPU-008  | (A7)+ with byte MOVE: A7 incremented by 2 (word alignment)            | ✓ UC21  |
+| TC-CPU-040  | [N]  | INT-CPU-008  | -(A7) with byte MOVE: A7 decremented by 2 (word alignment)            | ✓ UC21  |
+| TC-CPU-041  | [N]  | INT-CPU-002  | MOVE.B D0,D0 self-copy: value unchanged, flags updated                | ✓ UC21  |
+| TC-CPU-042  | [N]  | INT-CPU-002  | MOVE.W upper 16 preserved: D5 upper==0xDEAD after MOVE.W #0,D5       | ✓ UC21  |
+| TC-CPU-043  | [N]  | INT-CPU-004  | LEA abs.W ($0804.W): A0 == 0x0804                                      | ✓ UC21  |
+| TC-CPU-044  | [N]  | INT-CPU-005  | CLR does not change eState (CPU remains RUNNING)                      | ✓ UC21  |
+| TC-CPU-045  | [N]  | INT-CPU-007  | cpu_result_t.uiOpcode holds opcode of each executed instruction       | ✓ UC21  |
+| TC-CPU-046  | [N]  | INT-CPU-007  | cpu_result_t.bValid == ST_TRUE for all UC21 instructions              | ✓ UC21  |
+| TC-CPU-047  | [N]  | INT-CPU-007  | Unimplemented opcode: cpu_step returns ST_NO_ERROR (LOG_TODO)          | ✓ UC21  |
+| TC-CPU-048  | [R]  | INT-CPU-009  | `cpu_step(NULL, ptMachine, ptResult)` → ST_ERROR                      | ✓ UC21  |
+| TC-CPU-049  | [R]  | INT-CPU-009  | `cpu_step(ptCpu, NULL, ptResult)` → ST_ERROR                          | ✓ UC21  |
+| TC-CPU-050  | [R]  | INT-CPU-009  | `cpu_step(ptCpu, ptMachine, NULL)` → ST_ERROR                         | ✓ UC21  |
+| TC-CPU-051  | [R]  | INT-CPU-009  | cpu_step on stopped CPU (eState != RUNNING) → ST_NO_ERROR (no-op)    | ✓ UC21  |
+| TC-CPU-052  | [R]  | INT-CPU-001  | MOVEQ bit8=1 in opcode → no-crash, ST_NO_ERROR                        | ✓ UC21  |
+| TC-CPU-053  | [R]  | INT-CPU-009  | `cpu_init(NULL, ptMachine)` → ST_ERROR (regression UC1)               | ✓ UC21  |
+| TC-CPU-054  | [R]  | INT-CPU-009  | `cpu_init(ptCpu, NULL)` → ST_ERROR (regression UC1)                   | ✓ UC21  |
+| TC-CPU-055  | [R]  | INT-CPU-008  | CLR.L (A1) on valid memory EA → ST_NO_ERROR + RAM zeroed              | ✓ UC21  |
+
+#### REQ → TC coverage (UC21)
+
+| REQ           | TC(s)                                                              | Status        |
+|---------------|--------------------------------------------------------------------|---------------|
+| REQ-CPU-008   | TC-CPU-021..022 (PC advance exact)                                 | ADAPTED(UC21) |
+| REQ-CPU-009   | TC-CPU-001..020, TC-CPU-033..046                                   | ✓ UC21        |
+| REQ-CPU-012   | TC-CPU-025..029, TC-CPU-039..040                                   | ✓ UC21        |
+| REQ-CPU-013   | TC-CPU-039..040                                                    | ✓ UC21        |
+| REQ-CPU-014   | TC-CPU-006..008, TC-CPU-042                                        | ✓ UC21        |
+| REQ-CPU-015   | TC-CPU-010..011                                                    | ✓ UC21        |
+| REQ-CPU-016   | TC-CPU-010, TC-CPU-037                                             | ✓ UC21        |
+| REQ-CPU-017   | TC-CPU-001..004, TC-CPU-035, TC-CPU-052                            | ✓ UC21        |
+| REQ-CPU-018   | TC-CPU-015..017, TC-CPU-033, TC-CPU-044, TC-CPU-055                | ✓ UC21        |
+| REQ-CPU-019   | TC-CPU-012..014, TC-CPU-034, TC-CPU-043                            | ✓ UC21        |
+| REQ-CPU-020   | TC-CPU-018..020, TC-CPU-036                                        | ✓ UC21        |
+| REQ-CPU-021   | TC-CPU-005, TC-CPU-030..032                                        | ✓ UC21        |
+
+#### UFR traceability (UC21)
+
+| UFR           | REQ(s)                                             | TC(s)                                    | Status   |
+|---------------|----------------------------------------------------|------------------------------------------|----------|
+| UFR-EXE-001   | REQ-CPU-001..009, REQ-CPU-017..021                 | TC-CPU-001..047                          | ✓ UC21   |
+| UFR-EXE-002   | REQ-CPU-012                                        | TC-CPU-025..029, TC-CPU-039..040         | ✓ UC21   |
+| UFR-EXE-003   | REQ-CPU-014                                        | TC-CPU-006..008, TC-CPU-042              | ✓ UC21   |
+| UFR-EXE-004   | REQ-CPU-015, REQ-CPU-016                           | TC-CPU-010..011, TC-CPU-037              | ✓ UC21   |
+| UFR-EXE-005   | REQ-CPU-013                                        | TC-CPU-039..040                          | ✓ UC21   |
+| UFR-EXE-006   | REQ-CPU-010                                        | — (TODO UC22)                            | TODO     |
+| UFR-EXE-007   | REQ-CPU-011                                        | — (TODO UC23)                            | TODO     |

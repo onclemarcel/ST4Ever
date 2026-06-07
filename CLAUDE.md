@@ -34,6 +34,7 @@
 - 2026-06-07: UC19 validé — P35 dialog `umount` save (.st/.msa/répertoire) + flags `--st`/`--msa`/`--dir` bypass ; P39 status bar D2D (fond `g_mnt_clrStatusBg`, free KB + file count + `[*]`) ; P40 `mount_view_add_file` lecture par chunks 64 Ko avec progression LOG_INFO + gui_invalidate ; `mount_save_image(eFmt, szOutPath)` API publique ; `iVisRows -2` dans tous les handlers ; ST_APP_VERSION 0.19.0
 - 2026-06-07: UC20 validé — commande `image [--st|--msa] [--bootable] [outpath]` ; P41 ENTER dans vue mount → `mount_open_file_hex()` → `edit_hex_open()` sur fichier FAT extrait dans temp ; P37 écriture `mount_make_bootable()` (checksum WD1772) + touche `F` dans mount ; `ptFileHexView` dans `mount_view_t` ; `MOUNT_FILE_TMP` ; `line_cmd_image()` dispatché sur CMD_IMAGE ; ST_APP_VERSION 0.20.0
 - 2026-06-07: UC20A validé — commandes `st2msa` (alias `s`) et `msa2st` (alias `a`) : conversion batch `.st↔.msa` ; `line_cmd_convert()` partagé + `line_conv_one()` + `line_conv_dir_rec()` récursif via `file_list_fn` ; flags `--all`, `--dir <path>`, `-r` ; `conv_ctx_t` / `conv_rec_ctx_t` ; `line_conv_replace_ext()` ; ST_APP_VERSION 0.20.1
+- 2026-06-07: UC21 validé — `src/CPU.c` réécrit : décodeur EA 12 modes (`cpu_ea_read/write/calc_addr`) + MOVE.B/W/L + MOVEA.W/L + MOVEQ + LEA + CLR.B/W/L + SWAP ; `cpu_fetch_word` + flags N/Z/V/C ; 10 instructions stepées avec succès ; `use_case_01.c` ADAPTED:UC21 ; ST_APP_VERSION 0.21.0
 - 2026-06-06: UC15A validé — torture test désassembleur 68000 vs SOURCE.PRG (DEVPAC3, ATARI ST réel) : 2525 instructions, DIFF=0 ; 5 bugs disasm corrigés (groupE iIR inversé, EXG An,An ordre DEVPAC3, NBCD/CHK/size=3 ext words) ; `DISASM_SYNTAX.md` créé à la racine ; use_case_11/13.c ADAPTED:UC15A
 - 2026-06-03: UC15 validé — `src/load.c` `load_do_prg()` complet : header 28 octets, chargement .text+.data à ST_LOAD_BASE, BSS zeroing, table de fixups Atari ST (bitstream : first_offset 4B, 0x00=fin, 0x01=skip 254B, N=advance+fix) ; abs_flag géré (pas de table fixup) ; `load_state_t` étendu (uiTextSize/uiDataSize/uiBssSize/uiFixupCount) ; helpers `load_apply_fixups` + `load_skip_bytes` ; fixtures `use_cases/UC15/` (fixup/bss/absolute/multi_fixup/bad_fixup.prg) ; TODO(UC15) supprimé ; ST_APP_VERSION 0.15.0
 - 2026-06-03: UC11 validé — `src/disassemble.c` : désassembleur 68000 réel MOVE/MOVEQ/LEA/CLR/EXG/SWAP/PEA + décodeur EA complet (12 modes) ; `bValid = ST_TRUE` sur instructions reconnues ; `TC-DIS-001 ADAPTED(UC11)` ; ST_APP_VERSION 0.11.0
@@ -587,7 +588,7 @@ Les étapes de développement fonctionnelles sont formalisées en Use Cases, per
 | UC19 | `umount` | Démontage + dialog save .st/.msa/répertoire (P35) ; status bar mount (P39) ; progression copie (P40) | ✓ VALIDÉ 2026-06-07 |
 | UC20 | `image` | Création .st / .msa depuis le contenu monté ; Enter → hex dans mount (P41) ; `mount_make_bootable()` touche F (P37 write) | ✓ VALIDÉ 2026-06-07 |
 | UC20A | `st2msa`, `msa2st` | Conversion batch .st↔.msa (P42) : `--all` traite tous les fichiers du répertoire `dir`, `--dir <path>` répertoire explicite, `-r` récursif sous-répertoires | ✓ VALIDÉ 2026-06-07 |
-| UC21 | interne | CPU 68000 : registres + MOVE/MOVEQ/LEA/CLR/SWAP | step 10 instructions |
+| UC21 | interne | CPU 68000 : registres + MOVE/MOVEQ/LEA/CLR/SWAP | ✓ VALIDÉ 2026-06-07 |
 | UC22 | interne | CPU 68000 : ADD/SUB/CMP/AND/OR/EOR/shifts | exécution programme arithmétique |
 | UC23 | interne | CPU 68000 : BRA/Bcc/JSR/RTS/TRAP + vecteurs exception | appel/retour de fonction |
 | UC24 | interne | Memory map ST + registres HW stubs (Shifter, MFP, YM2149) | accès registres sans crash |
@@ -2494,8 +2495,120 @@ Référence complète des différences syntaxiques : **`DISASM_SYNTAX.md`** à l
 - `bIsDir && !bRecurse` → ignoré silencieusement.
 
 **Points d'attention pour les UCs suivants :**
-- UC21 : CPU 68000 — registres + MOVE/MOVEQ/LEA/CLR/SWAP. Début de la phase émulation.
+- ~~UC21 : CPU 68000~~ **✓ IMPLÉMENTÉ UC21** — MOVE/MOVEQ/LEA/CLR/SWAP + décodeur EA 12 modes.
 - Le flag `-r` est fonctionnel mais non testé dans `use_case_20A.c` (aucune fixture multi-niveau créée) — comportement validé par la logique de `line_conv_dir_rec` qui délègue à `file_list_dir`. Un test de régression `-r` est candidat pour un UC futur si un répertoire récursif de démos devient une fixture de projet.
+
+---
+
+### 6.29 Use Case 21 (UC21) — ✓ VALIDÉ (2026-06-07)
+
+**Périmètre fonctionnel implémenté :**
+- `src/CPU.c` réécrit intégralement — suppression du stub `cpu_step` (PC+2 uniquement) ; implémentation du décodeur EA 12 modes + 5 familles d'instructions :
+  - **`cpu_fetch_word()`** : lecture du mot à PC + PC+=2 ; appelé pour l'opcode et pour chaque mot d'extension consommé par le décodeur EA.
+  - **`cpu_flags_nz()`** : mise à jour N et Z à partir d'une valeur masquée par taille.
+  - **`cpu_flags_clr_vc()`** : effacement de V et C.
+  - **Décodeur EA — `cpu_ea_read()`** : 12 modes complets : Dn / An / (An) / (An)+ / -(An) / d16(An) / d8(An,Xn) / abs.W / abs.L / d16(PC) / d8(PC,Xn) / #imm. A7 byte : inc/dec par 2. Mots d'extension consommés via `cpu_fetch_word()` (avance PC).
+  - **Décodeur EA — `cpu_ea_write()`** : même logique, écriture Dn (partielle pour byte/word, preserves upper), An (toujours 32 bits), mémoire.
+  - **`cpu_ea_calc_addr()`** : calcul d'adresse seul pour LEA (modes contrôle uniquement : 2/5/6/7.0/7.1/7.2/7.3).
+  - **`cpu_exec_move()` (groupes 0x1/0x2/0x3)** : MOVE.B/W/L + MOVEA.W/L. Topologie des bits : dest = [11-9] reg + [8-6] mode (inversé vs source). MOVEA.W sign-étend sur 32 bits, pas de flags. MOVEA.B → LOG_TODO non-fatal.
+  - **`cpu_exec_moveq()` (groupe 0x7)** : `0111 DDD 0 IIIIIIII`. Bit 8 doit être 0. Immédiat 8 bits signé, sign-étendu à 32 bits, registre complet écrit. Flags N/Z/V=0/C=0.
+  - **`cpu_exec_clr()` (dans groupe 0x4)** : `0100 0010 SS MMMRRR`. Écrit 0 via `cpu_ea_write`. Flags : N=0, Z=1, V=0, C=0. Size=3 → LOG_TODO.
+  - **`cpu_exec_lea()` (dans groupe 0x4)** : `0100 AAA 111 MMMRRR` (mask `0xF1C0 == 0x41C0`). Adresse EA écrite dans An, pas de flags.
+  - **`cpu_exec_swap()` (dans groupe 0x4)** : `0100 1000 0100 0DDD` (mask `0xFFF8 == 0x4840`). Échange bits 31-16 et 15-0. Flags N/Z depuis le résultat 32 bits, V=0, C=0.
+  - **`cpu_exec_misc4()` (dispatcher groupe 0x4)** : LEA en priorité (0xF1C0 == 0x41C0) → SWAP (0xFFF8 == 0x4840) → CLR (0xFF00 == 0x4200) → LOG_TODO pour les autres (RTS, NOP, TRAP, etc. — UC23).
+  - **`cpu_step()`** : utilise `cpu_fetch_word()` pour l'opcode (PC déjà avancé avant le dispatch) ; dispatch sur le nibble haut ; opcodes non-implémentés → LOG_TODO + `ST_NO_ERROR` (non-fatal).
+- `use_cases/use_case_21.c` : TEST MATRIX **47N + 8R + 0S = 55 tests**, 0 failure.
+- `use_cases/use_case_01.c` : ADAPTED:UC21 sur TC-CPU-005/006 — assertion `D0==42` ajoutée après MOVEQ ; commentaire RTS mis à jour (LOG_TODO UC23, non-fatal).
+- `src/common.h` : `ST_APP_VERSION` → `"0.21.0"`.
+
+**Architecture EA (UC21) :**
+- `cpu_fetch_word()` est le seul point d'accès à la mémoire pour la progression du PC. Après le fetch de l'opcode, PC pointe sur le premier mot d'extension. Le décodeur EA avance PC de 2 par mot d'extension consommé — cela garantit que PC est toujours correct après le retour du handler, quelle que soit la longueur de l'instruction.
+- Les modes d'adressage `(An)+` et `-(An)` modifient An avant/après l'accès. Pour le byte-size avec A7, le décalage est 2 (alignement de pile 68000).
+- MOVEA n'appelle pas `cpu_ea_write()` mais modifie directement `auAn[iDstReg]` — garantit que les flags ne sont pas modifiés et que l'écriture est toujours 32 bits.
+- Écriture partielle Dn : byte → preserves bits 31-8 ; word → preserves bits 31-16 ; long → remplacement complet.
+
+**10-instruction test sequence (validée) :**
+
+| Offset | Opcode(s) | Instruction | Effet attendu |
+|--------|-----------|-------------|---------------|
+| 0x0800 | 70 42 | MOVEQ #$42,D0 | D0=0x42, N=0,Z=0 |
+| 0x0802 | 72 00 | MOVEQ #0,D1 | D1=0, Z=1 |
+| 0x0804 | 74 FF | MOVEQ #-1,D2 | D2=0xFFFFFFFF, N=1 |
+| 0x0806 | 26 02 | MOVE.L D2,D3 | D3=0xFFFFFFFF |
+| 0x0808 | 48 43 | SWAP D3 | D3=0xFFFFFFFF (unchanged) |
+| 0x080A | 42 83 | CLR.L D3 | D3=0, Z=1 |
+| 0x080C | 38 3C 12 34 | MOVE.W #$1234,D4 | D4&0xFFFF=0x1234 |
+| 0x0810 | 41 F8 08 00 | LEA $0800.W,A0 | A0=0x0800 |
+| 0x0814 | 2A 08 | MOVE.L A0,D5 | D5=0x0800 |
+| 0x0816 | 1C 3C 00 FF | MOVE.B #$FF,D6 | D6&0xFF=0xFF, N=1 |
+
+**Tests R14/R15 appliqués :**
+- `use_cases/use_case_21.c` : TEST MATRIX **47N + 8R + 0S = 55 tests**, 0 failure
+  - [N] : MOVEQ (5 assertions : positive/zéro/négatif/sign-extend/bit8-set) ; MOVE.L/W/B reg→reg (6) ; MOVE.B immediate (3) ; MOVE.W immediate (5) ; MOVE.L An source (2) ; MOVEA.W sign-extend/no-flags (3) ; MOVEA.L (2) ; LEA abs.W (2) ; LEA (An) (3) ; CLR.L flags complets (5) ; CLR.W partiel (3) ; CLR.B partiel (3) ; SWAP all-ones (5) ; SWAP zéro (1) ; SWAP 0x00FF0000 (3) ; EA mémoire (An)/(An)+/-(An)/d16(An)/(An) byte (9) ; séquence 10 instructions avec résultats + compteur + PC final (21)
+  - [R] : NULL ptCpu (1) ; NULL ptMachine (1) ; opcode non-implémenté no-crash + PC+2 (2) ; CPU arrêté no-crash (1) ; ptResult NULL (2) ; CLR.L (A1) mémoire (1)
+
+**Contrats comportementaux validés :**
+
+*`cpu_fetch_word(ptCpu, ptMachine)`*
+- Lit le mot big-endian à `ptCpu->uiPC` puis `ptCpu->uiPC += 2`
+- Appelé une fois pour l'opcode, puis une fois par mot d'extension de chaque EA
+- Erreur bus : LOG_ERROR, retourne 0xFFFF (non fatal — l'instruction sera malformée mais pas de crash)
+
+*`cpu_ea_read()` — invariants*
+- Mode 3 (An)+ : incrémente An **après** la lecture ; A7+byte → +2
+- Mode 4 -(An) : décrémente An **avant** la lecture ; A7+byte → -2
+- Mode 7.4 (#imm) : byte = octet bas du mot d'extension ; long = 2 mots d'extension
+- Mode 7.2 (d16(PC)) : l'adresse de base est PC **avant** `cpu_fetch_word` du mot d'extension
+
+*`cpu_ea_write()` — Dn partiel*
+- Byte → `Dn = (Dn & 0xFFFFFF00) | (val & 0xFF)` — bits 31-8 inchangés
+- Word → `Dn = (Dn & 0xFFFF0000) | (val & 0xFFFF)` — bits 31-16 inchangés
+- Long → `Dn = val` — remplacement complet
+
+*`cpu_exec_move()` — destination EA*
+- Source lue via `cpu_ea_read()` (avance PC des mots ext source)
+- Destination écrite via `cpu_ea_write()` (avance PC des mots ext dest)
+- MOVEA.B → LOG_TODO non-fatal (MOVEA.B illégal 68000)
+- MOVEA.W → sign-extend 16→32 bits avant écriture An ; flags inchangés
+- MOVE normale → `cpu_flags_nz + cpu_flags_clr_vc` avant écriture
+
+*`cpu_exec_moveq()`*
+- Bit 8 de l'opcode doit être 0 ; sinon LOG_TODO non-fatal
+- Immédiat = octet bas de l'opcode, signé ; sign-étendu à 32 bits
+- D'n reçoit les 32 bits complets (pas d'écriture partielle)
+
+*`cpu_exec_clr()`*
+- Écrit 0 via `cpu_ea_write()` — respecte les sémantiques partielle Dn
+- Flags résultants : N=0, Z=1, V=0, C=0 — inconditionnels (le zéro est toujours zéro)
+- Size=3 (bits 7-6=11) → LOG_TODO non-fatal
+
+*`cpu_exec_lea()`*
+- Calcule l'adresse EA via `cpu_ea_calc_addr()` — PC avancé des mots ext
+- Écrit l'adresse dans An (32 bits, pas de partiel)
+- Aucun flag modifié
+
+*`cpu_exec_swap()`*
+- `new = ((old & 0x0000FFFF) << 16) | ((old & 0xFFFF0000) >> 16)`
+- Flags depuis new en taille long : N/Z mis à jour, V=0, C=0
+
+*`cpu_step()` — dispatch*
+- `cpu_fetch_word()` pour l'opcode en premier → PC déjà à PC+2 avant le handler
+- Nibble haut 0x1/0x2/0x3 → `cpu_exec_move` ; 0x4 → `cpu_exec_misc4` ; 0x7 → `cpu_exec_moveq`
+- Autres nibbles → LOG_TODO + `ST_NO_ERROR` (non-fatal, progression)
+- `ulInstrCount++` après chaque step quel que soit le résultat
+- `ptResult` NULL est légal — skippé silencieusement
+
+**Points d'attention pour les UCs suivants :**
+- UC22 : ADD/SUB/CMP/AND/OR/EOR/shifts — groupes 0x5/0x6/0x8/0x9/0xB/0xC/0xD/0xE. Les flags X, C, V nécessitent une gestion complète (dépassement, retenue, borrow). Le décodeur EA est déjà complet — UC22 réutilise `cpu_ea_read/write` sans modification.
+- UC22 : cycles d'exécution réels — `ptResult->iCycles` est pour l'instant hardcodé à 4. UC22 pourra affiner selon la table des timings 68000 (EA mode + instruction).
+- UC23 : `cpu_exec_misc4` pour les opcodes non-couverts : RTS (0x4E75), NOP (0x4E71), JSR (0x4E80-BF), JMP (0x4EC0-FF), TRAP #N, LINK/UNLK, RTE/RTR. Nécessite `cpu_raise_exception()` complet (stacking SR+PC, changement mode).
+- `use_case_01.c` TC-CPU-005/006 ADAPTED:UC21 — les assertions step#1/step#2 sont désormais des tests réels (D0==42, opcode correct). À noter : step#2 (RTS) retourne ST_NO_ERROR via LOG_TODO — ce comportement sera remplacé en UC23.
+
+---
+
+### Arbitrage UC21 (2026-06-07)
+
+*UC21 est un UC purement interne (émulateur CPU 68000). Aucune proposition UX/fonctionnelle n'a émergé — UC21 est clos.*
 
 ---
 
