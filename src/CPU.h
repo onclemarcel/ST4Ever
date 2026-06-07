@@ -24,8 +24,8 @@
  *   opcode including effective address mode and size field.
  *   See CPU.c for the table definitions.
  *
- * TODO(UC21): Implement MOVE/MOVEQ/LEA/CLR/SWAP.
- * TODO(UC22): Implement ADD/SUB/CMP/AND/OR/EOR/shifts.
+ * UC21: MOVE/MOVEQ/LEA/CLR/SWAP.
+ * UC22: ADD/SUB/CMP/AND/OR/EOR/shifts + NEG/NOT/TST/EXT/ADDQ/SUBQ.
  * TODO(UC23): Implement BRA/Bcc/JSR/RTS/TRAP + exception vectors.
  */
 

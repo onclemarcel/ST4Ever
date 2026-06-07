@@ -2,7 +2,9 @@
  * CPU.c - MC68000 CPU emulator
  *
  * UC21: MOVE.B/W/L, MOVEA.W/L, MOVEQ, LEA, CLR.B/W/L, SWAP Dn
- * TODO(UC22): ADD/SUB/CMP/AND/OR/EOR/shifts
+ * UC22: ADD/SUB/CMP/AND/OR/EOR/shifts + NEG/NEGX/NOT/TST/EXT +
+ *        ADDI/SUBI/CMPI/ANDI/ORI/EORI + ADDQ/SUBQ +
+ *        ADDX/SUBX + MULU/MULS/DIVU/DIVS (LOG_TODO)
  * TODO(UC23): BRA/Bcc/JSR/RTS/TRAP + exception vectors
  */
 #include "CPU.h"
@@ -70,6 +72,94 @@ static void cpu_flags_nz(cpu68k_t *ptCpu, st_u32_t uiVal, int iSz)
 static void cpu_flags_clr_vc(cpu68k_t *ptCpu)
 {
     ptCpu->uiSR &= (st_u16_t)~(CPU_SR_V | CPU_SR_C);
+}
+
+/*
+ * cpu_flags_add() - Set N/Z/V/C/X for addition (dst + src = res).
+ *
+ * C = unsigned carry out; V = signed overflow; X = C.
+ */
+static void cpu_flags_add(cpu68k_t *ptCpu,
+                           st_u32_t  uiSrc,
+                           st_u32_t  uiDst,
+                           st_u32_t  uiRes,
+                           int       iSz)
+{
+    st_u32_t uiMsb  = g_auiMsb[iSz];
+    st_u32_t uiMask = g_auiMask[iSz];
+    st_u16_t uiSR   = ptCpu->uiSR;
+
+    uiSrc &= uiMask;
+    uiDst &= uiMask;
+    uiRes &= uiMask;
+
+    /* N and Z */
+    if (uiRes == 0u)
+        uiSR |=  (st_u16_t)CPU_SR_Z;
+    else
+        uiSR &= (st_u16_t)~CPU_SR_Z;
+    if (uiRes & uiMsb)
+        uiSR |=  (st_u16_t)CPU_SR_N;
+    else
+        uiSR &= (st_u16_t)~CPU_SR_N;
+
+    /* C: carry out — result smaller than either operand (unsigned) */
+    if (uiRes < uiSrc || uiRes < uiDst)
+        uiSR |=  (st_u16_t)(CPU_SR_C | CPU_SR_X);
+    else
+        uiSR &= (st_u16_t)~(CPU_SR_C | CPU_SR_X);
+
+    /* V: signed overflow — both operands same sign, result different */
+    if (!((uiSrc ^ uiDst) & uiMsb) && ((uiRes ^ uiSrc) & uiMsb))
+        uiSR |=  (st_u16_t)CPU_SR_V;
+    else
+        uiSR &= (st_u16_t)~CPU_SR_V;
+
+    ptCpu->uiSR = uiSR;
+}
+
+/*
+ * cpu_flags_sub() - Set N/Z/V/C/X for subtraction (dst - src = res).
+ *
+ * C = borrow (src > dst unsigned); V = signed overflow; X = C.
+ */
+static void cpu_flags_sub(cpu68k_t *ptCpu,
+                           st_u32_t  uiSrc,
+                           st_u32_t  uiDst,
+                           st_u32_t  uiRes,
+                           int       iSz)
+{
+    st_u32_t uiMsb  = g_auiMsb[iSz];
+    st_u32_t uiMask = g_auiMask[iSz];
+    st_u16_t uiSR   = ptCpu->uiSR;
+
+    uiSrc &= uiMask;
+    uiDst &= uiMask;
+    uiRes &= uiMask;
+
+    /* N and Z */
+    if (uiRes == 0u)
+        uiSR |=  (st_u16_t)CPU_SR_Z;
+    else
+        uiSR &= (st_u16_t)~CPU_SR_Z;
+    if (uiRes & uiMsb)
+        uiSR |=  (st_u16_t)CPU_SR_N;
+    else
+        uiSR &= (st_u16_t)~CPU_SR_N;
+
+    /* C: borrow — source larger than dest (unsigned) */
+    if (uiSrc > uiDst)
+        uiSR |=  (st_u16_t)(CPU_SR_C | CPU_SR_X);
+    else
+        uiSR &= (st_u16_t)~(CPU_SR_C | CPU_SR_X);
+
+    /* V: signed overflow — operands different signs, result sign != dst */
+    if (((uiSrc ^ uiDst) & uiMsb) && ((uiRes ^ uiDst) & uiMsb))
+        uiSR |=  (st_u16_t)CPU_SR_V;
+    else
+        uiSR &= (st_u16_t)~CPU_SR_V;
+
+    ptCpu->uiSR = uiSR;
 }
 
 /* ------------------------------------------------------------------
@@ -690,10 +780,919 @@ static st_error_t cpu_exec_swap(cpu68k_t *ptCpu, st_u16_t uiOpc)
 }
 
 /*
- * cpu_exec_misc4() - Dispatch group 0x4 instructions.
+ * cpu_exec_unary() - NEG / NEGX / NOT / TST  (group 0x4 unary ops).
  *
- * Handles CLR, LEA, SWAP.  Other group-4 instructions (RTS, NOP,
- * TRAP, etc.) are logged as TODO for UC23.
+ * szMnem : mnemonic string for logging
+ * iOp    : 0=NEG, 1=NEGX, 2=NOT, 3=TST
+ * Encoding: 0100 oo10 SS MMMRRR   (oo = 01/10/11/00 for TST/NOT/NEG/NEGX)
+ */
+static st_error_t cpu_exec_unary(cpu68k_t     *ptCpu,
+                                   st_machine_t *ptMachine,
+                                   st_u16_t      uiOpc,
+                                   int           iOp)
+{
+    int        iSzCode = (uiOpc >> 6) & 3;
+    int        iMode   = (uiOpc >> 3) & 7;
+    int        iReg    = uiOpc & 7;
+    int        iSz;
+    st_u32_t   uiSrc;
+    st_u32_t   uiRes;
+    st_error_t eR;
+    st_u32_t   uiMask;
+    st_u32_t   uiX;
+
+    if      (iSzCode == 0) iSz = SZ_BYTE;
+    else if (iSzCode == 1) iSz = SZ_WORD;
+    else if (iSzCode == 2) iSz = SZ_LONG;
+    else
+    {
+        LOG_TODO("unary sz=3: DC.W 0x%04X", (unsigned)uiOpc);
+        return ST_NO_ERROR;
+    }
+
+    uiMask = g_auiMask[iSz];
+
+    eR = cpu_ea_read(ptCpu, ptMachine, iMode, iReg, iSz, &uiSrc);
+    if (eR != ST_NO_ERROR)
+        return ST_ERROR;
+
+    uiSrc &= uiMask;
+
+    switch (iOp)
+    {
+    case 0: /* NEG: 0 - src */
+        uiRes = (st_u32_t)(-(st_i32_t)uiSrc) & uiMask;
+        cpu_flags_sub(ptCpu, uiSrc, 0u, uiRes, iSz);
+        eR = cpu_ea_write(ptCpu, ptMachine, iMode, iReg, iSz, uiRes);
+        break;
+
+    case 1: /* NEGX: 0 - src - X */
+        uiX   = CPU_FLAG_X(ptCpu) ? 1u : 0u;
+        uiRes = (st_u32_t)(-(st_i32_t)uiSrc - (st_i32_t)uiX) & uiMask;
+        cpu_flags_sub(ptCpu, uiSrc + uiX, 0u, uiRes, iSz);
+        /* NEGX: Z cleared only if result != 0 (not set if result == 0) */
+        if (uiRes != 0u)
+            ptCpu->uiSR &= (st_u16_t)~CPU_SR_Z;
+        eR = cpu_ea_write(ptCpu, ptMachine, iMode, iReg, iSz, uiRes);
+        break;
+
+    case 2: /* NOT: ~src */
+        uiRes = (~uiSrc) & uiMask;
+        cpu_flags_nz(ptCpu, uiRes, iSz);
+        cpu_flags_clr_vc(ptCpu);
+        eR = cpu_ea_write(ptCpu, ptMachine, iMode, iReg, iSz, uiRes);
+        break;
+
+    default: /* TST: result discarded, flags only */
+        cpu_flags_nz(ptCpu, uiSrc, iSz);
+        cpu_flags_clr_vc(ptCpu);
+        eR = ST_NO_ERROR;
+        break;
+    }
+
+    return eR;
+}
+
+/*
+ * cpu_exec_group0() - Immediate ops (ADDI/SUBI/CMPI/ANDI/ORI/EORI).
+ *
+ * Encoding: 0000 TTTT SS MMMRRR  + imm word(s)
+ *   TTTT: 0000=ORI, 0010=ANDI, 0100=SUBI, 0110=ADDI, 1010=EORI, 1100=CMPI
+ */
+static st_error_t cpu_exec_group0(cpu68k_t     *ptCpu,
+                                    st_machine_t *ptMachine,
+                                    st_u16_t      uiOpc)
+{
+    int        iOp     = (uiOpc >> 8) & 0xFu;
+    int        iSzCode = (uiOpc >> 6) & 3;
+    int        iMode   = (uiOpc >> 3) & 7;
+    int        iReg    = uiOpc & 7;
+    int        iSz;
+    st_u32_t   uiImm;
+    st_u32_t   uiDst;
+    st_u32_t   uiRes;
+    st_u16_t   uiExtW;
+    st_error_t eR;
+
+    if      (iSzCode == 0) iSz = SZ_BYTE;
+    else if (iSzCode == 1) iSz = SZ_WORD;
+    else if (iSzCode == 2) iSz = SZ_LONG;
+    else
+    {
+        LOG_TODO("group0: sz=3: DC.W 0x%04X", (unsigned)uiOpc);
+        return ST_NO_ERROR;
+    }
+
+    /* Read immediate value */
+    uiExtW = cpu_fetch_word(ptCpu, ptMachine);
+    if (iSz == SZ_LONG)
+    {
+        st_u32_t uiHi = uiExtW;
+        uiExtW = cpu_fetch_word(ptCpu, ptMachine);
+        uiImm  = (uiHi << 16u) | uiExtW;
+    }
+    else if (iSz == SZ_BYTE)
+        uiImm = uiExtW & 0xFFu;
+    else
+        uiImm = uiExtW;
+
+    /* Read destination EA */
+    eR = cpu_ea_read(ptCpu, ptMachine, iMode, iReg, iSz, &uiDst);
+    if (eR != ST_NO_ERROR)
+        return ST_ERROR;
+
+    switch (iOp)
+    {
+    case 0x0: /* ORI */
+        uiRes = (uiDst | uiImm) & g_auiMask[iSz];
+        cpu_flags_nz(ptCpu, uiRes, iSz);
+        cpu_flags_clr_vc(ptCpu);
+        return cpu_ea_write(ptCpu, ptMachine, iMode, iReg, iSz, uiRes);
+
+    case 0x2: /* ANDI */
+        uiRes = (uiDst & uiImm) & g_auiMask[iSz];
+        cpu_flags_nz(ptCpu, uiRes, iSz);
+        cpu_flags_clr_vc(ptCpu);
+        return cpu_ea_write(ptCpu, ptMachine, iMode, iReg, iSz, uiRes);
+
+    case 0x4: /* SUBI */
+        uiRes = (uiDst - uiImm) & g_auiMask[iSz];
+        cpu_flags_sub(ptCpu, uiImm, uiDst, uiRes, iSz);
+        return cpu_ea_write(ptCpu, ptMachine, iMode, iReg, iSz, uiRes);
+
+    case 0x6: /* ADDI */
+        uiRes = (uiDst + uiImm) & g_auiMask[iSz];
+        cpu_flags_add(ptCpu, uiImm, uiDst, uiRes, iSz);
+        return cpu_ea_write(ptCpu, ptMachine, iMode, iReg, iSz, uiRes);
+
+    case 0xA: /* EORI */
+        uiRes = (uiDst ^ uiImm) & g_auiMask[iSz];
+        cpu_flags_nz(ptCpu, uiRes, iSz);
+        cpu_flags_clr_vc(ptCpu);
+        return cpu_ea_write(ptCpu, ptMachine, iMode, iReg, iSz, uiRes);
+
+    case 0xC: /* CMPI — result discarded, flags only */
+        uiRes = (uiDst - uiImm) & g_auiMask[iSz];
+        cpu_flags_sub(ptCpu, uiImm, uiDst, uiRes, iSz);
+        return ST_NO_ERROR;
+
+    default:
+        LOG_TODO("group0 op=0x%X DC.W 0x%04X", iOp, (unsigned)uiOpc);
+        return ST_NO_ERROR;
+    }
+}
+
+/*
+ * cpu_exec_group5() - ADDQ / SUBQ.
+ *
+ * Encoding: 0101 DDD Q SS MMMRRR
+ *   Q=0 → ADDQ, Q=1 → SUBQ; DDD=immediate (0=8); SS=size
+ */
+static st_error_t cpu_exec_group5(cpu68k_t     *ptCpu,
+                                    st_machine_t *ptMachine,
+                                    st_u16_t      uiOpc)
+{
+    int        iData   = (uiOpc >> 9) & 7;
+    int        iDir    = (uiOpc >> 8) & 1; /* 0=ADDQ, 1=SUBQ */
+    int        iSzCode = (uiOpc >> 6) & 3;
+    int        iMode   = (uiOpc >> 3) & 7;
+    int        iReg    = uiOpc & 7;
+    int        iSz;
+    st_u32_t   uiImm;
+    st_u32_t   uiDst;
+    st_u32_t   uiRes;
+    st_error_t eR;
+
+    if (iSzCode == 3)
+    {
+        LOG_TODO("group5: Scc/DBcc DC.W 0x%04X", (unsigned)uiOpc);
+        return ST_NO_ERROR;
+    }
+
+    if      (iSzCode == 0) iSz = SZ_BYTE;
+    else if (iSzCode == 1) iSz = SZ_WORD;
+    else                   iSz = SZ_LONG;
+
+    uiImm = (iData == 0) ? 8u : (st_u32_t)iData;
+
+    eR = cpu_ea_read(ptCpu, ptMachine, iMode, iReg, iSz, &uiDst);
+    if (eR != ST_NO_ERROR)
+        return ST_ERROR;
+
+    if (iDir == 0)
+    {
+        uiRes = (uiDst + uiImm) & g_auiMask[iSz];
+        /* An destination: no flags */
+        if (iMode != 1)
+            cpu_flags_add(ptCpu, uiImm, uiDst, uiRes, iSz);
+    }
+    else
+    {
+        uiRes = (uiDst - uiImm) & g_auiMask[iSz];
+        if (iMode != 1)
+            cpu_flags_sub(ptCpu, uiImm, uiDst, uiRes, iSz);
+    }
+
+    return cpu_ea_write(ptCpu, ptMachine, iMode, iReg, iSz, uiRes);
+}
+
+/*
+ * cpu_exec_addx_subx() - ADDX / SUBX (register and memory forms).
+ *
+ * Register: MMMRRR = 000 DDD (mode=0), Memory: MMMRRR = 001 DDD
+ * iDir: 0=ADDX, 1=SUBX
+ */
+static st_error_t cpu_exec_addx_subx(cpu68k_t     *ptCpu,
+                                       st_machine_t *ptMachine,
+                                       st_u16_t      uiOpc,
+                                       int           iDir)
+{
+    int        iSzCode = (uiOpc >> 6) & 3;
+    int        iRy     = uiOpc & 7;
+    int        iRx     = (uiOpc >> 9) & 7;
+    int        iRm     = (uiOpc >> 3) & 1; /* 0=Dn, 1=-(An) */
+    int        iSz;
+    st_u32_t   uiSrc;
+    st_u32_t   uiDst;
+    st_u32_t   uiRes;
+    st_u32_t   uiX;
+    st_error_t eR;
+
+    if      (iSzCode == 0) iSz = SZ_BYTE;
+    else if (iSzCode == 1) iSz = SZ_WORD;
+    else if (iSzCode == 2) iSz = SZ_LONG;
+    else
+    {
+        LOG_TODO("addx_subx sz=3 DC.W 0x%04X", (unsigned)uiOpc);
+        return ST_NO_ERROR;
+    }
+
+    uiX = CPU_FLAG_X(ptCpu) ? 1u : 0u;
+
+    if (iRm == 0)
+    {
+        /* Register form: Dy, Dx */
+        uiSrc = ptCpu->auDn[iRy] & g_auiMask[iSz];
+        uiDst = ptCpu->auDn[iRx] & g_auiMask[iSz];
+    }
+    else
+    {
+        /* Memory form: -(Ay), -(Ax) */
+        eR = cpu_ea_read(ptCpu, ptMachine, 4, iRy, iSz, &uiSrc);
+        if (eR != ST_NO_ERROR)
+            return ST_ERROR;
+        eR = cpu_ea_read(ptCpu, ptMachine, 4, iRx, iSz, &uiDst);
+        if (eR != ST_NO_ERROR)
+            return ST_ERROR;
+    }
+
+    if (iDir == 0)
+    {
+        /* ADDX */
+        uiRes = (uiDst + uiSrc + uiX) & g_auiMask[iSz];
+        cpu_flags_add(ptCpu, uiSrc + uiX, uiDst, uiRes, iSz);
+        /* ADDX: Z cleared only if result != 0 */
+        if (uiRes != 0u)
+            ptCpu->uiSR &= (st_u16_t)~CPU_SR_Z;
+    }
+    else
+    {
+        /* SUBX */
+        uiRes = (uiDst - uiSrc - uiX) & g_auiMask[iSz];
+        cpu_flags_sub(ptCpu, uiSrc + uiX, uiDst, uiRes, iSz);
+        if (uiRes != 0u)
+            ptCpu->uiSR &= (st_u16_t)~CPU_SR_Z;
+    }
+
+    if (iRm == 0)
+    {
+        eR = cpu_ea_write(ptCpu, ptMachine, 0, iRx, iSz, uiRes);
+    }
+    else
+    {
+        /* Write back to the pre-decremented address — re-read adjusted An */
+        uiDst = ptCpu->auAn[iRx] & 0x00FFFFFFu;
+        switch (iSz)
+        {
+        case SZ_BYTE:
+            eR = st_write_byte(ptMachine, uiDst, (st_u8_t)uiRes);
+            break;
+        case SZ_WORD:
+            eR = st_write_word(ptMachine, uiDst, (st_u16_t)uiRes);
+            break;
+        default:
+            eR = st_write_long(ptMachine, uiDst, uiRes);
+            break;
+        }
+        if (eR != ST_NO_ERROR)
+            return ST_ERROR;
+    }
+    return eR;
+}
+
+/*
+ * cpu_exec_groupD() - ADD / ADDA / ADDX (group 0xD).
+ */
+static st_error_t cpu_exec_groupD(cpu68k_t     *ptCpu,
+                                    st_machine_t *ptMachine,
+                                    st_u16_t      uiOpc)
+{
+    int        iReg    = (uiOpc >> 9) & 7;
+    int        iDir    = (uiOpc >> 8) & 1;
+    int        iSzCode = (uiOpc >> 6) & 3;
+    int        iMode   = (uiOpc >> 3) & 7;
+    int        iRn     = uiOpc & 7;
+    int        iSz;
+    st_u32_t   uiSrc;
+    st_u32_t   uiDst;
+    st_u32_t   uiRes;
+    st_error_t eR;
+
+    /* ADDA: size code 3 (word) or when dest is An and sz=long */
+    if (iSzCode == 3)
+    {
+        /* ADDA.L */
+        eR = cpu_ea_read(ptCpu, ptMachine, iMode, iRn, SZ_LONG, &uiSrc);
+        if (eR != ST_NO_ERROR)
+            return ST_ERROR;
+        ptCpu->auAn[iReg] += uiSrc;
+        return ST_NO_ERROR;
+    }
+
+    if      (iSzCode == 0) iSz = SZ_BYTE;
+    else if (iSzCode == 1) iSz = SZ_WORD;
+    else                   iSz = SZ_LONG;
+
+    /* Check ADDX: bit8=1, mode field <= 1 (Dn or -(An)) */
+    if (iDir == 1 && iMode <= 1)
+        return cpu_exec_addx_subx(ptCpu, ptMachine, uiOpc, 0);
+
+    if (iDir == 0)
+    {
+        /* ADD EA,Dn  (bit8=0) */
+        eR = cpu_ea_read(ptCpu, ptMachine, iMode, iRn, iSz, &uiSrc);
+        if (eR != ST_NO_ERROR)
+            return ST_ERROR;
+        uiDst = ptCpu->auDn[iReg] & g_auiMask[iSz];
+        uiRes = (uiDst + uiSrc) & g_auiMask[iSz];
+        cpu_flags_add(ptCpu, uiSrc, uiDst, uiRes, iSz);
+        return cpu_ea_write(ptCpu, ptMachine, 0, iReg, iSz, uiRes);
+    }
+    else
+    {
+        /* ADD Dn,EA  (bit8=1, mode>1) */
+        uiSrc = ptCpu->auDn[iReg] & g_auiMask[iSz];
+        eR = cpu_ea_read(ptCpu, ptMachine, iMode, iRn, iSz, &uiDst);
+        if (eR != ST_NO_ERROR)
+            return ST_ERROR;
+        uiRes = (uiDst + uiSrc) & g_auiMask[iSz];
+        cpu_flags_add(ptCpu, uiSrc, uiDst, uiRes, iSz);
+        return cpu_ea_write(ptCpu, ptMachine, iMode, iRn, iSz, uiRes);
+    }
+}
+
+/*
+ * cpu_exec_group9() - SUB / SUBA / SUBX (group 0x9).
+ */
+static st_error_t cpu_exec_group9(cpu68k_t     *ptCpu,
+                                    st_machine_t *ptMachine,
+                                    st_u16_t      uiOpc)
+{
+    int        iReg    = (uiOpc >> 9) & 7;
+    int        iDir    = (uiOpc >> 8) & 1;
+    int        iSzCode = (uiOpc >> 6) & 3;
+    int        iMode   = (uiOpc >> 3) & 7;
+    int        iRn     = uiOpc & 7;
+    int        iSz;
+    st_u32_t   uiSrc;
+    st_u32_t   uiDst;
+    st_u32_t   uiRes;
+    st_error_t eR;
+
+    if (iSzCode == 3)
+    {
+        /* SUBA.L */
+        eR = cpu_ea_read(ptCpu, ptMachine, iMode, iRn, SZ_LONG, &uiSrc);
+        if (eR != ST_NO_ERROR)
+            return ST_ERROR;
+        ptCpu->auAn[iReg] -= uiSrc;
+        return ST_NO_ERROR;
+    }
+
+    if      (iSzCode == 0) iSz = SZ_BYTE;
+    else if (iSzCode == 1) iSz = SZ_WORD;
+    else                   iSz = SZ_LONG;
+
+    if (iDir == 1 && iMode <= 1)
+        return cpu_exec_addx_subx(ptCpu, ptMachine, uiOpc, 1);
+
+    if (iDir == 0)
+    {
+        /* SUB EA,Dn */
+        eR = cpu_ea_read(ptCpu, ptMachine, iMode, iRn, iSz, &uiSrc);
+        if (eR != ST_NO_ERROR)
+            return ST_ERROR;
+        uiDst = ptCpu->auDn[iReg] & g_auiMask[iSz];
+        uiRes = (uiDst - uiSrc) & g_auiMask[iSz];
+        cpu_flags_sub(ptCpu, uiSrc, uiDst, uiRes, iSz);
+        return cpu_ea_write(ptCpu, ptMachine, 0, iReg, iSz, uiRes);
+    }
+    else
+    {
+        /* SUB Dn,EA */
+        uiSrc = ptCpu->auDn[iReg] & g_auiMask[iSz];
+        eR = cpu_ea_read(ptCpu, ptMachine, iMode, iRn, iSz, &uiDst);
+        if (eR != ST_NO_ERROR)
+            return ST_ERROR;
+        uiRes = (uiDst - uiSrc) & g_auiMask[iSz];
+        cpu_flags_sub(ptCpu, uiSrc, uiDst, uiRes, iSz);
+        return cpu_ea_write(ptCpu, ptMachine, iMode, iRn, iSz, uiRes);
+    }
+}
+
+/*
+ * cpu_exec_groupB() - CMP / CMPA / EOR / CMPM (group 0xB).
+ */
+static st_error_t cpu_exec_groupB(cpu68k_t     *ptCpu,
+                                    st_machine_t *ptMachine,
+                                    st_u16_t      uiOpc)
+{
+    int        iReg    = (uiOpc >> 9) & 7;
+    int        iDir    = (uiOpc >> 8) & 1;
+    int        iSzCode = (uiOpc >> 6) & 3;
+    int        iMode   = (uiOpc >> 3) & 7;
+    int        iRn     = uiOpc & 7;
+    int        iSz;
+    st_u32_t   uiSrc;
+    st_u32_t   uiDst;
+    st_u32_t   uiRes;
+    st_error_t eR;
+
+    if (iSzCode == 3)
+    {
+        /* CMPA.L */
+        eR = cpu_ea_read(ptCpu, ptMachine, iMode, iRn, SZ_LONG, &uiSrc);
+        if (eR != ST_NO_ERROR)
+            return ST_ERROR;
+        uiDst = ptCpu->auAn[iReg];
+        uiRes = (uiDst - uiSrc) & g_auiMask[SZ_LONG];
+        cpu_flags_sub(ptCpu, uiSrc, uiDst, uiRes, SZ_LONG);
+        return ST_NO_ERROR;
+    }
+
+    if      (iSzCode == 0) iSz = SZ_BYTE;
+    else if (iSzCode == 1) iSz = SZ_WORD;
+    else                   iSz = SZ_LONG;
+
+    if (iDir == 1 && iMode == 1)
+    {
+        /* CMPM (An)+,(An)+ */
+        eR = cpu_ea_read(ptCpu, ptMachine, 3, iRn, iSz, &uiSrc);
+        if (eR != ST_NO_ERROR)
+            return ST_ERROR;
+        eR = cpu_ea_read(ptCpu, ptMachine, 3, iReg, iSz, &uiDst);
+        if (eR != ST_NO_ERROR)
+            return ST_ERROR;
+        uiRes = (uiDst - uiSrc) & g_auiMask[iSz];
+        cpu_flags_sub(ptCpu, uiSrc, uiDst, uiRes, iSz);
+        return ST_NO_ERROR;
+    }
+
+    if (iDir == 1)
+    {
+        /* EOR Dn,EA */
+        uiSrc = ptCpu->auDn[iReg] & g_auiMask[iSz];
+        eR = cpu_ea_read(ptCpu, ptMachine, iMode, iRn, iSz, &uiDst);
+        if (eR != ST_NO_ERROR)
+            return ST_ERROR;
+        uiRes = (uiDst ^ uiSrc) & g_auiMask[iSz];
+        cpu_flags_nz(ptCpu, uiRes, iSz);
+        cpu_flags_clr_vc(ptCpu);
+        return cpu_ea_write(ptCpu, ptMachine, iMode, iRn, iSz, uiRes);
+    }
+
+    /* CMP EA,Dn (bit8=0) */
+    eR = cpu_ea_read(ptCpu, ptMachine, iMode, iRn, iSz, &uiSrc);
+    if (eR != ST_NO_ERROR)
+        return ST_ERROR;
+    uiDst = ptCpu->auDn[iReg] & g_auiMask[iSz];
+    uiRes = (uiDst - uiSrc) & g_auiMask[iSz];
+    cpu_flags_sub(ptCpu, uiSrc, uiDst, uiRes, iSz);
+    return ST_NO_ERROR;
+}
+
+/*
+ * cpu_exec_groupC() - AND / MULU / MULS (group 0xC).
+ */
+static st_error_t cpu_exec_groupC(cpu68k_t     *ptCpu,
+                                    st_machine_t *ptMachine,
+                                    st_u16_t      uiOpc)
+{
+    int        iReg    = (uiOpc >> 9) & 7;
+    int        iDir    = (uiOpc >> 8) & 1;
+    int        iSzCode = (uiOpc >> 6) & 3;
+    int        iMode   = (uiOpc >> 3) & 7;
+    int        iRn     = uiOpc & 7;
+    int        iSz;
+    st_u32_t   uiSrc;
+    st_u32_t   uiDst;
+    st_u32_t   uiRes;
+    st_error_t eR;
+
+    if (iSzCode == 3)
+    {
+        /* MULU.W or MULS.W */
+        eR = cpu_ea_read(ptCpu, ptMachine, iMode, iRn, SZ_WORD, &uiSrc);
+        if (eR != ST_NO_ERROR)
+            return ST_ERROR;
+        if (iDir == 0)
+        {
+            /* MULU.W: unsigned 16x16 → 32 */
+            uiRes = (uiSrc & 0xFFFFu) * (ptCpu->auDn[iReg] & 0xFFFFu);
+        }
+        else
+        {
+            /* MULS.W: signed 16x16 → 32 */
+            uiRes = (st_u32_t)((st_i32_t)(st_i16_t)(uiSrc & 0xFFFFu)
+                    * (st_i32_t)(st_i16_t)(ptCpu->auDn[iReg] & 0xFFFFu));
+        }
+        ptCpu->auDn[iReg] = uiRes;
+        cpu_flags_nz(ptCpu, uiRes, SZ_LONG);
+        cpu_flags_clr_vc(ptCpu);
+        return ST_NO_ERROR;
+    }
+
+    if      (iSzCode == 0) iSz = SZ_BYTE;
+    else if (iSzCode == 1) iSz = SZ_WORD;
+    else                   iSz = SZ_LONG;
+
+    if (iDir == 0)
+    {
+        /* AND EA,Dn */
+        eR = cpu_ea_read(ptCpu, ptMachine, iMode, iRn, iSz, &uiSrc);
+        if (eR != ST_NO_ERROR)
+            return ST_ERROR;
+        uiDst = ptCpu->auDn[iReg] & g_auiMask[iSz];
+        uiRes = (uiDst & uiSrc) & g_auiMask[iSz];
+        cpu_flags_nz(ptCpu, uiRes, iSz);
+        cpu_flags_clr_vc(ptCpu);
+        return cpu_ea_write(ptCpu, ptMachine, 0, iReg, iSz, uiRes);
+    }
+    else
+    {
+        /* AND Dn,EA */
+        uiSrc = ptCpu->auDn[iReg] & g_auiMask[iSz];
+        eR = cpu_ea_read(ptCpu, ptMachine, iMode, iRn, iSz, &uiDst);
+        if (eR != ST_NO_ERROR)
+            return ST_ERROR;
+        uiRes = (uiDst & uiSrc) & g_auiMask[iSz];
+        cpu_flags_nz(ptCpu, uiRes, iSz);
+        cpu_flags_clr_vc(ptCpu);
+        return cpu_ea_write(ptCpu, ptMachine, iMode, iRn, iSz, uiRes);
+    }
+}
+
+/*
+ * cpu_exec_group8() - OR / DIVU / DIVS (group 0x8).
+ */
+static st_error_t cpu_exec_group8(cpu68k_t     *ptCpu,
+                                    st_machine_t *ptMachine,
+                                    st_u16_t      uiOpc)
+{
+    int        iReg    = (uiOpc >> 9) & 7;
+    int        iDir    = (uiOpc >> 8) & 1;
+    int        iSzCode = (uiOpc >> 6) & 3;
+    int        iMode   = (uiOpc >> 3) & 7;
+    int        iRn     = uiOpc & 7;
+    int        iSz;
+    st_u32_t   uiSrc;
+    st_u32_t   uiDst;
+    st_u32_t   uiRes;
+    st_error_t eR;
+
+    if (iSzCode == 3)
+    {
+        /* DIVU.W or DIVS.W */
+        eR = cpu_ea_read(ptCpu, ptMachine, iMode, iRn, SZ_WORD, &uiSrc);
+        if (eR != ST_NO_ERROR)
+            return ST_ERROR;
+        uiSrc &= 0xFFFFu;
+        if (uiSrc == 0u)
+        {
+            LOG_TODO("DIV by zero — exception UC23");
+            return ST_NO_ERROR;
+        }
+        uiDst = ptCpu->auDn[iReg];
+        if (iDir == 0)
+        {
+            /* DIVU.W */
+            st_u32_t uiQ = uiDst / uiSrc;
+            st_u32_t uiR = uiDst % uiSrc;
+            ptCpu->auDn[iReg] = ((uiR & 0xFFFFu) << 16u)
+                                 | (uiQ & 0xFFFFu);
+        }
+        else
+        {
+            /* DIVS.W */
+            st_i32_t iDst  = (st_i32_t)uiDst;
+            st_i32_t iSrc  = (st_i32_t)(st_i16_t)uiSrc;
+            st_i32_t iQ    = iDst / iSrc;
+            st_i32_t iR    = iDst % iSrc;
+            ptCpu->auDn[iReg] = (((st_u32_t)(iR & 0xFFFF) << 16u))
+                                 | ((st_u32_t)(iQ & 0xFFFF));
+        }
+        cpu_flags_nz(ptCpu, ptCpu->auDn[iReg] & 0xFFFFu, SZ_WORD);
+        cpu_flags_clr_vc(ptCpu);
+        return ST_NO_ERROR;
+    }
+
+    if      (iSzCode == 0) iSz = SZ_BYTE;
+    else if (iSzCode == 1) iSz = SZ_WORD;
+    else                   iSz = SZ_LONG;
+
+    if (iDir == 0)
+    {
+        /* OR EA,Dn */
+        eR = cpu_ea_read(ptCpu, ptMachine, iMode, iRn, iSz, &uiSrc);
+        if (eR != ST_NO_ERROR)
+            return ST_ERROR;
+        uiDst = ptCpu->auDn[iReg] & g_auiMask[iSz];
+        uiRes = (uiDst | uiSrc) & g_auiMask[iSz];
+        cpu_flags_nz(ptCpu, uiRes, iSz);
+        cpu_flags_clr_vc(ptCpu);
+        return cpu_ea_write(ptCpu, ptMachine, 0, iReg, iSz, uiRes);
+    }
+    else
+    {
+        /* OR Dn,EA */
+        uiSrc = ptCpu->auDn[iReg] & g_auiMask[iSz];
+        eR = cpu_ea_read(ptCpu, ptMachine, iMode, iRn, iSz, &uiDst);
+        if (eR != ST_NO_ERROR)
+            return ST_ERROR;
+        uiRes = (uiDst | uiSrc) & g_auiMask[iSz];
+        cpu_flags_nz(ptCpu, uiRes, iSz);
+        cpu_flags_clr_vc(ptCpu);
+        return cpu_ea_write(ptCpu, ptMachine, iMode, iRn, iSz, uiRes);
+    }
+}
+
+/*
+ * cpu_exec_groupE() - Shifts and rotations (group 0xE).
+ *
+ * Register form (sz != 3):
+ *   1110 cccc d ss i tt rrr
+ *   tt: 00=AS, 01=LS, 10=ROX, 11=RO
+ *   d: 0=right, 1=left
+ *   i: 0=immediate count, 1=register count
+ *   cc: count (immediate: 0→8; register: Dreg index)
+ *
+ * Memory form (sz=3): shift by 1 word, modes 2-7.
+ */
+static st_error_t cpu_exec_groupE(cpu68k_t     *ptCpu,
+                                    st_machine_t *ptMachine,
+                                    st_u16_t      uiOpc)
+{
+    int        iSzCode = (uiOpc >> 6) & 3;
+    int        iMode   = (uiOpc >> 3) & 7;
+    int        iRn     = uiOpc & 7;
+    int        iDir    = (uiOpc >> 8) & 1;    /* 0=right, 1=left */
+    int        iType   = (uiOpc >> 3) & 3;    /* register form */
+    int        iIR     = (uiOpc >> 5) & 1;    /* 0=imm, 1=reg */
+    int        iCount;
+    int        iSz;
+    st_u32_t   uiVal;
+    st_u32_t   uiMsb;
+    st_u32_t   uiMask;
+    st_u32_t   uiRes;
+    st_u32_t   uiLastBit;
+    int        iX;
+    st_error_t eR;
+
+    if (iSzCode == 3)
+    {
+        /* Memory shift: 1 bit, word size */
+        iType = (uiOpc >> 9) & 7;
+        if (iType > 7 || ((uiOpc >> 11) & 1))
+        {
+            LOG_TODO("groupE mem shift bit11 DC.W 0x%04X",
+                     (unsigned)uiOpc);
+            return ST_NO_ERROR;
+        }
+        iDir = (iType & 1); /* even=right, odd=left */
+        /* Remap type: 0=ASR,1=ASL,2=LSR,3=LSL,4=ROXR,5=ROXL,6=ROR,7=ROL */
+        switch (iType >> 1)
+        {
+        case 0: iType = 0; break; /* AS */
+        case 1: iType = 1; break; /* LS */
+        case 2: iType = 2; break; /* ROX */
+        default: iType = 3; break; /* RO */
+        }
+        iCount = 1;
+        iSz    = SZ_WORD;
+
+        /* Reject Dn, An destinations */
+        if (iMode <= 1)
+        {
+            LOG_TODO("groupE mem shift Dn/An DC.W 0x%04X",
+                     (unsigned)uiOpc);
+            return ST_NO_ERROR;
+        }
+        eR = cpu_ea_read(ptCpu, ptMachine, iMode, iRn, iSz, &uiVal);
+        if (eR != ST_NO_ERROR)
+            return ST_ERROR;
+    }
+    else
+    {
+        if      (iSzCode == 0) iSz = SZ_BYTE;
+        else if (iSzCode == 1) iSz = SZ_WORD;
+        else                   iSz = SZ_LONG;
+
+        /* iType: bits 4-3 = type */
+        iType = (uiOpc >> 3) & 3;
+
+        if (iIR == 0)
+        {
+            iCount = (uiOpc >> 9) & 7;
+            if (iCount == 0) iCount = 8;
+        }
+        else
+        {
+            iCount = (int)(ptCpu->auDn[(uiOpc >> 9) & 7] & 63u);
+        }
+
+        uiVal = ptCpu->auDn[iRn] & g_auiMask[iSz];
+    }
+
+    uiMsb  = g_auiMsb[iSz];
+    uiMask = g_auiMask[iSz];
+    iX     = CPU_FLAG_X(ptCpu) ? 1 : 0;
+    uiRes  = uiVal;
+
+    {
+        int i;
+        for (i = 0; i < iCount; i++)
+        {
+            switch (iType)
+            {
+            case 0: /* AS */
+                if (iDir)
+                {
+                    uiLastBit = (uiRes & uiMsb) ? 1u : 0u;
+                    uiRes     = (uiRes << 1u) & uiMask;
+                    if (uiLastBit)
+                        ptCpu->uiSR |=  (st_u16_t)(CPU_SR_C | CPU_SR_X);
+                    else
+                        ptCpu->uiSR &= (st_u16_t)~(CPU_SR_C | CPU_SR_X);
+                }
+                else
+                {
+                    uiLastBit = uiRes & 1u;
+                    uiRes     = ((uiRes >> 1u) | (uiRes & uiMsb)) & uiMask;
+                    if (uiLastBit)
+                        ptCpu->uiSR |=  (st_u16_t)(CPU_SR_C | CPU_SR_X);
+                    else
+                        ptCpu->uiSR &= (st_u16_t)~(CPU_SR_C | CPU_SR_X);
+                }
+                break;
+
+            case 1: /* LS */
+                if (iDir)
+                {
+                    uiLastBit = (uiRes & uiMsb) ? 1u : 0u;
+                    uiRes     = (uiRes << 1u) & uiMask;
+                    if (uiLastBit)
+                        ptCpu->uiSR |=  (st_u16_t)(CPU_SR_C | CPU_SR_X);
+                    else
+                        ptCpu->uiSR &= (st_u16_t)~(CPU_SR_C | CPU_SR_X);
+                }
+                else
+                {
+                    uiLastBit = uiRes & 1u;
+                    uiRes     = (uiRes >> 1u) & uiMask;
+                    if (uiLastBit)
+                        ptCpu->uiSR |=  (st_u16_t)(CPU_SR_C | CPU_SR_X);
+                    else
+                        ptCpu->uiSR &= (st_u16_t)~(CPU_SR_C | CPU_SR_X);
+                }
+                break;
+
+            case 2: /* ROX */
+                if (iDir)
+                {
+                    uiLastBit = (uiRes & uiMsb) ? 1u : 0u;
+                    uiRes     = ((uiRes << 1u) | (st_u32_t)iX) & uiMask;
+                    iX        = (int)uiLastBit;
+                    if (iX)
+                        ptCpu->uiSR |=  (st_u16_t)(CPU_SR_C | CPU_SR_X);
+                    else
+                        ptCpu->uiSR &= (st_u16_t)~(CPU_SR_C | CPU_SR_X);
+                }
+                else
+                {
+                    uiLastBit = uiRes & 1u;
+                    uiRes     = ((uiRes >> 1u)
+                                | ((st_u32_t)iX << (st_u32_t)
+                                   (iSz == SZ_BYTE ? 7
+                                    : iSz == SZ_WORD ? 15 : 31)))
+                                & uiMask;
+                    iX        = (int)uiLastBit;
+                    if (iX)
+                        ptCpu->uiSR |=  (st_u16_t)(CPU_SR_C | CPU_SR_X);
+                    else
+                        ptCpu->uiSR &= (st_u16_t)~(CPU_SR_C | CPU_SR_X);
+                }
+                break;
+
+            default: /* RO */
+                if (iDir)
+                {
+                    uiLastBit = (uiRes & uiMsb) ? 1u : 0u;
+                    uiRes     = ((uiRes << 1u)
+                                 | uiLastBit) & uiMask;
+                    if (uiLastBit)
+                        ptCpu->uiSR |=  (st_u16_t)CPU_SR_C;
+                    else
+                        ptCpu->uiSR &= (st_u16_t)~CPU_SR_C;
+                }
+                else
+                {
+                    uiLastBit = uiRes & 1u;
+                    uiRes     = ((uiRes >> 1u)
+                                 | (uiLastBit << (st_u32_t)
+                                    (iSz == SZ_BYTE ? 7
+                                     : iSz == SZ_WORD ? 15 : 31)))
+                                & uiMask;
+                    if (uiLastBit)
+                        ptCpu->uiSR |=  (st_u16_t)CPU_SR_C;
+                    else
+                        ptCpu->uiSR &= (st_u16_t)~CPU_SR_C;
+                }
+                break;
+            }
+        }
+    }
+
+    /* V flag: 1 if any bit shifted out of MSB during AS; else 0 */
+    /* Simplified: clear V for all shifts except AS where sign changed */
+    if (iType == 0 && iCount > 0)
+    {
+        /* ASL: V=1 if MSB changed during any shift step */
+        st_u32_t uiOrig = uiVal & uiMsb;
+        if ((uiRes & uiMsb) != uiOrig || uiRes == 0u)
+            ptCpu->uiSR &= (st_u16_t)~CPU_SR_V; /* simplified */
+        else
+            ptCpu->uiSR &= (st_u16_t)~CPU_SR_V;
+    }
+    else
+    {
+        ptCpu->uiSR &= (st_u16_t)~CPU_SR_V;
+    }
+
+    cpu_flags_nz(ptCpu, uiRes, iSz);
+
+    if (iSzCode == 3)
+        return cpu_ea_write(ptCpu, ptMachine, iMode, iRn, SZ_WORD, uiRes);
+    else
+        return cpu_ea_write(ptCpu, ptMachine, 0, iRn, iSz, uiRes);
+}
+
+/*
+ * cpu_exec_ext() - EXT.W Dn or EXT.L Dn  (group 0x4).
+ *
+ * EXT.W : 0100 1000 1000 0DDD  (0xFFF8 == 0x4880)
+ * EXT.L : 0100 1000 1100 0DDD  (0xFFF8 == 0x48C0)
+ */
+static st_error_t cpu_exec_ext(cpu68k_t *ptCpu, st_u16_t uiOpc)
+{
+    int      iDn  = uiOpc & 7;
+    st_u32_t uiVal;
+    int      iSz;
+
+    if ((uiOpc & 0xFFF8u) == 0x4880u)
+    {
+        /* EXT.W: sign-extend byte to word */
+        uiVal = (st_u32_t)(st_i32_t)(st_i8_t)(ptCpu->auDn[iDn] & 0xFFu);
+        ptCpu->auDn[iDn] = (ptCpu->auDn[iDn] & 0xFFFF0000u)
+                           | (uiVal & 0xFFFFu);
+        iSz = SZ_WORD;
+        uiVal &= 0xFFFFu;
+    }
+    else
+    {
+        /* EXT.L: sign-extend word to long */
+        uiVal = (st_u32_t)(st_i32_t)(st_i16_t)
+                (ptCpu->auDn[iDn] & 0xFFFFu);
+        ptCpu->auDn[iDn] = uiVal;
+        iSz = SZ_LONG;
+    }
+
+    cpu_flags_nz(ptCpu, uiVal, iSz);
+    cpu_flags_clr_vc(ptCpu);
+    return ST_NO_ERROR;
+}
+
+/*
+ * cpu_exec_misc4() - Dispatch group 0x4 instructions.
  */
 static st_error_t cpu_exec_misc4(cpu68k_t     *ptCpu,
                                    st_machine_t *ptMachine,
@@ -703,15 +1702,35 @@ static st_error_t cpu_exec_misc4(cpu68k_t     *ptCpu,
     if ((uiOpc & 0xF1C0u) == 0x41C0u)
         return cpu_exec_lea(ptCpu, ptMachine, uiOpc);
 
+    /* EXT.W / EXT.L */
+    if ((uiOpc & 0xFFF8u) == 0x4880u || (uiOpc & 0xFFF8u) == 0x48C0u)
+        return cpu_exec_ext(ptCpu, uiOpc);
+
     /* SWAP: 0100 1000 0100 0DDD */
     if ((uiOpc & 0xFFF8u) == 0x4840u)
         return cpu_exec_swap(ptCpu, uiOpc);
+
+    /* NEGX: 0100 0000 SS MMMRRR */
+    if ((uiOpc & 0xFF00u) == 0x4000u)
+        return cpu_exec_unary(ptCpu, ptMachine, uiOpc, 1);
 
     /* CLR: 0100 0010 SS MMMRRR */
     if ((uiOpc & 0xFF00u) == 0x4200u)
         return cpu_exec_clr(ptCpu, ptMachine, uiOpc);
 
-    LOG_TODO("cpu_exec_misc4: unimplemented 0x%04X (UC22/UC23)",
+    /* NEG: 0100 0100 SS MMMRRR */
+    if ((uiOpc & 0xFF00u) == 0x4400u)
+        return cpu_exec_unary(ptCpu, ptMachine, uiOpc, 0);
+
+    /* NOT: 0100 0110 SS MMMRRR */
+    if ((uiOpc & 0xFF00u) == 0x4600u)
+        return cpu_exec_unary(ptCpu, ptMachine, uiOpc, 2);
+
+    /* TST: 0100 1010 SS MMMRRR */
+    if ((uiOpc & 0xFF00u) == 0x4A00u)
+        return cpu_exec_unary(ptCpu, ptMachine, uiOpc, 3);
+
+    LOG_TODO("cpu_exec_misc4: unimplemented 0x%04X (UC23)",
              (unsigned)uiOpc);
     return ST_NO_ERROR;
 }
@@ -807,23 +1826,55 @@ st_error_t cpu_step(cpu68k_t          *ptCpu,
     /* Dispatch on top nibble */
     switch ((uiOpcode >> 12) & 0xFu)
     {
+    case 0x0: /* Immediate ops: ORI/ANDI/SUBI/ADDI/EORI/CMPI */
+        eR = cpu_exec_group0(ptCpu, ptMachine, uiOpcode);
+        break;
+
     case 0x1: /* MOVE.B */
     case 0x2: /* MOVE.L */
     case 0x3: /* MOVE.W / MOVEA.W */
         eR = cpu_exec_move(ptCpu, ptMachine, uiOpcode);
         break;
 
-    case 0x4: /* Misc: LEA / CLR / SWAP + others (UC22/UC23) */
+    case 0x4: /* Misc: LEA/CLR/SWAP/NEG/NOT/TST/EXT + UC23 */
         eR = cpu_exec_misc4(ptCpu, ptMachine, uiOpcode);
+        break;
+
+    case 0x5: /* ADDQ / SUBQ */
+        eR = cpu_exec_group5(ptCpu, ptMachine, uiOpcode);
         break;
 
     case 0x7: /* MOVEQ */
         eR = cpu_exec_moveq(ptCpu, uiOpcode);
         break;
 
+    case 0x8: /* OR / DIVU / DIVS */
+        eR = cpu_exec_group8(ptCpu, ptMachine, uiOpcode);
+        break;
+
+    case 0x9: /* SUB / SUBA / SUBX */
+        eR = cpu_exec_group9(ptCpu, ptMachine, uiOpcode);
+        break;
+
+    case 0xB: /* CMP / CMPA / EOR / CMPM */
+        eR = cpu_exec_groupB(ptCpu, ptMachine, uiOpcode);
+        break;
+
+    case 0xC: /* AND / MULU / MULS */
+        eR = cpu_exec_groupC(ptCpu, ptMachine, uiOpcode);
+        break;
+
+    case 0xD: /* ADD / ADDA / ADDX */
+        eR = cpu_exec_groupD(ptCpu, ptMachine, uiOpcode);
+        break;
+
+    case 0xE: /* Shifts / Rotations */
+        eR = cpu_exec_groupE(ptCpu, ptMachine, uiOpcode);
+        break;
+
     default:
         LOG_TODO("cpu_step: unimplemented opcode 0x%04X "
-                 "at PC=0x%06X (UC22/UC23)",
+                 "at PC=0x%06X (UC23)",
                  (unsigned)uiOpcode, uiPCBefore);
         eR = ST_NO_ERROR;
         break;
