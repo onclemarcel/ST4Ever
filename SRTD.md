@@ -129,8 +129,8 @@ through one or more test cases in Section 5.
 | UFR-CON-040 | `dir [path]` shall open a file-tree view of the given (or current) directory.                    | ✓ UC3.3     | UC3.3|
 | UFR-CON-050 | `load <file>` shall load a file or binary into emulated ST memory.                               | TODO UC7    | UC7  |
 | UFR-CON-060 | `edit <file>` shall open the appropriate editor view for the file type.                          | TODO UC8-10 | UC8  |
-| UFR-CON-070 | `mount [path]` shall emulate an Atari ST floppy drive A:\ from the given directory.             | TODO UC18   | UC18 |
-| UFR-CON-071 | `umount` shall eject the emulated floppy, offering to save a disk image if modified.             | TODO UC19   | UC19 |
+| UFR-CON-070 | `mount [path]` shall emulate an Atari ST floppy drive A:\ from the given directory.             | ✓ UC18.1    | UC18.1 |
+| UFR-CON-071 | `umount` shall eject the emulated floppy, offering to save a disk image if modified.             | ✓ UC19      | UC19   |
 | UFR-CON-080 | `where` shall display the current working directory and the currently selected file/directory.   | ✓ UC5       | UC5  |
 | UFR-CON-081 | `info` shall display a status dashboard: cwd, selected file, trace state, colors state, history count, mounted disk, loaded binary. | ✓ UC5 | UC5 |
 | UFR-CON-082 | `history [N]` shall display the last N command history entries numbered in order (default N=10). | ✓ UC5       | UC5  |
@@ -185,6 +185,9 @@ through one or more test cases in Section 5.
 | UFR-DIR-010 | SPACE shall update the default selection without modifying the expand/collapse state; ENTER shall activate the node (expand/collapse/navigate). | ✓ UC4.1 | UC4.1 |
 | UFR-DIR-011 | The `H` key shall toggle the visibility of hidden files (entries starting with `.`) in the currently open directory view, reloading the root children with the new filter. (P21) | ✓ UC5 | UC5 |
 | UFR-DIR-012 | The F5 key shall refresh the directory listing from disk while preserving the current expansion state: directories that were expanded before the refresh shall remain expanded afterwards; deleted directories are silently dropped. (P22) | ✓ UC5 | UC5 |
+| UFR-DIR-013 | When a file is committed via ENTER or SPACE in the dir view, a dark green secondary background (`g_dir_clrLastSel`) shall be rendered on that row in `dir_render()`, visually distinct from the navigation-cursor highlight. The indicator persists when the cursor moves; a new commit updates it. (P11) | ✓ UC7 | UC7 |
+| UFR-DIR-014 | ALT+LEFT shall navigate to the previous path in the directory view's navigation history; ALT+RIGHT shall navigate to the next path. The history shall be seeded with the initial path at `dir_open()` time and updated each time the root changes via `dir_navigate_up()` or explicit navigation. The history stack is non-cyclical (max `DIR_NAV_HIST_MAX` entries). (P10) | ✓ UC18.2 | UC18.2 |
+| UFR-DIR-015 | CTRL+SPACE shall toggle multi-selection of the currently focused **file** entry (not directories). The multi-selected set is displayed with a purple background (`g_dir_clrMultiSel`), distinct from the green last-committed indicator (P11) and the blue cursor highlight. The set holds up to `DIR_MULTI_SEL_MAX` paths. (P14) | ✓ UC18.2 | UC18.2 |
 
 ### 1.5 File System Abstraction — `FIL` (UC6)
 
@@ -210,9 +213,6 @@ through one or more test cases in Section 5.
 | UFR-LOD-006 | For `.prg`/`.ttp`/`.tos` files, `load` shall zero the `.bss` section in ST RAM immediately after the `.data` section; the BSS area is not present in the file and must be initialised to zero regardless of prior RAM content. | ✓ UC15 | UC15 |
 | UFR-LOD-007 | For relocatable PRG files (abs_flag=0), `load` shall apply the Atari ST fixup relocation table: each longword address in `.text`+`.data` pointed to by the fixup table shall be incremented by `ST_LOAD_BASE`; a fixup offset that points outside `.text`+`.data` shall cause `load` to return an error without modifying the previously loaded state. | ✓ UC15 | UC15 |
 | UFR-LOD-008 | For absolute PRG files (abs_flag=1), `load` shall skip fixup processing entirely; the fixup table is absent from the file. | ✓ UC15 | UC15 |
-| UFR-DIR-013 | When a file is committed via ENTER or SPACE in the dir view, a dark green secondary background (`g_dir_clrLastSel`) shall be rendered on that row in `dir_render()`, visually distinct from the navigation-cursor highlight. The indicator persists when the cursor moves; a new commit updates it. (P11) | ✓ UC7 | UC7 |
-| UFR-DIR-014 | ALT+LEFT shall navigate to the previous path in the directory view's navigation history; ALT+RIGHT shall navigate to the next path. The history shall be seeded with the initial path at `dir_open()` time and updated each time the root changes via `dir_navigate_up()` or explicit navigation. The history stack is non-cyclical (max `DIR_NAV_HIST_MAX` entries). (P10) | ✓ UC18.2 | UC18.2 |
-| UFR-DIR-015 | CTRL+SPACE shall toggle multi-selection of the currently focused **file** entry (not directories). The multi-selected set is displayed with a purple background (`g_dir_clrMultiSel`), distinct from the green last-committed indicator (P11) and the blue cursor highlight. The set holds up to `DIR_MULTI_SEL_MAX` paths. (P14) | ✓ UC18.2 | UC18.2 |
 
 ### 1.7 Editor Views — `EDT` (UC8 text editor ✓, UC9 hex+ASCII ✓, UC10 hex+disasm ✓)
 
@@ -256,8 +256,11 @@ through one or more test cases in Section 5.
 | UFR-MNT-005  | The mount view right panel shall display the BPB (BIOS Parameter Block) geometry fields read-only: heads, sectors/track, tracks, and the root directory entry capacity (RDE). The left panel header shall **not** include the `/RDE` suffix; that capacity is shown only in the right panel. (P34, P36) | ✓ UC18.2 | UC18.2 |
 | UFR-MNT-006  | The mount view right panel shall display a "Bootable" indicator determined by the WD1772 checksum: the sum of the 256 LE16 words of the bootsector shall equal `0x1234 mod 0x10000`. `mount_is_bootable()` returns `ST_TRUE` if so, `ST_FALSE` otherwise (including `NULL` input). (P37) | ✓ UC18.2 | UC18.2 |
 | UFR-MNT-007  | The `B` key in the mount view shall extract the 512-byte bootsector from `aDisk[0..511]` to a temporary file and open it via `edit_hex_open()`. The window title shall include a heuristic description (heads/sectors/tracks, bootable flag). Only one bootsector view shall be open at a time; pressing `B` again replaces the previous view. (P38) | ✓ UC18.2 | UC18.2 |
-| UFR-CON-070  | `mount [path]` shall emulate an Atari ST floppy drive A:\ from the given directory.                                                               | ✓ UC18.1     | UC18.1   |
-| UFR-CON-071  | `umount` shall eject the emulated floppy, offering to save a disk image if modified.                                                               | TODO UC19    | UC19     |
+| UFR-MNT-008  | `umount` shall offer a dialog (or accept `--st`/`--msa`/`--dir [path]` flags) to save the in-memory disk image as `.st`, `.msa`, or an extracted directory when the image is dirty; a clean image shall close without any dialog. (P35) | ✓ UC19      | UC19     |
+| UFR-MNT-009  | The mount view shall display a persistent status bar at the bottom of the window showing free space in KB, file count, and a `[*] unsaved` indicator when the image has been modified. The status bar occupies the last cell row; `iVisRows` is reduced by 2 (header + status bar). (P39) | ✓ UC19      | UC19     |
+| UFR-MNT-010  | `image [--st|--msa] [--bootable] [path]` shall create a disk image from the currently mounted content or, when no mount view is open, from a specified directory; `--bootable` applies `mount_make_bootable()` before saving. | ✓ UC20      | UC20     |
+| UFR-MNT-011  | ENTER on a selected file in the mount view shall extract the FAT entry to `MOUNT_FILE_TMP` and open it via `edit_hex_open()`; only one file hex view is open at a time; pressing ENTER on a new file closes the previous view first. (P41) | ✓ UC20      | UC20     |
+| UFR-MNT-012  | The `F` key in the mount view shall patch bootsector word[0] so that the sum of the 256 LE16 words equals `0x1234 mod 0x10000`; the `Bootable` indicator shall update to `Yes` and the dirty flag shall be set. The operation is idempotent. (P37 write) | ✓ UC20      | UC20     |
 
 ### 1.10 Execution Engine — `EXE` (TODO UC21–27)
 
@@ -640,7 +643,7 @@ requirement that will expose it (`UFR-EXE-*`, planned UC21–27).
 
 ---
 
-### 2.6 Disassembler — `disassemble.h` / `disassemble.c`
+### 2.16 Disassembler — `disassemble.h` / `disassemble.c`
 
 > Design ref: CLAUDE.md §5 R7; DEVPAC3 syntax reference
 > Parent UFR: `UFR-HEX-005` (UC10 disasm panel) and `UFR-EXE-*` (UC25 execution engine).
@@ -688,7 +691,7 @@ requirement that will expose it (`UFR-EXE-*`, planned UC21–27).
 
 ---
 
-### 2.16 Mount View — `mount.h` / `mount.c`
+### 2.17 Mount View — `mount.h` / `mount.c`
 
 > Design ref: CLAUDE.md §6.24; depends on `image_st.h` (UC16), `image_msa.h` (UC17), `gui.h` (UC3.1), `renderer.h` (UC3.2), `file.h` (UC6).
 
@@ -711,6 +714,13 @@ requirement that will expose it (`UFR-EXE-*`, planned UC21–27).
 | REQ-MNT-015  | `mount_view_open()` shall store `ptLineCtx` in `ptView->ptLineCtx` for use by `mount_open_bootsector()`. `ptView->ptBootHexView` shall be initialised to NULL at open time. | UFR-MNT-007 | ✓ UC18.2 | UC18.2 |
 | REQ-MNT-016  | `mount_view_close()` shall close any open bootsector hex view (`ptBootHexView != NULL` → `edit_hex_close()`) before calling `gui_close_window()`. | UFR-MNT-007 | ✓ UC18.2 | UC18.2 |
 | REQ-MNT-017  | `mount_is_bootable(pBootSect)` shall return `ST_FALSE` if `pBootSect == NULL`. Otherwise it shall sum the 256 LE16 words of the 512-byte buffer and return `ST_TRUE` iff the result `& 0xFFFF == 0x1234`, `ST_FALSE` otherwise. | UFR-MNT-006 | ✓ UC18.2 | UC18.2 |
+| REQ-MNT-018  | `mount_save_image(ptView, eFmt, szOutPath)` shall return `ST_ERROR` on NULL ptView, NULL path, or unknown format; on success it shall save the image in `.st`, `.msa`, or directory format and set `ptView->bDirty = ST_FALSE`. | UFR-MNT-008 | ✓ UC19 | UC19 |
+| REQ-MNT-019  | `mount_view_add_file()` NULL guards (NULL ptView or NULL szPath) shall return `ST_ERROR`; the P40 chunked read (64 KB per chunk) shall produce identical FAT content to a monolithic read. | UFR-MNT-004 | ✓ UC19 | UC19 |
+| REQ-MNT-020  | `mount_render()` shall reserve the last row as a status bar (`iVisRows = (iWndH/iCellH) - 2`) showing Free KB, file count, and `[*] unsaved` when `bDirty == ST_TRUE`. | UFR-MNT-009 | ✓ UC19 | UC19 |
+| REQ-MNT-021  | `line_cmd_umount()` shall show an interactive save dialog (keys 1/2/3/n/ESC) when `bDirty == ST_TRUE` and no bypass flag is present; `--st`, `--msa`, and `--dir [path]` shall bypass the dialog. | UFR-MNT-008 | ✓ UC19 | UC19 |
+| REQ-MNT-022  | `mount_make_bootable(ptImg)` shall return `ST_ERROR` if `ptImg == NULL`; otherwise it shall compute the WD1772 checksum (sum of 256 LE16 words) and patch `pDisk[0..1]` so the sum equals `0x1234 mod 0x10000`; the operation shall be idempotent. | UFR-MNT-012 | ✓ UC20 | UC20 |
+| REQ-MNT-023  | `line_cmd_image()` shall save the image from an already-open mount view (`g_line_ptMountView != NULL`) or create a transient view from the selected directory; `--bootable` shall call `mount_make_bootable()` before saving; `--st`/`--msa` flags select the output format. | UFR-MNT-010 | ✓ UC20 | UC20 |
+| REQ-MNT-024  | `mount_open_file_hex()` shall be a no-op if no entry is selected or the entry is empty; otherwise it shall extract the file via `image_st_read_file()`, write to `MOUNT_FILE_TMP`, close any previous file hex view, and open in `edit_hex_open()`. | UFR-MNT-011 | ✓ UC20 | UC20 |
 
 ---
 
@@ -4579,22 +4589,6 @@ Each INTENT maps to one or more test blocks in `use_cases/use_case_19.c`.
 | [S] Skipped |   8   | visual + interactive dialog -- run make manual UC=19               |
 | **Total**   | **27** |                                                                   |
 
-#### New UFRs -- UC19
-
-| ID           | Description                                                                                        | Source   |
-|--------------|----------------------------------------------------------------------------------------------------|----------|
-| UFR-MNT-008  | The user shall save the in-memory disk image as .st, .msa, or extracted directory                 | P35 UC19 |
-| UFR-MNT-009  | The mount window shall display a persistent status bar (free space, file count, dirty flag)        | P39 UC19 |
-
-#### New REQs -- UC19
-
-| ID           | Description                                                                                                          | UFR          | Status  |
-|--------------|----------------------------------------------------------------------------------------------------------------------|--------------|---------|
-| REQ-MNT-018  | mount_save_image() shall succeed for SAVE_ST/MSA/DIR; return ST_ERROR on NULL ptView, NULL path, or unknown format   | UFR-MNT-008  | UC19    |
-| REQ-MNT-019  | mount_view_add_file() NULL guards shall return ST_ERROR (unchanged after P40 chunked refactor)                        | UFR-MNT-004  | UC19    |
-| REQ-MNT-020  | mount_render() shall display a status bar row (iVisRows-2) with Free KB, file count, and [*] if dirty                | UFR-MNT-009  | UC19    |
-| REQ-MNT-021  | line_cmd_umount() shall prompt save dialog when bDirty; --st/--msa/--dir flags bypass dialog                          | UFR-MNT-008  | UC19    |
-
 #### mount.c Public API -- UC19 additions
 
 | Function                                          | REQ(s)                           | Description                                         |
@@ -4631,22 +4625,6 @@ Each INTENT maps to one or more test blocks in `use_cases/use_case_19.c`.
 | INT-MNT-040   | mount_view_open on a .st file dispatches correctly regardless of prior state                    |
 
 ### 5.59 Test Cases — UC20 (image command + P41 file hex + P37 bootable)
-
-#### User-Facing Requirements (UC20)
-
-| ID          | Requirement                                                                               |
-|-------------|-------------------------------------------------------------------------------------------|
-| UFR-MNT-010 | User can create .st / .msa image from mounted content or a directory via `image` command  |
-| UFR-MNT-011 | User can open a mounted file in the hex editor by pressing ENTER (P41)                    |
-| UFR-MNT-012 | User can make a disk bootable by pressing F in the mount view (P37 write)                 |
-
-#### System Requirements (UC20)
-
-| ID          | Requirement                                                                                    |
-|-------------|------------------------------------------------------------------------------------------------|
-| REQ-MNT-022 | mount_make_bootable() computes WD1772 checksum and patches bootsector word[0] in-place        |
-| REQ-MNT-023 | line_cmd_image() saves image from open mount view or creates transient view from directory     |
-| REQ-MNT-024 | mount_open_file_hex() extracts selected FAT entry to temp file and opens in edit_hex           |
 
 #### Test Cases (UC20)
 

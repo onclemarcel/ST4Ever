@@ -1967,12 +1967,6 @@ Les étapes de développement fonctionnelles sont formalisées en Use Cases, per
 
 ---
 
-### Arbitrage UC16 (2026-06-04)
-
-*UC16 est un UC purement interne (FAT12 .st image). Aucune proposition UX/fonctionnelle n'a émergé — UC16 est clos.*
-
----
-
 ### 6.22 Use Case 15A (UC15A) — ✓ VALIDÉ (2026-06-06)
 
 **Périmètre fonctionnel implémenté :**
@@ -2034,12 +2028,6 @@ Référence complète des différences syntaxiques : **`DISASM_SYNTAX.md`** à l
 - UC21 : MOVEM, DBcc, Scc, MOVEP (~175 DCW restants) — décodage prévu lors de l'implémentation CPU 68000
 - UC24 : MOVE.W SR/CCR, TAS, ILLEGAL, RESET, STOP (~95 DCW restants) — nécessitent le contexte mode superviseur
 - `DISASM_SYNTAX.md` à enrichir à chaque nouveau groupe d'instructions décodé
-
----
-
-### Arbitrage UC15A (2026-06-06)
-
-*UC15A est un UC de validation interne (torture test désassembleur). Aucune proposition UX/fonctionnelle n'a émergé — UC15A est clos.*
 
 ---
 
@@ -2106,12 +2094,6 @@ Référence complète des différences syntaxiques : **`DISASM_SYNTAX.md`** à l
 - UC18 (`mount`) : `image_msa_load()` est désormais disponible — `line_cmd_mount()` peut accepter les `.msa` comme les `.st`. Même interface `image_st_t` pour les deux formats.
 - UC20 (`image`) : `image_msa_save()` permettra de créer un `.msa` depuis un contenu monté, en plus du `.st` existant.
 - Extension `.stx` (UC future optionnelle) : serait un 3ème codec sur la même base `image_st_t`. L'architecture `image_st_get_disk()` permet d'en ajouter sans modifier `image_st.c`.
-
----
-
-### Arbitrage UC17 (2026-06-06)
-
-*UC17 est un UC purement interne (codec MSA RLE). Aucune proposition UX/fonctionnelle n'a émergé — UC17 est clos.*
 
 ---
 
@@ -2203,6 +2185,248 @@ Référence complète des différences syntaxiques : **`DISASM_SYNTAX.md`** à l
 - UC19 : `umount` + dialog "save image?" si `bDirty == ST_TRUE`. `line_cmd_umount()` actuel log warning mais ne bloque pas.
 - UC20 : `image_st_save()` et `image_msa_save()` disponibles depuis UC16/UC17 — `image` command créera une image depuis le contenu monté.
 - `gui_find_window_by_type` : ajouté à `gui.h`/`gui.c` — disponible pour toutes les vues futures (edit_txt, edit_hex, dir) qui veulent vérifier si une vue de même type est déjà ouverte.
+
+---
+
+### 6.25 Use Case 18.2 (UC18.2) — ✓ VALIDÉ (2026-06-06)
+
+**Périmètre fonctionnel implémenté :**
+
+- **P10 — Historique navigation `dir` (ALT+←/→)** :
+  - `src/dir.h` : `DIR_NAV_HIST_MAX = 16`, `aszNavHistory[16][512]`, `iNavHistHead`, `iNavHistCount` dans `dir_view_t`.
+  - `src/dir.c` : `dir_nav_history_push(ptView, szNewPath)` — file linéaire ; évince l'entrée la plus ancienne si pleine.
+  - `dir_navigate_to(ptView, szNewPath, hWnd)` — crée le nouveau root AVANT de libérer l'ancien ; met à jour `szRootPath` ; rebuild flat list ; `dir_update_title`.
+  - `dir_navigate_up()` refactorisé : calcule le parent, appelle `dir_nav_history_push` puis `dir_navigate_to`.
+  - `dir_handle_key()` : touche LEFT avec `GUI_MOD_ALT` → history back (`iNavHistHead--`, `dir_navigate_to`) ; RIGHT avec `GUI_MOD_ALT` → history forward.
+  - `dir_open()` : seed du premier slot de l'historique avec `szRoot`.
+
+- **P14 — Multi-sélection CTRL+ESPACE** :
+  - `src/dir.h` : `DIR_MULTI_SEL_MAX = 16`, `aszMultiSel[16][512]`, `iMultiSelCount` dans `dir_view_t`.
+  - `src/dir.c` : `dir_is_multi_sel(ptView, szPath)` — parcours linéaire ; `dir_toggle_multi_sel(ptView, szPath)` — ajoute si absent et si place, retire si présent (shift down).
+  - `dir_handle_key()` : CTRL+ESPACE sur fichier (non répertoire) → `dir_toggle_multi_sel` + redraw.
+  - `dir_render()` : couche violette (`g_dir_clrMultiSel = {0.28f, 0.15f, 0.55f, 1.0f}`) entre la couche verte (P11) et la couche bleue (curseur).
+
+- **P34 — Propriétés BPB lecture seule** :
+  - `mount_render()` : panneau droit lit `pDisk` via `image_st_get_disk()` ; extrait SPT (`@0x18` LE16), HEADS (`@0x1A` LE16), TS (`@0x13` LE16), RDE (`@0x11` LE16) ; affiche `Geometry: H%u / S%u / T%u`.
+
+- **P36 — Suppression /IST_RDE de l'en-tête** :
+  - En-tête de la liste gauche : `"  A:\\  [%s]  %d file%s"` (sans le `/112`).
+  - Panneau droit : `"Files: N / RDE"` (capacité racine issue du BPB).
+
+- **P37 — Indicateur Bootable WD1772** :
+  - `mount.h` : `mount_is_bootable(const st_u8_t *pBootSect)` déclarée public.
+  - `mount.c` : `mount_check_bootable()` interne — somme les 256 mots LE16 du bootsector, compare à 0x1234 mod 0x10000.
+  - `mount_render()` : ligne `"Bootable: Yes"` (vert) ou `"Bootable: No"` (gris) selon le résultat.
+
+- **P38 — Touche B → éditeur hex bootsector** :
+  - `mount_view_t` : champ `void *ptBootHexView` (évite le double typedef `edit_hex_view_t` dans `mount.h`) ; `line_context_t *ptLineCtx` (back-ref pour `edit_hex_open`).
+  - `mount.c` : `mount_open_bootsector()` — ferme la vue hex précédente si ouverte ; extrait les 512 octets du bootsector via `image_st_get_disk()` ; écrit dans `MOUNT_BOOT_TMP` (`".\\st4ever_boot.bin"` Win / `"/tmp/st4ever_boot.bin"` Linux) ; construit un titre heuristique `"bootsector [H%u/S%u/T%u %uKo — bootable/not bootable]"` ; appelle `edit_hex_open()` et met à jour le titre via `gui_set_title`.
+  - Touche `B`/`b` dans `mount_handle_key()` → `mount_open_bootsector(ptView)`.
+  - `mount_view_close()` : ferme `ptBootHexView` si ouvert avant de fermer la fenêtre principale.
+  - `mount_view_open()` : stocke `ptLineCtx` dans le view ; `ptBootHexView = NULL` initialement.
+
+**Tests R14/R15 appliqués :**
+- `use_cases/use_case_18_2.c` : TEST MATRIX **12N + 1R + 8S = 21 tests**, 0 failure
+  - [N] : `DIR_NAV_HIST_MAX >= 8` / `DIR_MULTI_SEL_MAX >= 8` (2) ; `mount_is_bootable` blank=false, hand-crafted=true, corrupted=false (3) ; `dir_open` history init (iNavHistCount==1, iNavHistHead==0, history[0] non-vide) (3) ; `dir_open` iMultiSelCount==0 (1) ; `mount_view_open` ptLineCtx stocké + ptBootHexView NULL (2)
+  - [R] : `mount_is_bootable(NULL)` → ST_FALSE (1)
+  - [S] : 8 tests visuels `make manual UC=18_2`
+
+**Contrats comportementaux validés :**
+
+*`dir_nav_history_push(ptView, szNewPath)`*
+- Premier push : stocké à `aszNavHistory[0]`, `iNavHistHead=0`, `iNavHistCount=1`.
+- Push quand plein (`iNavHistCount == DIR_NAV_HIST_MAX`) : shift de tous les slots, nouveau chemin en position `DIR_NAV_HIST_MAX - 1` ; `iNavHistCount` plafonné à `DIR_NAV_HIST_MAX`.
+- `dir_open()` seede `aszNavHistory[0]` avec le chemin initial — l'historique démarre non vide.
+
+*`dir_navigate_to(ptView, szNewPath, hWnd)`*
+- Crée le nouveau nœud root AVANT de libérer l'ancien (sécurité en cas d'échec de scan).
+- Rebuilds flat list après mise à jour du root.
+- Appelle `dir_update_title(ptView, hWnd)`.
+- Ne push PAS dans l'historique (c'est `dir_navigate_up` et `dir_handle_key` qui pushent avant d'appeler navigate_to).
+
+*Navigation ALT+←/→*
+- ALT+LEFT : si `iNavHistHead > 0` → `iNavHistHead--` + `dir_navigate_to(aszNavHistory[iNavHistHead])`. Sinon : no-op.
+- ALT+RIGHT : si `iNavHistHead < iNavHistCount - 1` → `iNavHistHead++` + `dir_navigate_to(...)`. Sinon : no-op.
+- L'historique est non-cyclique (stack simple) — on ne revient pas "après la fin".
+
+*`dir_toggle_multi_sel(ptView, szPath)`*
+- Chemin déjà présent : retiré (shift du reste vers le bas), `iMultiSelCount--`.
+- Chemin absent + `iMultiSelCount < DIR_MULTI_SEL_MAX` : ajouté en fin, `iMultiSelCount++`.
+- Chemin absent + plein : no-op silencieux.
+- Seuls les fichiers (non-répertoires) sont sélectionnables en multi (contrôle dans `dir_handle_key`).
+
+*Rendu multi-sel*
+- Ordre des couches : fond vert (P11, dernière sélection `load`) → fond violet (P14, multi-sel) → fond bleu (curseur courant). Le dernier dessiné l'emporte visuellement.
+- Un fichier peut être simultanément sous-violet (multi-sel) et sous-bleu (curseur) — le bleu prime.
+
+*`mount_is_bootable(pBootSect)`*
+- `pBootSect == NULL` → `ST_FALSE`.
+- Somme de `pBootSect[i] | (pBootSect[i+1] << 8)` pour i = 0, 2, 4, …, 510 (256 itérations LE16).
+- Résultat & 0xFFFF == 0x1234 → `ST_TRUE` ; sinon → `ST_FALSE`.
+
+*P38 — Bootsector hex*
+- `mount_open_bootsector()` ferme toute vue hex précédente avant d'en ouvrir une nouvelle.
+- `MOUNT_BOOT_TMP` : fichier temporaire local — remplacé à chaque appel à B.
+- Titre heuristique : H/S/T issus du BPB du bootsector écrit ; `bootable` determiné par `mount_check_bootable`.
+- Si `edit_hex_open()` échoue : LOG_ERROR + `ptBootHexView = NULL` (non fatal).
+- `mount_view_close()` : si `ptBootHexView != NULL` → `edit_hex_close` + `ptBootHexView = NULL` avant `gui_close_window`.
+
+**Points d'attention pour les UCs suivants :**
+- UC19 : `bDirty == ST_TRUE` à l'umount → dialog "save image?" ; options `.st`/`.msa`/`répertoire` (P35) ; flag `bootable` en écriture (P37 écriture = modifier le checksum pour le rendre bootable).
+- UC20 : `image_st_save` / `image_msa_save` disponibles — `image` commande depuis contenu monté.
+- `aszMultiSel` : les chemins de multi-sélection sont disponibles pour le drag-and-drop (UC18.2 ne l'implémente pas encore) et pour la commande `load` multi-fichiers future.
+- `dir_navigate_to()` : l'API est désormais publique — accessible aux vues futures qui veulent piloter la navigation du dir depuis l'extérieur (ex. depuis `mount` vers le source de l'image).
+
+---
+
+### 6.26 Use Case 19 (UC19) — ✓ VALIDÉ (2026-06-07)
+
+**Périmètre fonctionnel implémenté :**
+
+- **P39 — Status bar dans la vue mount** :
+  - Constantes couleur : `g_mnt_clrStatusBg = {0.11f,0.11f,0.18f,1.0f}` (fond bleu nuit légèrement différent du fond principal) ; `g_mnt_clrStatusTx = {0.70f,0.70f,0.70f,1.0f}` (texte gris clair).
+  - `mount_render()` : `iVisRows = (iWndHeight / iCellH) - 2` (une ligne réservée en haut = header, une ligne réservée en bas = status bar). Fond coloré `g_mnt_clrStatusBg` sur toute la largeur à `y = (iWndHeight/iCellH - 1) * iCellH`. Texte : `"  Free: %u KB  |  %d file(s)"` + `"  [*] unsaved"` si `bDirty`.
+  - `mount_handle_key()`, `mount_handle_click()`, `mount_handle_scroll()` : `iVisRows` mis à jour de `-1` → `-2` (cohérence avec render).
+
+- **P40 — Progression copie dans `mount_view_add_file()`** :
+  - Constante `MOUNT_PROGRESS_CHUNK = 65536u` (64 Ko).
+  - Remplace le `file_read()` monolithique par une boucle : `remaining = uiSize - uiOffset` → `uiChunk = min(remaining, MOUNT_PROGRESS_CHUNK)` → `file_read` → `uiOffset += uiChunkRead` → si pas terminé : `LOG_INFO("copying '%s': %u%%", szBaseName, uiOffset*100/uiSize)` + `gui_invalidate(ptView->hWnd)`.
+  - Le status bar se met à jour visuellement pendant la copie de gros fichiers.
+
+- **P35 — Dialog save à l'umount + API `mount_save_image()`** :
+  - `mount_save_fmt_t` enum : `MOUNT_SAVE_ST=0`, `MOUNT_SAVE_MSA=1`, `MOUNT_SAVE_DIR=2`.
+  - `mount_save_image(ptView, eFmt, szOutPath)` :
+    - `MOUNT_SAVE_ST` : `image_st_save(ptView->ptImg, szOutPath)`.
+    - `MOUNT_SAVE_MSA` : `image_msa_save(ptView->ptImg, szOutPath)`.
+    - `MOUNT_SAVE_DIR` : `file_mkdir(szOutPath)` + `image_st_list_root()` + boucle : `malloc(uiSize)` + `image_st_read_file()` + `file_open(FILE_MODE_WRITE)` + `file_write()` + `file_close()` + `free()`. Répertoire non écrasé si existant (EEXIST toléré dans `file_mkdir`).
+    - Sur succès : `ptView->bDirty = ST_FALSE`.
+  - `line_cmd_umount()` réécrit :
+    - **Flags `--st` / `--msa` / `--dir [path]`** : détectés dans la boucle argv → calcul de `szOutPath` depuis `ptCtx->szCwd` (`disk.st`, `disk.msa`, `disk/` ou chemin explicite après `--dir`) → `mount_save_image()` immédiat sans dialog.
+    - **Dialog interactif** si `bDirty == ST_TRUE` et aucun flag : prompt console multilignes + `console_read_key()` :
+      - `1` → `MOUNT_SAVE_ST` → `cwd/disk.st`
+      - `2` → `MOUNT_SAVE_MSA` → `cwd/disk.msa`
+      - `3` → `MOUNT_SAVE_DIR` → `cwd/disk/`
+      - `n` / ESC / autres → abandon (pas de sauvegarde)
+    - Label `do_close:` : `mount_view_close()` + message "Disk unmounted." + `line_update_console_title()`.
+    - Disk propre (`bDirty == ST_FALSE`) : fermeture directe sans dialog.
+
+**Tests R14/R15 appliqués :**
+- `use_cases/use_case_19.c` : TEST MATRIX **14N + 5R + 8S = 27 tests**, 0 failure
+  - [R] : `mount_save_image(NULL view)`, `(NULL path)`, `(bad fmt=99)` → ST_ERROR ; `mount_view_add_file(NULL,path)`, `(view,NULL)` → ST_ERROR
+  - [N] : save .st (ST_NO_ERROR + exists + size==737280 + bDirty cleared + reload 2 files) ; save .msa (ST_NO_ERROR + exists + size<737280 + bDirty cleared) ; save dir (ST_NO_ERROR + dir exists + HELLO.PRG 64B + README.TXT 5B + bDirty cleared)
+  - [S] : 8 tests visuels `make manual UC=19`
+
+**Contrats comportementaux validés :**
+
+*`mount_save_image(ptView, eFmt, szOutPath)`*
+- `ptView == NULL` ou `szOutPath == NULL` → `ST_ERROR`
+- `ptView->ptImg == NULL` → `ST_ERROR`
+- `eFmt` inconnu (> MOUNT_SAVE_DIR) → `ST_ERROR`
+- `MOUNT_SAVE_ST` : écrit 737 280 octets exacts (IST_DISK_SIZE) ; fichier reloadable via `image_st_load()`
+- `MOUNT_SAVE_MSA` : fichier compressé < IST_DISK_SIZE pour un disque partiellement rempli
+- `MOUNT_SAVE_DIR` : crée le répertoire (EEXIST toléré) ; un fichier extrait par entrée racine valide ; taille exacte respectée ; sous-répertoires ignorés (FAT12 root = flat)
+- Sur succès : `ptView->bDirty = ST_FALSE`
+
+*P40 — lecture chunked dans `mount_view_add_file()`*
+- Fichier < `MOUNT_PROGRESS_CHUNK` : 1 seule itération, pas de `LOG_INFO` intermédiaire (condition `uiOffset < uiSize`)
+- Fichier > `MOUNT_PROGRESS_CHUNK` : une itération par chunk, `LOG_INFO("copying '%s': %u%%")` à chaque chunk intermédiaire
+- `gui_invalidate()` appelé à chaque chunk intermédiaire (status bar mise à jour visuellement)
+- Comportement final (erreur / succès) identique au code UC18.1 (inchangé)
+
+*`line_cmd_umount()` — dialog save*
+- `bDirty == ST_FALSE` : `do_close` directement, pas de dialog
+- Flag `--st` : `szOutPath = szCwd + "\\disk.st"` ; `mount_save_image(MOUNT_SAVE_ST)` ; `do_close` si succès
+- Flag `--msa` : `szOutPath = szCwd + "\\disk.msa"` ; `mount_save_image(MOUNT_SAVE_MSA)` ; `do_close`
+- Flag `--dir [path]` : `szOutPath = szDirArg` ou `szCwd + "\\disk\\"` ; `mount_save_image(MOUNT_SAVE_DIR)` ; `do_close`
+- Dialog interactif : `console_read_key()` (single keypress raw) ; `1/2/3` → save + do_close ; `n`/ESC → do_close sans save ; autres touches → redisplay dialog
+- `do_close` : `mount_view_close(&g_line_ptMountView)` + `g_line_ptMountView = NULL` + `line_print_msg("Disk unmounted.")` + `line_update_console_title(ptCtx)` + `return ST_NO_ERROR`
+
+*Status bar (P39)*
+- Fond `g_mnt_clrStatusBg` sur toute la largeur de la fenêtre à la dernière ligne de cellule
+- Texte : `"  Free: X KB  |  N file(s)"` ; si `bDirty` : append `"  [*] unsaved"`
+- `iVisRows = (iWndHeight/iCellH) - 2` dans render + tous les handlers : la liste de fichiers ne déborde jamais dans la status bar
+
+**Points d'attention pour les UCs suivants :**
+- UC20 : `image_st_save()` et `image_msa_save()` disponibles depuis UC16/UC17 — la commande `image` crée une image depuis le contenu monté. `mount_save_image()` est l'API partagée.
+- UC20A : `st2msa`/`msa2st` batch — utilisent directement `image_st_load/save` et `image_msa_load/save` sans passer par la vue mount.
+- P41 (ENTER → hex dans mount) : toujours planifié UC20.
+- Bootable-write (P37 écriture) : modifier le checksum WD1772 pour rendre un disque bootable — différé UC20 avec confirmation utilisateur.
+
+---
+
+### 6.27 Use Case 20 (UC20) — ✓ VALIDÉ (2026-06-07)
+
+**Périmètre fonctionnel implémenté :**
+
+- **P41 — ENTER dans la vue mount → éditeur hex du fichier sélectionné** :
+  - `src/mount.h` : champ `void *ptFileHexView` ajouté à `mount_view_t` (après `ptBootHexView`).
+  - `src/mount.c` : constante `MOUNT_FILE_TMP` (`".\\st4ever_mnt_file.bin"` Win / `"/tmp/st4ever_mnt_file.bin"` Linux).
+  - `mount_open_file_hex(ptView)` : pattern identique à `mount_open_bootsector()` (P38) — ferme la vue hex précédente si ouverte ; extrait `aEntries[iSelectedEntry]` via `image_st_read_file()` ; écrit dans `MOUNT_FILE_TMP` ; appelle `edit_hex_open()` ; met à jour le titre `"A:\\ FILENAME.EXT  [N bytes]"` via `gui_set_title`.
+  - `mount_handle_key()` : `case GUI_KEY_ENTER → mount_open_file_hex(ptView)`.
+  - `mount_view_close()` : ferme `ptFileHexView` (cast `edit_hex_view_t *`) si non NULL avant `gui_close_window`.
+  - Rendu hints : `"[ENTER] Open hex"` ajouté au panneau propriétés.
+  - `mount_view_open()` : `ptLineCtx` stocké dans le view pour P41 (déjà présent depuis UC18.2) ; `ptFileHexView = NULL` à l'init.
+
+- **P37 écriture — `mount_make_bootable()` + touche `F`** :
+  - `src/mount.h` : déclaration publique `mount_make_bootable(image_st_t *ptImg)`.
+  - `src/mount.c` : `mount_make_bootable()` — `image_st_get_disk()` → somme les 256 mots LE16 du bootsector → calcule `uiNewWord0 = (0x1234 - (uiSum - word[0])) & 0xFFFF` → écrit en LE16 aux octets 0-1. Idempotent : si déjà bootable, recalcule et réécrit le même word[0].
+  - `mount_handle_key()` : case `default` — si `cCh == 'F' || cCh == 'f'` → `mount_make_bootable(ptView->ptImg)` + `ptView->bDirty = ST_TRUE` + `LOG_INFO` + `gui_invalidate`.
+  - Rendu hints : `"[F]       Fix boot"` ajouté au panneau propriétés.
+
+- **Commande `image`** :
+  - `src/line.c` : `line_cmd_image()` remplace `line_cmd_stub` pour `CMD_IMAGE`.
+  - **Parsing** : `--st` (défaut), `--msa`, `--bootable`, chemin optionnel en argument.
+  - **Path 1 — vue mount ouverte** (`g_line_ptMountView != NULL`) : si `--bootable` → `mount_make_bootable(ptView->ptImg)` ; `mount_save_image(ptView, eFmt, szOutPath)` ; message de confirmation.
+  - **Path 2 — pas de vue mount** : collecte `szSrcPath` via `line_get_selected()` ou `szCwd` ; `file_stat()` + rejet si fichier non-répertoire ; crée une `mount_view_t` temporaire via `mount_view_open()` (fenêtre ouverte brièvement) ; si `--bootable` → `mount_make_bootable()` ; `mount_save_image()` ; `mount_view_close()`.
+  - `szOutPath` par défaut : `szCwd + "disk.st"` ou `"disk.msa"` selon le format.
+  - Dispatch table : `CMD_IMAGE → line_cmd_image` (remplace `line_cmd_stub`).
+- `src/common.h` : `ST_APP_VERSION` → `"0.20.0"`.
+
+**Tests R14/R15 appliqués :**
+- `use_cases/use_case_20.c` : TEST MATRIX **14N + 5R + 8S = 27 tests**, 0 failure
+  - [R] : `mount_make_bootable(NULL)` → ST_ERROR (×2 regression) ; `mount_view_close(&NULL)` idempotent ; `mount_save_image(NULL view)` ; `mount_save_image(NULL path)` (via UC19 regression)
+  - [N] : `image_st_create` blank + `mount_is_bootable` = ST_FALSE ; `mount_make_bootable` → ST_NO_ERROR + `mount_is_bootable` = ST_TRUE ; checksum WD1772 == 0x1234 ; idempotent (×2) ; hand-crafted bootable sector ; `mount_view_open` .st → 2 files ; `mount_save_image` .msa < 737280 ; `mount_save_image` .st = 737280 ; `mount_view_open` dir → 2 files ; save+reload dir image → 2 files
+  - [S] : 8 tests visuels `make manual UC=20`
+
+**Contrats comportementaux validés :**
+
+*`mount_make_bootable(ptImg)`*
+- `ptImg == NULL` → `ST_ERROR`
+- `image_st_get_disk()` échoue → `ST_ERROR`
+- Calcule `uiSum` = somme LE16 des 256 mots du bootsector (indices 0..510 step 2)
+- `uiNewWord0 = (0x1234 - (uiSum - uiWord0)) & 0xFFFF` → écrit LE16 en bytes[0..1]
+- Idempotent : second appel recalcule et réécrit la même valeur → `ST_NO_ERROR`
+- Après appel : `mount_is_bootable(pDisk) == ST_TRUE`
+
+*P41 — `mount_open_file_hex(ptView)`*
+- Entrée sélectionnée à `uiSize == 0` : `LOG_INFO("empty file")` + return (pas d'ouverture hex)
+- `malloc(uiSize)` échoue → `LOG_ERROR` + return (non fatal)
+- `image_st_read_file()` échoue → `LOG_ERROR` + `free(pBuf)` + return
+- `file_open(MOUNT_FILE_TMP, FILE_MODE_WRITE)` échoue → `LOG_ERROR` + `free(pBuf)` + return
+- Succès : écriture temp + `edit_hex_open(MOUNT_FILE_TMP, ptLineCtx, &ptFileHexView)` + titre mis à jour
+- `edit_hex_open()` échoue : `ptFileHexView = NULL` (non fatal)
+- Ferme la vue hex précédente avant d'en ouvrir une nouvelle
+
+*P37 — touche `F` dans mount_handle_key*
+- `ptView->ptImg == NULL` → no-op silencieux
+- `mount_make_bootable()` succès → `bDirty = ST_TRUE` + `gui_invalidate` → panneau affiche `"Bootable: Yes"` + status bar `"[*] unsaved"`
+- `mount_make_bootable()` échoue → `LOG_ERROR`, `bDirty` inchangé
+
+*`line_cmd_image()`*
+- Vue mount ouverte (`g_line_ptMountView != NULL`) :
+  - `--bootable` : `mount_make_bootable(ptImg)` avant le save (non fatal si erreur)
+  - `mount_save_image(ptView, eFmt, szOutPath)` ; succès → message ; échec → `line_print_error`
+- Pas de vue mount :
+  - `szSrcPath` depuis `line_get_selected()` ou `szCwd`
+  - Fichier non-répertoire → `line_print_warning("use a directory")` + return
+  - `mount_view_open()` échoue → `line_print_error` + return
+  - `--bootable` avant save ; `mount_view_close()` dans tous les cas
+- `szOutPath` jamais écrasé si l'argument fourni est absolu
+
+**Points d'attention pour les UCs suivants :**
+- UC20A : `st2msa`/`msa2st` batch — utilisent directement `image_st_load/save` et `image_msa_load/save` (aucun besoin de la vue mount, aucun GUI requis).
+- UC21 : CPU 68000 — registres + MOVE/MOVEQ/LEA/CLR/SWAP. Phase exécution.
+- `MOUNT_FILE_TMP` est remplacé à chaque ENTER sur un nouveau fichier — le contenu de la session précédente est perdu. Comportement attendu (les modifications hex ne sont pas réinjectées dans l'image FAT).
 
 ---
 
@@ -2452,6 +2676,23 @@ Avis Claude : **ACCEPTÉ — UC10-bis ou intégré dans une UC ultérieure**. Co
 
 *UC14 est un UC purement interne (contrôle de flux 68000). Aucune proposition UX/fonctionnelle n'a émergé — UC14 est clos.*
 
+---
+
+### Arbitrage UC16 (2026-06-04)
+
+*UC16 est un UC purement interne (FAT12 .st image). Aucune proposition UX/fonctionnelle n'a émergé — UC16 est clos.*
+
+---
+
+### Arbitrage UC15A (2026-06-06)
+
+*UC15A est un UC de validation interne (torture test désassembleur). Aucune proposition UX/fonctionnelle n'a émergé — UC15A est clos.*
+
+---
+
+### Arbitrage UC17 (2026-06-06)
+
+*UC17 est un UC purement interne (codec MSA RLE). Aucune proposition UX/fonctionnelle n'a émergé — UC17 est clos.*
 
 ---
 
@@ -2507,97 +2748,6 @@ Avis Claude : ACCEPTÉ. Réutiliser `edit_hex_open()` sur les 512 octets du boot
 
 ---
 
-### 6.25 Use Case 18.2 (UC18.2) — ✓ VALIDÉ (2026-06-06)
-
-**Périmètre fonctionnel implémenté :**
-
-- **P10 — Historique navigation `dir` (ALT+←/→)** :
-  - `src/dir.h` : `DIR_NAV_HIST_MAX = 16`, `aszNavHistory[16][512]`, `iNavHistHead`, `iNavHistCount` dans `dir_view_t`.
-  - `src/dir.c` : `dir_nav_history_push(ptView, szNewPath)` — file linéaire ; évince l'entrée la plus ancienne si pleine.
-  - `dir_navigate_to(ptView, szNewPath, hWnd)` — crée le nouveau root AVANT de libérer l'ancien ; met à jour `szRootPath` ; rebuild flat list ; `dir_update_title`.
-  - `dir_navigate_up()` refactorisé : calcule le parent, appelle `dir_nav_history_push` puis `dir_navigate_to`.
-  - `dir_handle_key()` : touche LEFT avec `GUI_MOD_ALT` → history back (`iNavHistHead--`, `dir_navigate_to`) ; RIGHT avec `GUI_MOD_ALT` → history forward.
-  - `dir_open()` : seed du premier slot de l'historique avec `szRoot`.
-
-- **P14 — Multi-sélection CTRL+ESPACE** :
-  - `src/dir.h` : `DIR_MULTI_SEL_MAX = 16`, `aszMultiSel[16][512]`, `iMultiSelCount` dans `dir_view_t`.
-  - `src/dir.c` : `dir_is_multi_sel(ptView, szPath)` — parcours linéaire ; `dir_toggle_multi_sel(ptView, szPath)` — ajoute si absent et si place, retire si présent (shift down).
-  - `dir_handle_key()` : CTRL+ESPACE sur fichier (non répertoire) → `dir_toggle_multi_sel` + redraw.
-  - `dir_render()` : couche violette (`g_dir_clrMultiSel = {0.28f, 0.15f, 0.55f, 1.0f}`) entre la couche verte (P11) et la couche bleue (curseur).
-
-- **P34 — Propriétés BPB lecture seule** :
-  - `mount_render()` : panneau droit lit `pDisk` via `image_st_get_disk()` ; extrait SPT (`@0x18` LE16), HEADS (`@0x1A` LE16), TS (`@0x13` LE16), RDE (`@0x11` LE16) ; affiche `Geometry: H%u / S%u / T%u`.
-
-- **P36 — Suppression /IST_RDE de l'en-tête** :
-  - En-tête de la liste gauche : `"  A:\\  [%s]  %d file%s"` (sans le `/112`).
-  - Panneau droit : `"Files: N / RDE"` (capacité racine issue du BPB).
-
-- **P37 — Indicateur Bootable WD1772** :
-  - `mount.h` : `mount_is_bootable(const st_u8_t *pBootSect)` déclarée public.
-  - `mount.c` : `mount_check_bootable()` interne — somme les 256 mots LE16 du bootsector, compare à 0x1234 mod 0x10000.
-  - `mount_render()` : ligne `"Bootable: Yes"` (vert) ou `"Bootable: No"` (gris) selon le résultat.
-
-- **P38 — Touche B → éditeur hex bootsector** :
-  - `mount_view_t` : champ `void *ptBootHexView` (évite le double typedef `edit_hex_view_t` dans `mount.h`) ; `line_context_t *ptLineCtx` (back-ref pour `edit_hex_open`).
-  - `mount.c` : `mount_open_bootsector()` — ferme la vue hex précédente si ouverte ; extrait les 512 octets du bootsector via `image_st_get_disk()` ; écrit dans `MOUNT_BOOT_TMP` (`".\\st4ever_boot.bin"` Win / `"/tmp/st4ever_boot.bin"` Linux) ; construit un titre heuristique `"bootsector [H%u/S%u/T%u %uKo — bootable/not bootable]"` ; appelle `edit_hex_open()` et met à jour le titre via `gui_set_title`.
-  - Touche `B`/`b` dans `mount_handle_key()` → `mount_open_bootsector(ptView)`.
-  - `mount_view_close()` : ferme `ptBootHexView` si ouvert avant de fermer la fenêtre principale.
-  - `mount_view_open()` : stocke `ptLineCtx` dans le view ; `ptBootHexView = NULL` initialement.
-
-**Tests R14/R15 appliqués :**
-- `use_cases/use_case_18_2.c` : TEST MATRIX **12N + 1R + 8S = 21 tests**, 0 failure
-  - [N] : `DIR_NAV_HIST_MAX >= 8` / `DIR_MULTI_SEL_MAX >= 8` (2) ; `mount_is_bootable` blank=false, hand-crafted=true, corrupted=false (3) ; `dir_open` history init (iNavHistCount==1, iNavHistHead==0, history[0] non-vide) (3) ; `dir_open` iMultiSelCount==0 (1) ; `mount_view_open` ptLineCtx stocké + ptBootHexView NULL (2)
-  - [R] : `mount_is_bootable(NULL)` → ST_FALSE (1)
-  - [S] : 8 tests visuels `make manual UC=18_2`
-
-**Contrats comportementaux validés :**
-
-*`dir_nav_history_push(ptView, szNewPath)`*
-- Premier push : stocké à `aszNavHistory[0]`, `iNavHistHead=0`, `iNavHistCount=1`.
-- Push quand plein (`iNavHistCount == DIR_NAV_HIST_MAX`) : shift de tous les slots, nouveau chemin en position `DIR_NAV_HIST_MAX - 1` ; `iNavHistCount` plafonné à `DIR_NAV_HIST_MAX`.
-- `dir_open()` seede `aszNavHistory[0]` avec le chemin initial — l'historique démarre non vide.
-
-*`dir_navigate_to(ptView, szNewPath, hWnd)`*
-- Crée le nouveau nœud root AVANT de libérer l'ancien (sécurité en cas d'échec de scan).
-- Rebuilds flat list après mise à jour du root.
-- Appelle `dir_update_title(ptView, hWnd)`.
-- Ne push PAS dans l'historique (c'est `dir_navigate_up` et `dir_handle_key` qui pushent avant d'appeler navigate_to).
-
-*Navigation ALT+←/→*
-- ALT+LEFT : si `iNavHistHead > 0` → `iNavHistHead--` + `dir_navigate_to(aszNavHistory[iNavHistHead])`. Sinon : no-op.
-- ALT+RIGHT : si `iNavHistHead < iNavHistCount - 1` → `iNavHistHead++` + `dir_navigate_to(...)`. Sinon : no-op.
-- L'historique est non-cyclique (stack simple) — on ne revient pas "après la fin".
-
-*`dir_toggle_multi_sel(ptView, szPath)`*
-- Chemin déjà présent : retiré (shift du reste vers le bas), `iMultiSelCount--`.
-- Chemin absent + `iMultiSelCount < DIR_MULTI_SEL_MAX` : ajouté en fin, `iMultiSelCount++`.
-- Chemin absent + plein : no-op silencieux.
-- Seuls les fichiers (non-répertoires) sont sélectionnables en multi (contrôle dans `dir_handle_key`).
-
-*Rendu multi-sel*
-- Ordre des couches : fond vert (P11, dernière sélection `load`) → fond violet (P14, multi-sel) → fond bleu (curseur courant). Le dernier dessiné l'emporte visuellement.
-- Un fichier peut être simultanément sous-violet (multi-sel) et sous-bleu (curseur) — le bleu prime.
-
-*`mount_is_bootable(pBootSect)`*
-- `pBootSect == NULL` → `ST_FALSE`.
-- Somme de `pBootSect[i] | (pBootSect[i+1] << 8)` pour i = 0, 2, 4, …, 510 (256 itérations LE16).
-- Résultat & 0xFFFF == 0x1234 → `ST_TRUE` ; sinon → `ST_FALSE`.
-
-*P38 — Bootsector hex*
-- `mount_open_bootsector()` ferme toute vue hex précédente avant d'en ouvrir une nouvelle.
-- `MOUNT_BOOT_TMP` : fichier temporaire local — remplacé à chaque appel à B.
-- Titre heuristique : H/S/T issus du BPB du bootsector écrit ; `bootable` determiné par `mount_check_bootable`.
-- Si `edit_hex_open()` échoue : LOG_ERROR + `ptBootHexView = NULL` (non fatal).
-- `mount_view_close()` : si `ptBootHexView != NULL` → `edit_hex_close` + `ptBootHexView = NULL` avant `gui_close_window`.
-
-**Points d'attention pour les UCs suivants :**
-- UC19 : `bDirty == ST_TRUE` à l'umount → dialog "save image?" ; options `.st`/`.msa`/`répertoire` (P35) ; flag `bootable` en écriture (P37 écriture = modifier le checksum pour le rendre bootable).
-- UC20 : `image_st_save` / `image_msa_save` disponibles — `image` commande depuis contenu monté.
-- `aszMultiSel` : les chemins de multi-sélection sont disponibles pour le drag-and-drop (UC18.2 ne l'implémente pas encore) et pour la commande `load` multi-fichiers future.
-- `dir_navigate_to()` : l'API est désormais publique — accessible aux vues futures qui veulent piloter la navigation du dir depuis l'extérieur (ex. depuis `mount` vers le source de l'image).
-
----
-
 ### Arbitrage UC18.2 (2026-06-06)
 
 **P39 — Status bar dans la vue mount** → **À ARBITRER**
@@ -2642,160 +2792,9 @@ Conversion en lot d'images disque dans un répertoire, en exploitant directement
 
 ---
 
-### 6.26 Use Case 19 (UC19) — ✓ VALIDÉ (2026-06-07)
-
-**Périmètre fonctionnel implémenté :**
-
-- **P39 — Status bar dans la vue mount** :
-  - Constantes couleur : `g_mnt_clrStatusBg = {0.11f,0.11f,0.18f,1.0f}` (fond bleu nuit légèrement différent du fond principal) ; `g_mnt_clrStatusTx = {0.70f,0.70f,0.70f,1.0f}` (texte gris clair).
-  - `mount_render()` : `iVisRows = (iWndHeight / iCellH) - 2` (une ligne réservée en haut = header, une ligne réservée en bas = status bar). Fond coloré `g_mnt_clrStatusBg` sur toute la largeur à `y = (iWndHeight/iCellH - 1) * iCellH`. Texte : `"  Free: %u KB  |  %d file(s)"` + `"  [*] unsaved"` si `bDirty`.
-  - `mount_handle_key()`, `mount_handle_click()`, `mount_handle_scroll()` : `iVisRows` mis à jour de `-1` → `-2` (cohérence avec render).
-
-- **P40 — Progression copie dans `mount_view_add_file()`** :
-  - Constante `MOUNT_PROGRESS_CHUNK = 65536u` (64 Ko).
-  - Remplace le `file_read()` monolithique par une boucle : `remaining = uiSize - uiOffset` → `uiChunk = min(remaining, MOUNT_PROGRESS_CHUNK)` → `file_read` → `uiOffset += uiChunkRead` → si pas terminé : `LOG_INFO("copying '%s': %u%%", szBaseName, uiOffset*100/uiSize)` + `gui_invalidate(ptView->hWnd)`.
-  - Le status bar se met à jour visuellement pendant la copie de gros fichiers.
-
-- **P35 — Dialog save à l'umount + API `mount_save_image()`** :
-  - `mount_save_fmt_t` enum : `MOUNT_SAVE_ST=0`, `MOUNT_SAVE_MSA=1`, `MOUNT_SAVE_DIR=2`.
-  - `mount_save_image(ptView, eFmt, szOutPath)` :
-    - `MOUNT_SAVE_ST` : `image_st_save(ptView->ptImg, szOutPath)`.
-    - `MOUNT_SAVE_MSA` : `image_msa_save(ptView->ptImg, szOutPath)`.
-    - `MOUNT_SAVE_DIR` : `file_mkdir(szOutPath)` + `image_st_list_root()` + boucle : `malloc(uiSize)` + `image_st_read_file()` + `file_open(FILE_MODE_WRITE)` + `file_write()` + `file_close()` + `free()`. Répertoire non écrasé si existant (EEXIST toléré dans `file_mkdir`).
-    - Sur succès : `ptView->bDirty = ST_FALSE`.
-  - `line_cmd_umount()` réécrit :
-    - **Flags `--st` / `--msa` / `--dir [path]`** : détectés dans la boucle argv → calcul de `szOutPath` depuis `ptCtx->szCwd` (`disk.st`, `disk.msa`, `disk/` ou chemin explicite après `--dir`) → `mount_save_image()` immédiat sans dialog.
-    - **Dialog interactif** si `bDirty == ST_TRUE` et aucun flag : prompt console multilignes + `console_read_key()` :
-      - `1` → `MOUNT_SAVE_ST` → `cwd/disk.st`
-      - `2` → `MOUNT_SAVE_MSA` → `cwd/disk.msa`
-      - `3` → `MOUNT_SAVE_DIR` → `cwd/disk/`
-      - `n` / ESC / autres → abandon (pas de sauvegarde)
-    - Label `do_close:` : `mount_view_close()` + message "Disk unmounted." + `line_update_console_title()`.
-    - Disk propre (`bDirty == ST_FALSE`) : fermeture directe sans dialog.
-
-**Tests R14/R15 appliqués :**
-- `use_cases/use_case_19.c` : TEST MATRIX **14N + 5R + 8S = 27 tests**, 0 failure
-  - [R] : `mount_save_image(NULL view)`, `(NULL path)`, `(bad fmt=99)` → ST_ERROR ; `mount_view_add_file(NULL,path)`, `(view,NULL)` → ST_ERROR
-  - [N] : save .st (ST_NO_ERROR + exists + size==737280 + bDirty cleared + reload 2 files) ; save .msa (ST_NO_ERROR + exists + size<737280 + bDirty cleared) ; save dir (ST_NO_ERROR + dir exists + HELLO.PRG 64B + README.TXT 5B + bDirty cleared)
-  - [S] : 8 tests visuels `make manual UC=19`
-
-**Contrats comportementaux validés :**
-
-*`mount_save_image(ptView, eFmt, szOutPath)`*
-- `ptView == NULL` ou `szOutPath == NULL` → `ST_ERROR`
-- `ptView->ptImg == NULL` → `ST_ERROR`
-- `eFmt` inconnu (> MOUNT_SAVE_DIR) → `ST_ERROR`
-- `MOUNT_SAVE_ST` : écrit 737 280 octets exacts (IST_DISK_SIZE) ; fichier reloadable via `image_st_load()`
-- `MOUNT_SAVE_MSA` : fichier compressé < IST_DISK_SIZE pour un disque partiellement rempli
-- `MOUNT_SAVE_DIR` : crée le répertoire (EEXIST toléré) ; un fichier extrait par entrée racine valide ; taille exacte respectée ; sous-répertoires ignorés (FAT12 root = flat)
-- Sur succès : `ptView->bDirty = ST_FALSE`
-
-*P40 — lecture chunked dans `mount_view_add_file()`*
-- Fichier < `MOUNT_PROGRESS_CHUNK` : 1 seule itération, pas de `LOG_INFO` intermédiaire (condition `uiOffset < uiSize`)
-- Fichier > `MOUNT_PROGRESS_CHUNK` : une itération par chunk, `LOG_INFO("copying '%s': %u%%")` à chaque chunk intermédiaire
-- `gui_invalidate()` appelé à chaque chunk intermédiaire (status bar mise à jour visuellement)
-- Comportement final (erreur / succès) identique au code UC18.1 (inchangé)
-
-*`line_cmd_umount()` — dialog save*
-- `bDirty == ST_FALSE` : `do_close` directement, pas de dialog
-- Flag `--st` : `szOutPath = szCwd + "\\disk.st"` ; `mount_save_image(MOUNT_SAVE_ST)` ; `do_close` si succès
-- Flag `--msa` : `szOutPath = szCwd + "\\disk.msa"` ; `mount_save_image(MOUNT_SAVE_MSA)` ; `do_close`
-- Flag `--dir [path]` : `szOutPath = szDirArg` ou `szCwd + "\\disk\\"` ; `mount_save_image(MOUNT_SAVE_DIR)` ; `do_close`
-- Dialog interactif : `console_read_key()` (single keypress raw) ; `1/2/3` → save + do_close ; `n`/ESC → do_close sans save ; autres touches → redisplay dialog
-- `do_close` : `mount_view_close(&g_line_ptMountView)` + `g_line_ptMountView = NULL` + `line_print_msg("Disk unmounted.")` + `line_update_console_title(ptCtx)` + `return ST_NO_ERROR`
-
-*Status bar (P39)*
-- Fond `g_mnt_clrStatusBg` sur toute la largeur de la fenêtre à la dernière ligne de cellule
-- Texte : `"  Free: X KB  |  N file(s)"` ; si `bDirty` : append `"  [*] unsaved"`
-- `iVisRows = (iWndHeight/iCellH) - 2` dans render + tous les handlers : la liste de fichiers ne déborde jamais dans la status bar
-
-**Points d'attention pour les UCs suivants :**
-- UC20 : `image_st_save()` et `image_msa_save()` disponibles depuis UC16/UC17 — la commande `image` crée une image depuis le contenu monté. `mount_save_image()` est l'API partagée.
-- UC20A : `st2msa`/`msa2st` batch — utilisent directement `image_st_load/save` et `image_msa_load/save` sans passer par la vue mount.
-- P41 (ENTER → hex dans mount) : toujours planifié UC20.
-- Bootable-write (P37 écriture) : modifier le checksum WD1772 pour rendre un disque bootable — différé UC20 avec confirmation utilisateur.
-
----
-
 ### Arbitrage UC19 (2026-06-07)
 
 *UC19 implémente P35/P39/P40. Propositions P41 et Bootable-write déjà planifiées à UC20. Aucune nouvelle proposition UX/fonctionnelle n'a émergé — UC19 est clos.*
-
----
-
-### 6.27 Use Case 20 (UC20) — ✓ VALIDÉ (2026-06-07)
-
-**Périmètre fonctionnel implémenté :**
-
-- **P41 — ENTER dans la vue mount → éditeur hex du fichier sélectionné** :
-  - `src/mount.h` : champ `void *ptFileHexView` ajouté à `mount_view_t` (après `ptBootHexView`).
-  - `src/mount.c` : constante `MOUNT_FILE_TMP` (`".\\st4ever_mnt_file.bin"` Win / `"/tmp/st4ever_mnt_file.bin"` Linux).
-  - `mount_open_file_hex(ptView)` : pattern identique à `mount_open_bootsector()` (P38) — ferme la vue hex précédente si ouverte ; extrait `aEntries[iSelectedEntry]` via `image_st_read_file()` ; écrit dans `MOUNT_FILE_TMP` ; appelle `edit_hex_open()` ; met à jour le titre `"A:\\ FILENAME.EXT  [N bytes]"` via `gui_set_title`.
-  - `mount_handle_key()` : `case GUI_KEY_ENTER → mount_open_file_hex(ptView)`.
-  - `mount_view_close()` : ferme `ptFileHexView` (cast `edit_hex_view_t *`) si non NULL avant `gui_close_window`.
-  - Rendu hints : `"[ENTER] Open hex"` ajouté au panneau propriétés.
-  - `mount_view_open()` : `ptLineCtx` stocké dans le view pour P41 (déjà présent depuis UC18.2) ; `ptFileHexView = NULL` à l'init.
-
-- **P37 écriture — `mount_make_bootable()` + touche `F`** :
-  - `src/mount.h` : déclaration publique `mount_make_bootable(image_st_t *ptImg)`.
-  - `src/mount.c` : `mount_make_bootable()` — `image_st_get_disk()` → somme les 256 mots LE16 du bootsector → calcule `uiNewWord0 = (0x1234 - (uiSum - word[0])) & 0xFFFF` → écrit en LE16 aux octets 0-1. Idempotent : si déjà bootable, recalcule et réécrit le même word[0].
-  - `mount_handle_key()` : case `default` — si `cCh == 'F' || cCh == 'f'` → `mount_make_bootable(ptView->ptImg)` + `ptView->bDirty = ST_TRUE` + `LOG_INFO` + `gui_invalidate`.
-  - Rendu hints : `"[F]       Fix boot"` ajouté au panneau propriétés.
-
-- **Commande `image`** :
-  - `src/line.c` : `line_cmd_image()` remplace `line_cmd_stub` pour `CMD_IMAGE`.
-  - **Parsing** : `--st` (défaut), `--msa`, `--bootable`, chemin optionnel en argument.
-  - **Path 1 — vue mount ouverte** (`g_line_ptMountView != NULL`) : si `--bootable` → `mount_make_bootable(ptView->ptImg)` ; `mount_save_image(ptView, eFmt, szOutPath)` ; message de confirmation.
-  - **Path 2 — pas de vue mount** : collecte `szSrcPath` via `line_get_selected()` ou `szCwd` ; `file_stat()` + rejet si fichier non-répertoire ; crée une `mount_view_t` temporaire via `mount_view_open()` (fenêtre ouverte brièvement) ; si `--bootable` → `mount_make_bootable()` ; `mount_save_image()` ; `mount_view_close()`.
-  - `szOutPath` par défaut : `szCwd + "disk.st"` ou `"disk.msa"` selon le format.
-  - Dispatch table : `CMD_IMAGE → line_cmd_image` (remplace `line_cmd_stub`).
-- `src/common.h` : `ST_APP_VERSION` → `"0.20.0"`.
-
-**Tests R14/R15 appliqués :**
-- `use_cases/use_case_20.c` : TEST MATRIX **14N + 5R + 8S = 27 tests**, 0 failure
-  - [R] : `mount_make_bootable(NULL)` → ST_ERROR (×2 regression) ; `mount_view_close(&NULL)` idempotent ; `mount_save_image(NULL view)` ; `mount_save_image(NULL path)` (via UC19 regression)
-  - [N] : `image_st_create` blank + `mount_is_bootable` = ST_FALSE ; `mount_make_bootable` → ST_NO_ERROR + `mount_is_bootable` = ST_TRUE ; checksum WD1772 == 0x1234 ; idempotent (×2) ; hand-crafted bootable sector ; `mount_view_open` .st → 2 files ; `mount_save_image` .msa < 737280 ; `mount_save_image` .st = 737280 ; `mount_view_open` dir → 2 files ; save+reload dir image → 2 files
-  - [S] : 8 tests visuels `make manual UC=20`
-
-**Contrats comportementaux validés :**
-
-*`mount_make_bootable(ptImg)`*
-- `ptImg == NULL` → `ST_ERROR`
-- `image_st_get_disk()` échoue → `ST_ERROR`
-- Calcule `uiSum` = somme LE16 des 256 mots du bootsector (indices 0..510 step 2)
-- `uiNewWord0 = (0x1234 - (uiSum - uiWord0)) & 0xFFFF` → écrit LE16 en bytes[0..1]
-- Idempotent : second appel recalcule et réécrit la même valeur → `ST_NO_ERROR`
-- Après appel : `mount_is_bootable(pDisk) == ST_TRUE`
-
-*P41 — `mount_open_file_hex(ptView)`*
-- Entrée sélectionnée à `uiSize == 0` : `LOG_INFO("empty file")` + return (pas d'ouverture hex)
-- `malloc(uiSize)` échoue → `LOG_ERROR` + return (non fatal)
-- `image_st_read_file()` échoue → `LOG_ERROR` + `free(pBuf)` + return
-- `file_open(MOUNT_FILE_TMP, FILE_MODE_WRITE)` échoue → `LOG_ERROR` + `free(pBuf)` + return
-- Succès : écriture temp + `edit_hex_open(MOUNT_FILE_TMP, ptLineCtx, &ptFileHexView)` + titre mis à jour
-- `edit_hex_open()` échoue : `ptFileHexView = NULL` (non fatal)
-- Ferme la vue hex précédente avant d'en ouvrir une nouvelle
-
-*P37 — touche `F` dans mount_handle_key*
-- `ptView->ptImg == NULL` → no-op silencieux
-- `mount_make_bootable()` succès → `bDirty = ST_TRUE` + `gui_invalidate` → panneau affiche `"Bootable: Yes"` + status bar `"[*] unsaved"`
-- `mount_make_bootable()` échoue → `LOG_ERROR`, `bDirty` inchangé
-
-*`line_cmd_image()`*
-- Vue mount ouverte (`g_line_ptMountView != NULL`) :
-  - `--bootable` : `mount_make_bootable(ptImg)` avant le save (non fatal si erreur)
-  - `mount_save_image(ptView, eFmt, szOutPath)` ; succès → message ; échec → `line_print_error`
-- Pas de vue mount :
-  - `szSrcPath` depuis `line_get_selected()` ou `szCwd`
-  - Fichier non-répertoire → `line_print_warning("use a directory")` + return
-  - `mount_view_open()` échoue → `line_print_error` + return
-  - `--bootable` avant save ; `mount_view_close()` dans tous les cas
-- `szOutPath` jamais écrasé si l'argument fourni est absolu
-
-**Points d'attention pour les UCs suivants :**
-- UC20A : `st2msa`/`msa2st` batch — utilisent directement `image_st_load/save` et `image_msa_load/save` (aucun besoin de la vue mount, aucun GUI requis).
-- UC21 : CPU 68000 — registres + MOVE/MOVEQ/LEA/CLR/SWAP. Phase exécution.
-- `MOUNT_FILE_TMP` est remplacé à chaque ENTER sur un nouveau fichier — le contenu de la session précédente est perdu. Comportement attendu (les modifications hex ne sont pas réinjectées dans l'image FAT).
 
 ---
 
