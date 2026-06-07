@@ -247,6 +247,14 @@ static const cmd_entry_t g_line_aCmds[] =
     { "history", "y", CMD_HISTORY,
       "history [N]",
       "Show last N history entries (default 10)" },
+
+    { "st2msa",  "s", CMD_ST2MSA,
+      "st2msa [--dir path] [--all] [-r]",
+      "Convert .st disk image(s) to .msa format" },
+
+    { "msa2st",  "a", CMD_MSA2ST,
+      "msa2st [--dir path] [--all] [-r]",
+      "Convert .msa disk image(s) to .st format" },
 };
 
 /* ------------------------------------------------------------------
@@ -2030,6 +2038,339 @@ static st_error_t line_cmd_image(const parsed_cmd_t *ptParsed,
 }
 
 /* ------------------------------------------------------------------
+ * UC20A: st2msa / msa2st batch conversion
+ * ------------------------------------------------------------------ */
+
+/*
+ * Conversion direction context passed to the file_list_dir callback.
+ */
+typedef struct
+{
+    const char *szSrcExt;   /* source extension without dot: "st" | "msa" */
+    const char *szDstExt;   /* dest   extension without dot: "msa"| "st"  */
+    int         iConverted;
+    int         iFailed;
+} conv_ctx_t;
+
+/*
+ * line_conv_replace_ext() - Build output path by replacing the
+ * extension of szSrc with szNewExt.
+ *
+ * Parameters:
+ *   szSrc    [in]  : Source path ("foo/bar.st").
+ *   szNewExt [in]  : New extension without dot ("msa").
+ *   szOut    [out] : Destination buffer.
+ *   uiOutLen [in]  : Buffer size.
+ */
+static void line_conv_replace_ext(const char *szSrc,
+                                   const char *szNewExt,
+                                   char       *szOut,
+                                   size_t      uiOutLen)
+{
+    const char *pDot;
+    size_t      uiBase;
+
+    pDot = strrchr(szSrc, '.');
+    if (pDot == NULL)
+    {
+        snprintf(szOut, uiOutLen, "%s.%s", szSrc, szNewExt);
+        return;
+    }
+    uiBase = (size_t)(pDot - szSrc);
+    snprintf(szOut, uiOutLen, "%.*s.%s", (int)uiBase, szSrc, szNewExt);
+}
+
+/*
+ * line_conv_one() - Convert a single image file.
+ *
+ * Reads szSrcPath, writes szDstPath using the codec indicated by
+ * szSrcExt/szDstExt.  Returns ST_NO_ERROR on success.
+ */
+static st_error_t line_conv_one(const char *szSrcPath,
+                                 const char *szDstPath,
+                                 const char *szSrcExt,
+                                 const char *szDstExt)
+{
+    image_st_t *ptImg = NULL;
+    st_error_t  eRet  = ST_ERROR;
+
+    ST_UNUSED(szDstExt);  /* codec selected by szSrcExt, szDstExt unused */
+
+    if (strcmp(szSrcExt, "st") == 0)
+    {
+        if (image_st_load(szSrcPath, &ptImg) != ST_NO_ERROR)
+        {
+            LOG_ERROR("st2msa: load failed: %s", szSrcPath);
+            return ST_ERROR;
+        }
+        eRet = image_msa_save(ptImg, szDstPath);
+        if (eRet != ST_NO_ERROR)
+            LOG_ERROR("st2msa: save failed: %s", szDstPath);
+    }
+    else
+    {
+        if (image_msa_load(szSrcPath, &ptImg) != ST_NO_ERROR)
+        {
+            LOG_ERROR("msa2st: load failed: %s", szSrcPath);
+            return ST_ERROR;
+        }
+        eRet = image_st_save(ptImg, szDstPath);
+        if (eRet != ST_NO_ERROR)
+            LOG_ERROR("msa2st: save failed: %s", szDstPath);
+    }
+
+    image_st_close(&ptImg);
+    return eRet;
+}
+
+/* Recursive-capable variant using a nested struct */
+typedef struct
+{
+    conv_ctx_t *ptConv;
+    st_bool_t   bRecurse;
+} conv_rec_ctx_t;
+
+static void line_conv_rec_cb(const char        *szFullPath,
+                              const char        *szName,
+                              const file_stat_t *ptStat,
+                              void              *pCtx);
+
+static void line_conv_dir_rec(const char *szDir,
+                               conv_ctx_t *ptConv,
+                               st_bool_t   bRecurse)
+{
+    conv_rec_ctx_t tRec;
+
+    tRec.ptConv   = ptConv;
+    tRec.bRecurse = bRecurse;
+
+    file_list_dir(szDir, ST_TRUE, line_conv_rec_cb, &tRec);
+}
+
+static void line_conv_rec_cb(const char        *szFullPath,
+                              const char        *szName,
+                              const file_stat_t *ptStat,
+                              void              *pCtx)
+{
+    conv_rec_ctx_t *ptRec  = (conv_rec_ctx_t *)pCtx;
+    conv_ctx_t     *ptConv = ptRec->ptConv;
+    char            szDst[ST_MAX_PATH];
+    file_stat_t     tStat;
+
+    ST_UNUSED(szName);
+
+    if (ptStat->bIsDir)
+    {
+        if (ptRec->bRecurse)
+            line_conv_dir_rec(szFullPath, ptConv, ST_TRUE);
+        return;
+    }
+
+    memset(&tStat, 0, sizeof(tStat));
+    if (file_stat(szFullPath, &tStat) != ST_NO_ERROR)
+        return;
+
+    if (strcmp(tStat.szExt, ptConv->szSrcExt) != 0)
+        return;
+
+    line_conv_replace_ext(szFullPath, ptConv->szDstExt,
+                          szDst, sizeof(szDst));
+
+    line_print_msg("  %s -> %s", szFullPath, szDst);
+
+    if (line_conv_one(szFullPath, szDst,
+                      ptConv->szSrcExt, ptConv->szDstExt)
+        == ST_NO_ERROR)
+        ptConv->iConverted++;
+    else
+    {
+        line_print_error("  FAILED: %s", szFullPath);
+        ptConv->iFailed++;
+    }
+}
+
+/*
+ * line_cmd_convert() - Shared implementation for st2msa and msa2st.
+ */
+static st_error_t line_cmd_convert(const parsed_cmd_t *ptParsed,
+                                    line_context_t     *ptCtx,
+                                    const char         *szSrcExt,
+                                    const char         *szDstExt)
+{
+    char       szSrcPath[ST_MAX_PATH];
+    char       szDstPath[ST_MAX_PATH];
+    char       szDirPath[ST_MAX_PATH];
+    char       szSel[ST_MAX_PATH];
+    file_stat_t tStat;
+    conv_ctx_t  tConv;
+    st_bool_t   bAll     = ST_FALSE;
+    st_bool_t   bRecurse = ST_FALSE;
+    int         i;
+
+    szSrcPath[0] = '\0';
+    szDirPath[0] = '\0';
+
+    LOG_TRACE("szSrcExt=%s szDstExt=%s argc=%d",
+              szSrcExt, szDstExt, ptParsed->iArgc);
+
+    /* Parse flags */
+    for (i = 1; i < ptParsed->iArgc; i++)
+    {
+        if (strcmp(ptParsed->aszArgv[i], "--all") == 0)
+        {
+            bAll = ST_TRUE;
+        }
+        else if (strcmp(ptParsed->aszArgv[i], "-r") == 0)
+        {
+            bRecurse = ST_TRUE;
+        }
+        else if (strcmp(ptParsed->aszArgv[i], "--dir") == 0)
+        {
+            if (i + 1 < ptParsed->iArgc)
+            {
+                strncpy(szDirPath, ptParsed->aszArgv[i + 1],
+                        sizeof(szDirPath) - 1);
+                i++;
+            }
+            else
+                line_print_warning("--dir requires a path argument.");
+        }
+        else
+        {
+            /* positional = source file path */
+            if (szSrcPath[0] == '\0')
+                strncpy(szSrcPath, ptParsed->aszArgv[i],
+                        sizeof(szSrcPath) - 1);
+            else
+                line_print_warning("Extra argument ignored: %s",
+                                   ptParsed->aszArgv[i]);
+        }
+    }
+
+    /* --all mode: convert all matching files in a directory */
+    if (bAll)
+    {
+        /* Resolve directory: --dir > positional > selected > cwd */
+        if (szDirPath[0] != '\0')
+        {
+            /* explicit --dir already set */
+        }
+        else if (szSrcPath[0] != '\0')
+        {
+            strncpy(szDirPath, szSrcPath, sizeof(szDirPath) - 1);
+        }
+        else
+        {
+            line_get_selected(ptCtx, szSel, sizeof(szSel));
+            if (szSel[0] != '\0')
+            {
+                memset(&tStat, 0, sizeof(tStat));
+                file_stat(szSel, &tStat);
+                if (tStat.bIsDir)
+                    strncpy(szDirPath, szSel, sizeof(szDirPath) - 1);
+                else
+                    strncpy(szDirPath, ptCtx->szCwd,
+                            sizeof(szDirPath) - 1);
+            }
+            else
+                strncpy(szDirPath, ptCtx->szCwd,
+                        sizeof(szDirPath) - 1);
+        }
+
+        memset(&tStat, 0, sizeof(tStat));
+        if (file_stat(szDirPath, &tStat) != ST_NO_ERROR
+        ||  !tStat.bExists || !tStat.bIsDir)
+        {
+            line_print_error("Not a directory: %s", szDirPath);
+            return ST_NO_ERROR;
+        }
+
+        memset(&tConv, 0, sizeof(tConv));
+        tConv.szSrcExt   = szSrcExt;
+        tConv.szDstExt   = szDstExt;
+        tConv.iConverted = 0;
+        tConv.iFailed    = 0;
+
+        line_print_msg("Converting .%s -> .%s in: %s%s",
+                       szSrcExt, szDstExt, szDirPath,
+                       bRecurse ? " (recursive)" : "");
+
+        line_conv_dir_rec(szDirPath, &tConv, bRecurse);
+
+        line_print_msg("Done: %d converted, %d failed.",
+                       tConv.iConverted, tConv.iFailed);
+
+        if (tConv.iFailed > 0)
+            LOG_INFO("%d conversion failure(s) in %s", tConv.iFailed,
+                     szDirPath);
+        return ST_NO_ERROR;
+    }
+
+    /* Single-file mode */
+    if (szSrcPath[0] == '\0')
+    {
+        line_get_selected(ptCtx, szSel, sizeof(szSel));
+        if (szSel[0] != '\0')
+            strncpy(szSrcPath, szSel, sizeof(szSrcPath) - 1);
+    }
+
+    if (szSrcPath[0] == '\0')
+    {
+        line_print_warning(
+            "No file specified.  Select a .%s file with 'dir' "
+            "or provide a path, or use --all to convert a directory.",
+            szSrcExt);
+        return ST_NO_ERROR;
+    }
+
+    memset(&tStat, 0, sizeof(tStat));
+    if (file_stat(szSrcPath, &tStat) != ST_NO_ERROR
+    ||  !tStat.bExists)
+    {
+        line_print_error("File not found: %s", szSrcPath);
+        return ST_NO_ERROR;
+    }
+    if (tStat.bIsDir)
+    {
+        line_print_warning(
+            "Path is a directory.  Use --all to convert all .%s "
+            "files in a directory.", szSrcExt);
+        return ST_NO_ERROR;
+    }
+    if (strcmp(tStat.szExt, szSrcExt) != 0)
+    {
+        line_print_warning("File is not a .%s image: %s",
+                           szSrcExt, szSrcPath);
+        return ST_NO_ERROR;
+    }
+
+    line_conv_replace_ext(szSrcPath, szDstExt,
+                          szDstPath, sizeof(szDstPath));
+
+    line_print_msg("%s -> %s", szSrcPath, szDstPath);
+
+    if (line_conv_one(szSrcPath, szDstPath, szSrcExt, szDstExt)
+        == ST_NO_ERROR)
+        line_print_msg("Done.");
+    else
+        line_print_error("Conversion failed.");
+
+    return ST_NO_ERROR;
+}
+
+static st_error_t line_cmd_st2msa(const parsed_cmd_t *ptParsed,
+                                   line_context_t     *ptCtx)
+{
+    return line_cmd_convert(ptParsed, ptCtx, "st", "msa");
+}
+
+static st_error_t line_cmd_msa2st(const parsed_cmd_t *ptParsed,
+                                   line_context_t     *ptCtx)
+{
+    return line_cmd_convert(ptParsed, ptCtx, "msa", "st");
+}
+
+/* ------------------------------------------------------------------
  * Dispatch table  (indexed by cmd_id_t value)
  * ------------------------------------------------------------------ */
 
@@ -2053,6 +2394,8 @@ static const cmd_handler_fn g_line_aHandlers[CMD_COUNT] =
     /* CMD_COLORS     */ line_cmd_colors,
     /* CMD_INFO       */ line_cmd_info,
     /* CMD_HISTORY    */ line_cmd_history,
+    /* CMD_ST2MSA     */ line_cmd_st2msa,
+    /* CMD_MSA2ST     */ line_cmd_msa2st,
 };
 
 static st_error_t line_dispatch(const parsed_cmd_t *ptParsed,

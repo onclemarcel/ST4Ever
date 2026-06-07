@@ -55,6 +55,8 @@ typedef enum cmd_id_s
     CMD_COLORS,         /* c | colors  on|off (toggle ANSI output)   */
     CMD_INFO,           /* (none) | info      (application dashboard)*/
     CMD_HISTORY,        /* (none) | history [N]                      */
+    CMD_ST2MSA,         /* s | st2msa  [--dir p] [--all] [-r]        */
+    CMD_MSA2ST,         /* a | msa2st  [--dir p] [--all] [-r]        */
     CMD_COUNT           /* Sentinel - must be last                   */
 } cmd_id_t;
 

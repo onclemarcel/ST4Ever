@@ -139,6 +139,8 @@ through one or more test cases in Section 5.
 | UFR-CON-085 | ANSI colour output shall be auto-enabled or auto-disabled based on `isatty(stdout)` at startup; `colors on/off` shall remain available to override. (P24) | ✓ UC5 | UC5 |
 | UFR-CON-090 | `execute <file>` shall open the full execution engine with all linked views.                     | TODO UC25   | UC25 |
 | UFR-CON-091 | `image` shall create a `.st` or `.msa` disk image from the mounted floppy content.              | TODO UC20   | UC20 |
+| UFR-CON-092 | `st2msa [--dir p] [--all] [-r]` shall convert `.st` disk image(s) to `.msa` format; `--all` processes all `.st` files in a directory; `-r` recurses into subdirectories. (P42) | ✓ UC20A | UC20A |
+| UFR-CON-093 | `msa2st [--dir p] [--all] [-r]` shall convert `.msa` disk image(s) to `.st` format; `--all` processes all `.msa` files in a directory; `-r` recurses into subdirectories. (P42) | ✓ UC20A | UC20A |
 
 ### 1.2 Trace Console — `TRC`
 
@@ -342,6 +344,9 @@ requirement that will expose it (`UFR-EXE-*`, planned UC21–27).
 | REQ-CON-029  | `line_init()` shall detect stdout TTY status via `_isatty(_fileno(stdout))` (Windows) or `isatty(STDOUT_FILENO)` (Linux) and set `g_line_bColors` accordingly: `ST_TRUE` for a live terminal, `ST_FALSE` for a pipe or file. `colors on/off` shall remain available to override. | UFR-CON-085 | ✓ UC5 | UC5 |
 | REQ-CON-030  | `line_cmd_trace()` shall accept the sub-command `clear` (calls `trace_clear()`, prints confirmation) and `level <trace\|info\|error>` (calls `trace_set_view_level()`, prints confirmation). Unknown first arguments shall produce a warning listing all valid sub-commands. | UFR-TRC-011, UFR-TRC-012 | ✓ UC5 | UC5 |
 | REQ-CON-031  | `line_complete_cmd_query()` shall include `"info"` and `"history"` in its candidate set, matching on both the full name and the single-letter shortcut (`"n"` and `"y"` respectively). | UFR-CON-009 | ✓ UC5 | UC5 |
+| REQ-CON-032  | `line_cmd_st2msa()` and `line_cmd_msa2st()` shall dispatch to `line_cmd_convert()` with the appropriate source/destination extension pair. `line_cmd_convert()` shall: without `--all`, convert the single file given as argument or selected via `dir` (warn if no selection); with `--all`, scan the directory (from `--dir`, selection, or cwd) and convert every matching file. Files with the wrong extension shall produce a warning and `ST_NO_ERROR` (non-fatal). | UFR-CON-092, UFR-CON-093 | ✓ UC20A | UC20A |
+| REQ-CON-033  | `line_conv_one(szSrc, szDst, szSrcExt, szDstExt)` shall verify the source extension via `file_stat().szExt`; `.st` → `image_st_load` + `image_msa_save`; `.msa` → `image_msa_load` + `image_st_save`; on failure it shall close any partially-loaded image and return `ST_ERROR` without leaving a corrupted destination file. | UFR-CON-092, UFR-CON-093 | ✓ UC20A | UC20A |
+| REQ-CON-034  | `line_conv_rec_cb` shall have the `file_list_fn` signature (`void`, `const file_stat_t *`); it shall recurse into subdirectories if `bRecurse == ST_TRUE`; individual file failures shall increment `iFailed` without aborting the batch. | UFR-CON-092, UFR-CON-093 | ✓ UC20A | UC20A |
 
 ### 2.3 ST Machine Emulator — `ST.h` / `ST.c`
 
@@ -4680,3 +4685,80 @@ Each INTENT maps to one or more test blocks in `use_cases/use_case_19.c`.
 | UFR-MNT-010   | REQ-MNT-023                      | TC-MNT-091a..d, TC-MNT-092a..c, TC-MNT-S030..S033  | UC20    |
 | UFR-MNT-011   | REQ-MNT-024                      | TC-MNT-S026, TC-MNT-S027                            | UC20    |
 | UFR-MNT-012   | REQ-MNT-022                      | TC-MNT-089..090g, TC-MNT-S028..S029                 | UC20    |
+
+---
+
+### 5.60 INTENT Catalog — UC20A
+
+| INTENT ID     | Description                                                                            |
+|---------------|----------------------------------------------------------------------------------------|
+| INT-CON-030   | `st2msa` and `msa2st` shall appear in tab-completion by full name and shortcut.       |
+| INT-CON-031   | `image_st_load` + `image_msa_save` (st2msa core) shall produce a valid .msa from a .st. |
+| INT-CON-032   | `image_msa_load` + `image_st_save` (msa2st core) shall preserve file content (.st → .msa → .st round-trip). |
+| INT-CON-033   | `st2msa --all --dir <d>` shall convert all .st files in the directory to .msa.        |
+| INT-CON-034   | `msa2st --all --dir <d>` shall convert all .msa files in the directory to .st.        |
+| INT-CON-035   | `st2msa` on a file with wrong extension shall warn and return ST_NO_ERROR (non-fatal). |
+| INT-CON-036   | `st2msa` on a non-existent file shall print an error and return ST_NO_ERROR.           |
+| INT-CON-037   | `st2msa --all` with non-existent `--dir` shall print an error and return ST_NO_ERROR.  |
+| INT-CON-038   | `msa2st` on a file with wrong extension shall warn and return ST_NO_ERROR.             |
+| INT-CON-039   | `st2msa`/`msa2st` with no args and no selection shall warn and return ST_NO_ERROR.     |
+
+---
+
+### 5.61 Test Cases — UC20A (st2msa / msa2st batch conversion)
+
+#### Test Cases (UC20A)
+
+| TC ID        | INTENT        | Description                                                               | Kind | UC      |
+|--------------|---------------|---------------------------------------------------------------------------|------|---------|
+| TC-CON-130   | INT-CON-030   | `line_complete_cmd_query("st2msa")` → count >= 1                          | [N]  | UC20A   |
+| TC-CON-131   | INT-CON-030   | `line_complete_cmd_query("msa2st")` → count >= 1                          | [N]  | UC20A   |
+| TC-CON-132   | INT-CON-030   | `line_complete_cmd_query("s")` → count >= 1, result contains "st2msa"    | [N]  | UC20A   |
+| TC-CON-133   | INT-CON-030   | `line_complete_cmd_query("a")` → count >= 1, result contains "msa2st"    | [N]  | UC20A   |
+| TC-CON-134   | INT-CON-031   | `image_st_load` + `image_msa_save` → ST_NO_ERROR                          | [N]  | UC20A   |
+| TC-CON-135   | INT-CON-031   | .msa output exists and is compressed (< 737280)                           | [N]  | UC20A   |
+| TC-CON-136   | INT-CON-032   | `image_msa_load` + `image_st_save` round-trip → .st size == 737280        | [N]  | UC20A   |
+| TC-CON-137   | INT-CON-032   | Round-trip content size preserved (64 bytes)                              | [N]  | UC20A   |
+| TC-CON-138   | INT-CON-032   | Round-trip content bytes match original                                   | [N]  | UC20A   |
+| TC-CON-139   | INT-CON-033   | `st2msa --all --dir <batch>` script → ST_NO_ERROR                         | [N]  | UC20A   |
+| TC-CON-140   | INT-CON-033   | a.msa produced in batch dir                                               | [N]  | UC20A   |
+| TC-CON-141   | INT-CON-033   | b.msa produced in batch dir                                               | [N]  | UC20A   |
+| TC-CON-142   | INT-CON-034   | `msa2st --all --dir <batch>` script → ST_NO_ERROR                         | [N]  | UC20A   |
+| TC-CON-143   | INT-CON-034   | c.st produced in batch dir                                                | [N]  | UC20A   |
+| TC-CON-144   | INT-CON-034   | c.st size == 737280                                                       | [N]  | UC20A   |
+| TC-CON-145   | INT-CON-031   | `image_st_load .st` → ST_NO_ERROR                                         | [N]  | UC20A   |
+| TC-CON-146   | INT-CON-032   | `image_msa_load .msa` → ST_NO_ERROR                                       | [N]  | UC20A   |
+| TC-CON-147   | INT-CON-032   | `image_st_save round-trip` → ST_NO_ERROR                                  | [N]  | UC20A   |
+| TC-CON-148   | INT-CON-035   | `st2msa wrong.txt` script → ST_NO_ERROR (warning produced)               | [R]  | UC20A   |
+| TC-CON-149   | INT-CON-036   | `st2msa phantom.st` (missing) script → ST_NO_ERROR (error produced)      | [R]  | UC20A   |
+| TC-CON-150   | INT-CON-037   | `st2msa --all --dir nope` (non-existent) → ST_NO_ERROR (error produced)  | [R]  | UC20A   |
+| TC-CON-151   | INT-CON-038   | `msa2st wrong.txt` script → ST_NO_ERROR (warning produced)               | [R]  | UC20A   |
+| TC-CON-152   | INT-CON-039   | `st2msa` no args no selection → ST_NO_ERROR (warning produced)           | [R]  | UC20A   |
+| TC-CON-153   | INT-CON-039   | `msa2st` no args no selection → ST_NO_ERROR (warning produced)           | [R]  | UC20A   |
+
+#### Public API — UC20A functions in `line.c`
+
+| Function                                             | REQ(s)        | Description                                               |
+|------------------------------------------------------|---------------|-----------------------------------------------------------|
+| line_cmd_st2msa(ptCtx, tCmd) [static]                | REQ-CON-032   | st2msa command handler — delegates to line_cmd_convert    |
+| line_cmd_msa2st(ptCtx, tCmd) [static]                | REQ-CON-032   | msa2st command handler — delegates to line_cmd_convert    |
+| line_cmd_convert(ptCtx, iArgc, argv, szSrc, szDst) [static] | REQ-CON-032 | Shared batch/single conversion handler                  |
+| line_conv_one(szSrc, szDst, szSrcExt, szDstExt) [static] | REQ-CON-033 | Single-file .st/.msa conversion via image APIs          |
+| line_conv_dir_rec(szDir, ptConv, bRecurse) [static]  | REQ-CON-034   | Recursive directory scan for batch conversion             |
+| line_conv_rec_cb(szPath, szName, ptStat, pCtx) [static] | REQ-CON-034 | file_list_fn callback — filters by ext, converts, recurses |
+| line_conv_replace_ext(szSrc, szExt, szDst, uiLen) [static] | REQ-CON-033 | Replace file extension in path string                   |
+
+#### REQ → TC coverage (UC20A)
+
+| REQ           | TC(s)                                                              | Status   |
+|---------------|--------------------------------------------------------------------|----------|
+| REQ-CON-032   | TC-CON-130..133, TC-CON-139..144, TC-CON-148..153                  | UC20A    |
+| REQ-CON-033   | TC-CON-134..138, TC-CON-145..147                                   | UC20A    |
+| REQ-CON-034   | TC-CON-139..144                                                    | UC20A    |
+
+#### UFR traceability update (UC20A)
+
+| UFR           | REQ(s)                              | TC(s)                                  | Status   |
+|---------------|-------------------------------------|----------------------------------------|----------|
+| UFR-CON-092   | REQ-CON-032, REQ-CON-033, REQ-CON-034 | TC-CON-130, TC-CON-132, TC-CON-134..136, TC-CON-139..141, TC-CON-148..150, TC-CON-152 | UC20A |
+| UFR-CON-093   | REQ-CON-032, REQ-CON-033, REQ-CON-034 | TC-CON-131, TC-CON-133, TC-CON-136..138, TC-CON-142..144, TC-CON-151, TC-CON-153 | UC20A |

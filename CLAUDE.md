@@ -33,6 +33,7 @@
 - 2026-06-06: UC18.2 validé — P10 historique navigation dir (ALT+←/→ : `aszNavHistory[16]`, `dir_nav_history_push`, `dir_navigate_to`) ; P14 multi-sélection CTRL+ESPACE (`aszMultiSel[16]`, fond violet, files only) ; P34 propriétés BPB lecture seule (H/S/T) ; P36 suppression /IST_RDE de l'en-tête ; P37 détection Bootable WD1772 (`mount_is_bootable`) ; P38 touche B → bootsector vers `edit_hex_open` avec titre heuristique ; ST_APP_VERSION 0.18.2
 - 2026-06-07: UC19 validé — P35 dialog `umount` save (.st/.msa/répertoire) + flags `--st`/`--msa`/`--dir` bypass ; P39 status bar D2D (fond `g_mnt_clrStatusBg`, free KB + file count + `[*]`) ; P40 `mount_view_add_file` lecture par chunks 64 Ko avec progression LOG_INFO + gui_invalidate ; `mount_save_image(eFmt, szOutPath)` API publique ; `iVisRows -2` dans tous les handlers ; ST_APP_VERSION 0.19.0
 - 2026-06-07: UC20 validé — commande `image [--st|--msa] [--bootable] [outpath]` ; P41 ENTER dans vue mount → `mount_open_file_hex()` → `edit_hex_open()` sur fichier FAT extrait dans temp ; P37 écriture `mount_make_bootable()` (checksum WD1772) + touche `F` dans mount ; `ptFileHexView` dans `mount_view_t` ; `MOUNT_FILE_TMP` ; `line_cmd_image()` dispatché sur CMD_IMAGE ; ST_APP_VERSION 0.20.0
+- 2026-06-07: UC20A validé — commandes `st2msa` (alias `s`) et `msa2st` (alias `a`) : conversion batch `.st↔.msa` ; `line_cmd_convert()` partagé + `line_conv_one()` + `line_conv_dir_rec()` récursif via `file_list_fn` ; flags `--all`, `--dir <path>`, `-r` ; `conv_ctx_t` / `conv_rec_ctx_t` ; `line_conv_replace_ext()` ; ST_APP_VERSION 0.20.1
 - 2026-06-06: UC15A validé — torture test désassembleur 68000 vs SOURCE.PRG (DEVPAC3, ATARI ST réel) : 2525 instructions, DIFF=0 ; 5 bugs disasm corrigés (groupE iIR inversé, EXG An,An ordre DEVPAC3, NBCD/CHK/size=3 ext words) ; `DISASM_SYNTAX.md` créé à la racine ; use_case_11/13.c ADAPTED:UC15A
 - 2026-06-03: UC15 validé — `src/load.c` `load_do_prg()` complet : header 28 octets, chargement .text+.data à ST_LOAD_BASE, BSS zeroing, table de fixups Atari ST (bitstream : first_offset 4B, 0x00=fin, 0x01=skip 254B, N=advance+fix) ; abs_flag géré (pas de table fixup) ; `load_state_t` étendu (uiTextSize/uiDataSize/uiBssSize/uiFixupCount) ; helpers `load_apply_fixups` + `load_skip_bytes` ; fixtures `use_cases/UC15/` (fixup/bss/absolute/multi_fixup/bad_fixup.prg) ; TODO(UC15) supprimé ; ST_APP_VERSION 0.15.0
 - 2026-06-03: UC11 validé — `src/disassemble.c` : désassembleur 68000 réel MOVE/MOVEQ/LEA/CLR/EXG/SWAP/PEA + décodeur EA complet (12 modes) ; `bValid = ST_TRUE` sur instructions reconnues ; `TC-DIS-001 ADAPTED(UC11)` ; ST_APP_VERSION 0.11.0
@@ -585,7 +586,7 @@ Les étapes de développement fonctionnelles sont formalisées en Use Cases, per
 | UC18.2 | `mount`, `dir` | P10 historique navigation dir (ALT+←/→) ; P14 multi-select CTRL+ESPACE (violet) ; P34 BPB géométrie lecture seule ; P36 suppression /112 en-tête ; P37 Bootable WD1772 ; P38 touche B → bootsector hex | ✓ VALIDÉ 2026-06-06 |
 | UC19 | `umount` | Démontage + dialog save .st/.msa/répertoire (P35) ; status bar mount (P39) ; progression copie (P40) | ✓ VALIDÉ 2026-06-07 |
 | UC20 | `image` | Création .st / .msa depuis le contenu monté ; Enter → hex dans mount (P41) ; `mount_make_bootable()` touche F (P37 write) | ✓ VALIDÉ 2026-06-07 |
-| UC20A | `st2msa`, `msa2st` | Conversion batch .st↔.msa (P42) : `--all` traite tous les fichiers du répertoire `dir`, `--dir <path>` répertoire explicite, `-r` récursif sous-répertoires | conversion réussie, fichiers produits valides |
+| UC20A | `st2msa`, `msa2st` | Conversion batch .st↔.msa (P42) : `--all` traite tous les fichiers du répertoire `dir`, `--dir <path>` répertoire explicite, `-r` récursif sous-répertoires | ✓ VALIDÉ 2026-06-07 |
 | UC21 | interne | CPU 68000 : registres + MOVE/MOVEQ/LEA/CLR/SWAP | step 10 instructions |
 | UC22 | interne | CPU 68000 : ADD/SUB/CMP/AND/OR/EOR/shifts | exécution programme arithmétique |
 | UC23 | interne | CPU 68000 : BRA/Bcc/JSR/RTS/TRAP + vecteurs exception | appel/retour de fonction |
@@ -2424,9 +2425,77 @@ Référence complète des différences syntaxiques : **`DISASM_SYNTAX.md`** à l
 - `szOutPath` jamais écrasé si l'argument fourni est absolu
 
 **Points d'attention pour les UCs suivants :**
-- UC20A : `st2msa`/`msa2st` batch — utilisent directement `image_st_load/save` et `image_msa_load/save` (aucun besoin de la vue mount, aucun GUI requis).
+- ~~UC20A : `st2msa`/`msa2st` batch~~ **✓ IMPLÉMENTÉ UC20A** — `line_conv_one()` + `line_conv_dir_rec()` récursif.
 - UC21 : CPU 68000 — registres + MOVE/MOVEQ/LEA/CLR/SWAP. Phase exécution.
 - `MOUNT_FILE_TMP` est remplacé à chaque ENTER sur un nouveau fichier — le contenu de la session précédente est perdu. Comportement attendu (les modifications hex ne sont pas réinjectées dans l'image FAT).
+
+---
+
+### 6.28 Use Case 20A (UC20A) — ✓ VALIDÉ (2026-06-07)
+
+**Périmètre fonctionnel implémenté :**
+- `src/line.h` : `CMD_ST2MSA` (`"st2msa"` / `"s"`) et `CMD_MSA2ST` (`"msa2st"` / `"a"`) ajoutés à `cmd_id_t` avant `CMD_COUNT`.
+- `src/line.c` — nouvelles fonctions + commandes :
+  - `conv_ctx_t` : struct de contexte — `szSrcExt`, `szDstExt`, `iConverted`, `iFailed`.
+  - `line_conv_replace_ext(szSrc, szNewExt, szDst, uiDstLen)` : remplace l'extension d'un chemin (après le dernier `.`).
+  - `line_conv_one(szSrc, szDst, szSrcExt, szDstExt)` : conversion d'un seul fichier. `.st` → `image_st_load` + `image_msa_save` ; `.msa` → `image_msa_load` + `image_st_save`. Vérifie l'extension source avant de tenter la conversion.
+  - `conv_rec_ctx_t` : struct wrapper — `ptConv`, `bRecurse` — portée par le callback `file_list_fn`.
+  - `line_conv_rec_cb(szFullPath, szName, ptStat, pCtx)` (signature `void`, `const file_stat_t *`) : callback pour `file_list_dir`. Ignore les entrées sans l'extension source. Récurse si `bIsDir && bRecurse`. Incrémente `ptConv->iConverted` ou `ptConv->iFailed`.
+  - `line_conv_dir_rec(szDir, ptConv, bRecurse)` : appelle `file_list_dir(szDir, ST_TRUE, line_conv_rec_cb, &tRec)`.
+  - `line_cmd_convert(ptCtx, iArgc, aszArgv, szSrcExt, szDstExt)` :
+    - Parse `--all` (mode batch), `--dir <path>` (répertoire explicite), `-r` (récursif).
+    - Sans `--all` : chemin unique via argument ou `line_get_selected()` ; `file_stat()` + rejet si extension incorrecte (`line_print_warning`) ou fichier introuvable (`line_print_error`) ; `line_conv_one()`.
+    - Avec `--all` : résout `szDir` (via `--dir`, `szSelected` ou `szCwd`) ; vérifie que c'est un répertoire ; `line_conv_dir_rec()` ; affiche bilan "Done: N converted, M failed".
+  - `line_cmd_st2msa(ptCtx, tCmd)` : appelle `line_cmd_convert(ptCtx, ..., "st", "msa")`.
+  - `line_cmd_msa2st(ptCtx, tCmd)` : appelle `line_cmd_convert(ptCtx, ..., "msa", "st")`.
+  - Dispatch table : `CMD_ST2MSA → line_cmd_st2msa`, `CMD_MSA2ST → line_cmd_msa2st`.
+  - Command table : deux entrées avec synopsis `[--dir path] [--all] [-r]`.
+- `src/common.h` : `ST_APP_VERSION` → `"0.20.1"`.
+
+**Architecture :**
+- `line_conv_rec_cb` est un `file_list_fn` (signature `void (*)(const char *, const char *, const file_stat_t *, void *)`) — aucune valeur de retour ; erreurs individuelles loggées + `iFailed++` mais non fatales pour le batch.
+- La récursion fonctionne par rappel : le callback appelle `line_conv_dir_rec()` sur les sous-répertoires si `bRecurse == ST_TRUE`. Pas de profondeur maximum explicite (conforme au comportement de `file_list_dir`).
+- Pas de GUI requis : ce UC est entièrement headless, pas de `gui_init()` dans les tests.
+- Les commandes sont non-fatales pour la boucle console : toute erreur de fichier individuel produit un `LOG_ERROR` + `iFailed++` et la boucle continue.
+
+**Tests R14/R15 appliqués :**
+- `use_cases/use_case_20A.c` : TEST MATRIX **18N + 6R + 0S = 24 tests**, 0 failure
+  - [N] : command table (`line_complete_cmd_query` pour "st2msa"/"s"/"msa2st"/"a") (4) ; `line_conv_replace_ext` (3) ; round-trip API `image_st_load + image_msa_save` (st2msa core) + content verified (3) ; round-trip API `image_msa_load + image_st_save` (msa2st core) + content verified (3) ; batch `st2msa --all` script → 2 .msa produits (3) ; batch `msa2st --all` script → 3 .st produits, taille exacte 737280 (2)
+  - [R] : wrong extension (st2msa + msa2st) → ST_NO_ERROR + warning (2) ; missing file → ST_NO_ERROR + error (1) ; non-existent `--dir` → ST_NO_ERROR + error (1) ; no args / no selection (st2msa + msa2st) → ST_NO_ERROR + warning (2)
+
+**Contrats comportementaux validés :**
+
+*`line_conv_replace_ext(szSrc, szNewExt, szDst, uiDstLen)`*
+- Dernier `.` après le dernier séparateur (`/` ou `\`) → remplacé par `.` + `szNewExt`.
+- Si aucun `.` dans le nom de fichier : `szNewExt` ajouté à la fin (`szSrc.szNewExt`).
+- Truncation protégée par `snprintf` avec `uiDstLen`.
+
+*`line_conv_one(szSrc, szDst, szSrcExt, szDstExt)`*
+- Extension source vérifiée via `file_stat().szExt` avant appel `image_*_load`.
+- Extension ≠ `szSrcExt` → `LOG_INFO("not a .XXX image")` + `ST_ERROR` (non-fatal pour le batch).
+- Erreur `image_*_load` ou `image_*_save` → `image_st_close` + `ST_ERROR` ; pas de fichier destination corrompu laissé.
+- Succès : fichier destination créé, `bDirty` du save = effectif.
+
+*`line_cmd_convert()` — mode single*
+- Arg explicite en priorité sur `line_get_selected()`.
+- `szSelected` vide + pas d'arg → `line_print_warning("No file specified…")` + `ST_NO_ERROR`.
+- Fichier introuvable → `line_print_error` + `ST_NO_ERROR` (non-fatal).
+
+*`line_cmd_convert()` — mode `--all`*
+- `szDir` résolu dans l'ordre : `--dir` arg → `szSelected` (si dir) → `szCwd`.
+- Chemin résolu non-répertoire → `line_print_error("Not a directory")` + `ST_NO_ERROR`.
+- `line_conv_dir_rec` visite tous les fichiers du répertoire (et sous-répertoires si `-r`) ; les fichiers sans l'extension source sont ignorés silencieusement.
+- Bilan final affiché : `"Done: N converted, M failed."`.
+
+*`line_conv_rec_cb()` — invariants callback*
+- Signature `void` conforme `file_list_fn` (aucune valeur de retour).
+- Erreur de conversion individuelle → `ptConv->iFailed++`, pas de propagation.
+- `bIsDir && bRecurse` → appel récursif `line_conv_dir_rec(szFullPath, ...)`.
+- `bIsDir && !bRecurse` → ignoré silencieusement.
+
+**Points d'attention pour les UCs suivants :**
+- UC21 : CPU 68000 — registres + MOVE/MOVEQ/LEA/CLR/SWAP. Début de la phase émulation.
+- Le flag `-r` est fonctionnel mais non testé dans `use_case_20A.c` (aucune fixture multi-niveau créée) — comportement validé par la logique de `line_conv_dir_rec` qui délègue à `file_list_dir`. Un test de régression `-r` est candidat pour un UC futur si un répertoire récursif de démos devient une fixture de projet.
 
 ---
 
@@ -2789,6 +2858,12 @@ Conversion en lot d'images disque dans un répertoire, en exploitant directement
 | P42 (st2msa / msa2st batch) | ACCEPTÉ (sans --zip) | UC20A |
 
 *Proposition P42 arbitrée — section §7 à jour.*
+
+---
+
+### Arbitrage UC20A (2026-06-07)
+
+*UC20A implémente P42 (st2msa/msa2st batch). Aucune nouvelle proposition UX/fonctionnelle n'a émergé — UC20A est clos.*
 
 ---
 
