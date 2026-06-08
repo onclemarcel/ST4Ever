@@ -221,7 +221,7 @@ through one or more test cases in Section 5.
 | UFR-EXE-004  | MOVEA shall not affect SR flags; MOVEA.W shall sign-extend the 16-bit source to 32 bits before writing An.                            | ✓ UC21       | UC21  |
 | UFR-EXE-005  | The -(A7) and (A7)+ addressing modes with byte size shall adjust A7 by 2 (not 1) to maintain word alignment on the supervisor stack. | ✓ UC21       | UC21  |
 | UFR-EXE-006  | The CPU emulator shall implement ADD/SUB/CMP/AND/OR/EOR/shifts with correct SR flags (N, Z, V, C, X).                                | ✓ UC22       | UC22  |
-| UFR-EXE-007  | The CPU emulator shall implement BRA/Bcc/JSR/RTS/TRAP + exception vector dispatch.                                                   | TODO UC23    | UC23  |
+| UFR-EXE-007  | The CPU emulator shall implement BRA/Bcc/JSR/RTS/TRAP + exception vector dispatch.                                                   | ✓ UC23       | UC23  |
 | UFR-EXE-008  | The execution monitor shall provide step, run, stop, and breakpoint controls with a register/memory display view.                     | TODO UC25    | UC25  |
 
 ---
@@ -343,7 +343,7 @@ requirement that will expose it (`UFR-EXE-*`, planned UC21–27).
 | REQ-CPU-008 | Stub: `cpu_step()` advances PC by 2; ADAPTED UC21: `cpu_step()` advances PC by the full instruction length (opcode + extension words).       | UFR-EXE-001   | ADAPTED(UC21) | UC21  |
 | REQ-CPU-009 | `cpu_step()` shall decode and execute MOVE.B/W/L, MOVEA.W/L, MOVEQ, LEA, CLR.B/W/L, SWAP.                                                   | UFR-EXE-001   | ✓ UC21        | UC21  |
 | REQ-CPU-010 | `cpu_step()` shall decode and execute ADD/ADDA/ADDI/ADDQ/ADDX, SUB/SUBA/SUBI/SUBQ/SUBX, CMP/CMPA/CMPI/CMPM, AND/ANDI, OR/ORI, EOR/EORI, shifts/rotations, with correct SR flags N/Z/V/C/X. | UFR-EXE-006   | ✓ UC22        | UC22  |
-| REQ-CPU-011 | `cpu_step()` shall decode and execute BRA/BSR/Bcc (short+long), JMP, JSR/RTS/RTR/RTE, TRAP, LINK/UNLK + exception vector dispatch.          | UFR-EXE-007   | TODO UC23     | UC23  |
+| REQ-CPU-011 | `cpu_step()` shall decode and execute BRA/BSR/Bcc (short+long), JMP, JSR/RTS/RTR/RTE, TRAP, LINK/UNLK + exception vector dispatch.          | UFR-EXE-007   | ✓ UC23        | UC23  |
 | REQ-CPU-012 | `cpu_ea_read()` shall implement all 12 EA modes; (An)+ shall increment An after the read; -(An) shall decrement An before.                   | UFR-EXE-002   | ✓ UC21        | UC21  |
 | REQ-CPU-013 | For (A7)+ and -(A7) with byte size, A7 shall be adjusted by 2 (not 1) to preserve word alignment.                                           | UFR-EXE-005   | ✓ UC21        | UC21  |
 | REQ-CPU-014 | `cpu_ea_write()` with Dn destination and byte size shall preserve bits 31–8; with word size shall preserve bits 31–16.                       | UFR-EXE-003   | ✓ UC21        | UC21  |
@@ -364,6 +364,19 @@ requirement that will expose it (`UFR-EXE-*`, planned UC21–27).
 | REQ-CPU-029 | Shift count 0 in the immediate field of group-E instructions shall be interpreted as 8. Register-mode shift count shall use `Dn & 63`. | UFR-EXE-006   | ✓ UC22        | UC22  |
 | REQ-CPU-030 | ASR shall preserve the MSB (sign extension) at each step. LSR shall insert 0. Both update C and X from the last bit shifted out. | UFR-EXE-006   | ✓ UC22        | UC22  |
 | REQ-CPU-031 | RO(L/R) shall rotate without affecting X; ROX(L/R) shall rotate through X, updating both C and X from the transferred bit. | UFR-EXE-006   | ✓ UC22        | UC22  |
+| REQ-CPU-032 | BRA (cc=0) shall branch unconditionally by the signed displacement; BSR (cc=1) shall push the return PC on the supervisor stack then jump; disp8=0 means fetch a word extension for the displacement. Impl: `cpu_exec_branch()` | UFR-EXE-007   | ✓ UC23        | UC23  |
+| REQ-CPU-033 | Bcc (cc=2..15) shall branch if the 68000 condition is true (using N, Z, V, C flags per the MC68000 condition code table); not-taken Bcc shall advance PC past the displacement word only. Impl: `cpu_exec_branch()`, `cpu_eval_cc()` | UFR-EXE-007   | ✓ UC23        | UC23  |
+| REQ-CPU-034 | JMP shall transfer control to the EA computed address without saving a return address; JSR shall push the PC of the instruction following the JSR onto the supervisor stack (as a long-word), then jump to the EA. Impl: `cpu_exec_misc4e()` | UFR-EXE-007   | ✓ UC23        | UC23  |
+| REQ-CPU-035 | RTS shall pop a long-word from the supervisor stack into PC. RTR shall pop a word into the CCR (low byte of SR), then pop a long-word into PC, preserving the supervisor/interrupt bits of SR. Impl: `cpu_exec_misc4e()` | UFR-EXE-007   | ✓ UC23        | UC23  |
+| REQ-CPU-036 | RTE shall pop a word into SR then pop a long-word into PC from the supervisor stack; the exception frame layout is [SP+0..+1]=SR, [SP+2..+5]=PC (big-endian). Impl: `cpu_exec_misc4e()` | UFR-EXE-007   | ✓ UC23        | UC23  |
+| REQ-CPU-037 | NOP shall advance PC by 2 and leave all registers and flags unchanged. Impl: `cpu_exec_misc4e()` | UFR-EXE-007   | ✓ UC23        | UC23  |
+| REQ-CPU-038 | STOP shall load the word extension into SR and set `eState = CPU_STATE_STOPPED`; subsequent `cpu_step()` calls on a non-RUNNING CPU shall return `ST_NO_ERROR` as a no-op. Impl: `cpu_exec_misc4e()` | UFR-EXE-007   | ✓ UC23        | UC23  |
+| REQ-CPU-039 | TRAP #n shall invoke `cpu_raise_exception()` with vector address `CPU_VEC_TRAP(n)` (0x0080 + 4n). Impl: `cpu_exec_misc4e()` | UFR-EXE-007   | ✓ UC23        | UC23  |
+| REQ-CPU-040 | `cpu_raise_exception()` shall: (1) save current SR; (2) if in user mode swap auAn[7]↔uiSSP and set CPU_SR_S; (3) push PC as long-word on supervisor stack; (4) push saved SR as word on supervisor stack; (5) read handler address from vector table and load into PC. On SSP underflow `eState = CPU_STATE_HALTED`. Impl: `cpu_raise_exception()` | UFR-EXE-007   | ✓ UC23        | UC23  |
+| REQ-CPU-041 | LINK An,#disp shall push An as a long-word on the supervisor stack, copy SP to An, then add the signed word displacement to SP. Impl: `cpu_exec_misc4e()` | UFR-EXE-007   | ✓ UC23        | UC23  |
+| REQ-CPU-042 | UNLK An shall copy An to SP, then pop the long-word at the new SP into An. Impl: `cpu_exec_misc4e()` | UFR-EXE-007   | ✓ UC23        | UC23  |
+| REQ-CPU-043 | DBcc (group 0x5, size=3, mode=1) shall decrement Dn.W; if the condition is false AND Dn.W ≠ −1 then branch by the signed word displacement (base = address of extension word); fall-through when the condition is true or the counter reaches −1. Impl: `cpu_exec_group5()` | UFR-EXE-007   | ✓ UC23        | UC23  |
+| REQ-CPU-044 | Scc (group 0x5, size=3, mode≠1) shall write 0xFF to the destination byte EA if the 68000 condition is true, 0x00 if false; SR flags shall not be modified. Impl: `cpu_exec_group5()` | UFR-EXE-007   | ✓ UC23        | UC23  |
 
 ### 2.5 GUI Framework — `gui.h` / `gui.c` / `win_gui.c`
 

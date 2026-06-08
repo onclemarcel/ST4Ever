@@ -26,7 +26,8 @@
  *
  * UC21: MOVE/MOVEQ/LEA/CLR/SWAP.
  * UC22: ADD/SUB/CMP/AND/OR/EOR/shifts + NEG/NOT/TST/EXT/ADDQ/SUBQ.
- * TODO(UC23): Implement BRA/Bcc/JSR/RTS/TRAP + exception vectors.
+ * UC23: BRA/BSR/Bcc + NOP/STOP/RTE/RTS/RTR/TRAP/LINK/UNLK/JSR/JMP +
+ *        Scc/DBcc + full exception stacking via cpu_raise_exception().
  */
 
 #ifndef CPU_H

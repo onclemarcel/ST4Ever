@@ -2783,6 +2783,8 @@ Each INTENT maps to one or more test blocks in `use_cases/use_case_19.c`.
 | INT-CPU-007  | Sequence of 10 instructions executes correctly; PC lands exactly after last       |
 | INT-CPU-008  | Memory EA modes (An), (An)+, -(An), d16(An) read and write correctly              |
 | INT-CPU-009  | NULL ptCpu / NULL ptMachine → ST_ERROR; stopped CPU no-op                         |
+| INT-CPU-010  | ADD/SUB/CMP/AND/OR/EOR/NEG/NOT/TST/EXT and shifts/rotations set SR flags correctly per Motorola spec |
+| INT-CPU-011  | BRA/BSR/Bcc branch correctly; JSR/RTS maintain call stack; exception frame pushed and popped correctly; LINK/UNLK manage stack frame; DBcc/Scc evaluate conditions; NOP/STOP behave per spec |
 
 ---
 
@@ -2893,6 +2895,67 @@ Each INTENT maps to one or more test blocks in `use_cases/use_case_19.c`.
 | TC-CPU-099  | [R]  | INT-CPU-010  | ADDI with size field=3 (invalid) → ST_NO_ERROR (LOG_TODO)           | ✓ UC22  |
 | TC-CPU-100  | [R]  | INT-CPU-010  | Group-0 unknown op nibble → ST_NO_ERROR (LOG_TODO)                  | ✓ UC22  |
 
+---
+
+### 5.64 Test Cases — UC23 (MC68000 — BRA/BSR/Bcc/JMP/JSR/RTS/RTR/RTE/TRAP/LINK/UNLK/DBcc/Scc)
+
+**Test matrix: 44N + 8R + 0S = 52 tests — 0 failures**
+
+| TC ID       | Type | INTENT       | Description                                                                                   | Status  |
+|-------------|------|--------------|-----------------------------------------------------------------------------------------------|---------|
+| TC-CPU-101  | [N]  | INT-CPU-011  | BRA.B +4: PC jumps forward 4 bytes from base (after opcode)                                   | ✓ UC23  |
+| TC-CPU-102  | [N]  | INT-CPU-011  | BRA.B -2: PC jumps backward to opcode address (self-relative loop)                            | ✓ UC23  |
+| TC-CPU-103  | [N]  | INT-CPU-011  | BRA.W (disp8=0): fetches 16-bit extension, jumps by word displacement                         | ✓ UC23  |
+| TC-CPU-104  | [N]  | INT-CPU-011  | BSR.B: pushes (PC after full instruction) on SSP, then jumps to target                        | ✓ UC23  |
+| TC-CPU-105  | [N]  | INT-CPU-011  | RTS after BSR: pops long-word from SSP into PC; SP restored to pre-BSR value                  | ✓ UC23  |
+| TC-CPU-106  | [N]  | INT-CPU-011  | BSR.W: word displacement; PC and SP correct after paired RTS                                   | ✓ UC23  |
+| TC-CPU-107  | [N]  | INT-CPU-011  | BEQ taken: Z=1 → branch executed                                                              | ✓ UC23  |
+| TC-CPU-108  | [N]  | INT-CPU-011  | BNE taken: Z=0 → branch executed                                                              | ✓ UC23  |
+| TC-CPU-109  | [N]  | INT-CPU-011  | BCS taken: C=1 → branch executed                                                              | ✓ UC23  |
+| TC-CPU-110  | [N]  | INT-CPU-011  | BCC taken: C=0 → branch executed                                                              | ✓ UC23  |
+| TC-CPU-111  | [N]  | INT-CPU-011  | BMI taken: N=1 → branch executed                                                              | ✓ UC23  |
+| TC-CPU-112  | [N]  | INT-CPU-011  | BPL taken: N=0 → branch executed                                                              | ✓ UC23  |
+| TC-CPU-113  | [N]  | INT-CPU-011  | BVS taken: V=1 → branch executed                                                              | ✓ UC23  |
+| TC-CPU-114  | [N]  | INT-CPU-011  | BVC taken: V=0 → branch executed                                                              | ✓ UC23  |
+| TC-CPU-115  | [N]  | INT-CPU-011  | BHI taken: C=0 AND Z=0 → branch executed                                                     | ✓ UC23  |
+| TC-CPU-116  | [N]  | INT-CPU-011  | BLS taken: C=1 OR Z=1 → branch executed                                                      | ✓ UC23  |
+| TC-CPU-117  | [N]  | INT-CPU-011  | BGE taken: N=V=0 → branch executed                                                            | ✓ UC23  |
+| TC-CPU-118  | [N]  | INT-CPU-011  | BLT taken: N≠V (N=1,V=0) → branch executed                                                   | ✓ UC23  |
+| TC-CPU-119  | [N]  | INT-CPU-011  | BGT taken: Z=0 AND N=V → branch executed                                                     | ✓ UC23  |
+| TC-CPU-120  | [N]  | INT-CPU-011  | BLE taken: Z=1 OR N≠V → branch executed                                                      | ✓ UC23  |
+| TC-CPU-121  | [N]  | INT-CPU-011  | JSR abs.L: pushes return PC, jumps to abs address; paired RTS restores PC                     | ✓ UC23  |
+| TC-CPU-122  | [N]  | INT-CPU-011  | JSR d16(An): jumps to An + displacement; SP−4 holds return PC                                 | ✓ UC23  |
+| TC-CPU-123  | [N]  | INT-CPU-011  | JSR d16(PC): jumps to PC-relative target; round-trip with RTS correct                         | ✓ UC23  |
+| TC-CPU-124  | [N]  | INT-CPU-011  | JMP abs.L: PC set to absolute address; SP unchanged (no push)                                 | ✓ UC23  |
+| TC-CPU-125  | [N]  | INT-CPU-011  | JMP d16(An): PC = An + displacement; SP unchanged                                             | ✓ UC23  |
+| TC-CPU-126  | [N]  | INT-CPU-011  | NOP: PC advances by 2; all registers and flags unchanged                                      | ✓ UC23  |
+| TC-CPU-127  | [N]  | INT-CPU-011  | STOP #imm: SR loaded from imm, eState = CPU_STATE_STOPPED                                    | ✓ UC23  |
+| TC-CPU-128  | [N]  | INT-CPU-011  | TRAP #1: cpu_raise_exception pushes SR then PC on SSP                                         | ✓ UC23  |
+| TC-CPU-129  | [N]  | INT-CPU-011  | TRAP frame layout: [SP+0..+1]=saved_SR, [SP+2..+5]=saved_PC (big-endian)                     | ✓ UC23  |
+| TC-CPU-130  | [N]  | INT-CPU-011  | After TRAP: PC = handler address read from vector table at CPU_VEC_TRAP(1)                    | ✓ UC23  |
+| TC-CPU-131  | [N]  | INT-CPU-011  | RTR: pops word into CCR (preserves supervisor bits of SR), then pops long PC                  | ✓ UC23  |
+| TC-CPU-132  | [N]  | INT-CPU-011  | RTR: SP restored to pre-push value after RTR; SR supervisor bits unchanged                    | ✓ UC23  |
+| TC-CPU-133  | [N]  | INT-CPU-011  | RTE: pops word into full SR, then pops long PC; CPU returns to pre-exception state            | ✓ UC23  |
+| TC-CPU-134  | [N]  | INT-CPU-011  | RTE: SR after RTE equals the SR that was saved on the exception frame                         | ✓ UC23  |
+| TC-CPU-135  | [N]  | INT-CPU-011  | LINK A6,#−8: pushes A6, sets A6=SP, SP=SP−8 (allocates 8-byte frame)                        | ✓ UC23  |
+| TC-CPU-136  | [N]  | INT-CPU-011  | UNLK A6: SP=A6, pops long into A6; restores pre-LINK A6 and SP                               | ✓ UC23  |
+| TC-CPU-137  | [N]  | INT-CPU-011  | LINK+UNLK round-trip: A6 and SP match pre-LINK values after paired UNLK                      | ✓ UC23  |
+| TC-CPU-138  | [N]  | INT-CPU-011  | DBRA (DBF): condition always false → decrements D0.W; branches while D0.W ≠ −1              | ✓ UC23  |
+| TC-CPU-139  | [N]  | INT-CPU-011  | DBcc condition true (DBT-false-condition means BNE with Z=0): fall-through without decrement  | ✓ UC23  |
+| TC-CPU-140  | [N]  | INT-CPU-011  | ST (Scc, cc=T=0): writes 0xFF to Dn.B; SR unchanged                                         | ✓ UC23  |
+| TC-CPU-141  | [N]  | INT-CPU-011  | SF (Scc, cc=F=1): writes 0x00 to Dn.B; SR unchanged                                         | ✓ UC23  |
+| TC-CPU-142  | [N]  | INT-CPU-011  | Full subroutine program: sum(1..5)=15 via BSR+loop; D0==15 after execution                   | ✓ UC23  |
+| TC-CPU-143  | [N]  | INT-CPU-011  | Full program: SP restored to initial value after all BSR/RTS pairs                            | ✓ UC23  |
+| TC-CPU-144  | [N]  | INT-CPU-011  | Full program: PC lands at expected return address after final RTS                             | ✓ UC23  |
+| TC-CPU-145  | [R]  | INT-CPU-011  | `cpu_step(NULL, ptMachine, *)` → ST_ERROR (NULL guard)                                       | ✓ UC23  |
+| TC-CPU-146  | [R]  | INT-CPU-011  | `cpu_step(ptCpu, NULL, *)` → ST_ERROR (NULL guard)                                           | ✓ UC23  |
+| TC-CPU-147  | [R]  | INT-CPU-011  | `cpu_step()` on halted CPU (eState ≠ RUNNING): returns ST_NO_ERROR, PC unchanged            | ✓ UC23  |
+| TC-CPU-148  | [R]  | INT-CPU-011  | `cpu_reset()` re-reads SSP and PC from reset vectors; SR reset to 0x2700                     | ✓ UC23  |
+| TC-CPU-149  | [R]  | INT-CPU-011  | `cpu_raise_exception()` with bad vector (handler=0): CPU enters CPU_STATE_HALTED             | ✓ UC23  |
+| TC-CPU-150  | [R]  | INT-CPU-011  | BNE not taken: Z=1 → PC advances past displacement, no jump                                  | ✓ UC23  |
+| TC-CPU-151  | [R]  | INT-CPU-011  | BEQ not taken: Z=0 → PC advances past displacement, no jump                                  | ✓ UC23  |
+| TC-CPU-152  | [R]  | INT-CPU-011  | BCC not taken: C=1 → PC advances past displacement, no jump                                  | ✓ UC23  |
+
 #### REQ → TC coverage (UC21)
 
 | REQ           | TC(s)                                                              | Status        |
@@ -2920,7 +2983,7 @@ Each INTENT maps to one or more test blocks in `use_cases/use_case_19.c`.
 | UFR-EXE-004   | REQ-CPU-015, REQ-CPU-016                           | TC-CPU-010..011, TC-CPU-037              | ✓ UC21   |
 | UFR-EXE-005   | REQ-CPU-013                                        | TC-CPU-039..040                          | ✓ UC21   |
 | UFR-EXE-006   | REQ-CPU-010, REQ-CPU-022..031                      | TC-CPU-056..092                          | ✓ UC22   |
-| UFR-EXE-007   | REQ-CPU-011                                        | — (TODO UC23)                            | TODO     |
+| UFR-EXE-007   | REQ-CPU-011, REQ-CPU-032..044                      | TC-CPU-101..152                          | ✓ UC23   |
 
 #### REQ → TC coverage (UC22)
 
@@ -2937,3 +3000,22 @@ Each INTENT maps to one or more test blocks in `use_cases/use_case_19.c`.
 | REQ-CPU-029   | TC-CPU-097 (div-by-zero LOG_TODO)                                 | ✓ UC22        |
 | REQ-CPU-030   | TC-CPU-080..084 (shift count 0→8, register)                      | ✓ UC22        |
 | REQ-CPU-031   | TC-CPU-082..083 (ASR sign, LSR zero-insert)                       | ✓ UC22        |
+
+#### REQ → TC coverage (UC23)
+
+| REQ           | TC(s)                                                              | Status        |
+|---------------|--------------------------------------------------------------------|---------------|
+| REQ-CPU-011   | TC-CPU-101..152 (all UC23 tests)                                   | ✓ UC23        |
+| REQ-CPU-032   | TC-CPU-101..106 (BRA.B/W + BSR/RTS byte+word)                     | ✓ UC23        |
+| REQ-CPU-033   | TC-CPU-107..120 (Bcc 14 conditions taken) + TC-CPU-150..152 (not-taken) | ✓ UC23  |
+| REQ-CPU-034   | TC-CPU-121..125 (JSR abs.L/d16(An)/d16(PC) + JMP abs.L/d16(An))  | ✓ UC23        |
+| REQ-CPU-035   | TC-CPU-131..132 (RTR CCR/SP restore)                              | ✓ UC23        |
+| REQ-CPU-036   | TC-CPU-133..134 (RTE SR+PC restore)                               | ✓ UC23        |
+| REQ-CPU-037   | TC-CPU-126 (NOP PC+2, no side effects)                            | ✓ UC23        |
+| REQ-CPU-038   | TC-CPU-127 (STOP SR load + eState)                                | ✓ UC23        |
+| REQ-CPU-039   | TC-CPU-128..130 (TRAP frame + handler address)                    | ✓ UC23        |
+| REQ-CPU-040   | TC-CPU-128..130, TC-CPU-149 (exception frame layout + halted)     | ✓ UC23        |
+| REQ-CPU-041   | TC-CPU-135..137 (LINK frame allocation)                           | ✓ UC23        |
+| REQ-CPU-042   | TC-CPU-136..137 (UNLK restore)                                    | ✓ UC23        |
+| REQ-CPU-043   | TC-CPU-138..139 (DBRA loop + condition-true fall-through)         | ✓ UC23        |
+| REQ-CPU-044   | TC-CPU-140..141 (ST writes 0xFF, SF writes 0x00)                  | ✓ UC23        |

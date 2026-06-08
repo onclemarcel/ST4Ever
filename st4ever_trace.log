@@ -1,268 +1,268 @@
-14:29:38 [TRC ] line_init:3130  ptCtx=000000bab274f470
-14:29:38 [INF ] line_history_load:579  history loaded from 'C:\Users\march/.st4ever_history' (0 entries)
-14:29:38 [INF ] line_init:3167  console initialised, cwd='C:\msys\home\claude\ST4Ever'
-14:29:38 [TRC ] file_mkdir:296  szPath='use_cases/UC20A'
-14:29:38 [INF ] file_mkdir:312  mkdir 'use_cases/UC20A' (already exists)
-14:29:38 [TRC ] file_mkdir:296  szPath='use_cases/UC20A/batch'
-14:29:38 [INF ] file_mkdir:312  mkdir 'use_cases/UC20A/batch' (already exists)
-14:29:38 [TRC ] image_st_create:352  pptImg=000000bab274ab70
-14:29:38 [INF ] image_st_create:373  blank .st image created in memory (737280 bytes)
-14:29:38 [TRC ] image_st_write_file:604  ptImg=000002a5fe650080 name='DATA.PRG' size=64
-14:29:38 [INF ] image_st_write_file:687  written 'DATA.PRG' (64 bytes)
-14:29:38 [TRC ] image_st_save:435  ptImg=000002a5fe650080 szPath='use_cases/UC20A/one.st'
-14:29:38 [TRC ] file_open:148  szPath='use_cases/UC20A/one.st' eMode=1
-14:29:38 [INF ] file_open:189  opened 'use_cases/UC20A/one.st' mode=1
-14:29:38 [INF ] file_close:282  closed 'use_cases/UC20A/one.st'
-14:29:38 [INF ] image_st_save:458  saved 'use_cases/UC20A/one.st' (737280 bytes)
-14:29:38 [TRC ] image_st_close:464  pptImg=000000bab274ab70
-14:29:38 [TRC ] image_st_load:383  szPath='use_cases/UC20A/one.st'
-14:29:38 [TRC ] file_open:148  szPath='use_cases/UC20A/one.st' eMode=0
-14:29:38 [INF ] file_open:189  opened 'use_cases/UC20A/one.st' mode=0
-14:29:38 [INF ] file_close:282  closed 'use_cases/UC20A/one.st'
-14:29:38 [INF ] image_st_load:427  loaded 'use_cases/UC20A/one.st'
-14:29:38 [TRC ] image_msa_save:319  ptImg=000002a5fe650080 szPath=use_cases/UC20A/one.msa
-14:29:38 [TRC ] file_open:148  szPath='use_cases/UC20A/one.msa' eMode=1
-14:29:38 [INF ] file_open:189  opened 'use_cases/UC20A/one.msa' mode=1
-14:29:38 [INF ] file_close:282  closed 'use_cases/UC20A/one.msa'
-14:29:38 [INF ] image_msa_save:381  MSA saved 'use_cases/UC20A/one.msa'
-14:29:38 [TRC ] image_st_close:464  pptImg=000000bab274abc8
-14:29:38 [TRC ] image_msa_load:171  szPath=use_cases/UC20A/one.msa
-14:29:38 [TRC ] file_open:148  szPath='use_cases/UC20A/one.msa' eMode=0
-14:29:38 [INF ] file_open:189  opened 'use_cases/UC20A/one.msa' mode=0
-14:29:38 [TRC ] image_st_create:352  pptImg=000000bab27497e8
-14:29:38 [INF ] image_st_create:373  blank .st image created in memory (737280 bytes)
-14:29:38 [INF ] file_close:282  closed 'use_cases/UC20A/one.msa'
-14:29:38 [INF ] image_msa_load:300  MSA loaded 'use_cases/UC20A/one.msa' tracks 0-79 sides=2
-14:29:38 [TRC ] image_st_list_root:488  ptImg=000002a5fe650080 iMax=8
-14:29:38 [TRC ] image_st_read_file:540  ptImg=000002a5fe650080 cluster=2 size=64
-14:29:38 [TRC ] image_st_close:464  pptImg=000000bab274ab70
-14:29:38 [TRC ] image_msa_load:171  szPath=use_cases/UC20A/one.msa
-14:29:38 [TRC ] file_open:148  szPath='use_cases/UC20A/one.msa' eMode=0
-14:29:38 [INF ] file_open:189  opened 'use_cases/UC20A/one.msa' mode=0
-14:29:38 [TRC ] image_st_create:352  pptImg=000000bab2749928
-14:29:38 [INF ] image_st_create:373  blank .st image created in memory (737280 bytes)
-14:29:38 [INF ] file_close:282  closed 'use_cases/UC20A/one.msa'
-14:29:38 [INF ] image_msa_load:300  MSA loaded 'use_cases/UC20A/one.msa' tracks 0-79 sides=2
-14:29:38 [TRC ] image_st_save:435  ptImg=000002a5fe650080 szPath='use_cases/UC20A/one_rt.st'
-14:29:38 [TRC ] file_open:148  szPath='use_cases/UC20A/one_rt.st' eMode=1
-14:29:38 [INF ] file_open:189  opened 'use_cases/UC20A/one_rt.st' mode=1
-14:29:38 [INF ] file_close:282  closed 'use_cases/UC20A/one_rt.st'
-14:29:38 [INF ] image_st_save:458  saved 'use_cases/UC20A/one_rt.st' (737280 bytes)
-14:29:38 [TRC ] image_st_close:464  pptImg=000000bab274abc0
-14:29:38 [TRC ] image_st_load:383  szPath='use_cases/UC20A/one_rt.st'
-14:29:38 [TRC ] file_open:148  szPath='use_cases/UC20A/one_rt.st' eMode=0
-14:29:38 [INF ] file_open:189  opened 'use_cases/UC20A/one_rt.st' mode=0
-14:29:38 [INF ] file_close:282  closed 'use_cases/UC20A/one_rt.st'
-14:29:38 [INF ] image_st_load:427  loaded 'use_cases/UC20A/one_rt.st'
-14:29:38 [TRC ] image_st_list_root:488  ptImg=000002a5fe650080 iMax=8
-14:29:38 [TRC ] image_st_read_file:540  ptImg=000002a5fe650080 cluster=2 size=64
-14:29:38 [TRC ] image_st_close:464  pptImg=000000bab274ab70
-14:29:38 [TRC ] image_st_create:352  pptImg=000000bab274ab70
-14:29:38 [INF ] image_st_create:373  blank .st image created in memory (737280 bytes)
-14:29:38 [TRC ] image_st_write_file:604  ptImg=000002a5fe650080 name='DATA.PRG' size=64
-14:29:38 [INF ] image_st_write_file:687  written 'DATA.PRG' (64 bytes)
-14:29:38 [TRC ] image_st_save:435  ptImg=000002a5fe650080 szPath='use_cases/UC20A/batch/a.st'
-14:29:38 [TRC ] file_open:148  szPath='use_cases/UC20A/batch/a.st' eMode=1
-14:29:38 [INF ] file_open:189  opened 'use_cases/UC20A/batch/a.st' mode=1
-14:29:38 [INF ] file_close:282  closed 'use_cases/UC20A/batch/a.st'
-14:29:38 [INF ] image_st_save:458  saved 'use_cases/UC20A/batch/a.st' (737280 bytes)
-14:29:38 [TRC ] image_st_close:464  pptImg=000000bab274ab70
-14:29:38 [TRC ] image_st_create:352  pptImg=000000bab274ab70
-14:29:38 [INF ] image_st_create:373  blank .st image created in memory (737280 bytes)
-14:29:38 [TRC ] image_st_write_file:604  ptImg=000002a5fe650080 name='DATA.PRG' size=64
-14:29:38 [INF ] image_st_write_file:687  written 'DATA.PRG' (64 bytes)
-14:29:38 [TRC ] image_st_save:435  ptImg=000002a5fe650080 szPath='use_cases/UC20A/batch/b.st'
-14:29:38 [TRC ] file_open:148  szPath='use_cases/UC20A/batch/b.st' eMode=1
-14:29:38 [INF ] file_open:189  opened 'use_cases/UC20A/batch/b.st' mode=1
-14:29:38 [INF ] file_close:282  closed 'use_cases/UC20A/batch/b.st'
-14:29:38 [INF ] image_st_save:458  saved 'use_cases/UC20A/batch/b.st' (737280 bytes)
-14:29:38 [TRC ] image_st_close:464  pptImg=000000bab274ab70
-14:29:38 [TRC ] file_open:148  szPath='use_cases/UC20A/script_st2msa.txt' eMode=1
-14:29:38 [INF ] file_open:189  opened 'use_cases/UC20A/script_st2msa.txt' mode=1
-14:29:38 [INF ] file_close:282  closed 'use_cases/UC20A/script_st2msa.txt'
-14:29:38 [TRC ] line_run:3179  ptCtx=000000bab274f470
-14:29:38 [TRC ] line_run_script:3078  ptCtx=000000bab274f470 szScriptFile='use_cases/UC20A/script_st2msa.txt'
-14:29:38 [INF ] line_run_script:3089  running script 'use_cases/UC20A/script_st2msa.txt'
-14:29:38 [TRC ] line_dispatch:2407  eCmd=15 argc=4
-14:29:38 [TRC ] line_cmd_convert:2213  szSrcExt=st szDstExt=msa argc=4
-14:29:38 [TRC ] file_list_dir:328  szPath='use_cases/UC20A/batch' bShowHidden=1
-14:29:38 [TRC ] image_st_load:383  szPath='use_cases/UC20A/batch/a.st'
-14:29:38 [TRC ] file_open:148  szPath='use_cases/UC20A/batch/a.st' eMode=0
-14:29:38 [INF ] file_open:189  opened 'use_cases/UC20A/batch/a.st' mode=0
-14:29:38 [INF ] file_close:282  closed 'use_cases/UC20A/batch/a.st'
-14:29:38 [INF ] image_st_load:427  loaded 'use_cases/UC20A/batch/a.st'
-14:29:38 [TRC ] image_msa_save:319  ptImg=000002a5fe650080 szPath=use_cases/UC20A/batch/a.msa
-14:29:38 [TRC ] file_open:148  szPath='use_cases/UC20A/batch/a.msa' eMode=1
-14:29:38 [INF ] file_open:189  opened 'use_cases/UC20A/batch/a.msa' mode=1
-14:29:38 [INF ] file_close:282  closed 'use_cases/UC20A/batch/a.msa'
-14:29:38 [INF ] image_msa_save:381  MSA saved 'use_cases/UC20A/batch/a.msa'
-14:29:38 [TRC ] image_st_close:464  pptImg=000000bab27483b0
-14:29:38 [TRC ] image_st_load:383  szPath='use_cases/UC20A/batch/b.st'
-14:29:38 [TRC ] file_open:148  szPath='use_cases/UC20A/batch/b.st' eMode=0
-14:29:38 [INF ] file_open:189  opened 'use_cases/UC20A/batch/b.st' mode=0
-14:29:38 [INF ] file_close:282  closed 'use_cases/UC20A/batch/b.st'
-14:29:38 [INF ] image_st_load:427  loaded 'use_cases/UC20A/batch/b.st'
-14:29:38 [TRC ] image_msa_save:319  ptImg=000002a5fe650080 szPath=use_cases/UC20A/batch/b.msa
-14:29:38 [TRC ] file_open:148  szPath='use_cases/UC20A/batch/b.msa' eMode=1
-14:29:38 [INF ] file_open:189  opened 'use_cases/UC20A/batch/b.msa' mode=1
-14:29:38 [INF ] file_close:282  closed 'use_cases/UC20A/batch/b.msa'
-14:29:38 [INF ] image_msa_save:381  MSA saved 'use_cases/UC20A/batch/b.msa'
-14:29:38 [TRC ] image_st_close:464  pptImg=000000bab27483b0
-14:29:38 [TRC ] image_st_load:383  szPath='use_cases/UC20A/batch/c.st'
-14:29:38 [TRC ] file_open:148  szPath='use_cases/UC20A/batch/c.st' eMode=0
-14:29:38 [INF ] file_open:189  opened 'use_cases/UC20A/batch/c.st' mode=0
-14:29:38 [INF ] file_close:282  closed 'use_cases/UC20A/batch/c.st'
-14:29:38 [INF ] image_st_load:427  loaded 'use_cases/UC20A/batch/c.st'
-14:29:38 [TRC ] image_msa_save:319  ptImg=000002a5fe650080 szPath=use_cases/UC20A/batch/c.msa
-14:29:38 [TRC ] file_open:148  szPath='use_cases/UC20A/batch/c.msa' eMode=1
-14:29:38 [INF ] file_open:189  opened 'use_cases/UC20A/batch/c.msa' mode=1
-14:29:38 [INF ] file_close:282  closed 'use_cases/UC20A/batch/c.msa'
-14:29:38 [INF ] image_msa_save:381  MSA saved 'use_cases/UC20A/batch/c.msa'
-14:29:38 [TRC ] image_st_close:464  pptImg=000000bab27483b0
-14:29:38 [INF ] file_list_dir:371  list_dir 'use_cases/UC20A/batch' complete
-14:29:38 [TRC ] line_dispatch:2407  eCmd=2 argc=1
-14:29:38 [TRC ] line_cmd_quit:904  ptParsed=000000bab2749240 ptCtx=000000bab274f470
-14:29:38 [INF ] line_cmd_quit:921  quit requested
-14:29:38 [INF ] line_run_script:3117  script 'use_cases/UC20A/script_st2msa.txt' complete
-14:29:38 [TRC ] image_st_create:352  pptImg=000000bab274ab70
-14:29:38 [INF ] image_st_create:373  blank .st image created in memory (737280 bytes)
-14:29:38 [TRC ] image_st_write_file:604  ptImg=000002a5fe650080 name='DATA.PRG' size=64
-14:29:38 [INF ] image_st_write_file:687  written 'DATA.PRG' (64 bytes)
-14:29:38 [TRC ] image_msa_save:319  ptImg=000002a5fe650080 szPath=use_cases/UC20A/batch/c.msa
-14:29:38 [TRC ] file_open:148  szPath='use_cases/UC20A/batch/c.msa' eMode=1
-14:29:38 [INF ] file_open:189  opened 'use_cases/UC20A/batch/c.msa' mode=1
-14:29:38 [INF ] file_close:282  closed 'use_cases/UC20A/batch/c.msa'
-14:29:38 [INF ] image_msa_save:381  MSA saved 'use_cases/UC20A/batch/c.msa'
-14:29:38 [TRC ] image_st_close:464  pptImg=000000bab274ab70
-14:29:38 [TRC ] file_open:148  szPath='use_cases/UC20A/script_msa2st.txt' eMode=1
-14:29:38 [INF ] file_open:189  opened 'use_cases/UC20A/script_msa2st.txt' mode=1
-14:29:38 [INF ] file_close:282  closed 'use_cases/UC20A/script_msa2st.txt'
-14:29:38 [TRC ] line_run:3179  ptCtx=000000bab274f470
-14:29:38 [TRC ] line_run_script:3078  ptCtx=000000bab274f470 szScriptFile='use_cases/UC20A/script_msa2st.txt'
-14:29:38 [INF ] line_run_script:3089  running script 'use_cases/UC20A/script_msa2st.txt'
-14:29:38 [TRC ] line_dispatch:2407  eCmd=16 argc=4
-14:29:38 [TRC ] line_cmd_convert:2213  szSrcExt=msa szDstExt=st argc=4
-14:29:38 [TRC ] file_list_dir:328  szPath='use_cases/UC20A/batch' bShowHidden=1
-14:29:38 [TRC ] image_msa_load:171  szPath=use_cases/UC20A/batch/a.msa
-14:29:38 [TRC ] file_open:148  szPath='use_cases/UC20A/batch/a.msa' eMode=0
-14:29:38 [INF ] file_open:189  opened 'use_cases/UC20A/batch/a.msa' mode=0
-14:29:38 [TRC ] image_st_create:352  pptImg=000000bab2747118
-14:29:38 [INF ] image_st_create:373  blank .st image created in memory (737280 bytes)
-14:29:38 [INF ] file_close:282  closed 'use_cases/UC20A/batch/a.msa'
-14:29:38 [INF ] image_msa_load:300  MSA loaded 'use_cases/UC20A/batch/a.msa' tracks 0-79 sides=2
-14:29:38 [TRC ] image_st_save:435  ptImg=000002a5fe650080 szPath='use_cases/UC20A/batch/a.st'
-14:29:38 [TRC ] file_open:148  szPath='use_cases/UC20A/batch/a.st' eMode=1
-14:29:38 [INF ] file_open:189  opened 'use_cases/UC20A/batch/a.st' mode=1
-14:29:38 [INF ] file_close:282  closed 'use_cases/UC20A/batch/a.st'
-14:29:38 [INF ] image_st_save:458  saved 'use_cases/UC20A/batch/a.st' (737280 bytes)
-14:29:38 [TRC ] image_st_close:464  pptImg=000000bab27483b0
-14:29:38 [TRC ] image_msa_load:171  szPath=use_cases/UC20A/batch/b.msa
-14:29:38 [TRC ] file_open:148  szPath='use_cases/UC20A/batch/b.msa' eMode=0
-14:29:38 [INF ] file_open:189  opened 'use_cases/UC20A/batch/b.msa' mode=0
-14:29:38 [TRC ] image_st_create:352  pptImg=000000bab2747118
-14:29:38 [INF ] image_st_create:373  blank .st image created in memory (737280 bytes)
-14:29:38 [INF ] file_close:282  closed 'use_cases/UC20A/batch/b.msa'
-14:29:38 [INF ] image_msa_load:300  MSA loaded 'use_cases/UC20A/batch/b.msa' tracks 0-79 sides=2
-14:29:38 [TRC ] image_st_save:435  ptImg=000002a5fe650080 szPath='use_cases/UC20A/batch/b.st'
-14:29:38 [TRC ] file_open:148  szPath='use_cases/UC20A/batch/b.st' eMode=1
-14:29:38 [INF ] file_open:189  opened 'use_cases/UC20A/batch/b.st' mode=1
-14:29:38 [INF ] file_close:282  closed 'use_cases/UC20A/batch/b.st'
-14:29:38 [INF ] image_st_save:458  saved 'use_cases/UC20A/batch/b.st' (737280 bytes)
-14:29:38 [TRC ] image_st_close:464  pptImg=000000bab27483b0
-14:29:38 [TRC ] image_msa_load:171  szPath=use_cases/UC20A/batch/c.msa
-14:29:38 [TRC ] file_open:148  szPath='use_cases/UC20A/batch/c.msa' eMode=0
-14:29:38 [INF ] file_open:189  opened 'use_cases/UC20A/batch/c.msa' mode=0
-14:29:38 [TRC ] image_st_create:352  pptImg=000000bab2747118
-14:29:38 [INF ] image_st_create:373  blank .st image created in memory (737280 bytes)
-14:29:38 [INF ] file_close:282  closed 'use_cases/UC20A/batch/c.msa'
-14:29:38 [INF ] image_msa_load:300  MSA loaded 'use_cases/UC20A/batch/c.msa' tracks 0-79 sides=2
-14:29:38 [TRC ] image_st_save:435  ptImg=000002a5fe650080 szPath='use_cases/UC20A/batch/c.st'
-14:29:38 [TRC ] file_open:148  szPath='use_cases/UC20A/batch/c.st' eMode=1
-14:29:38 [INF ] file_open:189  opened 'use_cases/UC20A/batch/c.st' mode=1
-14:29:38 [INF ] file_close:282  closed 'use_cases/UC20A/batch/c.st'
-14:29:38 [INF ] image_st_save:458  saved 'use_cases/UC20A/batch/c.st' (737280 bytes)
-14:29:38 [TRC ] image_st_close:464  pptImg=000000bab27483b0
-14:29:38 [INF ] file_list_dir:371  list_dir 'use_cases/UC20A/batch' complete
-14:29:38 [TRC ] line_dispatch:2407  eCmd=2 argc=1
-14:29:38 [TRC ] line_cmd_quit:904  ptParsed=000000bab2749240 ptCtx=000000bab274f470
-14:29:38 [INF ] line_cmd_quit:921  quit requested
-14:29:38 [INF ] line_run_script:3117  script 'use_cases/UC20A/script_msa2st.txt' complete
-14:29:38 [TRC ] file_open:148  szPath='use_cases/UC20A/wrong.txt' eMode=1
-14:29:38 [INF ] file_open:189  opened 'use_cases/UC20A/wrong.txt' mode=1
-14:29:38 [INF ] file_close:282  closed 'use_cases/UC20A/wrong.txt'
-14:29:38 [TRC ] file_open:148  szPath='use_cases/UC20A/script_st2msa.txt' eMode=1
-14:29:38 [INF ] file_open:189  opened 'use_cases/UC20A/script_st2msa.txt' mode=1
-14:29:38 [INF ] file_close:282  closed 'use_cases/UC20A/script_st2msa.txt'
-14:29:38 [TRC ] line_run:3179  ptCtx=000000bab274f470
-14:29:38 [TRC ] line_run_script:3078  ptCtx=000000bab274f470 szScriptFile='use_cases/UC20A/script_st2msa.txt'
-14:29:38 [INF ] line_run_script:3089  running script 'use_cases/UC20A/script_st2msa.txt'
-14:29:38 [TRC ] line_dispatch:2407  eCmd=15 argc=2
-14:29:38 [TRC ] line_cmd_convert:2213  szSrcExt=st szDstExt=msa argc=2
-14:29:38 [TRC ] line_dispatch:2407  eCmd=2 argc=1
-14:29:38 [TRC ] line_cmd_quit:904  ptParsed=000000bab2749240 ptCtx=000000bab274f470
-14:29:38 [INF ] line_cmd_quit:921  quit requested
-14:29:38 [INF ] line_run_script:3117  script 'use_cases/UC20A/script_st2msa.txt' complete
-14:29:38 [TRC ] file_open:148  szPath='use_cases/UC20A/script_st2msa.txt' eMode=1
-14:29:38 [INF ] file_open:189  opened 'use_cases/UC20A/script_st2msa.txt' mode=1
-14:29:38 [INF ] file_close:282  closed 'use_cases/UC20A/script_st2msa.txt'
-14:29:38 [TRC ] line_run:3179  ptCtx=000000bab274f470
-14:29:38 [TRC ] line_run_script:3078  ptCtx=000000bab274f470 szScriptFile='use_cases/UC20A/script_st2msa.txt'
-14:29:38 [INF ] line_run_script:3089  running script 'use_cases/UC20A/script_st2msa.txt'
-14:29:38 [TRC ] line_dispatch:2407  eCmd=15 argc=2
-14:29:38 [TRC ] line_cmd_convert:2213  szSrcExt=st szDstExt=msa argc=2
-14:29:38 [TRC ] line_dispatch:2407  eCmd=2 argc=1
-14:29:38 [TRC ] line_cmd_quit:904  ptParsed=000000bab2749240 ptCtx=000000bab274f470
-14:29:38 [INF ] line_cmd_quit:921  quit requested
-14:29:38 [INF ] line_run_script:3117  script 'use_cases/UC20A/script_st2msa.txt' complete
-14:29:38 [TRC ] file_open:148  szPath='use_cases/UC20A/script_st2msa.txt' eMode=1
-14:29:38 [INF ] file_open:189  opened 'use_cases/UC20A/script_st2msa.txt' mode=1
-14:29:38 [INF ] file_close:282  closed 'use_cases/UC20A/script_st2msa.txt'
-14:29:38 [TRC ] line_run:3179  ptCtx=000000bab274f470
-14:29:38 [TRC ] line_run_script:3078  ptCtx=000000bab274f470 szScriptFile='use_cases/UC20A/script_st2msa.txt'
-14:29:38 [INF ] line_run_script:3089  running script 'use_cases/UC20A/script_st2msa.txt'
-14:29:38 [TRC ] line_dispatch:2407  eCmd=15 argc=4
-14:29:38 [TRC ] line_cmd_convert:2213  szSrcExt=st szDstExt=msa argc=4
-14:29:38 [TRC ] line_dispatch:2407  eCmd=2 argc=1
-14:29:38 [TRC ] line_cmd_quit:904  ptParsed=000000bab2749240 ptCtx=000000bab274f470
-14:29:38 [INF ] line_cmd_quit:921  quit requested
-14:29:38 [INF ] line_run_script:3117  script 'use_cases/UC20A/script_st2msa.txt' complete
-14:29:38 [TRC ] file_open:148  szPath='use_cases/UC20A/script_msa2st.txt' eMode=1
-14:29:38 [INF ] file_open:189  opened 'use_cases/UC20A/script_msa2st.txt' mode=1
-14:29:38 [INF ] file_close:282  closed 'use_cases/UC20A/script_msa2st.txt'
-14:29:38 [TRC ] line_run:3179  ptCtx=000000bab274f470
-14:29:38 [TRC ] line_run_script:3078  ptCtx=000000bab274f470 szScriptFile='use_cases/UC20A/script_msa2st.txt'
-14:29:38 [INF ] line_run_script:3089  running script 'use_cases/UC20A/script_msa2st.txt'
-14:29:38 [TRC ] line_dispatch:2407  eCmd=16 argc=2
-14:29:38 [TRC ] line_cmd_convert:2213  szSrcExt=msa szDstExt=st argc=2
-14:29:38 [TRC ] line_dispatch:2407  eCmd=2 argc=1
-14:29:38 [TRC ] line_cmd_quit:904  ptParsed=000000bab2749240 ptCtx=000000bab274f470
-14:29:38 [INF ] line_cmd_quit:921  quit requested
-14:29:38 [INF ] line_run_script:3117  script 'use_cases/UC20A/script_msa2st.txt' complete
-14:29:38 [TRC ] file_open:148  szPath='use_cases/UC20A/script_st2msa.txt' eMode=1
-14:29:38 [INF ] file_open:189  opened 'use_cases/UC20A/script_st2msa.txt' mode=1
-14:29:38 [INF ] file_close:282  closed 'use_cases/UC20A/script_st2msa.txt'
-14:29:38 [TRC ] line_run:3179  ptCtx=000000bab274f470
-14:29:38 [TRC ] line_run_script:3078  ptCtx=000000bab274f470 szScriptFile='use_cases/UC20A/script_st2msa.txt'
-14:29:38 [INF ] line_run_script:3089  running script 'use_cases/UC20A/script_st2msa.txt'
-14:29:38 [TRC ] line_dispatch:2407  eCmd=15 argc=1
-14:29:38 [TRC ] line_cmd_convert:2213  szSrcExt=st szDstExt=msa argc=1
-14:29:38 [TRC ] line_dispatch:2407  eCmd=2 argc=1
-14:29:38 [TRC ] line_cmd_quit:904  ptParsed=000000bab2749240 ptCtx=000000bab274f470
-14:29:38 [INF ] line_cmd_quit:921  quit requested
-14:29:38 [INF ] line_run_script:3117  script 'use_cases/UC20A/script_st2msa.txt' complete
-14:29:38 [TRC ] file_open:148  szPath='use_cases/UC20A/script_msa2st.txt' eMode=1
-14:29:38 [INF ] file_open:189  opened 'use_cases/UC20A/script_msa2st.txt' mode=1
-14:29:38 [INF ] file_close:282  closed 'use_cases/UC20A/script_msa2st.txt'
-14:29:38 [TRC ] line_run:3179  ptCtx=000000bab274f470
-14:29:38 [TRC ] line_run_script:3078  ptCtx=000000bab274f470 szScriptFile='use_cases/UC20A/script_msa2st.txt'
-14:29:38 [INF ] line_run_script:3089  running script 'use_cases/UC20A/script_msa2st.txt'
-14:29:38 [TRC ] line_dispatch:2407  eCmd=16 argc=1
-14:29:38 [TRC ] line_cmd_convert:2213  szSrcExt=msa szDstExt=st argc=1
-14:29:38 [TRC ] line_dispatch:2407  eCmd=2 argc=1
-14:29:38 [TRC ] line_cmd_quit:904  ptParsed=000000bab2749240 ptCtx=000000bab274f470
-14:29:38 [INF ] line_cmd_quit:921  quit requested
-14:29:38 [INF ] line_run_script:3117  script 'use_cases/UC20A/script_msa2st.txt' complete
-14:29:38 [TRC ] line_shutdown:3297  ptCtx=000000bab274f470
-14:29:38 [INF ] line_history_save:533  history saved to 'C:\Users\march/.st4ever_history' (0 entries)
-14:29:38 [INF ] line_shutdown:3344  console shutdown complete
-14:29:38 [INF ] trace_shutdown:804  ST4Ever 0.21.0 shutting down - trace closing
+09:45:09 [TRC ] line_init:3130  ptCtx=0000001ccbb4f010
+09:45:09 [INF ] line_history_load:579  history loaded from 'C:\Users\march/.st4ever_history' (0 entries)
+09:45:09 [INF ] line_init:3167  console initialised, cwd='C:\msys\home\claude\ST4Ever'
+09:45:09 [TRC ] file_mkdir:296  szPath='use_cases/UC20A'
+09:45:09 [INF ] file_mkdir:312  mkdir 'use_cases/UC20A' (already exists)
+09:45:09 [TRC ] file_mkdir:296  szPath='use_cases/UC20A/batch'
+09:45:09 [INF ] file_mkdir:312  mkdir 'use_cases/UC20A/batch' (already exists)
+09:45:09 [TRC ] image_st_create:352  pptImg=0000001ccbb4a710
+09:45:09 [INF ] image_st_create:373  blank .st image created in memory (737280 bytes)
+09:45:09 [TRC ] image_st_write_file:604  ptImg=000001a4fe7e0080 name='DATA.PRG' size=64
+09:45:09 [INF ] image_st_write_file:687  written 'DATA.PRG' (64 bytes)
+09:45:09 [TRC ] image_st_save:435  ptImg=000001a4fe7e0080 szPath='use_cases/UC20A/one.st'
+09:45:09 [TRC ] file_open:148  szPath='use_cases/UC20A/one.st' eMode=1
+09:45:09 [INF ] file_open:189  opened 'use_cases/UC20A/one.st' mode=1
+09:45:09 [INF ] file_close:282  closed 'use_cases/UC20A/one.st'
+09:45:09 [INF ] image_st_save:458  saved 'use_cases/UC20A/one.st' (737280 bytes)
+09:45:09 [TRC ] image_st_close:464  pptImg=0000001ccbb4a710
+09:45:09 [TRC ] image_st_load:383  szPath='use_cases/UC20A/one.st'
+09:45:09 [TRC ] file_open:148  szPath='use_cases/UC20A/one.st' eMode=0
+09:45:09 [INF ] file_open:189  opened 'use_cases/UC20A/one.st' mode=0
+09:45:09 [INF ] file_close:282  closed 'use_cases/UC20A/one.st'
+09:45:09 [INF ] image_st_load:427  loaded 'use_cases/UC20A/one.st'
+09:45:09 [TRC ] image_msa_save:319  ptImg=000001a4fe7e0080 szPath=use_cases/UC20A/one.msa
+09:45:09 [TRC ] file_open:148  szPath='use_cases/UC20A/one.msa' eMode=1
+09:45:09 [INF ] file_open:189  opened 'use_cases/UC20A/one.msa' mode=1
+09:45:09 [INF ] file_close:282  closed 'use_cases/UC20A/one.msa'
+09:45:09 [INF ] image_msa_save:381  MSA saved 'use_cases/UC20A/one.msa'
+09:45:09 [TRC ] image_st_close:464  pptImg=0000001ccbb4a768
+09:45:09 [TRC ] image_msa_load:171  szPath=use_cases/UC20A/one.msa
+09:45:09 [TRC ] file_open:148  szPath='use_cases/UC20A/one.msa' eMode=0
+09:45:09 [INF ] file_open:189  opened 'use_cases/UC20A/one.msa' mode=0
+09:45:09 [TRC ] image_st_create:352  pptImg=0000001ccbb49388
+09:45:09 [INF ] image_st_create:373  blank .st image created in memory (737280 bytes)
+09:45:09 [INF ] file_close:282  closed 'use_cases/UC20A/one.msa'
+09:45:09 [INF ] image_msa_load:300  MSA loaded 'use_cases/UC20A/one.msa' tracks 0-79 sides=2
+09:45:09 [TRC ] image_st_list_root:488  ptImg=000001a4fe7e0080 iMax=8
+09:45:09 [TRC ] image_st_read_file:540  ptImg=000001a4fe7e0080 cluster=2 size=64
+09:45:09 [TRC ] image_st_close:464  pptImg=0000001ccbb4a710
+09:45:09 [TRC ] image_msa_load:171  szPath=use_cases/UC20A/one.msa
+09:45:09 [TRC ] file_open:148  szPath='use_cases/UC20A/one.msa' eMode=0
+09:45:09 [INF ] file_open:189  opened 'use_cases/UC20A/one.msa' mode=0
+09:45:09 [TRC ] image_st_create:352  pptImg=0000001ccbb494c8
+09:45:09 [INF ] image_st_create:373  blank .st image created in memory (737280 bytes)
+09:45:09 [INF ] file_close:282  closed 'use_cases/UC20A/one.msa'
+09:45:09 [INF ] image_msa_load:300  MSA loaded 'use_cases/UC20A/one.msa' tracks 0-79 sides=2
+09:45:09 [TRC ] image_st_save:435  ptImg=000001a4fe7e0080 szPath='use_cases/UC20A/one_rt.st'
+09:45:09 [TRC ] file_open:148  szPath='use_cases/UC20A/one_rt.st' eMode=1
+09:45:09 [INF ] file_open:189  opened 'use_cases/UC20A/one_rt.st' mode=1
+09:45:09 [INF ] file_close:282  closed 'use_cases/UC20A/one_rt.st'
+09:45:09 [INF ] image_st_save:458  saved 'use_cases/UC20A/one_rt.st' (737280 bytes)
+09:45:09 [TRC ] image_st_close:464  pptImg=0000001ccbb4a760
+09:45:09 [TRC ] image_st_load:383  szPath='use_cases/UC20A/one_rt.st'
+09:45:09 [TRC ] file_open:148  szPath='use_cases/UC20A/one_rt.st' eMode=0
+09:45:09 [INF ] file_open:189  opened 'use_cases/UC20A/one_rt.st' mode=0
+09:45:09 [INF ] file_close:282  closed 'use_cases/UC20A/one_rt.st'
+09:45:09 [INF ] image_st_load:427  loaded 'use_cases/UC20A/one_rt.st'
+09:45:09 [TRC ] image_st_list_root:488  ptImg=000001a4fe7e0080 iMax=8
+09:45:09 [TRC ] image_st_read_file:540  ptImg=000001a4fe7e0080 cluster=2 size=64
+09:45:09 [TRC ] image_st_close:464  pptImg=0000001ccbb4a710
+09:45:09 [TRC ] image_st_create:352  pptImg=0000001ccbb4a710
+09:45:09 [INF ] image_st_create:373  blank .st image created in memory (737280 bytes)
+09:45:09 [TRC ] image_st_write_file:604  ptImg=000001a4fe7e0080 name='DATA.PRG' size=64
+09:45:09 [INF ] image_st_write_file:687  written 'DATA.PRG' (64 bytes)
+09:45:09 [TRC ] image_st_save:435  ptImg=000001a4fe7e0080 szPath='use_cases/UC20A/batch/a.st'
+09:45:09 [TRC ] file_open:148  szPath='use_cases/UC20A/batch/a.st' eMode=1
+09:45:09 [INF ] file_open:189  opened 'use_cases/UC20A/batch/a.st' mode=1
+09:45:09 [INF ] file_close:282  closed 'use_cases/UC20A/batch/a.st'
+09:45:09 [INF ] image_st_save:458  saved 'use_cases/UC20A/batch/a.st' (737280 bytes)
+09:45:09 [TRC ] image_st_close:464  pptImg=0000001ccbb4a710
+09:45:09 [TRC ] image_st_create:352  pptImg=0000001ccbb4a710
+09:45:09 [INF ] image_st_create:373  blank .st image created in memory (737280 bytes)
+09:45:09 [TRC ] image_st_write_file:604  ptImg=000001a4fe7e0080 name='DATA.PRG' size=64
+09:45:09 [INF ] image_st_write_file:687  written 'DATA.PRG' (64 bytes)
+09:45:09 [TRC ] image_st_save:435  ptImg=000001a4fe7e0080 szPath='use_cases/UC20A/batch/b.st'
+09:45:09 [TRC ] file_open:148  szPath='use_cases/UC20A/batch/b.st' eMode=1
+09:45:09 [INF ] file_open:189  opened 'use_cases/UC20A/batch/b.st' mode=1
+09:45:09 [INF ] file_close:282  closed 'use_cases/UC20A/batch/b.st'
+09:45:09 [INF ] image_st_save:458  saved 'use_cases/UC20A/batch/b.st' (737280 bytes)
+09:45:09 [TRC ] image_st_close:464  pptImg=0000001ccbb4a710
+09:45:09 [TRC ] file_open:148  szPath='use_cases/UC20A/script_st2msa.txt' eMode=1
+09:45:09 [INF ] file_open:189  opened 'use_cases/UC20A/script_st2msa.txt' mode=1
+09:45:09 [INF ] file_close:282  closed 'use_cases/UC20A/script_st2msa.txt'
+09:45:09 [TRC ] line_run:3179  ptCtx=0000001ccbb4f010
+09:45:09 [TRC ] line_run_script:3078  ptCtx=0000001ccbb4f010 szScriptFile='use_cases/UC20A/script_st2msa.txt'
+09:45:09 [INF ] line_run_script:3089  running script 'use_cases/UC20A/script_st2msa.txt'
+09:45:09 [TRC ] line_dispatch:2407  eCmd=15 argc=4
+09:45:09 [TRC ] line_cmd_convert:2213  szSrcExt=st szDstExt=msa argc=4
+09:45:09 [TRC ] file_list_dir:328  szPath='use_cases/UC20A/batch' bShowHidden=1
+09:45:09 [TRC ] image_st_load:383  szPath='use_cases/UC20A/batch/a.st'
+09:45:09 [TRC ] file_open:148  szPath='use_cases/UC20A/batch/a.st' eMode=0
+09:45:09 [INF ] file_open:189  opened 'use_cases/UC20A/batch/a.st' mode=0
+09:45:09 [INF ] file_close:282  closed 'use_cases/UC20A/batch/a.st'
+09:45:09 [INF ] image_st_load:427  loaded 'use_cases/UC20A/batch/a.st'
+09:45:09 [TRC ] image_msa_save:319  ptImg=000001a4fe7e0080 szPath=use_cases/UC20A/batch/a.msa
+09:45:09 [TRC ] file_open:148  szPath='use_cases/UC20A/batch/a.msa' eMode=1
+09:45:09 [INF ] file_open:189  opened 'use_cases/UC20A/batch/a.msa' mode=1
+09:45:09 [INF ] file_close:282  closed 'use_cases/UC20A/batch/a.msa'
+09:45:09 [INF ] image_msa_save:381  MSA saved 'use_cases/UC20A/batch/a.msa'
+09:45:09 [TRC ] image_st_close:464  pptImg=0000001ccbb47f50
+09:45:09 [TRC ] image_st_load:383  szPath='use_cases/UC20A/batch/b.st'
+09:45:09 [TRC ] file_open:148  szPath='use_cases/UC20A/batch/b.st' eMode=0
+09:45:09 [INF ] file_open:189  opened 'use_cases/UC20A/batch/b.st' mode=0
+09:45:09 [INF ] file_close:282  closed 'use_cases/UC20A/batch/b.st'
+09:45:09 [INF ] image_st_load:427  loaded 'use_cases/UC20A/batch/b.st'
+09:45:09 [TRC ] image_msa_save:319  ptImg=000001a4fe7e0080 szPath=use_cases/UC20A/batch/b.msa
+09:45:09 [TRC ] file_open:148  szPath='use_cases/UC20A/batch/b.msa' eMode=1
+09:45:09 [INF ] file_open:189  opened 'use_cases/UC20A/batch/b.msa' mode=1
+09:45:09 [INF ] file_close:282  closed 'use_cases/UC20A/batch/b.msa'
+09:45:09 [INF ] image_msa_save:381  MSA saved 'use_cases/UC20A/batch/b.msa'
+09:45:09 [TRC ] image_st_close:464  pptImg=0000001ccbb47f50
+09:45:09 [TRC ] image_st_load:383  szPath='use_cases/UC20A/batch/c.st'
+09:45:09 [TRC ] file_open:148  szPath='use_cases/UC20A/batch/c.st' eMode=0
+09:45:09 [INF ] file_open:189  opened 'use_cases/UC20A/batch/c.st' mode=0
+09:45:09 [INF ] file_close:282  closed 'use_cases/UC20A/batch/c.st'
+09:45:09 [INF ] image_st_load:427  loaded 'use_cases/UC20A/batch/c.st'
+09:45:09 [TRC ] image_msa_save:319  ptImg=000001a4fe7e0080 szPath=use_cases/UC20A/batch/c.msa
+09:45:09 [TRC ] file_open:148  szPath='use_cases/UC20A/batch/c.msa' eMode=1
+09:45:09 [INF ] file_open:189  opened 'use_cases/UC20A/batch/c.msa' mode=1
+09:45:09 [INF ] file_close:282  closed 'use_cases/UC20A/batch/c.msa'
+09:45:09 [INF ] image_msa_save:381  MSA saved 'use_cases/UC20A/batch/c.msa'
+09:45:09 [TRC ] image_st_close:464  pptImg=0000001ccbb47f50
+09:45:09 [INF ] file_list_dir:371  list_dir 'use_cases/UC20A/batch' complete
+09:45:09 [TRC ] line_dispatch:2407  eCmd=2 argc=1
+09:45:09 [TRC ] line_cmd_quit:904  ptParsed=0000001ccbb48de0 ptCtx=0000001ccbb4f010
+09:45:09 [INF ] line_cmd_quit:921  quit requested
+09:45:09 [INF ] line_run_script:3117  script 'use_cases/UC20A/script_st2msa.txt' complete
+09:45:09 [TRC ] image_st_create:352  pptImg=0000001ccbb4a710
+09:45:09 [INF ] image_st_create:373  blank .st image created in memory (737280 bytes)
+09:45:09 [TRC ] image_st_write_file:604  ptImg=000001a4fe7e0080 name='DATA.PRG' size=64
+09:45:09 [INF ] image_st_write_file:687  written 'DATA.PRG' (64 bytes)
+09:45:09 [TRC ] image_msa_save:319  ptImg=000001a4fe7e0080 szPath=use_cases/UC20A/batch/c.msa
+09:45:09 [TRC ] file_open:148  szPath='use_cases/UC20A/batch/c.msa' eMode=1
+09:45:09 [INF ] file_open:189  opened 'use_cases/UC20A/batch/c.msa' mode=1
+09:45:09 [INF ] file_close:282  closed 'use_cases/UC20A/batch/c.msa'
+09:45:09 [INF ] image_msa_save:381  MSA saved 'use_cases/UC20A/batch/c.msa'
+09:45:09 [TRC ] image_st_close:464  pptImg=0000001ccbb4a710
+09:45:09 [TRC ] file_open:148  szPath='use_cases/UC20A/script_msa2st.txt' eMode=1
+09:45:09 [INF ] file_open:189  opened 'use_cases/UC20A/script_msa2st.txt' mode=1
+09:45:09 [INF ] file_close:282  closed 'use_cases/UC20A/script_msa2st.txt'
+09:45:09 [TRC ] line_run:3179  ptCtx=0000001ccbb4f010
+09:45:09 [TRC ] line_run_script:3078  ptCtx=0000001ccbb4f010 szScriptFile='use_cases/UC20A/script_msa2st.txt'
+09:45:09 [INF ] line_run_script:3089  running script 'use_cases/UC20A/script_msa2st.txt'
+09:45:09 [TRC ] line_dispatch:2407  eCmd=16 argc=4
+09:45:09 [TRC ] line_cmd_convert:2213  szSrcExt=msa szDstExt=st argc=4
+09:45:09 [TRC ] file_list_dir:328  szPath='use_cases/UC20A/batch' bShowHidden=1
+09:45:09 [TRC ] image_msa_load:171  szPath=use_cases/UC20A/batch/a.msa
+09:45:09 [TRC ] file_open:148  szPath='use_cases/UC20A/batch/a.msa' eMode=0
+09:45:09 [INF ] file_open:189  opened 'use_cases/UC20A/batch/a.msa' mode=0
+09:45:09 [TRC ] image_st_create:352  pptImg=0000001ccbb46cb8
+09:45:09 [INF ] image_st_create:373  blank .st image created in memory (737280 bytes)
+09:45:09 [INF ] file_close:282  closed 'use_cases/UC20A/batch/a.msa'
+09:45:09 [INF ] image_msa_load:300  MSA loaded 'use_cases/UC20A/batch/a.msa' tracks 0-79 sides=2
+09:45:09 [TRC ] image_st_save:435  ptImg=000001a4fe7e0080 szPath='use_cases/UC20A/batch/a.st'
+09:45:09 [TRC ] file_open:148  szPath='use_cases/UC20A/batch/a.st' eMode=1
+09:45:09 [INF ] file_open:189  opened 'use_cases/UC20A/batch/a.st' mode=1
+09:45:09 [INF ] file_close:282  closed 'use_cases/UC20A/batch/a.st'
+09:45:09 [INF ] image_st_save:458  saved 'use_cases/UC20A/batch/a.st' (737280 bytes)
+09:45:09 [TRC ] image_st_close:464  pptImg=0000001ccbb47f50
+09:45:09 [TRC ] image_msa_load:171  szPath=use_cases/UC20A/batch/b.msa
+09:45:09 [TRC ] file_open:148  szPath='use_cases/UC20A/batch/b.msa' eMode=0
+09:45:09 [INF ] file_open:189  opened 'use_cases/UC20A/batch/b.msa' mode=0
+09:45:09 [TRC ] image_st_create:352  pptImg=0000001ccbb46cb8
+09:45:09 [INF ] image_st_create:373  blank .st image created in memory (737280 bytes)
+09:45:09 [INF ] file_close:282  closed 'use_cases/UC20A/batch/b.msa'
+09:45:09 [INF ] image_msa_load:300  MSA loaded 'use_cases/UC20A/batch/b.msa' tracks 0-79 sides=2
+09:45:09 [TRC ] image_st_save:435  ptImg=000001a4fe7e0080 szPath='use_cases/UC20A/batch/b.st'
+09:45:09 [TRC ] file_open:148  szPath='use_cases/UC20A/batch/b.st' eMode=1
+09:45:09 [INF ] file_open:189  opened 'use_cases/UC20A/batch/b.st' mode=1
+09:45:09 [INF ] file_close:282  closed 'use_cases/UC20A/batch/b.st'
+09:45:09 [INF ] image_st_save:458  saved 'use_cases/UC20A/batch/b.st' (737280 bytes)
+09:45:09 [TRC ] image_st_close:464  pptImg=0000001ccbb47f50
+09:45:09 [TRC ] image_msa_load:171  szPath=use_cases/UC20A/batch/c.msa
+09:45:09 [TRC ] file_open:148  szPath='use_cases/UC20A/batch/c.msa' eMode=0
+09:45:09 [INF ] file_open:189  opened 'use_cases/UC20A/batch/c.msa' mode=0
+09:45:09 [TRC ] image_st_create:352  pptImg=0000001ccbb46cb8
+09:45:09 [INF ] image_st_create:373  blank .st image created in memory (737280 bytes)
+09:45:09 [INF ] file_close:282  closed 'use_cases/UC20A/batch/c.msa'
+09:45:09 [INF ] image_msa_load:300  MSA loaded 'use_cases/UC20A/batch/c.msa' tracks 0-79 sides=2
+09:45:09 [TRC ] image_st_save:435  ptImg=000001a4fe7e0080 szPath='use_cases/UC20A/batch/c.st'
+09:45:09 [TRC ] file_open:148  szPath='use_cases/UC20A/batch/c.st' eMode=1
+09:45:09 [INF ] file_open:189  opened 'use_cases/UC20A/batch/c.st' mode=1
+09:45:09 [INF ] file_close:282  closed 'use_cases/UC20A/batch/c.st'
+09:45:09 [INF ] image_st_save:458  saved 'use_cases/UC20A/batch/c.st' (737280 bytes)
+09:45:09 [TRC ] image_st_close:464  pptImg=0000001ccbb47f50
+09:45:09 [INF ] file_list_dir:371  list_dir 'use_cases/UC20A/batch' complete
+09:45:09 [TRC ] line_dispatch:2407  eCmd=2 argc=1
+09:45:09 [TRC ] line_cmd_quit:904  ptParsed=0000001ccbb48de0 ptCtx=0000001ccbb4f010
+09:45:09 [INF ] line_cmd_quit:921  quit requested
+09:45:09 [INF ] line_run_script:3117  script 'use_cases/UC20A/script_msa2st.txt' complete
+09:45:09 [TRC ] file_open:148  szPath='use_cases/UC20A/wrong.txt' eMode=1
+09:45:09 [INF ] file_open:189  opened 'use_cases/UC20A/wrong.txt' mode=1
+09:45:09 [INF ] file_close:282  closed 'use_cases/UC20A/wrong.txt'
+09:45:09 [TRC ] file_open:148  szPath='use_cases/UC20A/script_st2msa.txt' eMode=1
+09:45:09 [INF ] file_open:189  opened 'use_cases/UC20A/script_st2msa.txt' mode=1
+09:45:09 [INF ] file_close:282  closed 'use_cases/UC20A/script_st2msa.txt'
+09:45:09 [TRC ] line_run:3179  ptCtx=0000001ccbb4f010
+09:45:09 [TRC ] line_run_script:3078  ptCtx=0000001ccbb4f010 szScriptFile='use_cases/UC20A/script_st2msa.txt'
+09:45:09 [INF ] line_run_script:3089  running script 'use_cases/UC20A/script_st2msa.txt'
+09:45:09 [TRC ] line_dispatch:2407  eCmd=15 argc=2
+09:45:09 [TRC ] line_cmd_convert:2213  szSrcExt=st szDstExt=msa argc=2
+09:45:09 [TRC ] line_dispatch:2407  eCmd=2 argc=1
+09:45:09 [TRC ] line_cmd_quit:904  ptParsed=0000001ccbb48de0 ptCtx=0000001ccbb4f010
+09:45:09 [INF ] line_cmd_quit:921  quit requested
+09:45:09 [INF ] line_run_script:3117  script 'use_cases/UC20A/script_st2msa.txt' complete
+09:45:09 [TRC ] file_open:148  szPath='use_cases/UC20A/script_st2msa.txt' eMode=1
+09:45:09 [INF ] file_open:189  opened 'use_cases/UC20A/script_st2msa.txt' mode=1
+09:45:09 [INF ] file_close:282  closed 'use_cases/UC20A/script_st2msa.txt'
+09:45:09 [TRC ] line_run:3179  ptCtx=0000001ccbb4f010
+09:45:09 [TRC ] line_run_script:3078  ptCtx=0000001ccbb4f010 szScriptFile='use_cases/UC20A/script_st2msa.txt'
+09:45:09 [INF ] line_run_script:3089  running script 'use_cases/UC20A/script_st2msa.txt'
+09:45:09 [TRC ] line_dispatch:2407  eCmd=15 argc=2
+09:45:09 [TRC ] line_cmd_convert:2213  szSrcExt=st szDstExt=msa argc=2
+09:45:09 [TRC ] line_dispatch:2407  eCmd=2 argc=1
+09:45:09 [TRC ] line_cmd_quit:904  ptParsed=0000001ccbb48de0 ptCtx=0000001ccbb4f010
+09:45:09 [INF ] line_cmd_quit:921  quit requested
+09:45:09 [INF ] line_run_script:3117  script 'use_cases/UC20A/script_st2msa.txt' complete
+09:45:09 [TRC ] file_open:148  szPath='use_cases/UC20A/script_st2msa.txt' eMode=1
+09:45:09 [INF ] file_open:189  opened 'use_cases/UC20A/script_st2msa.txt' mode=1
+09:45:09 [INF ] file_close:282  closed 'use_cases/UC20A/script_st2msa.txt'
+09:45:09 [TRC ] line_run:3179  ptCtx=0000001ccbb4f010
+09:45:09 [TRC ] line_run_script:3078  ptCtx=0000001ccbb4f010 szScriptFile='use_cases/UC20A/script_st2msa.txt'
+09:45:09 [INF ] line_run_script:3089  running script 'use_cases/UC20A/script_st2msa.txt'
+09:45:09 [TRC ] line_dispatch:2407  eCmd=15 argc=4
+09:45:09 [TRC ] line_cmd_convert:2213  szSrcExt=st szDstExt=msa argc=4
+09:45:09 [TRC ] line_dispatch:2407  eCmd=2 argc=1
+09:45:09 [TRC ] line_cmd_quit:904  ptParsed=0000001ccbb48de0 ptCtx=0000001ccbb4f010
+09:45:09 [INF ] line_cmd_quit:921  quit requested
+09:45:09 [INF ] line_run_script:3117  script 'use_cases/UC20A/script_st2msa.txt' complete
+09:45:09 [TRC ] file_open:148  szPath='use_cases/UC20A/script_msa2st.txt' eMode=1
+09:45:09 [INF ] file_open:189  opened 'use_cases/UC20A/script_msa2st.txt' mode=1
+09:45:09 [INF ] file_close:282  closed 'use_cases/UC20A/script_msa2st.txt'
+09:45:09 [TRC ] line_run:3179  ptCtx=0000001ccbb4f010
+09:45:09 [TRC ] line_run_script:3078  ptCtx=0000001ccbb4f010 szScriptFile='use_cases/UC20A/script_msa2st.txt'
+09:45:09 [INF ] line_run_script:3089  running script 'use_cases/UC20A/script_msa2st.txt'
+09:45:09 [TRC ] line_dispatch:2407  eCmd=16 argc=2
+09:45:09 [TRC ] line_cmd_convert:2213  szSrcExt=msa szDstExt=st argc=2
+09:45:09 [TRC ] line_dispatch:2407  eCmd=2 argc=1
+09:45:09 [TRC ] line_cmd_quit:904  ptParsed=0000001ccbb48de0 ptCtx=0000001ccbb4f010
+09:45:09 [INF ] line_cmd_quit:921  quit requested
+09:45:09 [INF ] line_run_script:3117  script 'use_cases/UC20A/script_msa2st.txt' complete
+09:45:09 [TRC ] file_open:148  szPath='use_cases/UC20A/script_st2msa.txt' eMode=1
+09:45:09 [INF ] file_open:189  opened 'use_cases/UC20A/script_st2msa.txt' mode=1
+09:45:09 [INF ] file_close:282  closed 'use_cases/UC20A/script_st2msa.txt'
+09:45:09 [TRC ] line_run:3179  ptCtx=0000001ccbb4f010
+09:45:09 [TRC ] line_run_script:3078  ptCtx=0000001ccbb4f010 szScriptFile='use_cases/UC20A/script_st2msa.txt'
+09:45:09 [INF ] line_run_script:3089  running script 'use_cases/UC20A/script_st2msa.txt'
+09:45:09 [TRC ] line_dispatch:2407  eCmd=15 argc=1
+09:45:09 [TRC ] line_cmd_convert:2213  szSrcExt=st szDstExt=msa argc=1
+09:45:09 [TRC ] line_dispatch:2407  eCmd=2 argc=1
+09:45:09 [TRC ] line_cmd_quit:904  ptParsed=0000001ccbb48de0 ptCtx=0000001ccbb4f010
+09:45:09 [INF ] line_cmd_quit:921  quit requested
+09:45:09 [INF ] line_run_script:3117  script 'use_cases/UC20A/script_st2msa.txt' complete
+09:45:09 [TRC ] file_open:148  szPath='use_cases/UC20A/script_msa2st.txt' eMode=1
+09:45:09 [INF ] file_open:189  opened 'use_cases/UC20A/script_msa2st.txt' mode=1
+09:45:09 [INF ] file_close:282  closed 'use_cases/UC20A/script_msa2st.txt'
+09:45:09 [TRC ] line_run:3179  ptCtx=0000001ccbb4f010
+09:45:09 [TRC ] line_run_script:3078  ptCtx=0000001ccbb4f010 szScriptFile='use_cases/UC20A/script_msa2st.txt'
+09:45:09 [INF ] line_run_script:3089  running script 'use_cases/UC20A/script_msa2st.txt'
+09:45:09 [TRC ] line_dispatch:2407  eCmd=16 argc=1
+09:45:09 [TRC ] line_cmd_convert:2213  szSrcExt=msa szDstExt=st argc=1
+09:45:09 [TRC ] line_dispatch:2407  eCmd=2 argc=1
+09:45:09 [TRC ] line_cmd_quit:904  ptParsed=0000001ccbb48de0 ptCtx=0000001ccbb4f010
+09:45:09 [INF ] line_cmd_quit:921  quit requested
+09:45:09 [INF ] line_run_script:3117  script 'use_cases/UC20A/script_msa2st.txt' complete
+09:45:09 [TRC ] line_shutdown:3297  ptCtx=0000001ccbb4f010
+09:45:09 [INF ] line_history_save:533  history saved to 'C:\Users\march/.st4ever_history' (0 entries)
+09:45:09 [INF ] line_shutdown:3344  console shutdown complete
+09:45:09 [INF ] trace_shutdown:804  ST4Ever 0.23.0 shutting down - trace closing

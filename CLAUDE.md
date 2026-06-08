@@ -5,6 +5,7 @@
 - 2026-06-07: UC22 codé; tests use_cases_22.c en cours; Process d'implémentation R19 interrompu (cf section 5 - R19 pour les étapes de développement d'un Use Case)
 - 2026-06-07: Restructuration documentaire : SRTD.md archivé → scindé en **2 - SR.md** (UFR/REQ) et **3 - TC.md** (TCs) ; **6 - UC.md** enrichi (§1.1 table dépendances inter-UC, ~45 marqueurs RÉSOLU UCxx) ; R17 révisé (traçabilité Impl. column UC22+)
 - 2026-06-08: UC22 Codé/Testé : ADD/SUB/CMP/AND/OR/EOR/shifts + NEG/NOT/TST/EXT/ADDQ/SUBQ/ADDI/SUBI/CMPI/ANDI/ORI/EORI/MULU/MULS/DIVU/DIVS + ADDX/SUBX + rotations ASL/ASR/LSL/LSR/ROL/ROR/ROXL/ROXR — 70 tests PASS 0 fail
+- 2026-06-08: UC23 Codé/Testé : BRA/BSR/Bcc(14 cond) + NOP/STOP/RTE/RTS/RTR/TRAP/LINK/UNLK/JSR/JMP + Scc/DBcc + cpu_raise_exception (pile d'exception complète) — 79 tests PASS 0 fail
 
 *L'historique des versions antérieures peut être récupéré via le change log github*
 
@@ -474,7 +475,8 @@ Les étapes de développement fonctionnelles sont formalisées en Use Cases, per
 | UC20A | `st2msa`, `msa2st` | Conversion batch .st↔.msa (P42) : `--all` traite tous les fichiers du répertoire `dir`, `--dir <path>` répertoire explicite, `-r` récursif sous-répertoires | ✓ VALIDÉ 2026-06-07 |
 | UC21 | interne | CPU 68000 : registres + MOVE/MOVEQ/LEA/CLR/SWAP | ✓ VALIDÉ 2026-06-07 |
 | UC22 | interne | CPU 68000 : ADD/SUB/CMP/AND/OR/EOR/shifts | ✓ VALIDÉ 2026-06-08 |
-| UC23 | interne | CPU 68000 : BRA/Bcc/JSR/RTS/TRAP + vecteurs exception | appel/retour de fonction |
+| UC23 | interne | CPU 68000 : BRA/BSR/Bcc(14 cond) + NOP/STOP/RTE/RTS/RTR/TRAP/LINK/UNLK/JSR/JMP + Scc/DBcc + cpu_raise_exception | ✓ VALIDÉ 2026-06-08 |
+| UC23-bis | interne | CPU 68000 : MOVEM (save/restore registres, -(An)/(An)+) + ADDA.W/SUBA.W | MOVEM + ADDA.W/SUBA.W fonctionnels |
 | UC24 | interne | Memory map ST + registres HW stubs (Shifter, MFP, YM2149) | accès registres sans crash |
 | UC25 | `execute` | Moteur pas-à-pas + vues CPU + mémoire | step + breakpoint sur .PRG simple |
 | UC26 | interne | Émulation vidéo ST (Shifter : low/med/high res, palette 16 couleurs) | rendu écran correct |
@@ -877,6 +879,25 @@ Conversion en lot d'images disque dans un répertoire, en exploitant directement
 ### Arbitrage UC21 (2026-06-07)
 
 *UC21 est un UC purement interne (émulateur CPU 68000). Aucune proposition UX/fonctionnelle n'a émergé — UC21 est clos.*
+
+---
+
+### Arbitrage UC23 (2026-06-08)
+
+**P43 — MOVEM : save/restore registres (manquant pour vrais programmes assembleur)** → **ACCEPTÉ — UC23-bis**
+
+Avis Claude : MOVEM.L (sauvegarde/restauration de listes de registres sur la pile) n'est pas dans le périmètre UC23 mais est nécessaire dès que le désassembleur ou l'émulateur rencontre du code C compilé ou de l'assembleur DEVPAC standard (prologue/épilogue de fonction). Coût moyen (bitmask 16 bits, loop sur 8 Dn + 8 An, modes 4 et 3). Planifié UC23-bis.
+
+**P44 — ADDA.W / SUBA.W : sign-extension word manquante sur address registers** → **ACCEPTÉ — UC23-bis**
+
+Les handlers groupD/group9 gèrent déjà sz=3 → ADDA.L. La forme ADDA.W (sz=2 pour les An) n'est pas encore implémentée. Coût faible (un bloc sz==2 dans groupD/group9 quand iMode==1). Planifié UC23-bis avec MOVEM.
+
+| Proposition | Décision | UC cible |
+|-------------|----------|----------|
+| P43 (MOVEM) | ACCEPTÉ | UC23-bis |
+| P44 (ADDA.W/SUBA.W) | ACCEPTÉ | UC23-bis |
+
+*Propositions P43/P44 arbitrées — UC23 est clos.*
 
 ---
 

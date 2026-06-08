@@ -4,8 +4,9 @@
  * UC21: MOVE.B/W/L, MOVEA.W/L, MOVEQ, LEA, CLR.B/W/L, SWAP Dn
  * UC22: ADD/SUB/CMP/AND/OR/EOR/shifts + NEG/NEGX/NOT/TST/EXT +
  *        ADDI/SUBI/CMPI/ANDI/ORI/EORI + ADDQ/SUBQ +
- *        ADDX/SUBX + MULU/MULS/DIVU/DIVS (LOG_TODO)
- * TODO(UC23): BRA/Bcc/JSR/RTS/TRAP + exception vectors
+ *        ADDX/SUBX + MULU/MULS/DIVU/DIVS
+ * UC23: BRA/BSR/Bcc + NOP/STOP/RTE/RTS/RTR/TRAP/LINK/UNLK/JSR/JMP +
+ *        Scc/DBcc + cpu_raise_exception (exception frame stacking)
  */
 #include "CPU.h"
 #include "trace.h"
@@ -160,6 +161,80 @@ static void cpu_flags_sub(cpu68k_t *ptCpu,
         uiSR &= (st_u16_t)~CPU_SR_V;
 
     ptCpu->uiSR = uiSR;
+}
+
+/* ------------------------------------------------------------------
+ * Stack push / pop helpers (use active A7 as stack pointer)
+ * ------------------------------------------------------------------ */
+
+static st_error_t cpu_push_long(cpu68k_t     *ptCpu,
+                                 st_machine_t *ptMachine,
+                                 st_u32_t      uiVal)
+{
+    ptCpu->auAn[7] -= 4u;
+    return st_write_long(ptMachine, ptCpu->auAn[7] & 0x00FFFFFFu, uiVal);
+}
+
+static st_error_t cpu_push_word(cpu68k_t     *ptCpu,
+                                 st_machine_t *ptMachine,
+                                 st_u16_t      uiVal)
+{
+    ptCpu->auAn[7] -= 2u;
+    return st_write_word(ptMachine, ptCpu->auAn[7] & 0x00FFFFFFu, uiVal);
+}
+
+static st_error_t cpu_pop_long(cpu68k_t     *ptCpu,
+                                st_machine_t *ptMachine,
+                                st_u32_t     *puiVal)
+{
+    st_error_t eR;
+    eR = st_read_long(ptMachine, ptCpu->auAn[7] & 0x00FFFFFFu, puiVal);
+    if (eR == ST_NO_ERROR)
+        ptCpu->auAn[7] += 4u;
+    return eR;
+}
+
+static st_error_t cpu_pop_word(cpu68k_t     *ptCpu,
+                                st_machine_t *ptMachine,
+                                st_u16_t     *puiVal)
+{
+    st_error_t eR;
+    eR = st_read_word(ptMachine, ptCpu->auAn[7] & 0x00FFFFFFu, puiVal);
+    if (eR == ST_NO_ERROR)
+        ptCpu->auAn[7] += 2u;
+    return eR;
+}
+
+/* ------------------------------------------------------------------
+ * Condition code evaluator  (Bcc / Scc / DBcc)
+ * ------------------------------------------------------------------ */
+
+static st_bool_t cpu_eval_cc(const cpu68k_t *ptCpu, int iCc)
+{
+    int bN = CPU_FLAG_N(ptCpu) ? 1 : 0;
+    int bZ = CPU_FLAG_Z(ptCpu) ? 1 : 0;
+    int bV = CPU_FLAG_V(ptCpu) ? 1 : 0;
+    int bC = CPU_FLAG_C(ptCpu) ? 1 : 0;
+
+    switch (iCc & 0xF)
+    {
+    case  0: return ST_TRUE;                            /* T  */
+    case  1: return ST_FALSE;                           /* F  */
+    case  2: return (st_bool_t)(!bC && !bZ);            /* HI */
+    case  3: return (st_bool_t)( bC ||  bZ);            /* LS */
+    case  4: return (st_bool_t)(!bC);                   /* CC/HS */
+    case  5: return (st_bool_t)( bC);                   /* CS/LO */
+    case  6: return (st_bool_t)(!bZ);                   /* NE */
+    case  7: return (st_bool_t)( bZ);                   /* EQ */
+    case  8: return (st_bool_t)(!bV);                   /* VC */
+    case  9: return (st_bool_t)( bV);                   /* VS */
+    case 10: return (st_bool_t)(!bN);                   /* PL */
+    case 11: return (st_bool_t)( bN);                   /* MI */
+    case 12: return (st_bool_t)(bN == bV);              /* GE */
+    case 13: return (st_bool_t)(bN != bV);              /* LT */
+    case 14: return (st_bool_t)(!bZ && (bN == bV));     /* GT */
+    default: return (st_bool_t)( bZ || (bN != bV));     /* LE */
+    }
 }
 
 /* ------------------------------------------------------------------
@@ -965,8 +1040,46 @@ static st_error_t cpu_exec_group5(cpu68k_t     *ptCpu,
 
     if (iSzCode == 3)
     {
-        LOG_TODO("group5: Scc/DBcc DC.W 0x%04X", (unsigned)uiOpc);
-        return ST_NO_ERROR;
+        /* Scc EA / DBcc Dn,disp16 */
+        int iCc3  = (uiOpc >> 8) & 0xFu;
+        int iMd3  = (uiOpc >> 3) & 7;
+        int iRg3  = uiOpc & 7;
+
+        if (iMd3 == 1) /* DBcc Dn,disp16 : mode=1 (An) repurposed */
+        {
+            st_u16_t   uiD16;
+            st_i16_t   iDisp16;
+            st_u32_t   uiPCNext;
+            st_i16_t   iWord;
+
+            uiD16    = cpu_fetch_word(ptCpu, ptMachine);
+            iDisp16  = (st_i16_t)uiD16;
+            uiPCNext = ptCpu->uiPC;   /* PC after extension word */
+
+            if (!cpu_eval_cc(ptCpu, iCc3))
+            {
+                /* Decrement Dn.W */
+                iWord = (st_i16_t)(ptCpu->auDn[iRg3] & 0xFFFFu);
+                iWord--;
+                ptCpu->auDn[iRg3] = (ptCpu->auDn[iRg3] & 0xFFFF0000u)
+                                     | (st_u16_t)iWord;
+                if (iWord != (st_i16_t)-1)
+                {
+                    /* Branch: target = addr_of_ext_word + displacement */
+                    ptCpu->uiPC = ((uiPCNext - 2u)
+                                   + (st_u32_t)(st_i32_t)iDisp16)
+                                  & 0x00FFFFFFu;
+                }
+            }
+            return ST_NO_ERROR;
+        }
+
+        /* Scc EA: write 0xFF if condition true, 0x00 if false */
+        {
+            st_u8_t uiScc = cpu_eval_cc(ptCpu, iCc3) ? 0xFFu : 0x00u;
+            return cpu_ea_write(ptCpu, ptMachine, iMd3, iRg3, SZ_BYTE,
+                                (st_u32_t)uiScc);
+        }
     }
 
     if      (iSzCode == 0) iSz = SZ_BYTE;
@@ -1657,6 +1770,75 @@ static st_error_t cpu_exec_groupE(cpu68k_t     *ptCpu,
 }
 
 /*
+ * cpu_exec_branch() - BRA / BSR / Bcc (group 0x6).
+ *
+ * Encoding: 0110 cccc dddddddd
+ *   cccc = 0 → BRA (unconditional)
+ *   cccc = 1 → BSR (branch to subroutine)
+ *   cccc = 2-15 → Bcc (conditional)
+ *   d = 0x00 → 16-bit extension word displacement
+ *   d != 0x00 → sign-extended 8-bit displacement
+ *
+ * Displacement is added to the PC value immediately after the opcode
+ * word (before any extension word) — this is the base for the target.
+ * The return address for BSR is the PC after all extension words.
+ */
+static st_error_t cpu_exec_branch(cpu68k_t     *ptCpu,
+                                    st_machine_t *ptMachine,
+                                    st_u16_t      uiOpc)
+{
+    int        iCc     = (uiOpc >> 8) & 0xFu;
+    st_i8_t    iDisp8  = (st_i8_t)(uiOpc & 0xFFu);
+    st_i32_t   iDisp;
+    st_u32_t   uiBase;    /* PC after opcode (displacement base) */
+    st_u32_t   uiTarget;
+    st_error_t eR;
+
+    uiBase = ptCpu->uiPC;   /* PC already advanced past opcode word */
+
+    if (iDisp8 == 0)
+    {
+        /* Word displacement follows */
+        st_u16_t uiExt = cpu_fetch_word(ptCpu, ptMachine);
+        iDisp = (st_i32_t)(st_i16_t)uiExt;
+    }
+    else
+    {
+        iDisp = (st_i32_t)iDisp8;
+    }
+
+    /* Target = base (after opcode) + displacement */
+    uiTarget = (uiBase + (st_u32_t)iDisp) & 0x00FFFFFFu;
+
+    if (iCc == 0) /* BRA — unconditional */
+    {
+        ptCpu->uiPC = uiTarget;
+        return ST_NO_ERROR;
+    }
+
+    if (iCc == 1) /* BSR — push return address then branch */
+    {
+        /* Return address = PC after full instruction (past ext word) */
+        eR = cpu_push_long(ptCpu, ptMachine, ptCpu->uiPC);
+        if (eR != ST_NO_ERROR)
+        {
+            LOG_ERROR("BSR: stack push failed SP=0x%06X",
+                      ptCpu->auAn[7] + 4u);
+            return ST_ERROR;
+        }
+        ptCpu->uiPC = uiTarget;
+        return ST_NO_ERROR;
+    }
+
+    /* Bcc — conditional branch */
+    if (cpu_eval_cc(ptCpu, iCc))
+        ptCpu->uiPC = uiTarget;
+    /* else: fall through, PC already at next instruction */
+
+    return ST_NO_ERROR;
+}
+
+/*
  * cpu_exec_ext() - EXT.W Dn or EXT.L Dn  (group 0x4).
  *
  * EXT.W : 0100 1000 1000 0DDD  (0xFFF8 == 0x4880)
@@ -1688,6 +1870,181 @@ static st_error_t cpu_exec_ext(cpu68k_t *ptCpu, st_u16_t uiOpc)
 
     cpu_flags_nz(ptCpu, uiVal, iSz);
     cpu_flags_clr_vc(ptCpu);
+    return ST_NO_ERROR;
+}
+
+/*
+ * cpu_exec_misc4e() - Group 0x4 instructions with upper byte 0x4E.
+ *
+ * NOP (0x4E71), STOP (0x4E72), RTE (0x4E73), RTS (0x4E75),
+ * RTR (0x4E77), TRAP #n (0x4E40-0x4E4F), LINK An,#d16 (0x4E50-0x4E57),
+ * UNLK An (0x4E58-0x4E5F), JSR EA (0x4E80-0x4EBF), JMP EA (0x4EC0-0x4EFF).
+ */
+static st_error_t cpu_exec_misc4e(cpu68k_t     *ptCpu,
+                                    st_machine_t *ptMachine,
+                                    st_u16_t      uiOpc)
+{
+    st_u16_t   uiExt;
+    st_u32_t   uiAddr;
+    st_u32_t   uiTmp;
+    st_u16_t   uiW;
+    int        iAn;
+    int        iN;
+    int        iMode;
+    int        iReg;
+    st_error_t eR;
+
+    /* NOP */
+    if (uiOpc == 0x4E71u)
+        return ST_NO_ERROR;
+
+    /* STOP #imm — load immediate → SR, halt CPU */
+    if (uiOpc == 0x4E72u)
+    {
+        uiExt = cpu_fetch_word(ptCpu, ptMachine);
+        ptCpu->uiSR   = uiExt;
+        ptCpu->eState = CPU_STATE_STOPPED;
+        LOG_INFO("STOP #0x%04X — CPU halted", (unsigned)uiExt);
+        return ST_NO_ERROR;
+    }
+
+    /* RTE: pop SR (word) then PC (long) — restore full context */
+    if (uiOpc == 0x4E73u)
+    {
+        eR = cpu_pop_word(ptCpu, ptMachine, &uiW);
+        if (eR != ST_NO_ERROR)
+        {
+            LOG_ERROR("RTE: stack pop SR failed SP=0x%06X",
+                      ptCpu->auAn[7]);
+            return ST_ERROR;
+        }
+        ptCpu->uiSR = uiW;
+        eR = cpu_pop_long(ptCpu, ptMachine, &uiTmp);
+        if (eR != ST_NO_ERROR)
+        {
+            LOG_ERROR("RTE: stack pop PC failed SP=0x%06X",
+                      ptCpu->auAn[7]);
+            return ST_ERROR;
+        }
+        ptCpu->uiPC = uiTmp & 0x00FFFFFFu;
+        return ST_NO_ERROR;
+    }
+
+    /* RTS: pop PC from stack */
+    if (uiOpc == 0x4E75u)
+    {
+        eR = cpu_pop_long(ptCpu, ptMachine, &uiTmp);
+        if (eR != ST_NO_ERROR)
+        {
+            LOG_ERROR("RTS: stack pop failed SP=0x%06X",
+                      ptCpu->auAn[7]);
+            return ST_ERROR;
+        }
+        ptCpu->uiPC = uiTmp & 0x00FFFFFFu;
+        return ST_NO_ERROR;
+    }
+
+    /* RTR: pop CCR (word) then PC — restores condition codes only */
+    if (uiOpc == 0x4E77u)
+    {
+        eR = cpu_pop_word(ptCpu, ptMachine, &uiW);
+        if (eR != ST_NO_ERROR)
+        {
+            LOG_ERROR("RTR: stack pop CCR failed SP=0x%06X",
+                      ptCpu->auAn[7]);
+            return ST_ERROR;
+        }
+        /* RTR: only CCR (lower byte: X N Z V C) is restored */
+        ptCpu->uiSR = (ptCpu->uiSR & 0xFF00u) | (uiW & 0x00FFu);
+        eR = cpu_pop_long(ptCpu, ptMachine, &uiTmp);
+        if (eR != ST_NO_ERROR)
+        {
+            LOG_ERROR("RTR: stack pop PC failed SP=0x%06X",
+                      ptCpu->auAn[7]);
+            return ST_ERROR;
+        }
+        ptCpu->uiPC = uiTmp & 0x00FFFFFFu;
+        return ST_NO_ERROR;
+    }
+
+    /* TRAP #n: 0100 1110 0100 NNNN */
+    if ((uiOpc & 0xFFF0u) == 0x4E40u)
+    {
+        iN = uiOpc & 0xFu;
+        return cpu_raise_exception(ptCpu, ptMachine, CPU_VEC_TRAP(iN));
+    }
+
+    /* LINK An,#d16: 0100 1110 0101 0AAA */
+    if ((uiOpc & 0xFFF8u) == 0x4E50u)
+    {
+        iAn  = uiOpc & 7;
+        uiExt = cpu_fetch_word(ptCpu, ptMachine);
+        /* Push An (saved value) to stack */
+        eR = cpu_push_long(ptCpu, ptMachine, ptCpu->auAn[iAn]);
+        if (eR != ST_NO_ERROR)
+        {
+            LOG_ERROR("LINK: push An failed SP=0x%06X",
+                      ptCpu->auAn[7] + 4u);
+            return ST_ERROR;
+        }
+        /* An = SP (frame pointer) */
+        ptCpu->auAn[iAn] = ptCpu->auAn[7];
+        /* SP += sign_ext(d16) — displacement is typically negative */
+        ptCpu->auAn[7] += (st_u32_t)(st_i32_t)(st_i16_t)uiExt;
+        return ST_NO_ERROR;
+    }
+
+    /* UNLK An: 0100 1110 0101 1AAA */
+    if ((uiOpc & 0xFFF8u) == 0x4E58u)
+    {
+        iAn = uiOpc & 7;
+        /* SP = An (frame pointer) */
+        ptCpu->auAn[7] = ptCpu->auAn[iAn];
+        /* Pop saved An from stack */
+        eR = cpu_pop_long(ptCpu, ptMachine, &uiTmp);
+        if (eR != ST_NO_ERROR)
+        {
+            LOG_ERROR("UNLK: pop An failed SP=0x%06X",
+                      ptCpu->auAn[7]);
+            return ST_ERROR;
+        }
+        ptCpu->auAn[iAn] = uiTmp;
+        return ST_NO_ERROR;
+    }
+
+    /* JSR EA: 0100 1110 10 MMMRRR */
+    if ((uiOpc & 0xFFC0u) == 0x4E80u)
+    {
+        iMode = (uiOpc >> 3) & 7;
+        iReg  = uiOpc & 7;
+        eR    = cpu_ea_calc_addr(ptCpu, ptMachine, iMode, iReg, &uiAddr);
+        if (eR != ST_NO_ERROR)
+            return ST_ERROR;
+        /* Push return address (PC after full instruction + ext words) */
+        eR = cpu_push_long(ptCpu, ptMachine, ptCpu->uiPC);
+        if (eR != ST_NO_ERROR)
+        {
+            LOG_ERROR("JSR: stack push failed SP=0x%06X",
+                      ptCpu->auAn[7] + 4u);
+            return ST_ERROR;
+        }
+        ptCpu->uiPC = uiAddr;
+        return ST_NO_ERROR;
+    }
+
+    /* JMP EA: 0100 1110 11 MMMRRR */
+    if ((uiOpc & 0xFFC0u) == 0x4EC0u)
+    {
+        iMode = (uiOpc >> 3) & 7;
+        iReg  = uiOpc & 7;
+        eR    = cpu_ea_calc_addr(ptCpu, ptMachine, iMode, iReg, &uiAddr);
+        if (eR != ST_NO_ERROR)
+            return ST_ERROR;
+        ptCpu->uiPC = uiAddr;
+        return ST_NO_ERROR;
+    }
+
+    LOG_TODO("cpu_exec_misc4e: unimplemented 0x%04X", (unsigned)uiOpc);
     return ST_NO_ERROR;
 }
 
@@ -1730,7 +2087,11 @@ static st_error_t cpu_exec_misc4(cpu68k_t     *ptCpu,
     if ((uiOpc & 0xFF00u) == 0x4A00u)
         return cpu_exec_unary(ptCpu, ptMachine, uiOpc, 3);
 
-    LOG_TODO("cpu_exec_misc4: unimplemented 0x%04X (UC23)",
+    /* 0x4Exx: NOP/STOP/RTE/RTS/RTR/TRAP/LINK/UNLK/JSR/JMP */
+    if ((uiOpc & 0xFF00u) == 0x4E00u)
+        return cpu_exec_misc4e(ptCpu, ptMachine, uiOpc);
+
+    LOG_TODO("cpu_exec_misc4: unimplemented 0x%04X",
              (unsigned)uiOpc);
     return ST_NO_ERROR;
 }
@@ -1840,8 +2201,12 @@ st_error_t cpu_step(cpu68k_t          *ptCpu,
         eR = cpu_exec_misc4(ptCpu, ptMachine, uiOpcode);
         break;
 
-    case 0x5: /* ADDQ / SUBQ */
+    case 0x5: /* ADDQ / SUBQ / Scc / DBcc */
         eR = cpu_exec_group5(ptCpu, ptMachine, uiOpcode);
+        break;
+
+    case 0x6: /* BRA / BSR / Bcc */
+        eR = cpu_exec_branch(ptCpu, ptMachine, uiOpcode);
         break;
 
     case 0x7: /* MOVEQ */
@@ -1874,7 +2239,7 @@ st_error_t cpu_step(cpu68k_t          *ptCpu,
 
     default:
         LOG_TODO("cpu_step: unimplemented opcode 0x%04X "
-                 "at PC=0x%06X (UC23)",
+                 "at PC=0x%06X (UC24+)",
                  (unsigned)uiOpcode, uiPCBefore);
         eR = ST_NO_ERROR;
         break;
@@ -1895,13 +2260,59 @@ st_error_t cpu_raise_exception(cpu68k_t     *ptCpu,
                                  st_machine_t *ptMachine,
                                  st_u32_t      uiVector)
 {
+    st_u16_t   uiSR;
+    st_u32_t   uiHandler;
+    st_error_t eR;
+
     LOG_TRACE("ptCpu=%p vector=0x%08X", (void *)ptCpu, uiVector);
     if (ptCpu == NULL || ptMachine == NULL)
     {
         LOG_ERROR("NULL parameter");
         return ST_ERROR;
     }
-    LOG_TODO("cpu_raise_exception: exception stacking not yet "
-             "implemented (UC23) - vector=0x%08X", uiVector);
+
+    /* Save current SR before modification */
+    uiSR = ptCpu->uiSR;
+
+    /* Switch to supervisor mode if in user mode */
+    if (!(uiSR & CPU_SR_S))
+    {
+        st_u32_t uiUSP  = ptCpu->auAn[7];
+        ptCpu->auAn[7]  = ptCpu->uiSSP;
+        ptCpu->uiSSP    = uiUSP;
+        ptCpu->uiSR    |= (st_u16_t)CPU_SR_S;
+    }
+
+    /* Exception frame: push PC (long) then SR (word)
+     * Result on stack (low addr): SR | PC_hi | PC_lo  */
+    eR = cpu_push_long(ptCpu, ptMachine, ptCpu->uiPC);
+    if (eR != ST_NO_ERROR)
+    {
+        LOG_ERROR("exception: push PC failed SP=0x%06X",
+                  ptCpu->auAn[7] + 4u);
+        ptCpu->eState = CPU_STATE_HALTED;
+        return ST_ERROR;
+    }
+    eR = cpu_push_word(ptCpu, ptMachine, uiSR);
+    if (eR != ST_NO_ERROR)
+    {
+        LOG_ERROR("exception: push SR failed SP=0x%06X",
+                  ptCpu->auAn[7] + 2u);
+        ptCpu->eState = CPU_STATE_HALTED;
+        return ST_ERROR;
+    }
+
+    /* Load handler address from vector table */
+    eR = st_read_long(ptMachine, uiVector, &uiHandler);
+    if (eR != ST_NO_ERROR)
+    {
+        LOG_ERROR("exception: read vector 0x%08X failed", uiVector);
+        ptCpu->eState = CPU_STATE_HALTED;
+        return ST_ERROR;
+    }
+
+    ptCpu->uiPC = uiHandler & 0x00FFFFFFu;
+    LOG_INFO("exception vector=0x%06X handler=0x%06X SP=0x%06X",
+             uiVector, ptCpu->uiPC, ptCpu->auAn[7]);
     return ST_NO_ERROR;
 }

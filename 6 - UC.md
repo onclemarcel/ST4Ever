@@ -2129,6 +2129,65 @@ Référence complète des différences syntaxiques : **`DISASM_SYNTAX.md`** à l
 - UC23 : Scc/DBcc (groupe 0x5, size=3) — actuellement LOG_TODO dans `cpu_exec_group5()`.
 - UC23 : Division par zéro DIVU/DIVS — actuellement LOG_TODO ; doit déclencher `cpu_raise_exception(CPU_VEC_DIV_ZERO)`.
 - `iCycles` : hardcodé à 4 dans `cpu_step()`. Non affiné en UC22 (timings 68000 complexes, différé après UC23 quand le flot de contrôle sera complet).
+- **RÉSOLU UC23** : `cpu_exec_misc4()` — opcodes non-couverts : RTS, NOP, JSR, JMP, TRAP, LINK, UNLK, RTE, RTR maintenant implémentés via `cpu_exec_misc4e()`.
+- **RÉSOLU UC23** : Scc/DBcc (groupe 0x5, size=3) implémentés dans `cpu_exec_group5()`.
+- **RÉSOLU UC23** : Division par zéro DIVU/DIVS reste LOG_TODO (exception UC24-bis ou UC25).
+
+---
+
+## 32 Use Case 23 (UC23) — ✓ VALIDÉ (2026-06-08)
+
+**Périmètre fonctionnel implémenté :**
+- `src/CPU.c` étendu avec le flot de contrôle 68000 complet :
+  - **`cpu_push_long/word()` + `cpu_pop_long/word()`** : helpers pile superviseur — atomiques, accès via `st_write/read_long/word()` sur le SSP courant.
+  - **`cpu_eval_cc(ptCpu, iCc)`** : évaluation des 16 conditions 68000 (T/F/HI/LS/CC/CS/NE/EQ/VC/VS/PL/MI/GE/LT/GT/LE) depuis les flags N/Z/V/C de SR.
+  - **`cpu_exec_branch()` (groupe 0x6)** : BRA (cc=0), BSR (cc=1), Bcc (cc=2..15). disp8=0 → word extension. BSR pousse PC (après instruction complète) sur SSP avant saut.
+  - **`cpu_exec_misc4e()` (groupe 0x4E)** : NOP (0x4E71), STOP (0x4E72), RTE (0x4E73), RTS (0x4E75), RTR (0x4E77), TRAP #n (0x4E40-0x4E4F), LINK An (0x4E50-0x4E57), UNLK An (0x4E58-0x4E5F), JSR EA (0x4E80-0x4EBF), JMP EA (0x4EC0-0x4EFF).
+  - **`cpu_exec_group5()` étendu** : size=3 → si mode=1 : DBcc (décrémente Dn.W, branche si cc=false ET Dn.W ≠ −1) ; sinon : Scc (écrit 0xFF ou 0x00 dans l'EA byte).
+  - **`cpu_raise_exception()` complet** : (1) sauvegarde SR ; (2) si mode user, swap auAn[7] ↔ uiSSP et active CPU_SR_S ; (3) push PC long sur SSP ; (4) push SR saved word sur SSP−2 ; (5) lit handler depuis table vecteurs, charge dans PC. En cas d'échec → CPU_STATE_HALTED.
+- `use_cases/use_case_23.c` : TEST MATRIX **44N + 8R + 0S = 52 tests**, 0 failure (79 assertions au total).
+- `src/common.h` : `ST_APP_VERSION` → `"0.23.0"`.
+
+**Architecture pile superviseur (UC23) :**
+- Layout frame exception : `[SSP+0..+1]` = SR sauvé (word), `[SSP+2..+5]` = PC sauvé (long big-endian). RTE dépile dans l'ordre inverse : pop SR word, pop PC long.
+- RTR dépile uniquement les 5 bits CCR (bas de SR) depuis le word, préservant S/T/I du SR courant.
+- LINK : push An → copy SP → An + SP = SP + disp16 signé (allocation frame).
+- UNLK : SP = An → pop long → An (restauration frame).
+- DBcc : base de branchement = adresse du mot extension (uiPCNext − 2) + disp signé. Chute si condition vraie OU Dn.W atteint −1 (wrap de 0 à 0xFFFF = −1 en signé 16 bits).
+
+**Contrats comportementaux validés :**
+
+*`cpu_exec_branch()` — BRA/BSR/Bcc*
+- disp8 ≠ 0 → déplacement = (st_i8_t)disp8 sign-étendu à 32 bits, base = PC après opcode word
+- disp8 = 0 → déplacement = (st_i16_t)extension word, base = PC après opcode word
+- BSR : push PC calculé APRÈS extension word (pas après opcode word uniquement), PUIS saut
+- Bcc non-pris : PC avance normalement (après extension word le cas échéant) — aucune modification pile
+
+*`cpu_raise_exception()` — frame et mode*
+- Ordre push : long PC en premier (adresse haute) puis word SR (adresse basse) → SP final = SSP − 6
+- Si CPU en user mode avant exception : swap auAn[7] ↔ uiSSP AVANT le push, set CPU_SR_S
+- Vecteur invalide (handler lu = 0) → `eState = CPU_STATE_HALTED` ; `cpu_step()` sur CPU halted = no-op ST_NO_ERROR
+
+*`cpu_eval_cc()` — 16 conditions*
+- HI = !C && !Z ; LS = C || Z
+- GE = !(N ^ V) ; LT = N ^ V ; GT = !Z && !(N ^ V) ; LE = Z || (N ^ V)
+- T toujours vrai (branch inconditionnel), F toujours faux (DBcc-style)
+
+*DBcc (groupe 0x5, size=3, mode=1)*
+- Condition évaluée EN PREMIER : si vraie → fall-through sans décrémenter
+- Si fausse : décrémenter Dn.W (wraps 16 bits), si résultat ≠ −1 → branche ; si = −1 → fall-through
+- La base du branchement est l'adresse du mot d'extension, pas celle de l'opcode
+
+*`cpu_exec_misc4e()` — RTR vs RTE*
+- RTR : `pop_word` → applique seulement bits CCR (0x001F) au SR courant (préserve S/T/I) ; `pop_long` → PC
+- RTE : `pop_word` → remplace SR complet ; `pop_long` → PC
+
+**Points d'attention pour les UCs suivants :**
+- UC23-bis : MOVEM (MOVEM.L D0-D7/A0-A7,-(An) et (An)+,regs) et ADDA.W/SUBA.W — nécessaires pour les programmes réels avant l'émulation complète UC25.
+- UC24 : accès registres hardware ATARI ST (Shifter, MFP, YM2149) sans crash — lecture/écriture adresses $FFxxxx. La carte mémoire ST (RAM 512Ko + registres HW) doit être gérée par `st_machine_t`.
+- UC25 : `iCycles` hardcodé à 4 — non affiné. Le timing 68000 précis (4 à 64 cycles selon instruction+EA) peut être ignoré jusqu'à UC25 sans impacter la correction fonctionnelle.
+- `cpu_step()` sur CPU en état STOPPED : retourne ST_NO_ERROR sans exécuter — contrat validé TC-CPU-147. UC25 devra implémenter le réveil sur interruption.
+- Division par zéro (DIVU/DIVS) : toujours LOG_TODO. En UC25 ou UC24-bis, remplacer par `cpu_raise_exception(CPU_VEC_DIV_ZERO)`.
 
 ---
 
