@@ -2785,6 +2785,7 @@ Each INTENT maps to one or more test blocks in `use_cases/use_case_19.c`.
 | INT-CPU-009  | NULL ptCpu / NULL ptMachine → ST_ERROR; stopped CPU no-op                         |
 | INT-CPU-010  | ADD/SUB/CMP/AND/OR/EOR/NEG/NOT/TST/EXT and shifts/rotations set SR flags correctly per Motorola spec |
 | INT-CPU-011  | BRA/BSR/Bcc branch correctly; JSR/RTS maintain call stack; exception frame pushed and popped correctly; LINK/UNLK manage stack frame; DBcc/Scc evaluate conditions; NOP/STOP behave per spec |
+| INT-CPU-012  | MOVEM.L/W -(An)/(An)+ use reversed/standard register masks correctly, pre/post-increment An by iStep per register, snapshot registers before transfer; MOVEM.W sign-extends 16-bit loads; ADDA.W/SUBA.W sign-extend 16-bit source to 32 bits without modifying SR |
 
 ---
 
@@ -2956,6 +2957,48 @@ Each INTENT maps to one or more test blocks in `use_cases/use_case_19.c`.
 | TC-CPU-151  | [R]  | INT-CPU-011  | BEQ not taken: Z=0 → PC advances past displacement, no jump                                  | ✓ UC23  |
 | TC-CPU-152  | [R]  | INT-CPU-011  | BCC not taken: C=1 → PC advances past displacement, no jump                                  | ✓ UC23  |
 
+### §5.65 UC23-bis: MOVEM + ADDA.W/SUBA.W (TC-CPU-153..178)
+
+| TC ID       | Type | INTENT       | Description                                                                                                    | Status       |
+|-------------|------|--------------|----------------------------------------------------------------------------------------------------------------|--------------|
+| TC-CPU-153  | [N]  | INT-CPU-012  | MOVEM.L D0-D1,-(A7): A7 decremented by 8 (two longs, pre-decrement)                                          | ✓ UC23-bis   |
+| TC-CPU-154  | [N]  | INT-CPU-012  | MOVEM.L D0-D1,-(A7): D1 stored at [old_A7−4] (reversed mask: D1=bit14 processed before D0=bit15)             | ✓ UC23-bis   |
+| TC-CPU-155  | [N]  | INT-CPU-012  | MOVEM.L D0-D1,-(A7): D0 stored at [old_A7−8] (bit15, last processed → lowest address)                        | ✓ UC23-bis   |
+| TC-CPU-156  | [N]  | INT-CPU-012  | MOVEM.L A3,-(A7): A7 decremented by 4; A3 value stored at [old_A7−4]                                         | ✓ UC23-bis   |
+| TC-CPU-157  | [N]  | INT-CPU-012  | MOVEM.L A3,-(A7): stored value equals the snapshot taken before any decrement                                 | ✓ UC23-bis   |
+| TC-CPU-158  | [N]  | INT-CPU-012  | MOVEM.L (A7)+,D0-D1: D0 restored from [SP], D1 from [SP+4]; A7 incremented by 8                              | ✓ UC23-bis   |
+| TC-CPU-159  | [N]  | INT-CPU-012  | MOVEM.L (A7)+,D0-D1: D0 value equals what was stored in memory before the restore                            | ✓ UC23-bis   |
+| TC-CPU-160  | [N]  | INT-CPU-012  | MOVEM.L (A7)+,D0-D1: D1 value equals what was stored in memory before the restore                            | ✓ UC23-bis   |
+| TC-CPU-161  | [N]  | INT-CPU-012  | MOVEM.L (A7)+,D0-D1: A7 incremented to initial SP value after 2-register restore                             | ✓ UC23-bis   |
+| TC-CPU-162  | [N]  | INT-CPU-012  | Round-trip MOVEM.L D0-D2/A0-A1: save then clobber then restore = identity for all 5 registers                | ✓ UC23-bis   |
+| TC-CPU-163  | [N]  | INT-CPU-012  | Round-trip: D0 restored to original value after MOVEM save/restore                                            | ✓ UC23-bis   |
+| TC-CPU-164  | [N]  | INT-CPU-012  | Round-trip: D1 restored to original value after MOVEM save/restore                                            | ✓ UC23-bis   |
+| TC-CPU-165  | [N]  | INT-CPU-012  | Round-trip: D2 restored to original value after MOVEM save/restore                                            | ✓ UC23-bis   |
+| TC-CPU-166  | [N]  | INT-CPU-012  | Round-trip: A0 restored to original value after MOVEM save/restore                                            | ✓ UC23-bis   |
+| TC-CPU-167  | [N]  | INT-CPU-012  | Round-trip: A1 restored to original value after MOVEM save/restore                                            | ✓ UC23-bis   |
+| TC-CPU-168  | [N]  | INT-CPU-012  | Round-trip: SP restored to initial value (save+restore net displacement = 0)                                  | ✓ UC23-bis   |
+| TC-CPU-169  | [N]  | INT-CPU-012  | MOVEM.W (A7)+,D0: negative word (0x8042) sign-extended to 0xFFFF8042 in D0                                   | ✓ UC23-bis   |
+| TC-CPU-170  | [N]  | INT-CPU-012  | MOVEM.W (A7)+,D1: positive word (0x0042) stored as 0x00000042 (no sign change)                               | ✓ UC23-bis   |
+| TC-CPU-171  | [N]  | INT-CPU-012  | MOVEM.W (A7)+,D0-D1: A7 incremented by 4 (two words, step=2 each)                                            | ✓ UC23-bis   |
+| TC-CPU-172  | [N]  | INT-CPU-012  | ADDA.W #$10,A0: positive immediate sign-extended; A0 = A0 + 0x10                                             | ✓ UC23-bis   |
+| TC-CPU-173  | [N]  | INT-CPU-012  | ADDA.W #$8000,A1: negative immediate 0x8000 sign-extended to 0xFFFF8000; A1 = 0x2000 + 0xFFFF8000 = 0xFFFFA000 | ✓ UC23-bis |
+| TC-CPU-174  | [N]  | INT-CPU-012  | SUBA.W #$4,A2: positive immediate; A2 = A2 − 4                                                                | ✓ UC23-bis   |
+| TC-CPU-175  | [N]  | INT-CPU-012  | SUBA.W #$8000,A3: negative immediate; A3 = 0x3000 − 0xFFFF8000 = 0x0000B000                                  | ✓ UC23-bis   |
+| TC-CPU-176  | [N]  | INT-CPU-012  | ADDA.L #$10,A0 regression: full 32-bit source read; A0 = A0 + 0x10                                           | ✓ UC23-bis   |
+| TC-CPU-177  | [N]  | INT-CPU-012  | SUBA.L #$10,A0 regression: full 32-bit source subtracted; A0 = A0 − 0x10                                     | ✓ UC23-bis   |
+| TC-CPU-178  | [R]  | INT-CPU-012  | ADDA.W #1,A0: SR flags not modified (all CCR bits preserved)                                                   | ✓ UC23-bis   |
+
+#### REQ → TC coverage (UC23-bis)
+
+| REQ           | TC(s)                                              | Status        |
+|---------------|----------------------------------------------------|---------------|
+| REQ-CPU-045   | TC-CPU-153 (dispatch after EXT check, integration)| ✓ UC23-bis    |
+| REQ-CPU-046   | TC-CPU-153..157 (reversed mask, pre-decrement)     | ✓ UC23-bis    |
+| REQ-CPU-047   | TC-CPU-158..168 (standard mask, post-increment)    | ✓ UC23-bis    |
+| REQ-CPU-048   | TC-CPU-162..168 (control EA, round-trip)           | ✓ UC23-bis    |
+| REQ-CPU-049   | TC-CPU-169..171 (MOVEM.W sign-extend)              | ✓ UC23-bis    |
+| REQ-CPU-050   | TC-CPU-172..178 (ADDA.W/SUBA.W, no SR change)     | ✓ UC23-bis    |
+
 #### REQ → TC coverage (UC21)
 
 | REQ           | TC(s)                                                              | Status        |
@@ -2983,7 +3026,7 @@ Each INTENT maps to one or more test blocks in `use_cases/use_case_19.c`.
 | UFR-EXE-004   | REQ-CPU-015, REQ-CPU-016                           | TC-CPU-010..011, TC-CPU-037              | ✓ UC21   |
 | UFR-EXE-005   | REQ-CPU-013                                        | TC-CPU-039..040                          | ✓ UC21   |
 | UFR-EXE-006   | REQ-CPU-010, REQ-CPU-022..031                      | TC-CPU-056..092                          | ✓ UC22   |
-| UFR-EXE-007   | REQ-CPU-011, REQ-CPU-032..044                      | TC-CPU-101..152                          | ✓ UC23   |
+| UFR-EXE-007   | REQ-CPU-011, REQ-CPU-032..050                      | TC-CPU-101..178                          | ✓ UC23-bis |
 
 #### REQ → TC coverage (UC22)
 

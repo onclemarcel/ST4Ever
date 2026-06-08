@@ -1808,12 +1808,13 @@ static st_error_t line_cmd_umount(const parsed_cmd_t *ptParsed,
                 strncpy(szOutPath, szDirArg, ST_MAX_PATH - 1);
             else
                 snprintf(szOutPath, sizeof(szOutPath),
-                         "%s/disk", ptCtx->szCwd);
+                         "%.*s/disk",
+                         (int)(sizeof(szOutPath) - 6), ptCtx->szCwd);
         }
         else
         {
-            snprintf(szOutPath, sizeof(szOutPath), "%s/disk%s",
-                     ptCtx->szCwd,
+            snprintf(szOutPath, sizeof(szOutPath), "%.*s/disk%s",
+                     (int)(sizeof(szOutPath) - 10), ptCtx->szCwd,
                      (eSaveFmt == MOUNT_SAVE_MSA) ? ".msa" : ".st");
         }
         szOutPath[ST_MAX_PATH - 1] = '\0';
@@ -1867,21 +1868,24 @@ static st_error_t line_cmd_umount(const parsed_cmd_t *ptParsed,
             {
                 eSaveFmt = MOUNT_SAVE_ST;
                 snprintf(szOutPath, sizeof(szOutPath),
-                         "%s/disk.st", ptCtx->szCwd);
+                         "%.*s/disk.st",
+                         (int)(sizeof(szOutPath) - 9), ptCtx->szCwd);
                 bSaveRequested = ST_TRUE;
             }
             else if (iKey == (int)'2')
             {
                 eSaveFmt = MOUNT_SAVE_MSA;
                 snprintf(szOutPath, sizeof(szOutPath),
-                         "%s/disk.msa", ptCtx->szCwd);
+                         "%.*s/disk.msa",
+                         (int)(sizeof(szOutPath) - 10), ptCtx->szCwd);
                 bSaveRequested = ST_TRUE;
             }
             else if (iKey == (int)'3')
             {
                 eSaveFmt = MOUNT_SAVE_DIR;
                 snprintf(szOutPath, sizeof(szOutPath),
-                         "%s/disk", ptCtx->szCwd);
+                         "%.*s/disk",
+                         (int)(sizeof(szOutPath) - 6), ptCtx->szCwd);
                 bSaveRequested = ST_TRUE;
             }
             else
@@ -1979,8 +1983,8 @@ static st_error_t line_cmd_image(const parsed_cmd_t *ptParsed,
     if (g_line_ptMountView != NULL)
     {
         if (!bHavePath)
-            snprintf(szOutPath, sizeof(szOutPath), "%sdisk.%s",
-                     szCwdBuf, szExt);
+            snprintf(szOutPath, sizeof(szOutPath), "%.*sdisk.%s",
+                     (int)(sizeof(szOutPath) - 9), szCwdBuf, szExt);
         if (bBootable)
             mount_make_bootable(g_line_ptMountView->ptImg);
         eResult = mount_save_image(g_line_ptMountView, eFmt, szOutPath);
@@ -2011,8 +2015,8 @@ static st_error_t line_cmd_image(const parsed_cmd_t *ptParsed,
     }
 
     if (!bHavePath)
-        snprintf(szOutPath, sizeof(szOutPath), "%sdisk.%s",
-                 szCwdBuf, szExt);
+        snprintf(szOutPath, sizeof(szOutPath), "%.*sdisk.%s",
+                 (int)(sizeof(szOutPath) - 9), szCwdBuf, szExt);
 
     /* Silently mount the directory to build the image (no GUI window) */
     eResult = mount_view_open(szSrcPath, ptCtx, &ptTmpView);

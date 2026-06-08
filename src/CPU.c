@@ -1221,14 +1221,26 @@ static st_error_t cpu_exec_groupD(cpu68k_t     *ptCpu,
     st_u32_t   uiRes;
     st_error_t eR;
 
-    /* ADDA: size code 3 (word) or when dest is An and sz=long */
+    /* ADDA: iSzCode==3 (bits 7-6 == 11); iDir distinguishes .W vs .L */
     if (iSzCode == 3)
     {
-        /* ADDA.L */
-        eR = cpu_ea_read(ptCpu, ptMachine, iMode, iRn, SZ_LONG, &uiSrc);
-        if (eR != ST_NO_ERROR)
-            return ST_ERROR;
-        ptCpu->auAn[iReg] += uiSrc;
+        if (iDir == 1)
+        {
+            /* ADDA.L: read full 32-bit source, add to An */
+            eR = cpu_ea_read(ptCpu, ptMachine, iMode, iRn, SZ_LONG, &uiSrc);
+            if (eR != ST_NO_ERROR)
+                return ST_ERROR;
+            ptCpu->auAn[iReg] += uiSrc;
+        }
+        else
+        {
+            /* ADDA.W: read 16-bit source, sign-extend, add to An */
+            eR = cpu_ea_read(ptCpu, ptMachine, iMode, iRn, SZ_WORD, &uiSrc);
+            if (eR != ST_NO_ERROR)
+                return ST_ERROR;
+            ptCpu->auAn[iReg] +=
+                (st_u32_t)(st_i32_t)(st_i16_t)(uiSrc & 0xFFFFu);
+        }
         return ST_NO_ERROR;
     }
 
@@ -1282,13 +1294,26 @@ static st_error_t cpu_exec_group9(cpu68k_t     *ptCpu,
     st_u32_t   uiRes;
     st_error_t eR;
 
+    /* SUBA: iSzCode==3 (bits 7-6 == 11); iDir distinguishes .W vs .L */
     if (iSzCode == 3)
     {
-        /* SUBA.L */
-        eR = cpu_ea_read(ptCpu, ptMachine, iMode, iRn, SZ_LONG, &uiSrc);
-        if (eR != ST_NO_ERROR)
-            return ST_ERROR;
-        ptCpu->auAn[iReg] -= uiSrc;
+        if (iDir == 1)
+        {
+            /* SUBA.L: read full 32-bit source, subtract from An */
+            eR = cpu_ea_read(ptCpu, ptMachine, iMode, iRn, SZ_LONG, &uiSrc);
+            if (eR != ST_NO_ERROR)
+                return ST_ERROR;
+            ptCpu->auAn[iReg] -= uiSrc;
+        }
+        else
+        {
+            /* SUBA.W: read 16-bit source, sign-extend, subtract from An */
+            eR = cpu_ea_read(ptCpu, ptMachine, iMode, iRn, SZ_WORD, &uiSrc);
+            if (eR != ST_NO_ERROR)
+                return ST_ERROR;
+            ptCpu->auAn[iReg] -=
+                (st_u32_t)(st_i32_t)(st_i16_t)(uiSrc & 0xFFFFu);
+        }
         return ST_NO_ERROR;
     }
 
@@ -2049,6 +2074,166 @@ static st_error_t cpu_exec_misc4e(cpu68k_t     *ptCpu,
 }
 
 /*
+ * cpu_exec_movem() - MOVEM register list save/restore.
+ *
+ * dir=0 (0x48xx): registers → memory.
+ *   mode 4 (-(An)): pre-decrement, reversed mask
+ *     bit 0=A7 bit 7=A0 bit 8=D7 bit 15=D0
+ *   other modes: sequential write, An unchanged.
+ *
+ * dir=1 (0x4Cxx): memory → registers.
+ *   mode 3 ((An)+): post-increment, standard mask.
+ *   other modes: sequential read, An unchanged.
+ *
+ * Standard mask (all except -(An)):
+ *   bit 0=D0 .. bit 7=D7, bit 8=A0 .. bit 15=A7
+ *
+ * Word transfers (.W) are sign-extended to 32 bits on load.
+ */
+static st_error_t cpu_exec_movem(cpu68k_t     *ptCpu,
+                                   st_machine_t *ptMachine,
+                                   st_u16_t      uiOpc)
+{
+    int        iDir;
+    int        iSzCode;
+    int        iMode;
+    int        iReg;
+    int        iStep;
+    st_u16_t   uiMask;
+    st_u32_t   auSnap[16];
+    st_u32_t   uiAddr;
+    st_u32_t   uiLong;
+    st_u16_t   uiWord;
+    int        i;
+    st_error_t eR;
+
+    iDir    = (uiOpc >> 10) & 1;
+    iSzCode = (uiOpc >>  6) & 1;   /* 0 = word, 1 = long */
+    iMode   = (uiOpc >>  3) & 7;
+    iReg    = uiOpc & 7;
+    iStep   = iSzCode ? 4 : 2;
+
+    if (st_read_word(ptMachine, ptCpu->uiPC, &uiMask) != ST_NO_ERROR)
+        return ST_ERROR;
+    ptCpu->uiPC += 2u;
+
+    /* Snapshot all registers (handles the An-in-list edge case correctly) */
+    for (i = 0; i < 8; i++)
+    {
+        auSnap[i]     = ptCpu->auDn[i];
+        auSnap[i + 8] = ptCpu->auAn[i];
+    }
+
+    if (iDir == 0)
+    {
+        /* --- register → memory --- */
+        if (iMode == 4)
+        {
+            /* -(An): reversed mask, pre-decrement each transfer */
+            uiAddr = ptCpu->auAn[iReg];
+            for (i = 0; i <= 15; i++)
+            {
+                if (!((uiMask >> i) & 1u))
+                    continue;
+                /* reversed: bit 0=A7..bit 7=A0, bit 8=D7..bit 15=D0 */
+                uiLong = (i < 8) ? auSnap[8 + (7 - i)] : auSnap[15 - i];
+                uiAddr -= (st_u32_t)iStep;
+                if (iSzCode)
+                    eR = st_write_long(ptMachine, uiAddr, uiLong);
+                else
+                    eR = st_write_word(ptMachine, uiAddr,
+                                       (st_u16_t)(uiLong & 0xFFFFu));
+                if (eR != ST_NO_ERROR)
+                    return ST_ERROR;
+            }
+            ptCpu->auAn[iReg] = uiAddr;
+        }
+        else
+        {
+            /* control EA: sequential write, An unchanged */
+            eR = cpu_ea_calc_addr(ptCpu, ptMachine, iMode, iReg, &uiAddr);
+            if (eR != ST_NO_ERROR)
+                return ST_ERROR;
+            for (i = 0; i <= 15; i++)
+            {
+                if (!((uiMask >> i) & 1u))
+                    continue;
+                /* standard: bit 0=D0..bit 7=D7, bit 8=A0..bit 15=A7 */
+                uiLong = (i < 8) ? auSnap[i] : auSnap[i];
+                if (iSzCode)
+                    eR = st_write_long(ptMachine, uiAddr, uiLong);
+                else
+                    eR = st_write_word(ptMachine, uiAddr,
+                                       (st_u16_t)(uiLong & 0xFFFFu));
+                if (eR != ST_NO_ERROR)
+                    return ST_ERROR;
+                uiAddr += (st_u32_t)iStep;
+            }
+        }
+    }
+    else
+    {
+        /* --- memory → register --- */
+        if (iMode == 3)
+        {
+            /* (An)+: post-increment, standard mask */
+            uiAddr = ptCpu->auAn[iReg];
+            for (i = 0; i <= 15; i++)
+            {
+                if (!((uiMask >> i) & 1u))
+                    continue;
+                if (iSzCode)
+                {
+                    if (st_read_long(ptMachine, uiAddr, &uiLong) != ST_NO_ERROR)
+                        return ST_ERROR;
+                }
+                else
+                {
+                    if (st_read_word(ptMachine, uiAddr, &uiWord) != ST_NO_ERROR)
+                        return ST_ERROR;
+                    uiLong = (st_u32_t)(st_i32_t)(st_i16_t)uiWord;
+                }
+                uiAddr += (st_u32_t)iStep;
+                if (i < 8)
+                    ptCpu->auDn[i] = uiLong;
+                else
+                    ptCpu->auAn[i - 8] = uiLong;
+            }
+            ptCpu->auAn[iReg] = uiAddr;
+        }
+        else
+        {
+            /* control EA: sequential read, An unchanged */
+            eR = cpu_ea_calc_addr(ptCpu, ptMachine, iMode, iReg, &uiAddr);
+            if (eR != ST_NO_ERROR)
+                return ST_ERROR;
+            for (i = 0; i <= 15; i++)
+            {
+                if (!((uiMask >> i) & 1u))
+                    continue;
+                if (iSzCode)
+                {
+                    if (st_read_long(ptMachine, uiAddr, &uiLong) != ST_NO_ERROR)
+                        return ST_ERROR;
+                }
+                else
+                {
+                    if (st_read_word(ptMachine, uiAddr, &uiWord) != ST_NO_ERROR)
+                        return ST_ERROR;
+                    uiLong = (st_u32_t)(st_i32_t)(st_i16_t)uiWord;
+                }
+                uiAddr += (st_u32_t)iStep;
+                if (i < 8)
+                    ptCpu->auDn[i] = uiLong;
+                else
+                    ptCpu->auAn[i - 8] = uiLong;
+            }
+        }
+    }
+    return ST_NO_ERROR;
+}
+
+/*
  * cpu_exec_misc4() - Dispatch group 0x4 instructions.
  */
 static st_error_t cpu_exec_misc4(cpu68k_t     *ptCpu,
@@ -2059,9 +2244,13 @@ static st_error_t cpu_exec_misc4(cpu68k_t     *ptCpu,
     if ((uiOpc & 0xF1C0u) == 0x41C0u)
         return cpu_exec_lea(ptCpu, ptMachine, uiOpc);
 
-    /* EXT.W / EXT.L */
+    /* EXT.W / EXT.L (must come before MOVEM — same upper byte) */
     if ((uiOpc & 0xFFF8u) == 0x4880u || (uiOpc & 0xFFF8u) == 0x48C0u)
         return cpu_exec_ext(ptCpu, uiOpc);
+
+    /* MOVEM: 0100 1d00 1s MM RRR (d=0: reg→mem, d=1: mem→reg) */
+    if ((uiOpc & 0xFB80u) == 0x4880u)
+        return cpu_exec_movem(ptCpu, ptMachine, uiOpc);
 
     /* SWAP: 0100 1000 0100 0DDD */
     if ((uiOpc & 0xFFF8u) == 0x4840u)

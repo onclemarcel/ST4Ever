@@ -48,7 +48,7 @@ Ils guident les sessions futures lors de l'implémentation réelle.
 | UC1 | UC24 | `st_read_byte` hors-RAM devra lever `ST_ERROR` pour zones vraiment non mappées — test marqué `ADAPTED:UC24` | — |
 | UC7 | UC24 | `ST_LOAD_BASE = 0x0800` en dur — UC24 allouera première zone libre au-dessus des variables TOS | — |
 | UC7 | UC25 | `execute` démarrera depuis `load_get_state()->uiLoadAddr` comme PC initial (`eType == LOAD_TYPE_PRG`) | — |
-| UC14/UC15A | UC23+ | MOVEM, CHK, DBcc/Scc, MOVEP (~175 DC.W restants) — non couverts par le désassembleur ni le CPU actuel | — |
+| UC14/UC15A | UC23+ | MOVEM, CHK, DBcc/Scc, MOVEP (~175 DC.W restants) — non couverts par le désassembleur ni le CPU actuel | **MOVEM/DBcc/Scc RÉSOLU UC23-bis** |
 | UC21 | UC22 | Flags X, C, V — gestion complète pour ADD/SUB/CMP/shifts (dépassement, retenue, borrow) | **RÉSOLU UC22** |
 | UC21 | UC22 | `iCycles` hardcodé à 4 — affiner selon table timings 68000 (EA mode + instruction) si nécessaire | **RÉSOLU UC22** (différé UC23+) |
 | UC21 | UC23 | `cpu_exec_misc4` : RTS/NOP/JSR/JMP/TRAP/LINK/UNLK/RTE/RTR + `cpu_raise_exception()` complet (stacking SR+PC, changement mode) | — |
@@ -2183,11 +2183,48 @@ Référence complète des différences syntaxiques : **`DISASM_SYNTAX.md`** à l
 - RTE : `pop_word` → remplace SR complet ; `pop_long` → PC
 
 **Points d'attention pour les UCs suivants :**
-- UC23-bis : MOVEM (MOVEM.L D0-D7/A0-A7,-(An) et (An)+,regs) et ADDA.W/SUBA.W — nécessaires pour les programmes réels avant l'émulation complète UC25.
+- ~~UC23-bis : MOVEM (MOVEM.L D0-D7/A0-A7,-(An) et (An)+,regs) et ADDA.W/SUBA.W — nécessaires pour les programmes réels avant l'émulation complète UC25.~~ **RÉSOLU UC23-bis**
 - UC24 : accès registres hardware ATARI ST (Shifter, MFP, YM2149) sans crash — lecture/écriture adresses $FFxxxx. La carte mémoire ST (RAM 512Ko + registres HW) doit être gérée par `st_machine_t`.
 - UC25 : `iCycles` hardcodé à 4 — non affiné. Le timing 68000 précis (4 à 64 cycles selon instruction+EA) peut être ignoré jusqu'à UC25 sans impacter la correction fonctionnelle.
 - `cpu_step()` sur CPU en état STOPPED : retourne ST_NO_ERROR sans exécuter — contrat validé TC-CPU-147. UC25 devra implémenter le réveil sur interruption.
 - Division par zéro (DIVU/DIVS) : toujours LOG_TODO. En UC25 ou UC24-bis, remplacer par `cpu_raise_exception(CPU_VEC_DIV_ZERO)`.
+
+---
+
+## §33 — UC23-bis : MOVEM + ADDA.W/SUBA.W
+
+**Périmètre implémenté :**
+- `cpu_exec_movem()` (~130 lignes) dans `src/CPU.c` — dispatcher appelé depuis `cpu_exec_misc4()` après la vérification EXT (même espace d'opcode)
+- MOVEM.L/W `-(An)` : masque inversé (bit0=A7…bit15=D0), snapshot des 16 registres avant toute décrémentation, pre-décrémentation An par iStep (4 ou 2) par registre actif
+- MOVEM.L/W `(An)+` : masque standard (bit0=D0…bit15=A7), post-incrémentation An par iStep par registre actif; les .W loads sont sign-étendus 16→32 bits
+- MOVEM EA de contrôle (autres modes) : calcul unique de l'adresse EA puis avance séquentielle par iStep
+- ADDA.W : `iSzCode==3 && iDir==0` dans `cpu_exec_groupD()` — lecture SZ_WORD, sign-extension 16→32, addition à An sans modification SR
+- SUBA.W : `iSzCode==3 && iDir==0` dans `cpu_exec_group9()` — même logique, soustraction
+- `ST_APP_VERSION` : `"0.23.1"`
+
+**Infrastructure validée :**
+- `make tests` : 26 tests UC23-bis, 0 failure, 0 warning — totalité : 312 tests PASS 0 fail
+- Opcode EXT (0x4880-0x4887 et 0x48C0-0x48C7) vérifié AVANT MOVEM dans `cpu_exec_misc4()` — pas de faux dispatch
+
+**Matrice de tests (use_case_23A.c) :**
+- `[N] Nominal : 22 tests` — save -(An), restore (An)+, round-trip 5 registres, MOVEM.W sign-extend, ADDA.W/SUBA.W pos/neg, régressions ADDA.L/SUBA.L
+- `[R] Robustness : 4 tests` — NULL params, masque vide no-op, SR inchangé par ADDA.W
+- `[S] Skipped : 0 tests`
+
+**Contrats comportementaux validés :**
+
+| Module | Invariant |
+|--------|-----------|
+| `cpu_exec_movem()` — -(An) | Le snapshot des 16 registres est capturé AVANT toute décrémentation de An. Si An figure dans la liste de registres sauvegardés, c'est la valeur originale (avant décrémentation) qui est écrite en mémoire. |
+| `cpu_exec_movem()` — masque inversé | Pour -(An): bit0=A7, bit1=A6…bit7=A0, bit8=D7…bit15=D0. L'ordre d'itération i=0→15 cause A7→A0→D7→D0 — le registre de plus haut numéro de bit est traité en premier et se retrouve à la plus haute adresse. |
+| `cpu_exec_movem()` — masque standard | Pour (An)+: bit0=D0, bit7=D7, bit8=A0, bit15=A7. Le registre de plus bas numéro de bit est traité en premier et lu depuis la plus basse adresse. |
+| `cpu_exec_movem()` — MOVEM.W | Les loads word sign-étendent 16→32 bits (cast via `st_i16_t → st_i32_t → st_u32_t`). Les saves word écrivent uniquement les 16 bits bas. |
+| `cpu_exec_groupD/9()` — ADDA/SUBA .W | La distinction ADDA.W (iDir=0) vs ADDA.L (iDir=1) se fait via le bit 8 de l'opcode dans la branche `iSzCode==3`. Le SR n'est jamais modifié par ADDA/SUBA (quelle que soit la taille). |
+
+**Points d'attention pour les UCs suivants :**
+- UC24 : MOVEM vers EA de contrôle (mode 2 = (An), mode 5 = d16(An)) — le chemin `cpu_ea_calc_addr()` est sollicité mais n'a pas encore été testé sous MOVEM en conditions réelles. Surveiller lors des premiers binaires PRG chargés.
+- UC24 : MOVEP — non implémenté (LOG_TODO). Rare dans les démos mais présent dans du code C compilé ancien.
+- UC25 : MOVEM.L (An)+,An — si An est dans la liste restaurée, la valeur chargée depuis la mémoire remplace An (comportement Motorola MC68000 confirmé). Ce cas edge est couvert implicitement par le round-trip mais mérite un TC dédié en UC25 si des programmes l'utilisent.
 
 ---
 

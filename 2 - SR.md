@@ -377,6 +377,12 @@ requirement that will expose it (`UFR-EXE-*`, planned UC21–27).
 | REQ-CPU-042 | UNLK An shall copy An to SP, then pop the long-word at the new SP into An. Impl: `cpu_exec_misc4e()` | UFR-EXE-007   | ✓ UC23        | UC23  |
 | REQ-CPU-043 | DBcc (group 0x5, size=3, mode=1) shall decrement Dn.W; if the condition is false AND Dn.W ≠ −1 then branch by the signed word displacement (base = address of extension word); fall-through when the condition is true or the counter reaches −1. Impl: `cpu_exec_group5()` | UFR-EXE-007   | ✓ UC23        | UC23  |
 | REQ-CPU-044 | Scc (group 0x5, size=3, mode≠1) shall write 0xFF to the destination byte EA if the 68000 condition is true, 0x00 if false; SR flags shall not be modified. Impl: `cpu_exec_group5()` | UFR-EXE-007   | ✓ UC23        | UC23  |
+| REQ-CPU-045 | MOVEM opcode space (0x4880/0x48C0/0x4C80/0x4CC0) shall be dispatched after the EXT check (same upper byte) to avoid false matches on mode=0 EA. Impl: `cpu_exec_misc4()`, `cpu_exec_movem()` | UFR-EXE-007   | ✓ UC23-bis    | UC23-bis |
+| REQ-CPU-046 | MOVEM.L regs,-(An) shall use the reversed register mask (bit 0=A7…bit 7=A0, bit 8=D7…bit 15=D0), pre-decrement An for each set bit, and write the pre-snapshotted register value. Impl: `cpu_exec_movem()` | UFR-EXE-007   | ✓ UC23-bis    | UC23-bis |
+| REQ-CPU-047 | MOVEM.L (An)+,regs shall use the standard register mask (bit 0=D0…bit 7=D7, bit 8=A0…bit 15=A7), post-increment An for each set bit. Impl: `cpu_exec_movem()` | UFR-EXE-007   | ✓ UC23-bis    | UC23-bis |
+| REQ-CPU-048 | MOVEM to/from control EA (not pre-decrement or post-increment) shall compute the EA address once then advance sequentially by iStep per register. Impl: `cpu_exec_movem()` | UFR-EXE-007   | ✓ UC23-bis    | UC23-bis |
+| REQ-CPU-049 | MOVEM.W loads shall sign-extend each 16-bit memory value to 32 bits before storing in the destination register. Impl: `cpu_exec_movem()` | UFR-EXE-007   | ✓ UC23-bis    | UC23-bis |
+| REQ-CPU-050 | ADDA.W (iDir=0, iSzCode=3 in group D) shall read a 16-bit source EA, sign-extend it to 32 bits, and add to An without modifying SR. SUBA.W (iDir=0, iSzCode=3 in group 9) shall do the same but subtract. Impl: `cpu_exec_groupD()`, `cpu_exec_group9()` | UFR-EXE-007   | ✓ UC23-bis    | UC23-bis |
 
 ### 2.5 GUI Framework — `gui.h` / `gui.c` / `win_gui.c`
 
