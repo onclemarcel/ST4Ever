@@ -3118,3 +3118,89 @@ Each INTENT maps to one or more test blocks in `use_cases/use_case_19.c`.
 | REQ-CPU-042   | TC-CPU-136..137 (UNLK restore)                                    | ✓ UC23        |
 | REQ-CPU-043   | TC-CPU-138..139 (DBRA loop + condition-true fall-through)         | ✓ UC23        |
 | REQ-CPU-044   | TC-CPU-140..141 (ST writes 0xFF, SF writes 0x00)                  | ✓ UC23        |
+
+---
+
+### 5.65 INTENT Catalog — UC24A
+
+Source: `use_cases/use_case_24A.c`
+
+| ID           | INTENT text                                                                                              |
+|--------------|----------------------------------------------------------------------------------------------------------|
+| INT-SAN-001  | All-zero sector (BSS) must have fZeroRuns=1, fEntropy=0, fFatPattern=0, fHwImmediate=0, fVblInstall=0  |
+| INT-SAN-002  | All-0xFF sector (unformatted) must have fFfRuns=1, fEntropy=0, fBpbValid=0, fRepeating=1               |
+| INT-SAN-003  | FAT12 header sector (0xF9 FF FF...) must detect fFatPattern=1.0; fBpbValid must stay 0                 |
+| INT-SAN-004  | All-0xE5 sector (deleted dir entries) must have fE5Runs=1, fRepeating=1, fFfRuns=0                     |
+| INT-SAN-005  | Pattern 21 FC ?? ?? ?? ?? 00 70 (MOVE.L #handler,$70.W) must set fVblInstall=1.0                       |
+| INT-SAN-006  | Sector of ST palette words (nibbles 0-7, bits F888=0) must set fGraphicsPattern=1.0                    |
+| INT-SAN-007  | 0xFF 0x82 byte pairs (Shifter HW access) must set fVideoAccess=1 (≥4 pairs) and fHwImmediate>0         |
+| INT-SAN-008  | Pseudo-random high-entropy sequence (no valid opcodes) must have fEntropy > 0.9                        |
+| INT-SAN-009  | DB lifecycle create/bootstrap/destroy must succeed; iTypeCount>0 after bootstrap from synthetic sectors |
+| INT-SAN-010  | After learn+finalize, classifying the exact learned sample must return cosine score > 0.99              |
+| INT-SAN-011  | Bootstrap DB must classify all-0xFF as UNFORMATTED and all-0xE5 as DIRECTORY_DELETED                   |
+| INT-SAN-012  | DB save+load round-trip must preserve iTypeCount, iSigCount, sig name/type, and correct classification |
+| INT-SAN-013  | Packer byte-pattern signature match must return type=PROTECTION, score=1.0, overriding cosine          |
+| INT-SAN-014  | sector_type_name() returns correct strings for all valid types and "unknown" for out-of-range           |
+| INT-SAN-015  | All public functions must reject NULL pSector/ptFeat → ST_ERROR without crash                          |
+| INT-SAN-016  | DB functions must reject NULL ptDb → ST_ERROR (create, destroy, bootstrap, classify)                   |
+| INT-SAN-017  | sector_db_load() on nonexistent file must return ST_ERROR silently; iTypeCount unchanged                |
+| INT-SAN-018  | SA_FEATURE_DIM==24; sizeof(sector_features_t)/sizeof(float)==SA_FEATURE_DIM; no padding               |
+
+*Note: INT-SAN-017 in use_case_24A.c refers to whatisit.st bootsector classification (conditional test).*
+
+---
+
+### 5.66 Test Cases — UC24A (Sector Fingerprint Engine)
+
+Source: `use_cases/use_case_24A.c`
+TEST MATRIX: **40N + 8R + 2S = 50 tests** — all PASS (2S run as PASS when image present)
+
+| ID          | Functional description                                              | Type | UFR           | REQ                    | INTENT        | Input / Expected output                                                                                    | Status      |
+|-------------|---------------------------------------------------------------------|------|---------------|------------------------|---------------|------------------------------------------------------------------------------------------------------------|-------------|
+| TC-SAN-001  | All-zero sector: fZeroRuns=1, fEntropy=0, fBpbValid=0, fHwImm=0    | [N]  | UFR-EXE-010   | REQ-SAN-001, REQ-SAN-002 | INT-SAN-001 | 512-byte zero buffer → extract → fZeroRuns==1.0, fEntropy==0.0, fBpbValid==0.0, fHwImmediate==0.0       | PASS UC24A  |
+| TC-SAN-002  | All-0xFF sector: fFfRuns=1, fEntropy=0, fBpbValid=0, fRepeating=1  | [N]  | UFR-EXE-010   | REQ-SAN-001            | INT-SAN-002   | 512-byte 0xFF buffer → extract → fFfRuns==1.0, fEntropy==0.0, fBpbValid==0.0                              | PASS UC24A  |
+| TC-SAN-003  | FAT12 header: fFatPattern=1, fBpbValid=0                           | [N]  | UFR-EXE-010   | REQ-SAN-004            | INT-SAN-003   | sector[0]=0xF9, [1]=[2]=0xFF → fFatPattern==1.0, fBpbValid==0.0                                           | PASS UC24A  |
+| TC-SAN-004  | All-0xE5: fE5Runs=1, fRepeating=1, fFfRuns=0                       | [N]  | UFR-EXE-010   | REQ-SAN-001            | INT-SAN-004   | 512-byte 0xE5 buffer → fE5Runs==1.0, fRepeating==1.0, fFfRuns==0.0                                        | PASS UC24A  |
+| TC-SAN-005  | VBL install pattern → fVblInstall=1.0                              | [N]  | UFR-EXE-010   | REQ-SAN-005            | INT-SAN-005   | NOP-filled sector with `21 FC 00 00 40 00 00 70` at offset 0 → fVblInstall==1.0                           | PASS UC24A  |
+| TC-SAN-006  | ST palette words → fGraphicsPattern=1.0                            | [N]  | UFR-EXE-010   | REQ-SAN-001            | INT-SAN-006   | 256 words with bits F888=0 → fGraphicsPattern==1.0                                                         | PASS UC24A  |
+| TC-SAN-007  | HW access 0xFF 0x82 × 8 → fVideoAccess=1, fHwImmediate>0          | [N]  | UFR-EXE-010   | REQ-SAN-001            | INT-SAN-007   | 8 occurrences of {0xFF,0x82,...} → fVideoAccess==1.0, fHwImmediate>0.0                                    | PASS UC24A  |
+| TC-SAN-008  | High-entropy pseudo-random data → fEntropy > 0.9                   | [N]  | UFR-EXE-010   | REQ-SAN-001            | INT-SAN-008   | `aSec[i] = i*7+37` → extract → fEntropy > 0.9                                                             | PASS UC24A  |
+| TC-SAN-009  | DB create+bootstrap: iTypeCount>0; destroy: ptDb=NULL              | [N]  | UFR-EXE-010   | REQ-SAN-006            | INT-SAN-009   | `db_create` → `bootstrap_defaults` → iTypeCount>0; `db_destroy` → ptDb==NULL                              | PASS UC24A  |
+| TC-SAN-010  | DB learn+finalize: identical sample score > 0.99, type=BSS_ZERO    | [N]  | UFR-EXE-010   | REQ-SAN-006            | INT-SAN-010   | learn all-zero, finalize, classify same sector → score>0.99, eType==SECTOR_BSS_ZERO                        | PASS UC24A  |
+| TC-SAN-011  | Bootstrap: 0xFF→UNFORMATTED, 0xE5→DIRECTORY_DELETED               | [N]  | UFR-EXE-010   | REQ-SAN-006            | INT-SAN-011   | bootstrap_defaults + classify 0xFF → UNFORMATTED; classify 0xE5 → DIRECTORY_DELETED                       | PASS UC24A  |
+| TC-SAN-012  | Save+load round-trip: iTypeCount/iSigCount/sig preserved + classify | [N]  | UFR-EXE-010   | REQ-SAN-008            | INT-SAN-012   | bootstrap+sig, save, load, verify iSigCount==1, sig name+type, classify 0xFF → UNFORMATTED                | PASS UC24A  |
+| TC-SAN-013  | Packer sig override: type=PROTECTION, score=1.0                    | [N]  | UFR-EXE-010   | REQ-SAN-007            | INT-SAN-013   | sig={0xDE,0xAD} at offset 0; sector[0..1]={0xDE,0xAD} → eType==SECTOR_PROTECTION, score==1.0             | PASS UC24A  |
+| TC-SAN-014  | sector_type_name: UNKNOWN/FAT12/BSS_ZERO/UNFORMATTED/CODE_DEMO/99 | [N]  | UFR-EXE-010   | REQ-SAN-009            | INT-SAN-014   | `type_name(SECTOR_UNKNOWN)=="unknown"`, `type_name(SECTOR_FAT12)=="fat12"`, `type_name(99)=="unknown"`    | PASS UC24A  |
+| TC-SAN-015  | extract NULL pSector → ST_ERROR; NULL ptFeat → ST_ERROR            | [R]  | UFR-EXE-010   | REQ-SAN-001            | INT-SAN-015   | `extract(NULL,0,&tF)`→ST_ERROR; `extract(aSec,0,NULL)`→ST_ERROR                                           | PASS UC24A  |
+| TC-SAN-016  | db_create NULL pptDb → ST_ERROR; db_destroy NULL → ST_ERROR        | [R]  | UFR-EXE-010   | REQ-SAN-006            | INT-SAN-016   | `db_create(NULL)`→ST_ERROR; `db_destroy(NULL)`→ST_ERROR; `bootstrap_defaults(NULL)`→ST_ERROR              | PASS UC24A  |
+| TC-SAN-017  | classify NULL ptDb/ptFeat/aMatches → ST_ERROR; iMaxMatches=0       | [R]  | UFR-EXE-010   | REQ-SAN-007            | INT-SAN-016   | all 4 NULL/zero cases → ST_ERROR each                                                                       | PASS UC24A  |
+| TC-SAN-018  | db_load nonexistent → ST_ERROR; iTypeCount unchanged=0             | [R]  | UFR-EXE-010   | REQ-SAN-008            | INT-SAN-017   | `db_load(ptDb,"build/nonexistent.bin")`→ST_ERROR; ptDb→iTypeCount==0                                      | PASS UC24A  |
+| TC-SAN-019  | whatisit.st sector 0: fBpbValid=1, fWd1772Bootable=0, classified   | [S]  | UFR-EXE-010   | REQ-SAN-001..003,006   | INT-SAN-017   | image present: sector 0 → fBpbValid==1.0, fWd1772Bootable==0.0 (checksum=0x1235); classify→bootsector_noboot | PASS UC24A (cond.) |
+| TC-SAN-020  | SA_FEATURE_DIM==24; sizeof(sector_features_t)/sizeof(float)==24    | [N]  | UFR-EXE-010   | REQ-SAN-010            | INT-SAN-018   | compile-time: `SA_FEATURE_DIM==24`; `sizeof(sector_features_t)/sizeof(float)==24`                         | PASS UC24A  |
+
+#### REQ → TC coverage (UC24A)
+
+| REQ           | TC(s)                                          | Status      |
+|---------------|------------------------------------------------|-------------|
+| REQ-SAN-001   | TC-SAN-001..008, TC-SAN-015                    | ✓ UC24A     |
+| REQ-SAN-002   | TC-SAN-001                                     | ✓ UC24A     |
+| REQ-SAN-003   | TC-SAN-019 (conditional)                       | ✓ UC24A     |
+| REQ-SAN-004   | TC-SAN-003                                     | ✓ UC24A     |
+| REQ-SAN-005   | TC-SAN-005                                     | ✓ UC24A     |
+| REQ-SAN-006   | TC-SAN-009..011, TC-SAN-016..017, TC-SAN-019  | ✓ UC24A     |
+| REQ-SAN-007   | TC-SAN-013, TC-SAN-017                         | ✓ UC24A     |
+| REQ-SAN-008   | TC-SAN-012, TC-SAN-018                         | ✓ UC24A     |
+| REQ-SAN-009   | TC-SAN-014                                     | ✓ UC24A     |
+| REQ-SAN-010   | TC-SAN-020                                     | ✓ UC24A     |
+
+#### UFR traceability (UC24A)
+
+| UFR           | REQ(s)                              | TC(s)                              | Status      |
+|---------------|-------------------------------------|------------------------------------|-------------|
+| UFR-EXE-010   | REQ-SAN-001..010                    | TC-SAN-001..020                    | ✓ UC24A     |
+
+#### Test Summary — UC24A
+
+| Module | [N] | [R] | [S] | Total | Result               |
+|--------|-----|-----|-----|-------|----------------------|
+| SAN    | 40  | 8   | 2   | 50    | ALL PASS (2S cond.)  |

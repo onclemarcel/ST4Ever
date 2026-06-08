@@ -483,6 +483,9 @@ Les étapes de développement fonctionnelles sont formalisées en Use Cases, per
 | UC23-bis | interne | CPU 68000 : MOVEM (save/restore registres, -(An)/(An)+) + ADDA.W/SUBA.W | ✓ VALIDÉ 2026-06-08 |
 | UC24 | interne | Memory map ST + registres HW stubs (Shifter, MFP, YM2149) | ✓ VALIDÉ 2026-06-08 |
 | UC24A | interne | Sector Fingerprint Engine : vecteur 24D + cosine pondéré + DB seeds/build/load/save + signatures packers | ✓ VALIDÉ 2026-06-08 |
+| UC24B | `edit` hex | **P46** — Coloration sémantique secteurs dans hex_edit : passe `sector_classify()` à l'ouverture → `aeSecType[iSectorCount]` dans `edit_hex_view_t` → teinte fond par type (boot/FAT/dir/BSS/code/packer) dans `edit_hex_render_row()`. Fichiers clés : `src/edit_hex.c`, `src/edit_hex.h`, `src/sector_analysis.h`. Aucun nouveau module. | P46 à arbitrer |
+| UC24C | `edit` hex | **P47+P48** — JSON annotation (`<basename>.json` colocalisé avec `.st`) + bandeau contextuel : nouveau module `src/image_annot.c`/`.h` (`image_annot_load/save`), champ `labels[]`/`labeled_sectors[]` ; bandeau `HEXED_BAND_H` px en bas de hex_edit (`edit_hex_render_band()`) : type/score secteur courant, BPB décodé si valide (FAT1/FAT2/root dir/data LBA), zone notes éditable CTRL+S → JSON. Dépend de UC24B. | P47+P48 à arbitrer |
+| UC24D | `edit` hex | **P49** — Labels cliquables dans le bandeau → navigation adresse : labels JSON + auto-labels BPB (`FAT1`, `FAT2`, `Root dir`, `Data`) cliquables → `edit_hex_set_cursor_pos(lba*512+offset)`. Dépend de UC24C. | P49 à arbitrer |
 | UC25 | `execute` | Moteur pas-à-pas + vues CPU + mémoire | step + breakpoint sur .PRG simple |
 | UC26 | interne | Émulation vidéo ST (Shifter : low/med/high res, palette 16 couleurs) | rendu écran correct |
 | UC27 | `execute` | Vue écran Win32/GDI + X11 + synchronisation VBL | démo statique visible |
@@ -903,6 +906,148 @@ Les handlers groupD/group9 gèrent déjà sz=3 → ADDA.L. La forme ADDA.W (sz=2
 | P44 (ADDA.W/SUBA.W) | ACCEPTÉ | UC23-bis |
 
 *Propositions P43/P44 arbitrées — UC23 est clos.*
+
+---
+
+### Propositions UC24B — Hex viewer sémantique (2026-06-08)
+
+**P46 — Coloration sémantique par secteur dans la vue hex_edit** → **À ARBITRER**
+
+Contexte : UC24A dispose maintenant d'un moteur de classification de secteurs
+(`sector_classify()`). La vue hex_edit affiche les octets bruts sans aucun repère
+sémantique. Proposition : à l'ouverture d'une image disque dans hex_edit, passer
+tous les secteurs en revue via `sector_classify()` (une seule passe, résultats
+cachés dans un tableau `aeType[iSectorCount]`), puis teinter chaque ligne de 16
+octets avec une couleur de fond discrète selon le type de secteur :
+
+| Type UC24A        | Couleur fond (suggestion) |
+|-------------------|--------------------------|
+| `BOOTSECTOR_*`    | violet foncé             |
+| `FAT12`           | bleu foncé               |
+| `DIRECTORY_*`     | teal                     |
+| `BSS_ZERO`        | gris très foncé          |
+| `UNFORMATTED`     | rouge brique sombre      |
+| `CODE_DEMO`       | vert foncé               |
+| `PROTECTION`      | orange brique            |
+| `DATA_*`          | beige/ocre               |
+
+La couleur se superpose discrètement au fond blanc standard — la lisibilité des
+octets et de l'ASCII reste prioritaire (alpha ~30-40%). Le calcul est incrémental
+(1 classify par secteur de 512 octets = ~5 µs, 1440 secteurs = < 10 ms total).
+
+Avis Claude : **ACCEPTÉ** — coût faible, valeur pédagogique élevée. Un seul nouveau
+champ `aeSecType[ST_MSA_MAX_SECTORS]` dans `edit_hex_view_t` + teinte dans la boucle
+de rendu `edit_hex_render_row()`. Ne nécessite pas P47/P48. Cible naturelle : **UC24B**.
+
+**P47 — Fichier JSON d'annotation colocalisé avec l'image disque** → **À ARBITRER**
+
+Proposition : un fichier `<basename>.json` colocalisé avec le `.st` (même répertoire,
+même nom de base) stocke l'annotation sémantique persistante de l'image. Structure
+conforme au modèle `db/seeds/whatisit.json` déjà posé :
+
+```json
+{
+  "filename": "image.st",
+  "sha256": "...",
+  "disk_type": "demo|app|tool|unknown",
+  "origin": "...",
+  "geometry": { "heads": 2, "spt": 9, "tracks": 80 },
+  "notes": "...",
+  "boot": { "boots_on_real_st": false, "packer_name": "", ... },
+  "labeled_sectors": [
+    { "lba": 0, "type": "bootsector_noboot", "notes": "..." },
+    { "lba": 1, "type": "fat12",            "notes": "..." }
+  ],
+  "labels": [
+    { "lba": 0, "offset": 0,  "name": "bpb_bps",       "desc": "Bytes per sector" },
+    { "lba": 0, "offset": 11, "name": "root_dir_start", "desc": "First root dir LBA" }
+  ]
+}
+```
+
+**Correction de la contrainte de répertoire** : la proposition initiale limitait le
+JSON au répertoire `use_cases/UC20A/st/`. Avis Claude : cette contrainte est trop
+rigide — le JSON doit simplement être colocalisé avec le `.st` (convention
+`<basename>.json`), quel que soit le répertoire. Cela fonctionne partout où
+`edit_hex_open()` est appelé. Nouveau module `src/image_annot.c` / `image_annot.h`
+avec `image_annot_load()` / `image_annot_save()` (JSON text, pas binaire).
+
+Le JSON est optionnel : s'il est absent, hex_edit fonctionne normalement. S'il est
+présent, il enrichit la vue. L'utilisateur peut créer/modifier le JSON manuellement
+ou via le bandeau (P48).
+
+Avis Claude : **ACCEPTÉ MODIFIÉ** (contrainte répertoire assouplie). Coût moyen
+(parser JSON minimaliste à écrire, ou réutiliser un include C99 single-header comme
+`jsmn.h` ~400 lignes). Cible naturelle : **UC24B** (base nécessaire pour P48/P49).
+
+**P48 — Bandeau contextuel secteur dans la vue hex_edit** → **À ARBITRER**
+
+Proposition : un panneau de contexte permanent (bandeau horizontal en bas ou colonne
+droite de la fenêtre hex_edit) affiche les informations sémantiques du secteur
+courant, mis à jour à chaque déplacement du curseur quand le secteur change :
+
+- **Bandeau secteur courant** : numéro LBA, type UC24A (ex : `FAT12`), score,
+  notes du JSON si disponible.
+- **Bandeau bootsector** (permanent si BPB valide) : champs BPB décodés — BPS, SPC,
+  NFAT, TS, SPT, HDS, root dir capacity, FAT1 LBA, FAT2 LBA, root dir LBA,
+  first data LBA, total clusters. Ces valeurs permettent de naviguer
+  logiquement dans l'image sans calculer les offsets à la main.
+- **Champ "notes" éditable** : zone de texte dans le bandeau pour éditer la note du
+  secteur courant. CTRL+S sauvegarde dans le JSON (P47). Ainsi l'annotation du JSON
+  devient un jeu d'enfant pendant l'analyse.
+
+Le bandeau rend `edit_hex_view_t` plus "IDE d'analyse" que simple visualisateur.
+Implémentation : `HEXED_BAND_H` pixels réservés en bas de la fenêtre, rendu par
+`edit_hex_render_band()`.
+
+Avis Claude : **ACCEPTÉ** — valeur pédagogique et pratique maximale. Le bandeau BPB
+décodé élimine le besoin de calculer `first_data_lba = fat_lba + nfat*spf + 14` à
+la main. Dépend de P47 (JSON) pour les notes éditables. Coût moyen. Cible : **UC24B**.
+
+**P49 — Labels cliquables dans le bandeau → navigation par adresse** → **À ARBITRER**
+
+Proposition : les labels définis dans le JSON (champ `"labels"` de P47) s'affichent
+dans le bandeau (P48) sous forme de liens cliquables. Cliquer sur un label déplace
+le curseur hex à l'adresse correspondante (`lba * 512 + offset`).
+
+Pour le bootsector BPB valide, les labels BPB standard sont générés automatiquement
+sans intervention JSON (ex : clic sur "root dir" → jump à `root_dir_lba * 512`) :
+
+| Label auto (BPB valide) | Adresse calculée |
+|-------------------------|-----------------|
+| `FAT1`                  | `fat1_lba * 512` |
+| `FAT2`                  | `fat2_lba * 512` |
+| `Root dir`              | `root_dir_lba * 512` |
+| `Data cluster 2`        | `data_start_lba * 512` |
+
+Les labels custom du JSON s'ajoutent à la liste auto. Un clic sur une entrée
+`labeled_sectors` dans le bandeau saute au début de ce secteur.
+
+Ce mécanisme transforme l'image disque en un document navigable, analogue à un
+debugger source-level mais pour le binaire brut d'une disquette.
+
+Avis Claude : **ACCEPTÉ** — coût faible une fois P47/P48 en place (event click →
+calcul offset → `edit_hex_set_cursor_pos()`). Cible : **UC24B** (après P47/P48).
+
+| Proposition | Décision provisoire | UC cible proposée |
+|-------------|---------------------|-------------------|
+| P46 (coloration sémantique secteurs)     | ACCEPTÉ | **UC24B** |
+| P47 (JSON annotation colocalisé)         | ACCEPTÉ MODIFIÉ (colocalisé `.st`, pas limité UC20A/st/) | **UC24C** |
+| P48 (bandeau contextuel secteur/BPB)     | ACCEPTÉ | **UC24C** (avec P47) |
+| P49 (labels cliquables → navigation)     | ACCEPTÉ | **UC24D** |
+
+**Découpage contexte conversation** (décidé 2026-06-08) :
+- **UC24B** : P46 seul — ~150 lignes, zéro nouveau module. Conversation légère.
+- **UC24C** : P47+P48 couplés — nouveau module `image_annot.c` + rendu bandeau. Conversation moyenne.
+- **UC24D** : P49 seul — navigation click, s'appuie sur UC24C validé. Conversation légère.
+
+**Points d'entrée pour démarrage à froid** :
+- API classification disponible : `sector_classify()` dans `src/sector_analysis.h`
+- Vue hex actuelle : `src/edit_hex.c` / `src/edit_hex.h` — struct `edit_hex_view_t`
+- Modèle JSON de référence : `db/seeds/whatisit.json` (format déjà défini et documenté)
+- Dépendance UC24B→C→D : séquentielle (chaque UC valide avant le suivant)
+
+*Propositions P46–P49 déposées et découpées, en attente d'arbitrage de Tonton Marcel.*
 
 ---
 

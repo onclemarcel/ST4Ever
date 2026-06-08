@@ -8,8 +8,11 @@
  *   [R] Robustness :  8 tests - NULL params, empty DB, bad file
  *   [S] Skipped    :  2 tests - whatisit.st sectors (gitignored image)
  *
- * INTENT[INT-SAN-001 -> TC-SAN-001..020 -> REQ-SAN-001..010
- *        -> UFR-EXE-010]:
+ * Module-level traceability:
+ *   UFR-EXE-010 → REQ-SAN-001..010 → TC-SAN-001..020 → INT-SAN-001..018
+ *
+ * INTENT[INT-SAN-001..018 → TC-SAN-001..020 → REQ-SAN-001..010
+ *        → UFR-EXE-010]:
  *   Static sector analysis identifies the type of any 512-byte Atari
  *   ST disk sector via a 24-D weighted feature vector compared against
  *   a reference database using cosine similarity, without executing
@@ -63,6 +66,9 @@ static void test_feat_bss_zero(void)
     st_u8_t           aSec[SA_SECTOR_SIZE];
     sector_features_t tF;
 
+    /* INTENT[INT-SAN-001 → TC-SAN-001 → REQ-SAN-001,002 → UFR-EXE-010]:
+     * All-zero sector (BSS) must have fZeroRuns=1, fEntropy=0,
+     * fFatPattern=0, fHwImmediate=0, fVblInstall=0 */
     printf("\n--- test_feat_bss_zero ---\n");
     memset(aSec, 0x00, sizeof(aSec));
 
@@ -100,6 +106,9 @@ static void test_feat_unformatted(void)
     st_u8_t           aSec[SA_SECTOR_SIZE];
     sector_features_t tF;
 
+    /* INTENT[INT-SAN-002 → TC-SAN-002 → REQ-SAN-001 → UFR-EXE-010]:
+     * All-0xFF sector (unformatted) must have fFfRuns=1, fEntropy=0,
+     * fBpbValid=0, fRepeating=1 */
     printf("\n--- test_feat_unformatted ---\n");
     memset(aSec, 0xFF, sizeof(aSec));
 
@@ -127,6 +136,9 @@ static void test_feat_fat12(void)
     st_u8_t           aSec[SA_SECTOR_SIZE];
     sector_features_t tF;
 
+    /* INTENT[INT-SAN-003 → TC-SAN-003 → REQ-SAN-004 → UFR-EXE-010]:
+     * FAT12 header sector (0xF9 FF FF...) must detect fFatPattern=1.0;
+     * it is not a boot sector so fBpbValid must remain 0. */
     printf("\n--- test_feat_fat12 ---\n");
     memset(aSec, 0x00, sizeof(aSec));
     aSec[0] = 0xF9u; aSec[1] = 0xFFu; aSec[2] = 0xFFu;
@@ -150,6 +162,9 @@ static void test_feat_deleted_dir(void)
     st_u8_t           aSec[SA_SECTOR_SIZE];
     sector_features_t tF;
 
+    /* INTENT[INT-SAN-004 → TC-SAN-004 → REQ-SAN-001 → UFR-EXE-010]:
+     * All-0xE5 sector (deleted directory entries) must have
+     * fE5Runs=1, fRepeating=1, fFfRuns=0 */
     printf("\n--- test_feat_deleted_dir ---\n");
     memset(aSec, 0xE5u, sizeof(aSec));
 
@@ -173,6 +188,9 @@ static void test_feat_vbl_install(void)
     st_u8_t           aSec[SA_SECTOR_SIZE];
     sector_features_t tF;
 
+    /* INTENT[INT-SAN-005 → TC-SAN-005 → REQ-SAN-005 → UFR-EXE-010]:
+     * Pattern 21 FC ?? ?? ?? ?? 00 70 (MOVE.L #handler,$70.W) must
+     * set fVblInstall=1.0 regardless of surrounding code */
     printf("\n--- test_feat_vbl_install ---\n");
     memset(aSec, 0x4Eu, sizeof(aSec));  /* NOP fill */
 
@@ -199,6 +217,9 @@ static void test_feat_graphics_palette(void)
     sector_features_t tF;
     int               i;
 
+    /* INTENT[INT-SAN-006 → TC-SAN-006 → REQ-SAN-001 → UFR-EXE-010]:
+     * A sector filled with valid ST palette words (nibbles 0-7,
+     * bits F888=0) must set fGraphicsPattern=1.0 */
     printf("\n--- test_feat_graphics_palette ---\n");
 
     /* 256 valid ST palette words: each nibble 0-7, bits F888 = 0 */
@@ -225,6 +246,9 @@ static void test_feat_hw_access(void)
     st_u8_t           aSec[SA_SECTOR_SIZE];
     sector_features_t tF;
 
+    /* INTENT[INT-SAN-007 → TC-SAN-007 → REQ-SAN-001 → UFR-EXE-010]:
+     * Sectors containing 0xFF 0x8x byte pairs (HW register immediates)
+     * must set fVideoAccess=1 (≥4 video pairs) and fHwImmediate>0 */
     printf("\n--- test_feat_hw_access ---\n");
     memset(aSec, 0x00, sizeof(aSec));
 
@@ -259,6 +283,10 @@ static void test_feat_packer_entropy(void)
     sector_features_t tF;
     int               i;
 
+    /* INTENT[INT-SAN-008 → TC-SAN-008 → REQ-SAN-001 → UFR-EXE-010]:
+     * Pseudo-random high-entropy data (no valid opcodes) must have
+     * fEntropy > 0.9; fPackerEntropy is a derived feature (UC24A
+     * static analysis cannot distinguish packer from random data) */
     printf("\n--- test_feat_packer_entropy ---\n");
 
     /* Pseudo-random data with high entropy, no valid opcodes */
@@ -280,6 +308,9 @@ static void test_db_lifecycle(void)
 {
     sector_db_t *ptDb = NULL;
 
+    /* INTENT[INT-SAN-009 → TC-SAN-009 → REQ-SAN-006 → UFR-EXE-010]:
+     * DB lifecycle (create/bootstrap/destroy) must succeed atomically;
+     * bootstrap must populate >0 types derived from synthetic sectors */
     printf("\n--- test_db_lifecycle ---\n");
 
     UC_CHECK("[N] sector_db_create",
@@ -310,6 +341,9 @@ static void test_db_learn_classify(void)
     sector_match_t   aM[3];
     int              iCount  = 0;
 
+    /* INTENT[INT-SAN-010 → TC-SAN-010 → REQ-SAN-006 → UFR-EXE-010]:
+     * After learn+finalize, classifying the exact learned sample must
+     * return cosine score > 0.99 with the correct type */
     printf("\n--- test_db_learn_classify ---\n");
 
     /* Build a DB with a single known type (all-zero = BSS_ZERO) */
@@ -349,6 +383,9 @@ static void test_db_classify_trivial(void)
     sector_match_t   aM[3];
     int              iN   = 0;
 
+    /* INTENT[INT-SAN-011 → TC-SAN-011 → REQ-SAN-006 → UFR-EXE-010]:
+     * Bootstrap DB must classify synthetic trivial sectors correctly:
+     * all-0xFF → UNFORMATTED; all-0xE5 → DIRECTORY_DELETED */
     printf("\n--- test_db_classify_trivial ---\n");
 
     UC_CHECK("[N] db_create + bootstrap",
@@ -394,6 +431,10 @@ static void test_db_save_load(void)
     int              iN    = 0;
     const char      *szTmp = "build/uc24a_test_db.bin";
 
+    /* INTENT[INT-SAN-012 → TC-SAN-012 → REQ-SAN-008 → UFR-EXE-010]:
+     * DB save+load round-trip must preserve iTypeCount, iSigCount,
+     * signature name/type, and produce correct classification after
+     * reload; the binary format is guarded by SA_DB_MAGIC */
     printf("\n--- test_db_save_load ---\n");
 
     /* Build + save */
@@ -460,6 +501,10 @@ static void test_packer_sig_override(void)
     sector_match_t   aM[3];
     int              iN   = 0;
 
+    /* INTENT[INT-SAN-013 → TC-SAN-013 → REQ-SAN-007 → UFR-EXE-010]:
+     * When a packer byte-pattern signature matches, the classified
+     * type must be the signature's eType with score=1.0, overriding
+     * the cosine result regardless of feature values */
     printf("\n--- test_packer_sig_override ---\n");
 
     memset(aSec, 0x00, sizeof(aSec));
@@ -507,6 +552,10 @@ static void test_packer_sig_override(void)
  * ------------------------------------------------------------------ */
 static void test_type_name(void)
 {
+    /* INTENT[INT-SAN-014 → TC-SAN-014 → REQ-SAN-009 → UFR-EXE-010]:
+     * sector_type_name() must return correct static strings for all
+     * valid enum values; an out-of-range value must return "unknown"
+     * without crash */
     printf("\n--- test_type_name ---\n");
 
     TEST_ASSERT("[N] SECTOR_UNKNOWN -> 'unknown'",
@@ -536,6 +585,10 @@ static void test_robustness_null(void)
     sector_match_t   aM[1];
     int              iN     = 0;
 
+    /* INTENT[INT-SAN-015 → TC-SAN-015..017 → REQ-SAN-001,006,007
+     *        → UFR-EXE-010]:
+     * All public functions must reject NULL parameters with ST_ERROR
+     * and leave state unchanged; iMaxMatches=0 must also be rejected */
     printf("\n--- test_robustness_null ---\n");
     memset(aSec, 0x00, sizeof(aSec));
 
@@ -582,6 +635,9 @@ static void test_robustness_bad_file(void)
 {
     sector_db_t *ptDb = NULL;
 
+    /* INTENT[INT-SAN-016 → TC-SAN-018 → REQ-SAN-008 → UFR-EXE-010]:
+     * sector_db_load() on a nonexistent file must return ST_ERROR
+     * silently without modifying the DB (iTypeCount stays 0) */
     printf("\n--- test_robustness_bad_file ---\n");
 
     UC_CHECK("[R] db_create", sector_db_create(&ptDb));
@@ -607,6 +663,11 @@ static void test_whatisit_bootsector(void)
     sector_match_t aM[3];
     int            iN    = 0;
 
+    /* INTENT[INT-SAN-017 → TC-SAN-019 → REQ-SAN-001..003,006
+     *        → UFR-EXE-010]:
+     * whatisit.st sector 0 must have fBpbValid=1 (valid BPB geometry)
+     * and fWd1772Bootable=0 (checksum=0x1235 ≠ 0x1234); it must
+     * classify as SECTOR_BOOTSECTOR_NOBOOT after teaching the DB */
     printf("\n--- test_whatisit_bootsector ---\n");
 
     if (image_st_load(szPath, &ptImg) != ST_NO_ERROR)
@@ -669,6 +730,10 @@ static void test_dump_feature_names(void)
     const float      *aFArr;
     int               i;
 
+    /* INTENT[INT-SAN-018 → TC-SAN-020 → REQ-SAN-010 → UFR-EXE-010]:
+     * SA_FEATURE_DIM must equal 24; sizeof(sector_features_t)/sizeof(float)
+     * must equal SA_FEATURE_DIM — the struct is a plain flat array of
+     * 24 floats with no padding, enabling cast to (const float *) */
     printf("\n--- test_dump_feature_names ---\n");
     memset(aSec, 0x00, sizeof(aSec));
     aSec[0] = 0xF9u; aSec[1] = 0xFFu; aSec[2] = 0xFFu;  /* FAT hdr */

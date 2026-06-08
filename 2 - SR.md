@@ -224,6 +224,7 @@ through one or more test cases in Section 5.
 | UFR-EXE-007  | The CPU emulator shall implement BRA/Bcc/JSR/RTS/TRAP + exception vector dispatch.                                                   | ✓ UC23       | UC23  |
 | UFR-EXE-008  | The execution monitor shall provide step, run, stop, and breakpoint controls with a register/memory display view.                     | TODO UC25    | UC25  |
 | UFR-EXE-009  | The ST machine memory map shall dispatch byte/word/long reads and writes to the correct hardware region (RAM, ROM, Shifter, YM2149, MFP, ACIA) without crashing; HW register state shall be maintained coherently across read and write operations. | ✓ UC24 | UC24  |
+| UFR-EXE-010  | The application shall classify any 512-byte sector from an Atari ST disk image by static analysis of its content, returning a ranked list of probable sector types (bootsector, FAT12, BSS, code, packer data, etc.) with confidence scores, without executing the sector content. | ✓ UC24A | UC24A |
 
 ---
 
@@ -731,6 +732,26 @@ requirement that will expose it (`UFR-EXE-*`, planned UC21–27).
 | REQ-MNT-022  | `mount_make_bootable(ptImg)` shall return `ST_ERROR` if `ptImg == NULL`; otherwise it shall compute the WD1772 checksum (sum of 256 LE16 words) and patch `pDisk[0..1]` so the sum equals `0x1234 mod 0x10000`; the operation shall be idempotent. | UFR-MNT-012 | ✓ UC20 | UC20 |
 | REQ-MNT-023  | `line_cmd_image()` shall save the image from an already-open mount view (`g_line_ptMountView != NULL`) or create a transient view from the selected directory; `--bootable` shall call `mount_make_bootable()` before saving; `--st`/`--msa` flags select the output format. | UFR-MNT-010 | ✓ UC20 | UC20 |
 | REQ-MNT-024  | `mount_open_file_hex()` shall be a no-op if no entry is selected or the entry is empty; otherwise it shall extract the file via `image_st_read_file()`, write to `MOUNT_FILE_TMP`, close any previous file hex view, and open in `edit_hex_open()`. | UFR-MNT-011 | ✓ UC20 | UC20 |
+
+---
+
+### 2.18 Sector Fingerprint Engine — `sector_analyze.h` / `sector_analyze.c`
+
+> Design ref: CLAUDE.md §6.35 (UC24A); depends on `disassemble.h` (UC11-14) for opcode analysis
+> Parent UFR: UFR-EXE-010
+
+| ID           | Software Requirement                                                                                                                                                                                                               | Parent UFR   | Status   | UC     |
+|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------|----------|--------|
+| REQ-SAN-001  | `sector_features_extract(pSector, uiBase, ptFeat)` shall compute all 24 features in `sector_features_t` and store them in `[ptFeat]`; every field shall be in [0.0, 1.0]. Returns `ST_ERROR` if `pSector` or `ptFeat` is NULL. Impl: `sector_features_extract()` | UFR-EXE-010 | ✓ UC24A | UC24A |
+| REQ-SAN-002  | `fBpbValid` shall be 1.0 iff the sector's BPB geometry satisfies all of: BPS=512, SPC∈{1,2}, NFAT∈{1,2}, TS∈[720,1440], SPT∈[8,11], HDS∈{1,2}. Impl: `feat_bpb_valid()` | UFR-EXE-010 | ✓ UC24A | UC24A |
+| REQ-SAN-003  | `fWd1772Bootable` shall be 1.0 iff the sum of the 256 big-endian 16-bit words at sector offsets 0..511 equals 0x1234 mod 0x10000 (WD1772 checksum criterion). Impl: `feat_wd1772_bootable()` | UFR-EXE-010 | ✓ UC24A | UC24A |
+| REQ-SAN-004  | `fFatPattern` shall be 1.0 iff `sector[0] >= 0xF0` AND `sector[1] == 0xFF` AND `sector[2] == 0xFF` (FAT12 media byte + mandatory 0xFF bytes). Impl: `feat_fat_pattern()` | UFR-EXE-010 | ✓ UC24A | UC24A |
+| REQ-SAN-005  | `fVblInstall` shall be 1.0 iff the byte pattern `21 FC ?? ?? ?? ?? 00 70` (MOVE.L #imm,$70.W) appears at any even offset within the sector. Impl: `feat_vbl_install()` | UFR-EXE-010 | ✓ UC24A | UC24A |
+| REQ-SAN-006  | The DB lifecycle functions shall obey the contract: `sector_db_create` allocates; `sector_db_bootstrap_defaults` computes centroids from synthetic sectors via `sector_features_extract()` (no hardcoded values); `sector_db_learn` accumulates samples; `sector_db_finalize` computes centroids as the mean of accumulated samples; `sector_db_destroy` frees. Classifying a vector identical to a centroid shall produce score > 0.99. `sector_db_bootstrap_defaults(NULL)` and `sector_db_learn(NULL,…)` and `sector_db_finalize(NULL)` shall return `ST_ERROR`. Impl: `sector_db_create/bootstrap_defaults/learn/finalize/destroy()` | UFR-EXE-010 | ✓ UC24A | UC24A |
+| REQ-SAN-007  | `sector_classify(ptDb, ptFeat, pSector, aMatches, iMaxMatches, piCount)` shall first scan packer byte-pattern signatures; if any signature matches (byte pattern AND mask at given offset), the result shall be that signature's type with score=1.0, overriding all cosine results. Returns `ST_ERROR` if `ptDb`, `ptFeat`, `aMatches` is NULL, or `iMaxMatches == 0`. Impl: `sector_classify()`, `packer_scan()` | UFR-EXE-010 | ✓ UC24A | UC24A |
+| REQ-SAN-008  | `sector_db_save(ptDb, szPath)` shall write the DB to binary format prefixed with magic `SA_DB_MAGIC` (0x53544442). `sector_db_load(ptDb, szPath)` shall restore it; loading a non-existent file shall return `ST_ERROR` without modifying the DB's existing state. Impl: `sector_db_save()`, `sector_db_load()` | UFR-EXE-010 | ✓ UC24A | UC24A |
+| REQ-SAN-009  | `sector_type_name(eType)` shall return a non-NULL static C string for all valid `sector_type_t` values; an out-of-range value shall return `"unknown"` without crash. Impl: `sector_type_name()` | UFR-EXE-010 | ✓ UC24A | UC24A |
+| REQ-SAN-010  | `sector_features_t` shall be a flat struct of exactly `SA_FEATURE_DIM` (24) floats with no padding: `sizeof(sector_features_t) / sizeof(float) == SA_FEATURE_DIM`. This invariant enables casting to `const float *` for the cosine dot product. | UFR-EXE-010 | ✓ UC24A | UC24A |
 
 ---
 
