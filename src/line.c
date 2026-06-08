@@ -1360,22 +1360,15 @@ static st_error_t line_cmd_edit(const parsed_cmd_t *ptParsed,
         return ST_NO_ERROR;
     }
 
-    /* Disk images → redirect to mount */
-    if (strcmp(tStat.szExt, "st")  == 0
-     || strcmp(tStat.szExt, "msa") == 0
-     || strcmp(tStat.szExt, "stx") == 0)
-    {
-        line_print_warning("'%s' is a disk image. Use 'mount'.",
-                           szPath);
-        return ST_NO_ERROR;
-    }
-
-    /* ATARI ST binaries and generic binary extensions → hex editor */
+    /* ATARI ST binaries, disk images, and generic binary extensions → hex */
     if (strcmp(tStat.szExt, "prg") == 0
      || strcmp(tStat.szExt, "ttp") == 0
      || strcmp(tStat.szExt, "tos") == 0
      || strcmp(tStat.szExt, "bin") == 0
-     || strcmp(tStat.szExt, "raw") == 0)
+     || strcmp(tStat.szExt, "raw") == 0
+     || strcmp(tStat.szExt, "st")  == 0
+     || strcmp(tStat.szExt, "msa") == 0
+     || strcmp(tStat.szExt, "stx") == 0)
     {
         if (g_line_ptEditHexView != NULL)
         {

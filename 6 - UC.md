@@ -2369,3 +2369,49 @@ Référence complète des différences syntaxiques : **`DISASM_SYNTAX.md`** à l
 
 ---
 
+## §6.26 UC24B — Coloration sémantique secteurs (P46)
+
+**Version :** 0.24.2 — **Date :** 2026-06-08
+
+**Périmètre implémenté :**
+- Champ `sector_type_t *aeSecType` (heap) + `int iSecCount` ajoutés à `edit_hex_view_t`
+- `ehex_classify_sectors()` : crée un DB, bootstrap + charge `db/sector_db.bin` si présent, classe chaque secteur de 512 octets, stocke dans `aeSecType[]`
+- Appelé une fois dans `edit_hex_open()` après `ehex_load()` — non-bloquant si fichier < 512 octets
+- Table statique `g_aSecTint[SECTOR_TYPE_COUNT]` (16 couleurs, indexée par `sector_type_t`)
+- Dans `ehex_render()` : pour chaque ligne visible, teinte fond du secteur courant dessinée AVANT le highlight de ligne (`g_clrCurRow` reste visible par-dessus)
+- Libération `free(aeSecType)` dans `edit_hex_close()` et dans le chemin d'erreur de `gui_open_window`
+- `SECTOR_UNKNOWN` → aucune teinte (fond par défaut préservé)
+
+**Infrastructure validée :**
+- Zéro nouveau module : modification de `src/edit_hex.h` et `src/edit_hex.c` uniquement
+- `sector_analyze.h` inclus dans `edit_hex.h` (dépendance ajoutée)
+- La classification est gracieusement dégradée si `sector_db_create` échoue (log + `iSecCount=0`)
+- Fichiers non-disque (PRG, texte) : classification effectuée sur les secteurs complets, types probablement `CODE_DEMO` ou `DATA_*` — visuellement pertinent même sans BPB valide
+
+**Matrice de tests (UC24B) :**
+```
+TEST MATRIX - UC24B:
+  [N] Nominal    :  6 tests - sector_type_name coverage (16 types), tint
+                              table size, sector count formula (.st/sub/odd),
+                              classify zero sector (BSS_ZERO + score > 0.5)
+  [R] Robustness :  3 tests - NULL sector pointer, NULL feat out, NULL pptDb
+  [S] Skipped    :  1 test  - run make manual (tint visuel vue hex)
+Total : 10 tests — 10 PASS, 0 fail
+```
+
+**Contrats comportementaux validés :**
+
+*Module `edit_hex` (enrichissement UC24B)*
+- `edit_hex_open(szPath, ...)` : si `uiSize >= SA_SECTOR_SIZE`, `aeSecType` est alloué et `iSecCount = floor(uiSize / 512)` ; sinon `iSecCount == 0` (aucun tint)
+- `ehex_render()` : pour la ligne `iAbsRow`, `iSec = (iAbsRow * 16) / 512` ; si `iSec < iSecCount && aeSecType[iSec] != SECTOR_UNKNOWN` → rectangle coloré pleine largeur hex+ASCII avant le highlight
+- `g_aSecTint[SECTOR_UNKNOWN] == g_clrBg` — safe even if tint rect is drawn for UNKNOWN (redundant but harmless)
+- `edit_hex_close()` : `free(aeSecType)` libère correctement même si `iSecCount == 0`
+
+**Points d'attention pour les UCs suivants :**
+- UC24C (JSON annotation + bandeau) : `aeSecType[]` peut être utilisé dans `edit_hex_render_band()` pour afficher le type du secteur courant sans re-classifier — déjà calculé
+- UC24C : le bandeau doit lire `ptV->aeSecType[uiCursor / SA_SECTOR_SIZE]` pour le secteur courant
+- UC25 (exécution) : la coloration sémantique est visible dans la vue mémoire si `edit_hex_open()` est utilisé pour afficher la RAM ST — les secteurs en cours d'exécution se distinguent visuellement
+- Limite 80 col : les commentaires de `g_aSecTint[]` dépassent légèrement 80 col pour la lisibilité de la palette — acceptable pour les constantes statiques de rendu
+
+---
+

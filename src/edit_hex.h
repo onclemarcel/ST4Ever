@@ -56,6 +56,7 @@
 #include "renderer.h"
 #include "line.h"
 #include "disassemble.h"
+#include "sector_analyze.h"
 
 /* ------------------------------------------------------------------
  * Layout constants — hex+ASCII columns
@@ -157,6 +158,10 @@ typedef struct edit_hex_view_s
     int               iDisasmCursorIdx;   /* Cache idx of cursor instr  */
     int               iDisasmX;           /* Pixel X of disasm panel    */
     st_bool_t         bShowDisasm;        /* F2 toggle                  */
+
+    /* Sector classification cache (UC24B) ---------------------------------*/
+    sector_type_t    *aeSecType;          /* heap, iSecCount entries     */
+    int               iSecCount;          /* classified sector count     */
 
     line_context_t   *ptLineCtx;
 } edit_hex_view_t;

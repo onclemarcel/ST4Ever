@@ -15,6 +15,7 @@
 #include "gui.h"
 #include "renderer.h"
 #include "disassemble.h"
+#include "sector_analyze.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -51,6 +52,32 @@ static const renderer_color_t g_clrDisasmHL    = { 0.15f, 0.30f, 0.55f, 1.0f };
 static const renderer_color_t g_clrDisasmSepBg = { 0.09f, 0.09f, 0.13f, 1.0f };
 
 /* ------------------------------------------------------------------
+ * Colours — sector type tints (UC24B)
+ * One entry per sector_type_t value [0..SECTOR_TYPE_COUNT-1].
+ * Subtle dark hues overlaid on rows belonging to a classified sector.
+ * SECTOR_UNKNOWN keeps the default background (no rect drawn).
+ * ------------------------------------------------------------------ */
+
+static const renderer_color_t g_aSecTint[SECTOR_TYPE_COUNT] = {
+    { 0.06f, 0.06f, 0.08f, 1.0f }, /* UNKNOWN          - default bg   */
+    { 0.14f, 0.06f, 0.24f, 1.0f }, /* BOOT_NOBOOT      - violet       */
+    { 0.20f, 0.08f, 0.32f, 1.0f }, /* BOOT_BOOT        - vivid violet */
+    { 0.05f, 0.08f, 0.26f, 1.0f }, /* FAT12            - blue         */
+    { 0.05f, 0.18f, 0.20f, 1.0f }, /* DIRECTORY        - teal         */
+    { 0.06f, 0.13f, 0.15f, 1.0f }, /* DIRECTORY_DELETED- muted teal   */
+    { 0.05f, 0.20f, 0.07f, 1.0f }, /* CODE_DEMO        - green        */
+    { 0.05f, 0.16f, 0.05f, 1.0f }, /* CODE_GEMDOS      - softer green */
+    { 0.18f, 0.13f, 0.03f, 1.0f }, /* CODE_PACKER      - amber        */
+    { 0.14f, 0.14f, 0.05f, 1.0f }, /* DATA_SINUS       - yellow       */
+    { 0.14f, 0.11f, 0.09f, 1.0f }, /* DATA_ASCII       - warm gray    */
+    { 0.10f, 0.10f, 0.16f, 1.0f }, /* DATA_BINARY      - cool blue-gray*/
+    { 0.18f, 0.10f, 0.03f, 1.0f }, /* DATA_PACKED      - orange       */
+    { 0.04f, 0.04f, 0.05f, 1.0f }, /* BSS_ZERO         - near-black   */
+    { 0.24f, 0.05f, 0.05f, 1.0f }, /* UNFORMATTED      - dark red     */
+    { 0.24f, 0.11f, 0.03f, 1.0f }, /* PROTECTION       - dark rust    */
+};
+
+/* ------------------------------------------------------------------
  * Hex nibble lookup
  * ------------------------------------------------------------------ */
 
@@ -61,6 +88,7 @@ static const char g_szNib[] = "0123456789ABCDEF";
  * ------------------------------------------------------------------ */
 
 static st_error_t ehex_load(edit_hex_view_t *ptV, const char *szPath);
+static void       ehex_classify_sectors(edit_hex_view_t *ptV);
 static st_error_t ehex_save(edit_hex_view_t *ptV);
 static void       ehex_update_title(edit_hex_view_t *ptV);
 static void       ehex_recalc_layout(edit_hex_view_t *ptV);
@@ -153,6 +181,255 @@ static st_error_t ehex_load(edit_hex_view_t *ptV, const char *szPath)
     ptV->pData  = pBuf;
     ptV->uiSize = (size_t)tStat.uiSize;
     return ST_NO_ERROR;
+}
+
+/* Read 16-bit little-endian at offset off in buffer p */
+#define EHEX_BPB16(p, off) \
+    ((st_u16_t)((p)[(off)] | ((unsigned)(p)[(off)+1u] << 8)))
+
+/* Read 32-bit big-endian at offset off in buffer p (PRG header) */
+#define EHEX_PRG_BE32(p, off) \
+    (((st_u32_t)(p)[(off)]     << 24) | ((st_u32_t)(p)[(off)+1u] << 16) \
+   | ((st_u32_t)(p)[(off)+2u] <<  8) |  (st_u32_t)(p)[(off)+3u])
+
+/*
+ * If sector 0 contains a valid FAT12 BPB, assign structural sector
+ * types directly (deterministic, no ML needed for boot/FAT/dir).
+ * Returns ST_TRUE on success; data sectors stay SECTOR_UNKNOWN.
+ */
+static st_bool_t ehex_classify_by_bpb(edit_hex_view_t *ptV)
+{
+    const st_u8_t *p = ptV->pData;
+    st_u16_t bps, res, rde, spf, spt, hds;
+    st_u8_t  spc, nfat, media;
+    int      iFat1, iRoot, iRootSecs;
+    int      iSec, iFatCopy;
+    st_u32_t uiSum;
+    int      i;
+    st_bool_t bBoot;
+
+    bps   = EHEX_BPB16(p, 0x0Bu);
+    spc   = p[0x0Du];
+    res   = EHEX_BPB16(p, 0x0Eu);
+    nfat  = p[0x10u];
+    rde   = EHEX_BPB16(p, 0x11u);
+    media = p[0x15u];
+    spf   = EHEX_BPB16(p, 0x16u);
+    spt   = EHEX_BPB16(p, 0x18u);
+    hds   = EHEX_BPB16(p, 0x1Au);
+
+    if (bps != 512u) return ST_FALSE;
+    if (spc == 0u || (spc & (spc - 1u)) != 0u) return ST_FALSE;
+    if (res < 1u) return ST_FALSE;
+    if (nfat < 1u || nfat > 2u) return ST_FALSE;
+    if (rde == 0u) return ST_FALSE;
+    if (media < 0xF0u) return ST_FALSE;
+    if (spf == 0u) return ST_FALSE;
+    if (spt < 1u || spt > 11u) return ST_FALSE;
+    if (hds < 1u || hds > 2u) return ST_FALSE;
+
+    /* Sector ranges */
+    iFat1     = (int)res;
+    iRoot     = iFat1 + (int)nfat * (int)spf;
+    iRootSecs = ((int)rde * 32 + 511) / 512;
+
+    /* Bootsector: WD1772 checksum determines bootable flag */
+    uiSum = 0u;
+    for (i = 0; i < 256; i++)
+        uiSum += ((st_u32_t)p[i * 2] << 8) | (st_u32_t)p[i * 2 + 1];
+    bBoot = ((uiSum & 0xFFFFu) == 0x1234u) ? ST_TRUE : ST_FALSE;
+    if (ptV->iSecCount > 0)
+        ptV->aeSecType[0] = bBoot ? SECTOR_BOOTSECTOR_BOOT
+                                  : SECTOR_BOOTSECTOR_NOBOOT;
+
+    /* Reserved sectors beyond boot (uncommon, mark as boot) */
+    for (iSec = 1; iSec < iFat1 && iSec < ptV->iSecCount; iSec++)
+        ptV->aeSecType[iSec] = SECTOR_BOOTSECTOR_NOBOOT;
+
+    /* FAT sectors (all copies) */
+    for (iFatCopy = 0; iFatCopy < (int)nfat; iFatCopy++)
+    {
+        int iBase = iFat1 + iFatCopy * (int)spf;
+        for (iSec = iBase;
+             iSec < iBase + (int)spf && iSec < ptV->iSecCount;
+             iSec++)
+            ptV->aeSecType[iSec] = SECTOR_FAT12;
+    }
+
+    /* Root directory */
+    for (iSec = iRoot;
+         iSec < iRoot + iRootSecs && iSec < ptV->iSecCount;
+         iSec++)
+        ptV->aeSecType[iSec] = SECTOR_DIRECTORY;
+
+    LOG_INFO("BPB layout: boot=0 FAT1=%d..%d root=%d..%d data=%d..",
+             iFat1, iFat1 + (int)spf - 1,
+             iRoot, iRoot + iRootSecs - 1,
+             iRoot + iRootSecs);
+    return ST_TRUE;
+}
+
+/*
+ * If sector iSec has PRG magic 0x601A and a valid header, classify
+ * iSec and subsequent sectors by section (.text / .data / .symbol).
+ * Only fires when the sector is still SECTOR_UNKNOWN.
+ */
+static void ehex_classify_prg_at(edit_hex_view_t *ptV, int iSec)
+{
+    const st_u8_t *p = ptV->pData + (size_t)iSec * SA_SECTOR_SIZE;
+    st_u32_t       text_sz, data_sz, sym_sz;
+    st_u32_t       text_end, data_end, sym_end;
+    st_u32_t       uiTotal, uiFileOff;
+    size_t         uiRemain;
+    int            nSecs, s;
+
+    text_sz  = EHEX_PRG_BE32(p,  2);
+    data_sz  = EHEX_PRG_BE32(p,  6);
+    sym_sz   = EHEX_PRG_BE32(p, 14);
+
+    if (text_sz == 0u) return; /* empty .text is not a valid PRG */
+
+    uiTotal  = 28u + text_sz + data_sz + sym_sz;
+    uiRemain = ptV->uiSize - (size_t)iSec * SA_SECTOR_SIZE;
+    if ((size_t)uiTotal > uiRemain) return; /* sizes corrupt */
+
+    text_end = 28u + text_sz;
+    data_end = text_end + data_sz;
+    sym_end  = data_end + sym_sz;
+
+    nSecs = (int)((uiTotal + 511u) / 512u);
+    for (s = 0; s < nSecs && (iSec + s) < ptV->iSecCount; s++)
+    {
+        uiFileOff = (st_u32_t)s * 512u;
+        if (uiFileOff < text_end)
+            ptV->aeSecType[iSec + s] = SECTOR_CODE_DEMO;
+        else if (uiFileOff < data_end)
+            ptV->aeSecType[iSec + s] = SECTOR_DATA_BINARY;
+        else if (uiFileOff < sym_end)
+            ptV->aeSecType[iSec + s] = SECTOR_DATA_ASCII;
+    }
+}
+
+/*
+ * Returns ST_TRUE if the sector looks like a FAT12 directory cluster:
+ * >= 10 of 16 slots valid (printable name, valid attr, or 0x00/0xE5)
+ * AND at least 1 real non-zero entry (avoids mistaking BSS for dir).
+ */
+static st_bool_t ehex_sector_is_subdir(const st_u8_t *p)
+{
+    int       iValid = 0, iNonZero = 0;
+    int       i, j;
+    st_u8_t   uiF, uiA;
+    st_bool_t bOk;
+
+    for (i = 0; i < 16; i++)
+    {
+        uiF = p[i * 32];
+        uiA = p[i * 32 + 11];
+
+        if (uiF == 0x00u) { iValid++; continue; }
+        if (uiF == 0xE5u) { iValid++; continue; }
+
+        bOk = ST_TRUE;
+        for (j = 0; j < 11 && bOk; j++)
+        {
+            st_u8_t c = p[i * 32 + j];
+            bOk = (c >= 0x20u && c <= 0x7Eu) ? ST_TRUE : ST_FALSE;
+        }
+        if (bOk == ST_TRUE && (uiA & 0xC0u) == 0u)
+        {
+            iValid++;
+            iNonZero++;
+        }
+    }
+    return (iValid >= 10 && iNonZero >= 1) ? ST_TRUE : ST_FALSE;
+}
+
+/*
+ * Classify every SA_SECTOR_SIZE-byte block in pData.
+ * Phase 1: BPB-based layout (structural sectors — deterministic).
+ * Phase 2: PRG magic scan (.text / .data / .symbol coloring).
+ * Phase 3: Subdirectory scan (dir_density heuristic).
+ * Phase 4: ML classifier for remaining SECTOR_UNKNOWN sectors.
+ * Non-fatal: any failure simply leaves iSecCount == 0.
+ */
+static void ehex_classify_sectors(edit_hex_view_t *ptV)
+{
+    sector_db_t       *ptDb   = NULL;
+    sector_features_t  tFeat;
+    sector_match_t     tMatch;
+    int                iCount = 0;
+    int                iSec;
+    int                iTotal;
+    const st_u8_t     *pSector;
+    st_bool_t          bBpb;
+
+    if (ptV->pData == NULL || ptV->uiSize < SA_SECTOR_SIZE)
+        return;
+
+    iTotal = (int)(ptV->uiSize / SA_SECTOR_SIZE);
+    if (iTotal <= 0) return;
+
+    ptV->aeSecType = (sector_type_t *)malloc(
+                      (size_t)iTotal * sizeof(sector_type_t));
+    if (ptV->aeSecType == NULL)
+    {
+        LOG_ERROR("malloc failed for aeSecType (%d sectors)", iTotal);
+        return;
+    }
+    for (iSec = 0; iSec < iTotal; iSec++)
+        ptV->aeSecType[iSec] = SECTOR_UNKNOWN;
+    ptV->iSecCount = iTotal;
+
+    /* Phase 1 — BPB layout (reliable for disk images) */
+    bBpb = ehex_classify_by_bpb(ptV);
+
+    /* Phase 2 — PRG magic scan (Atari ST executables) */
+    for (iSec = 0; iSec < iTotal; iSec++)
+    {
+        if (ptV->aeSecType[iSec] != SECTOR_UNKNOWN) continue;
+        pSector = ptV->pData + (size_t)iSec * SA_SECTOR_SIZE;
+        if (pSector[0] == 0x60u && pSector[1] == 0x1Au)
+            ehex_classify_prg_at(ptV, iSec);
+    }
+
+    /* Phase 3 — Subdirectory scan (data-area dir clusters) */
+    for (iSec = 0; iSec < iTotal; iSec++)
+    {
+        if (ptV->aeSecType[iSec] != SECTOR_UNKNOWN) continue;
+        pSector = ptV->pData + (size_t)iSec * SA_SECTOR_SIZE;
+        if (ehex_sector_is_subdir(pSector) == ST_TRUE)
+            ptV->aeSecType[iSec] = SECTOR_DIRECTORY;
+    }
+
+    /* Phase 4 — ML classifier for remaining SECTOR_UNKNOWN */
+    if (sector_db_create(&ptDb) != ST_NO_ERROR)
+    {
+        LOG_ERROR("sector_db_create failed — ML pass skipped");
+        return;
+    }
+    sector_db_bootstrap_defaults(ptDb);
+    sector_db_load(ptDb, "db/sector_db.bin"); /* ignore absence */
+
+    for (iSec = 0; iSec < iTotal; iSec++)
+    {
+        if (ptV->aeSecType[iSec] != SECTOR_UNKNOWN) continue;
+
+        pSector = ptV->pData + (size_t)iSec * SA_SECTOR_SIZE;
+        memset(&tFeat, 0, sizeof(tFeat));
+        if (sector_features_extract(pSector,
+                                     (st_u32_t)iSec,
+                                     &tFeat) == ST_NO_ERROR
+        &&  sector_classify(ptDb, &tFeat, pSector,
+                             &tMatch, 1, &iCount) == ST_NO_ERROR
+        &&  iCount > 0)
+        {
+            ptV->aeSecType[iSec] = tMatch.eType;
+        }
+    }
+    sector_db_destroy(&ptDb);
+    LOG_INFO("sector tinting: %d sectors (BPB=%s)",
+             iTotal, bBpb ? "yes" : "no");
 }
 
 static st_error_t ehex_save(edit_hex_view_t *ptV)
@@ -529,6 +806,24 @@ static void ehex_render(edit_hex_view_t *ptV)
         if (iAbsRow >= iRowCount) break;
 
         fY = (float)(iRow * ptV->iCellH);
+
+        /* Sector tint (UC24B) — drawn before cursor-row highlight       */
+        if (ptV->iSecCount > 0)
+        {
+            int iSec = (iAbsRow * EDIT_HEX_BYTES_PER_ROW)
+                       / (int)SA_SECTOR_SIZE;
+            if (iSec < ptV->iSecCount
+            &&  ptV->aeSecType[iSec] != SECTOR_UNKNOWN)
+            {
+                tRect.fX = (float)ptV->iHexX;
+                tRect.fY = fY;
+                tRect.fW = (float)(ptV->iAsciiX - ptV->iHexX
+                                   + EDIT_HEX_ASCII_CHARS * ptV->iCellW);
+                tRect.fH = (float)ptV->iCellH;
+                renderer_fill_rect(ptV->hRenderer, &tRect,
+                                   &g_aSecTint[ptV->aeSecType[iSec]]);
+            }
+        }
 
         /* Current-row highlight */
         if (iAbsRow == iCurRow)
@@ -1234,6 +1529,9 @@ st_error_t edit_hex_open(const char       *szPath,
         return ST_ERROR;
     }
 
+    /* Classify sectors for tinting (UC24B) */
+    ehex_classify_sectors(ptV);
+
     /* Allocate disasm cache (UC10) */
     ptV->atDisasmCache = (disasm_result_t *)malloc(
         sizeof(disasm_result_t) * EDIT_HEX_DISASM_CACHE_LINES);
@@ -1263,6 +1561,7 @@ st_error_t edit_hex_open(const char       *szPath,
     {
         LOG_ERROR("gui_open_window failed for '%s'", szPath);
         free(ptV->atDisasmCache);
+        free(ptV->aeSecType);
         free(ptV->pData);
         free(ptV);
         return ST_ERROR;
@@ -1293,6 +1592,8 @@ st_error_t edit_hex_close(edit_hex_view_t **pptView)
     gui_close_window(ptV->hWnd);
     free(ptV->atDisasmCache);
     ptV->atDisasmCache = NULL;
+    free(ptV->aeSecType);
+    ptV->aeSecType = NULL;
     free(ptV->pData);
     ptV->pData = NULL;
     free(ptV);
