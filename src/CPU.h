@@ -129,6 +129,8 @@ typedef struct cpu_step_result_s
 /*
  * cpu_init() - Initialise the CPU register file.
  *
+ * @req REQ-CPU-001, REQ-CPU-002, REQ-CPU-003, REQ-CPU-004, REQ-CPU-005
+ *
  * Reads the reset vector from ptMachine (SSP at 0x000000, PC at
  * 0x000004) and sets SR to supervisor mode, interrupt mask = 7.
  *
@@ -143,6 +145,8 @@ st_error_t cpu_init(cpu68k_t *ptCpu, const st_machine_t *ptMachine);
 /*
  * cpu_reset() - Perform a CPU reset (re-read reset vectors).
  *
+ * @req REQ-CPU-002, REQ-CPU-003, REQ-CPU-004
+ *
  * Parameters:
  *   ptCpu     [in/out] : CPU state.
  *   ptMachine [in]     : ST machine (provides new reset vector).
@@ -153,6 +157,9 @@ st_error_t cpu_reset(cpu68k_t *ptCpu, const st_machine_t *ptMachine);
 
 /*
  * cpu_step() - Fetch, decode and execute one instruction.
+ *
+ * @req REQ-CPU-006, REQ-CPU-007, REQ-CPU-008, REQ-CPU-009,
+ *      REQ-CPU-010, REQ-CPU-011
  *
  * Parameters:
  *   ptCpu     [in/out] : CPU state (registers updated).
@@ -167,6 +174,8 @@ st_error_t cpu_step(cpu68k_t           *ptCpu,
 
 /*
  * cpu_raise_exception() - Push the exception frame and jump to vector.
+ *
+ * @req REQ-CPU-040
  *
  * Parameters:
  *   ptCpu     [in/out] : CPU state.

@@ -29,6 +29,7 @@ static const st_u32_t g_auiMsb[3]  = { 0x80u, 0x8000u, 0x80000000u };
 
 /*
  * cpu_fetch_word() - Read word at PC and advance PC by 2.
+ * @req REQ-CPU-008
  */
 static st_u16_t cpu_fetch_word(cpu68k_t     *ptCpu,
                                 st_machine_t *ptMachine)
@@ -48,6 +49,7 @@ static st_u16_t cpu_fetch_word(cpu68k_t     *ptCpu,
 
 /*
  * cpu_flags_nz() - Update N and Z flags from masked result.
+ * @req REQ-CPU-021, REQ-CPU-022, REQ-CPU-023
  */
 static void cpu_flags_nz(cpu68k_t *ptCpu, st_u32_t uiVal, int iSz)
 {
@@ -69,6 +71,7 @@ static void cpu_flags_nz(cpu68k_t *ptCpu, st_u32_t uiVal, int iSz)
 
 /*
  * cpu_flags_clr_vc() - Clear V and C flags.
+ * @req REQ-CPU-021
  */
 static void cpu_flags_clr_vc(cpu68k_t *ptCpu)
 {
@@ -77,6 +80,7 @@ static void cpu_flags_clr_vc(cpu68k_t *ptCpu)
 
 /*
  * cpu_flags_add() - Set N/Z/V/C/X for addition (dst + src = res).
+ * @req REQ-CPU-022
  *
  * C = unsigned carry out; V = signed overflow; X = C.
  */
@@ -121,6 +125,7 @@ static void cpu_flags_add(cpu68k_t *ptCpu,
 
 /*
  * cpu_flags_sub() - Set N/Z/V/C/X for subtraction (dst - src = res).
+ * @req REQ-CPU-023
  *
  * C = borrow (src > dst unsigned); V = signed overflow; X = C.
  */
@@ -167,6 +172,10 @@ static void cpu_flags_sub(cpu68k_t *ptCpu,
  * Stack push / pop helpers (use active A7 as stack pointer)
  * ------------------------------------------------------------------ */
 
+/*
+ * cpu_push_long() - Pre-decrement A7 by 4 and write long-word to stack.
+ * @req REQ-CPU-040
+ */
 static st_error_t cpu_push_long(cpu68k_t     *ptCpu,
                                  st_machine_t *ptMachine,
                                  st_u32_t      uiVal)
@@ -175,6 +184,10 @@ static st_error_t cpu_push_long(cpu68k_t     *ptCpu,
     return st_write_long(ptMachine, ptCpu->auAn[7] & 0x00FFFFFFu, uiVal);
 }
 
+/*
+ * cpu_push_word() - Pre-decrement A7 by 2 and write word to stack.
+ * @req REQ-CPU-040
+ */
 static st_error_t cpu_push_word(cpu68k_t     *ptCpu,
                                  st_machine_t *ptMachine,
                                  st_u16_t      uiVal)
@@ -183,6 +196,10 @@ static st_error_t cpu_push_word(cpu68k_t     *ptCpu,
     return st_write_word(ptMachine, ptCpu->auAn[7] & 0x00FFFFFFu, uiVal);
 }
 
+/*
+ * cpu_pop_long() - Read long-word from stack and post-increment A7 by 4.
+ * @req REQ-CPU-035, REQ-CPU-036
+ */
 static st_error_t cpu_pop_long(cpu68k_t     *ptCpu,
                                 st_machine_t *ptMachine,
                                 st_u32_t     *puiVal)
@@ -194,6 +211,10 @@ static st_error_t cpu_pop_long(cpu68k_t     *ptCpu,
     return eR;
 }
 
+/*
+ * cpu_pop_word() - Read word from stack and post-increment A7 by 2.
+ * @req REQ-CPU-035, REQ-CPU-036
+ */
 static st_error_t cpu_pop_word(cpu68k_t     *ptCpu,
                                 st_machine_t *ptMachine,
                                 st_u16_t     *puiVal)
@@ -209,6 +230,10 @@ static st_error_t cpu_pop_word(cpu68k_t     *ptCpu,
  * Condition code evaluator  (Bcc / Scc / DBcc)
  * ------------------------------------------------------------------ */
 
+/*
+ * cpu_eval_cc() - Evaluate a 68000 condition code against SR flags.
+ * @req REQ-CPU-033, REQ-CPU-043, REQ-CPU-044
+ */
 static st_bool_t cpu_eval_cc(const cpu68k_t *ptCpu, int iCc)
 {
     int bN = CPU_FLAG_N(ptCpu) ? 1 : 0;
@@ -243,6 +268,8 @@ static st_bool_t cpu_eval_cc(const cpu68k_t *ptCpu, int iCc)
 
 /*
  * cpu_ea_read() - Decode EA, consume extension words, return value.
+ *
+ * @req REQ-CPU-012, REQ-CPU-013
  *
  * iMode : bits 5-3 of opcode (source) or bits 8-6 (dest, already
  *          extracted by caller).
@@ -439,6 +466,7 @@ static st_error_t cpu_ea_read(cpu68k_t     *ptCpu,
 
 /*
  * cpu_ea_write() - Write value to EA, consuming extension words.
+ * @req REQ-CPU-014
  */
 static st_error_t cpu_ea_write(cpu68k_t     *ptCpu,
                                 st_machine_t *ptMachine,
@@ -571,6 +599,8 @@ static st_error_t cpu_ea_write(cpu68k_t     *ptCpu,
 /*
  * cpu_ea_calc_addr() - Compute EA address (for LEA, no value read).
  *
+ * @req REQ-CPU-019
+ *
  * Only valid for control-type EAs: modes 2/5/6 and 7.0/7.1/7.2/7.3.
  */
 static st_error_t cpu_ea_calc_addr(cpu68k_t     *ptCpu,
@@ -689,6 +719,8 @@ static st_error_t cpu_ea_calc_addr(cpu68k_t     *ptCpu,
 /*
  * cpu_exec_move() - MOVE and MOVEA (groups 0x1/0x2/0x3).
  *
+ * @req REQ-CPU-009, REQ-CPU-015, REQ-CPU-016, REQ-CPU-021
+ *
  * Encoding:
  *   [15-12] size: 0x1=byte, 0x3=word, 0x2=long
  *   [11- 9] dest reg (bits in reversed position)
@@ -748,6 +780,8 @@ static st_error_t cpu_exec_move(cpu68k_t     *ptCpu,
 /*
  * cpu_exec_moveq() - MOVEQ #imm8,Dn (group 0x7).
  *
+ * @req REQ-CPU-009, REQ-CPU-017, REQ-CPU-021
+ *
  * Encoding: 0111 DDD 0 IIIIIIII
  */
 static st_error_t cpu_exec_moveq(cpu68k_t *ptCpu, st_u16_t uiOpc)
@@ -775,6 +809,8 @@ static st_error_t cpu_exec_moveq(cpu68k_t *ptCpu, st_u16_t uiOpc)
 
 /*
  * cpu_exec_clr() - CLR.sz EA (within group 0x4).
+ *
+ * @req REQ-CPU-009, REQ-CPU-018, REQ-CPU-021
  *
  * Encoding: 0100 0010 SS MMMRRR
  */
@@ -811,6 +847,8 @@ static st_error_t cpu_exec_clr(cpu68k_t     *ptCpu,
 /*
  * cpu_exec_lea() - LEA EA,An (within group 0x4).
  *
+ * @req REQ-CPU-009, REQ-CPU-019
+ *
  * Encoding: 0100 AAA 111 MMMRRR   (mask 0xF1C0 == 0x41C0)
  */
 static st_error_t cpu_exec_lea(cpu68k_t     *ptCpu,
@@ -835,6 +873,8 @@ static st_error_t cpu_exec_lea(cpu68k_t     *ptCpu,
 /*
  * cpu_exec_swap() - SWAP Dn (within group 0x4).
  *
+ * @req REQ-CPU-009, REQ-CPU-020
+ *
  * Encoding: 0100 1000 0100 0DDD   (mask 0xFFF8 == 0x4840)
  */
 static st_error_t cpu_exec_swap(cpu68k_t *ptCpu, st_u16_t uiOpc)
@@ -856,6 +896,8 @@ static st_error_t cpu_exec_swap(cpu68k_t *ptCpu, st_u16_t uiOpc)
 
 /*
  * cpu_exec_unary() - NEG / NEGX / NOT / TST  (group 0x4 unary ops).
+ *
+ * @req REQ-CPU-010, REQ-CPU-025
  *
  * szMnem : mnemonic string for logging
  * iOp    : 0=NEG, 1=NEGX, 2=NOT, 3=TST
@@ -930,6 +972,8 @@ static st_error_t cpu_exec_unary(cpu68k_t     *ptCpu,
 
 /*
  * cpu_exec_group0() - Immediate ops (ADDI/SUBI/CMPI/ANDI/ORI/EORI).
+ *
+ * @req REQ-CPU-010
  *
  * Encoding: 0000 TTTT SS MMMRRR  + imm word(s)
  *   TTTT: 0000=ORI, 0010=ANDI, 0100=SUBI, 0110=ADDI, 1010=EORI, 1100=CMPI
@@ -1018,7 +1062,9 @@ static st_error_t cpu_exec_group0(cpu68k_t     *ptCpu,
 }
 
 /*
- * cpu_exec_group5() - ADDQ / SUBQ.
+ * cpu_exec_group5() - ADDQ / SUBQ / Scc / DBcc.
+ *
+ * @req REQ-CPU-010, REQ-CPU-043, REQ-CPU-044
  *
  * Encoding: 0101 DDD Q SS MMMRRR
  *   Q=0 → ADDQ, Q=1 → SUBQ; DDD=immediate (0=8); SS=size
@@ -1111,6 +1157,8 @@ static st_error_t cpu_exec_group5(cpu68k_t     *ptCpu,
 
 /*
  * cpu_exec_addx_subx() - ADDX / SUBX (register and memory forms).
+ *
+ * @req REQ-CPU-010, REQ-CPU-024
  *
  * Register: MMMRRR = 000 DDD (mode=0), Memory: MMMRRR = 001 DDD
  * iDir: 0=ADDX, 1=SUBX
@@ -1205,6 +1253,7 @@ static st_error_t cpu_exec_addx_subx(cpu68k_t     *ptCpu,
 
 /*
  * cpu_exec_groupD() - ADD / ADDA / ADDX (group 0xD).
+ * @req REQ-CPU-010, REQ-CPU-026, REQ-CPU-050
  */
 static st_error_t cpu_exec_groupD(cpu68k_t     *ptCpu,
                                     st_machine_t *ptMachine,
@@ -1278,6 +1327,7 @@ static st_error_t cpu_exec_groupD(cpu68k_t     *ptCpu,
 
 /*
  * cpu_exec_group9() - SUB / SUBA / SUBX (group 0x9).
+ * @req REQ-CPU-010, REQ-CPU-026, REQ-CPU-050
  */
 static st_error_t cpu_exec_group9(cpu68k_t     *ptCpu,
                                     st_machine_t *ptMachine,
@@ -1350,6 +1400,7 @@ static st_error_t cpu_exec_group9(cpu68k_t     *ptCpu,
 
 /*
  * cpu_exec_groupB() - CMP / CMPA / EOR / CMPM (group 0xB).
+ * @req REQ-CPU-010, REQ-CPU-026
  */
 static st_error_t cpu_exec_groupB(cpu68k_t     *ptCpu,
                                     st_machine_t *ptMachine,
@@ -1421,6 +1472,7 @@ static st_error_t cpu_exec_groupB(cpu68k_t     *ptCpu,
 
 /*
  * cpu_exec_groupC() - AND / MULU / MULS (group 0xC).
+ * @req REQ-CPU-010, REQ-CPU-027
  */
 static st_error_t cpu_exec_groupC(cpu68k_t     *ptCpu,
                                     st_machine_t *ptMachine,
@@ -1492,6 +1544,7 @@ static st_error_t cpu_exec_groupC(cpu68k_t     *ptCpu,
 
 /*
  * cpu_exec_group8() - OR / DIVU / DIVS (group 0x8).
+ * @req REQ-CPU-010, REQ-CPU-028
  */
 static st_error_t cpu_exec_group8(cpu68k_t     *ptCpu,
                                     st_machine_t *ptMachine,
@@ -1576,6 +1629,8 @@ static st_error_t cpu_exec_group8(cpu68k_t     *ptCpu,
 
 /*
  * cpu_exec_groupE() - Shifts and rotations (group 0xE).
+ *
+ * @req REQ-CPU-010, REQ-CPU-029, REQ-CPU-030, REQ-CPU-031
  *
  * Register form (sz != 3):
  *   1110 cccc d ss i tt rrr
@@ -1797,6 +1852,8 @@ static st_error_t cpu_exec_groupE(cpu68k_t     *ptCpu,
 /*
  * cpu_exec_branch() - BRA / BSR / Bcc (group 0x6).
  *
+ * @req REQ-CPU-011, REQ-CPU-032, REQ-CPU-033
+ *
  * Encoding: 0110 cccc dddddddd
  *   cccc = 0 → BRA (unconditional)
  *   cccc = 1 → BSR (branch to subroutine)
@@ -1866,6 +1923,8 @@ static st_error_t cpu_exec_branch(cpu68k_t     *ptCpu,
 /*
  * cpu_exec_ext() - EXT.W Dn or EXT.L Dn  (group 0x4).
  *
+ * @req REQ-CPU-010
+ *
  * EXT.W : 0100 1000 1000 0DDD  (0xFFF8 == 0x4880)
  * EXT.L : 0100 1000 1100 0DDD  (0xFFF8 == 0x48C0)
  */
@@ -1900,6 +1959,9 @@ static st_error_t cpu_exec_ext(cpu68k_t *ptCpu, st_u16_t uiOpc)
 
 /*
  * cpu_exec_misc4e() - Group 0x4 instructions with upper byte 0x4E.
+ *
+ * @req REQ-CPU-011, REQ-CPU-034, REQ-CPU-035, REQ-CPU-036,
+ *      REQ-CPU-037, REQ-CPU-038, REQ-CPU-039, REQ-CPU-041, REQ-CPU-042
  *
  * NOP (0x4E71), STOP (0x4E72), RTE (0x4E73), RTS (0x4E75),
  * RTR (0x4E77), TRAP #n (0x4E40-0x4E4F), LINK An,#d16 (0x4E50-0x4E57),
@@ -2076,6 +2138,8 @@ static st_error_t cpu_exec_misc4e(cpu68k_t     *ptCpu,
 /*
  * cpu_exec_movem() - MOVEM register list save/restore.
  *
+ * @req REQ-CPU-045, REQ-CPU-046, REQ-CPU-047, REQ-CPU-048, REQ-CPU-049
+ *
  * dir=0 (0x48xx): registers → memory.
  *   mode 4 (-(An)): pre-decrement, reversed mask
  *     bit 0=A7 bit 7=A0 bit 8=D7 bit 15=D0
@@ -2235,6 +2299,7 @@ static st_error_t cpu_exec_movem(cpu68k_t     *ptCpu,
 
 /*
  * cpu_exec_misc4() - Dispatch group 0x4 instructions.
+ * @req REQ-CPU-045
  */
 static st_error_t cpu_exec_misc4(cpu68k_t     *ptCpu,
                                    st_machine_t *ptMachine,

@@ -96,7 +96,7 @@ endif
 # -----------------------------------------------------------------------------
 # Top-level targets
 # -----------------------------------------------------------------------------
-.PHONY: all run tests manual clean
+.PHONY: all run tests manual clean dd
 
 all: $(BUILD) $(RELEASE) $(TDIR) $(TARGET) $(UC_TARGETS)
 
@@ -195,6 +195,25 @@ endif
 # The leading '-' suppresses errors on first build when .d files don't
 # exist yet.
 -include $(ALL_OBJS:.o=.d)
+
+# -----------------------------------------------------------------------------
+# Detailed Description document (auto-generated, not versioned)
+# Usage:
+#   make dd               - all modules
+#   make dd MODS=trace,CPU - selected modules only
+#   make dd DEPTH=5       - deeper call-tree
+# -----------------------------------------------------------------------------
+DD_ARGS :=
+ifdef MODS
+DD_ARGS += --mods $(MODS)
+endif
+ifdef DEPTH
+DD_ARGS += --depth $(DEPTH)
+endif
+
+dd:
+	python tools/gen_dd.py --src src --plat $(PLATFORM) \
+	    --out "4 - DD.md" $(DD_ARGS)
 
 # -----------------------------------------------------------------------------
 clean:

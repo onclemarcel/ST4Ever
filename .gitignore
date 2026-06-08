@@ -1,0 +1,22 @@
+# Build outputs
+build/
+release/
+test/
+manual/
+
+# Generated documentation (produced by tools/gen_dd.py)
+4 - DD.md
+
+# Runtime files
+st4ever_trace.log
+out.txt
+uc44_*.txt
+/tmp/st4ever_*.bin
+
+# Editor / OS
+*.orig
+.DS_Store
+Thumbs.db
+
+# Local test files
+use_cases/UC20A/msa/

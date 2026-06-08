@@ -157,6 +157,8 @@ st_error_t trace_clear(void);
  * trace_set_view_level() - Set the minimum log level shown in the GUI
  * trace window (P28 display filter).
  *
+ * @req REQ-CON-030
+ *
  * Entries below eMinLevel are still appended to the ring buffer and
  * written to the log file; they are simply not rendered.
  *
