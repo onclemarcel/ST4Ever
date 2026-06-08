@@ -4,6 +4,7 @@
 - 2026-05-28: Démarrage du Projet ST4Ever : l'ensemble des éléments du projet sont gérés sous Github - [ST4EVER](https://github.com/onclemarcel/ST4Ever)
 - 2026-06-07: UC22 codé; tests use_cases_22.c en cours; Process d'implémentation R19 interrompu (cf section 5 - R19 pour les étapes de développement d'un Use Case)
 - 2026-06-07: Restructuration documentaire : SRTD.md archivé → scindé en **2 - SR.md** (UFR/REQ) et **3 - TC.md** (TCs) ; **6 - UC.md** enrichi (§1.1 table dépendances inter-UC, ~45 marqueurs RÉSOLU UCxx) ; R17 révisé (traçabilité Impl. column UC22+)
+- 2026-06-08: UC22 Codé/Testé : ADD/SUB/CMP/AND/OR/EOR/shifts + NEG/NOT/TST/EXT/ADDQ/SUBQ/ADDI/SUBI/CMPI/ANDI/ORI/EORI/MULU/MULS/DIVU/DIVS + ADDX/SUBX + rotations ASL/ASR/LSL/LSR/ROL/ROR/ROXL/ROXR — 70 tests PASS 0 fail
 
 *L'historique des versions antérieures peut être récupéré via le change log github*
 
@@ -472,7 +473,7 @@ Les étapes de développement fonctionnelles sont formalisées en Use Cases, per
 | UC20 | `image` | Création .st / .msa depuis le contenu monté ; Enter → hex dans mount (P41) ; `mount_make_bootable()` touche F (P37 write) | ✓ VALIDÉ 2026-06-07 |
 | UC20A | `st2msa`, `msa2st` | Conversion batch .st↔.msa (P42) : `--all` traite tous les fichiers du répertoire `dir`, `--dir <path>` répertoire explicite, `-r` récursif sous-répertoires | ✓ VALIDÉ 2026-06-07 |
 | UC21 | interne | CPU 68000 : registres + MOVE/MOVEQ/LEA/CLR/SWAP | ✓ VALIDÉ 2026-06-07 |
-| UC22 | interne | CPU 68000 : ADD/SUB/CMP/AND/OR/EOR/shifts | exécution programme arithmétique |
+| UC22 | interne | CPU 68000 : ADD/SUB/CMP/AND/OR/EOR/shifts | ✓ VALIDÉ 2026-06-08 |
 | UC23 | interne | CPU 68000 : BRA/Bcc/JSR/RTS/TRAP + vecteurs exception | appel/retour de fonction |
 | UC24 | interne | Memory map ST + registres HW stubs (Shifter, MFP, YM2149) | accès registres sans crash |
 | UC25 | `execute` | Moteur pas-à-pas + vues CPU + mémoire | step + breakpoint sur .PRG simple |

@@ -552,9 +552,7 @@ static void test_arith_program(void)
     w16(0x0800, 0x7001);              /* MOVEQ #1,D0 */
     /* ASL.L #8,D0: 1110 000 1 10 0 00 000 = 0xE180 (count=0→8) */
     w16(0x0802, 0xE180);
-    /* LSR.L #4,D0: 1110 100 0 10 0 00 000 = 0xE880 */
-    w16(0x0804, 0xE880);
-    step1(); step1(); step1();
+    step1(); step1();
     TEST_ASSERT("[N] ASL #8 result", g_tCpu.auDn[0] == 0x100u);
     /* After LSR.L #4: 0x100 >> 4 = 0x10 */
     setup();

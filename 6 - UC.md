@@ -49,9 +49,11 @@ Ils guident les sessions futures lors de l'implémentation réelle.
 | UC7 | UC24 | `ST_LOAD_BASE = 0x0800` en dur — UC24 allouera première zone libre au-dessus des variables TOS | — |
 | UC7 | UC25 | `execute` démarrera depuis `load_get_state()->uiLoadAddr` comme PC initial (`eType == LOAD_TYPE_PRG`) | — |
 | UC14/UC15A | UC23+ | MOVEM, CHK, DBcc/Scc, MOVEP (~175 DC.W restants) — non couverts par le désassembleur ni le CPU actuel | — |
-| UC21 | UC22 | Flags X, C, V — gestion complète pour ADD/SUB/CMP/shifts (dépassement, retenue, borrow) | — |
-| UC21 | UC22 | `iCycles` hardcodé à 4 — affiner selon table timings 68000 (EA mode + instruction) si nécessaire | — |
+| UC21 | UC22 | Flags X, C, V — gestion complète pour ADD/SUB/CMP/shifts (dépassement, retenue, borrow) | **RÉSOLU UC22** |
+| UC21 | UC22 | `iCycles` hardcodé à 4 — affiner selon table timings 68000 (EA mode + instruction) si nécessaire | **RÉSOLU UC22** (différé UC23+) |
 | UC21 | UC23 | `cpu_exec_misc4` : RTS/NOP/JSR/JMP/TRAP/LINK/UNLK/RTE/RTR + `cpu_raise_exception()` complet (stacking SR+PC, changement mode) | — |
+| UC22 | UC23 | Scc/DBcc (groupe 0x5 size=3) — LOG_TODO actuellement | — |
+| UC22 | UC23 | Division par zéro DIVU/DIVS → `cpu_raise_exception(CPU_VEC_DIV_ZERO)` | — |
 
 ---
 
@@ -2048,10 +2050,85 @@ Référence complète des différences syntaxiques : **`DISASM_SYNTAX.md`** à l
 - `ptResult` NULL est légal — skippé silencieusement
 
 **Points d'attention pour les UCs suivants :**
-- UC22 : ADD/SUB/CMP/AND/OR/EOR/shifts — groupes 0x5/0x6/0x8/0x9/0xB/0xC/0xD/0xE. Les flags X, C, V nécessitent une gestion complète (dépassement, retenue, borrow). Le décodeur EA est déjà complet — UC22 réutilise `cpu_ea_read/write` sans modification.
-- UC22 : cycles d'exécution réels — `ptResult->iCycles` est pour l'instant hardcodé à 4. UC22 pourra affiner selon la table des timings 68000 (EA mode + instruction).
+- ~~UC22 : ADD/SUB/CMP/AND/OR/EOR/shifts — groupes 0x5/0x6/0x8/0x9/0xB/0xC/0xD/0xE. Les flags X, C, V nécessitent une gestion complète (dépassement, retenue, borrow). Le décodeur EA est déjà complet — UC22 réutilise `cpu_ea_read/write` sans modification.~~ **RÉSOLU UC22**
+- ~~UC22 : cycles d'exécution réels — `ptResult->iCycles` est pour l'instant hardcodé à 4. UC22 pourra affiner selon la table des timings 68000 (EA mode + instruction).~~ **RÉSOLU UC22** (hardcodé à 4, affinement différé UC23+)
 - UC23 : `cpu_exec_misc4` pour les opcodes non-couverts : RTS (0x4E75), NOP (0x4E71), JSR (0x4E80-BF), JMP (0x4EC0-FF), TRAP #N, LINK/UNLK, RTE/RTR. Nécessite `cpu_raise_exception()` complet (stacking SR+PC, changement mode).
 - `use_case_01.c` TC-CPU-005/006 ADAPTED:UC21 — les assertions step#1/step#2 sont désormais des tests réels (D0==42, opcode correct). À noter : step#2 (RTS) retourne ST_NO_ERROR via LOG_TODO — ce comportement sera remplacé en UC23.
+
+---
+
+## 31 Use Case 22 (UC22) — ✓ VALIDÉ (2026-06-08)
+
+**Périmètre fonctionnel implémenté :**
+- `src/CPU.c` étendu avec 12 familles d'instructions arithmétiques/logiques/décalages :
+  - **`cpu_flags_add()`** : N/Z/V/C/X pour addition (`dst + src = res`) — C = débordement non-signé, V = débordement signé, X = C.
+  - **`cpu_flags_sub()`** : N/Z/V/C/X pour soustraction (`dst - src = res`) — C = borrow (src > dst non-signé), V = débordement signé, X = C.
+  - **`cpu_exec_group0()` (groupe 0x0)** : ORI/ANDI/SUBI/ADDI/EORI/CMPI — lecture immédiat (1 ou 2 mots), dispatch sur op nibble. CMPI ne réécrit pas la destination.
+  - **`cpu_exec_group5()` (groupe 0x5)** : ADDQ/SUBQ — immédiat 1-8 (0→8) ; mode An : pas de flags. Size=3 → LOG_TODO (Scc/DBcc UC23).
+  - **`cpu_exec_addx_subx()`** : ADDX/SUBX — formes registre (mode=0) et mémoire -(An) (mode=1) ; X inclus dans le calcul. Z : préservé si résultat=0 (sémantique "not cleared if zero" 68000).
+  - **`cpu_exec_groupD()` (groupe 0xD)** : ADD EA,Dn / ADD Dn,EA / ADDA.L / ADDX (délégation addx_subx).
+  - **`cpu_exec_group9()` (groupe 0x9)** : SUB EA,Dn / SUB Dn,EA / SUBA.L / SUBX.
+  - **`cpu_exec_groupB()` (groupe 0xB)** : CMP EA,Dn / CMPA.L / CMPM (An)+,(An)+ / EOR Dn,EA.
+  - **`cpu_exec_groupC()` (groupe 0xC)** : AND EA,Dn / AND Dn,EA / MULU.W (16×16→32 non-signé) / MULS.W (signé).
+  - **`cpu_exec_group8()` (groupe 0x8)** : OR EA,Dn / OR Dn,EA / DIVU.W (quotient=bits 15-0, reste=bits 31-16) / DIVS.W / division par zéro → LOG_TODO (UC23).
+  - **`cpu_exec_unary()` (dans groupe 0x4)** : NEG/NEGX/NOT/TST. NEGX : Z préservé si résultat=0. NEG(0) → C=0, Z=1.
+  - **`cpu_exec_ext()` (dans groupe 0x4)** : EXT.W (byte→word, préserve bits 31-16) / EXT.L (word→long).
+  - **`cpu_exec_groupE()` (groupe 0xE)** : ASL/ASR/LSL/LSR/ROL/ROR/ROXL/ROXR — formes registre (toutes tailles) et mémoire (word, 1 bit). Comptage immédiat (0→8) ou par registre (mod 64). V : simplifié (cleared sauf ASL où changement de signe).
+  - **`cpu_exec_misc4()` étendu** : +NEGX (0xFF00==0x4000), +NEG (0xFF00==0x4400), +NOT (0xFF00==0x4600), +TST (0xFF00==0x4A00), +EXT.W/EXT.L (0xFFF8).
+- `use_cases/use_case_22.c` : TEST MATRIX **62N + 8R + 0S = 70 tests**, 0 failure.
+- `use_cases/use_cases.h` : ajout macro `TEST_ASSERT(desc, cond)` (alias de `UC_TEST`, pour uniformité UC22+).
+- `src/common.h` : `ST_APP_VERSION` → `"0.22.0"`.
+
+**Architecture flags (UC22) :**
+- `cpu_flags_add/sub()` masquent src/dst/res à la taille de l'opération avant tout calcul — invariant critique pour l'absence de contamination des bits supérieurs.
+- Les instructions ADDX/SUBX/NEGX utilisent la sémantique Z "preserve if zero" (Z n'est effacé que si le résultat est non-nul, jamais forcé à 1 par ces instructions). Permet d'implémenter les additions multi-précision ATARI ST.
+- ADDA/SUBA/CMPA opèrent sur An 32 bits complets sans modifier les flags (ADDA/SUBA) ou avec flags sur 32 bits (CMPA).
+- `cpu_exec_groupE()` : le loop `for (i=0; i<iCount; i++)` met à jour C/X à chaque pas — pour les rotations ROX, X est transmis entre chaque bit rotationné.
+
+**Contrats comportementaux validés :**
+
+*`cpu_flags_add(src, dst, res, sz)`*
+- Masque src/dst/res à g_auiMask[sz] avant tout test
+- C = (res < src || res < dst) — unsigned overflow
+- V = !((src^dst) & msb) && ((res^src) & msb) — both same sign, result different
+- X = C
+- N/Z mis à jour depuis res masqué
+
+*`cpu_flags_sub(src, dst, res, sz)` — dst - src = res*
+- C = (src > dst) — borrow
+- V = ((src^dst) & msb) && ((res^dst) & msb) — operands different signs, result sign != dst
+- X = C
+
+*`cpu_exec_unary()` — NEG/NEGX/NOT/TST*
+- NEG(0) : `cpu_flags_sub(0, 0, 0)` → C=0, Z=1 (pas de borrow de zéro)
+- NEG(N) : `cpu_flags_sub(N, 0, -N)` → C=1 si N!=0
+- NEGX : Z préservé si res==0 (pas forcé à 1)
+- NOT : N/Z seulement, V=0, C=0
+- TST : lecture+flags, pas d'écriture
+
+*`cpu_exec_groupE()` — décalages/rotations*
+- Count=0 (immédiat) → 8 décalages
+- Count registre : `Dn & 63` (mod 64)
+- AS gauche : C = bit sorti du MSB
+- AS droit : bit MSB répliqué (signe préservé)
+- LS gauche/droit : 0 inséré
+- RO : bit sorti réinjecté à l'autre bout, X non modifié
+- ROX : bit sorti → X → bit injecté → X mis à jour
+
+*ADDX/SUBX — Z "not cleared if zero"*
+- `if (uiRes != 0u) SR &= ~Z` — Z n'est JAMAIS mis à 1 par ADDX/SUBX
+- Permet `CLR D0 ; ADDX D1,D0` de tester si somme multi-précision est zéro
+
+*`cpu_exec_groupB()` — CMP vs EOR*
+- `iDir == 1 && iMode == 1` → CMPM (An)+,(An)+
+- `iDir == 1 && iMode != 1` → EOR Dn,EA (écriture EA)
+- `iDir == 0` → CMP EA,Dn (flags uniquement, pas d'écriture)
+
+**Points d'attention pour les UCs suivants :**
+- UC23 : `cpu_exec_misc4` — opcodes non-couverts : RTS (0x4E75), NOP (0x4E71), JSR (0x4E80–0x4EBF), JMP (0x4EC0–0x4EFF), TRAP #N (0x4E40–0x4E4F), LINK/UNLK, RTE/RTR. Nécessite `cpu_raise_exception()` complet (push SR+PC sur pile superviseur, changement mode S).
+- UC23 : Scc/DBcc (groupe 0x5, size=3) — actuellement LOG_TODO dans `cpu_exec_group5()`.
+- UC23 : Division par zéro DIVU/DIVS — actuellement LOG_TODO ; doit déclencher `cpu_raise_exception(CPU_VEC_DIV_ZERO)`.
+- `iCycles` : hardcodé à 4 dans `cpu_step()`. Non affiné en UC22 (timings 68000 complexes, différé après UC23 quand le flot de contrôle sera complet).
 
 ---
 

@@ -45,6 +45,16 @@
  * ------------------------------------------------------------------ */
 
 /* Print a test result line */
+#define TEST_ASSERT(desc, cond) \
+    do { \
+        if (cond) { \
+            printf("  [PASS] %s\n", (desc)); \
+        } else { \
+            printf("  [FAIL] %s  (line %d)\n", (desc), __LINE__); \
+            g_uc_fails++; \
+        } \
+    } while (0)
+
 #define UC_TEST(desc, cond) \
     do { \
         if (cond) { \
