@@ -2847,6 +2847,51 @@ Each INTENT maps to one or more test blocks in `use_cases/use_case_19.c`.
 | TC-CPU-053  | [R]  | INT-CPU-009  | `cpu_init(NULL, ptMachine)` → ST_ERROR (regression UC1)               | ✓ UC21  |
 | TC-CPU-054  | [R]  | INT-CPU-009  | `cpu_init(ptCpu, NULL)` → ST_ERROR (regression UC1)                   | ✓ UC21  |
 | TC-CPU-055  | [R]  | INT-CPU-008  | CLR.L (A1) on valid memory EA → ST_NO_ERROR + RAM zeroed              | ✓ UC21  |
+| TC-CPU-056  | [N]  | INT-CPU-010  | ADD.L D1,D0: 0x10+0x05=0x15, N=0, Z=0, C=0, V=0, X=0               | ✓ UC22  |
+| TC-CPU-057  | [N]  | INT-CPU-010  | ADD.W signed overflow: 0x7FFF+1=0x8000, V=1, N=1                    | ✓ UC22  |
+| TC-CPU-058  | [N]  | INT-CPU-010  | SUB.L D1,D0: 0x10-0x03=0x0D, N=0, Z=0, C=0                         | ✓ UC22  |
+| TC-CPU-059  | [N]  | INT-CPU-010  | SUB.L borrow: 0x01-0x02=0xFFFFFFFF, C=1, N=1                        | ✓ UC22  |
+| TC-CPU-060  | [N]  | INT-CPU-010  | CMPI.W equal: Z=1, Dn unchanged                                       | ✓ UC22  |
+| TC-CPU-061  | [N]  | INT-CPU-010  | AND.L D1,D0: 0xF0F0F0F0 & 0x0F0F0F0F = 0, Z=1                      | ✓ UC22  |
+| TC-CPU-062  | [N]  | INT-CPU-010  | OR.W D1,D0: 0x00F0 \| 0x000F = 0x00FF, N=0                          | ✓ UC22  |
+| TC-CPU-063  | [N]  | INT-CPU-010  | EOR.B D1,D0: 0xFF^0xFF=0x00, Z=1                                     | ✓ UC22  |
+| TC-CPU-064  | [N]  | INT-CPU-010  | NEG.L D0=5: result=0xFFFFFFFB, N=1, C=1                             | ✓ UC22  |
+| TC-CPU-065  | [N]  | INT-CPU-010  | NEG.L D0=0: result=0, Z=1, C=0 (no borrow from 0-0)                 | ✓ UC22  |
+| TC-CPU-066  | [N]  | INT-CPU-010  | NOT.W D0=0x1234: result=0xEDCB, N=1                                  | ✓ UC22  |
+| TC-CPU-067  | [N]  | INT-CPU-010  | TST.L D0=0: Z=1, D0 unchanged                                        | ✓ UC22  |
+| TC-CPU-068  | [N]  | INT-CPU-010  | EXT.W D0=0xFF: word result=0xFFFF, N=1                               | ✓ UC22  |
+| TC-CPU-069  | [N]  | INT-CPU-010  | EXT.L D0=0x8000: long result=0xFFFF8000, N=1                         | ✓ UC22  |
+| TC-CPU-070  | [N]  | INT-CPU-010  | ADDQ.L #8,D0=0: result=8                                             | ✓ UC22  |
+| TC-CPU-071  | [N]  | INT-CPU-010  | ADDQ.W #3,D0=0: result=3                                             | ✓ UC22  |
+| TC-CPU-072  | [N]  | INT-CPU-010  | SUBQ.L #1,D0=5: result=4, C=0                                        | ✓ UC22  |
+| TC-CPU-073  | [N]  | INT-CPU-010  | SUBQ.L #1,D0=0: result=0xFFFFFFFF, C=1 (underflow)                  | ✓ UC22  |
+| TC-CPU-074  | [N]  | INT-CPU-010  | ADDI.L #$100,D0=0: result=0x100, Z=0                                 | ✓ UC22  |
+| TC-CPU-075  | [N]  | INT-CPU-010  | SUBI.W #5,D0=10: result=5                                            | ✓ UC22  |
+| TC-CPU-076  | [N]  | INT-CPU-010  | ANDI.B #$0F,D0=$FF: result=0x0F                                      | ✓ UC22  |
+| TC-CPU-077  | [N]  | INT-CPU-010  | ORI.W #$F000,D0=$0FFF: result=0xFFFF                                 | ✓ UC22  |
+| TC-CPU-078  | [N]  | INT-CPU-010  | EORI.L #$FFFFFFFF,D0=0: result=0xFFFFFFFF, N=1                      | ✓ UC22  |
+| TC-CPU-079  | [N]  | INT-CPU-010  | CMPI.L equal: Z=1, Dn unchanged                                       | ✓ UC22  |
+| TC-CPU-080  | [N]  | INT-CPU-010  | ASL.L #1,D0=1: result=2, C=0                                         | ✓ UC22  |
+| TC-CPU-081  | [N]  | INT-CPU-010  | ASL.L #1,D0=0x80000000: result=0, C=1, Z=1 (MSB shifted out)        | ✓ UC22  |
+| TC-CPU-082  | [N]  | INT-CPU-010  | ASR.L #1,D0=0x80000000: result=0xC0000000 (sign preserved), C=0     | ✓ UC22  |
+| TC-CPU-083  | [N]  | INT-CPU-010  | LSR.W #4,D0=0x00F0: result=0x000F, C=0                              | ✓ UC22  |
+| TC-CPU-084  | [N]  | INT-CPU-010  | LSL.B #1,D0=0x80: result=0, C=1, Z=1                                | ✓ UC22  |
+| TC-CPU-085  | [N]  | INT-CPU-010  | ROL.W #1,D0=0x8000: result=0x0001, C=1                              | ✓ UC22  |
+| TC-CPU-086  | [N]  | INT-CPU-010  | ROR.W #1,D0=0x0001: result=0x8000, C=1                              | ✓ UC22  |
+| TC-CPU-087  | [N]  | INT-CPU-010  | MULU.W #3,D0=5: result=15, N=0, Z=0                                 | ✓ UC22  |
+| TC-CPU-088  | [N]  | INT-CPU-010  | MULS.W #-1,D0=5: result=0xFFFFFFFB (-5), N=1                        | ✓ UC22  |
+| TC-CPU-089  | [N]  | INT-CPU-010  | DIVU.W 10÷3: quotient=3 (bits 15-0), remainder=1 (bits 31-16)       | ✓ UC22  |
+| TC-CPU-090  | [N]  | INT-CPU-010  | DIVS.W (-10)÷(-2): quotient=5 in bits 15-0                          | ✓ UC22  |
+| TC-CPU-091  | [N]  | INT-CPU-010  | Arithmetic program: (5+3)-2 AND $0F = 6; Z=0, N=0, C=0              | ✓ UC22  |
+| TC-CPU-092  | [N]  | INT-CPU-010  | Shift sequence: ASL.L #8 → 0x100; LSR.L #4 → 0x10                  | ✓ UC22  |
+| TC-CPU-093  | [R]  | INT-CPU-010  | `cpu_step(NULL, ptMachine, *)` → ST_ERROR (regression TC-CPU-048)   | ✓ UC22  |
+| TC-CPU-094  | [R]  | INT-CPU-010  | `cpu_step(ptCpu, NULL, *)` → ST_ERROR (regression TC-CPU-049)       | ✓ UC22  |
+| TC-CPU-095  | [R]  | INT-CPU-010  | Unimplemented opcode 0x6000 (BRA) → ST_NO_ERROR, PC advances by 2   | ✓ UC22  |
+| TC-CPU-096  | [R]  | INT-CPU-010  | ADDQ sz=3 (Scc territory) → ST_NO_ERROR (LOG_TODO, UC23)            | ✓ UC22  |
+| TC-CPU-097  | [R]  | INT-CPU-010  | DIVU.W with divisor=0 → ST_NO_ERROR (LOG_TODO, UC23 exception)      | ✓ UC22  |
+| TC-CPU-098  | [R]  | INT-CPU-010  | NEG/unary with size field=3 (invalid) → ST_NO_ERROR (LOG_TODO)      | ✓ UC22  |
+| TC-CPU-099  | [R]  | INT-CPU-010  | ADDI with size field=3 (invalid) → ST_NO_ERROR (LOG_TODO)           | ✓ UC22  |
+| TC-CPU-100  | [R]  | INT-CPU-010  | Group-0 unknown op nibble → ST_NO_ERROR (LOG_TODO)                  | ✓ UC22  |
 
 #### REQ → TC coverage (UC21)
 
@@ -2874,5 +2919,21 @@ Each INTENT maps to one or more test blocks in `use_cases/use_case_19.c`.
 | UFR-EXE-003   | REQ-CPU-014                                        | TC-CPU-006..008, TC-CPU-042              | ✓ UC21   |
 | UFR-EXE-004   | REQ-CPU-015, REQ-CPU-016                           | TC-CPU-010..011, TC-CPU-037              | ✓ UC21   |
 | UFR-EXE-005   | REQ-CPU-013                                        | TC-CPU-039..040                          | ✓ UC21   |
-| UFR-EXE-006   | REQ-CPU-010                                        | — (TODO UC22)                            | TODO     |
+| UFR-EXE-006   | REQ-CPU-010, REQ-CPU-022..031                      | TC-CPU-056..092                          | ✓ UC22   |
 | UFR-EXE-007   | REQ-CPU-011                                        | — (TODO UC23)                            | TODO     |
+
+#### REQ → TC coverage (UC22)
+
+| REQ           | TC(s)                                                              | Status        |
+|---------------|--------------------------------------------------------------------|---------------|
+| REQ-CPU-010   | TC-CPU-056..092                                                    | ✓ UC22        |
+| REQ-CPU-022   | TC-CPU-056..057, TC-CPU-058..059 (flags_add/sub)                  | ✓ UC22        |
+| REQ-CPU-023   | TC-CPU-058..060 (flags_sub / CMP)                                 | ✓ UC22        |
+| REQ-CPU-024   | — (ADDX/SUBX/NEGX Z semantics; covered by test_unary NEG.L D0=0) | ✓ UC22        |
+| REQ-CPU-025   | TC-CPU-065 (NEG.L zero → C=0)                                     | ✓ UC22        |
+| REQ-CPU-026   | TC-CPU-058..060 (CMPA indirect via CMPI sequence)                 | ✓ UC22        |
+| REQ-CPU-027   | TC-CPU-087..088 (MULU/MULS)                                       | ✓ UC22        |
+| REQ-CPU-028   | TC-CPU-089..090 (DIVU/DIVS quotient/remainder)                    | ✓ UC22        |
+| REQ-CPU-029   | TC-CPU-097 (div-by-zero LOG_TODO)                                 | ✓ UC22        |
+| REQ-CPU-030   | TC-CPU-080..084 (shift count 0→8, register)                      | ✓ UC22        |
+| REQ-CPU-031   | TC-CPU-082..083 (ASR sign, LSR zero-insert)                       | ✓ UC22        |

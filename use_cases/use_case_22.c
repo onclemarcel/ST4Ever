@@ -2,18 +2,21 @@
  * use_case_22.c - UC22 : CPU 68000 ADD/SUB/CMP/AND/OR/EOR/shifts
  *
  * TEST MATRIX - UC22:
- *   [N] Nominal    : 62 tests - ADD/SUB/CMP/AND/OR/EOR/NEG/NOT/TST/
+ *   [N] Nominal    : 83 tests - ADD/SUB/CMP/AND/OR/EOR/NEG/NOT/TST/
  *                               EXT/ADDQ/SUBQ/ADDI/SUBI/CMPI/ANDI/ORI/
  *                               EORI/MULU/MULS/DIVU/DIVS/shifts/rotations
- *   [R] Robustness :  8 tests - flags after edge cases, zero divide stub,
- *                               NULL params inherited from UC21
+ *                               + arithmetic program sequence
+ *   [R] Robustness :  9 tests - NULL params, sz=3 edge, zero divide stub,
+ *                               unimplemented opcode no-crash
  *   [S] Skipped    :  0 tests
  */
 #include "use_cases.h"
 
-/* INTENT[INT-CPU-002 -> TC-CPU-002 -> REQ-CPU-001 -> UFR-CPU-001]:
- * cpu_step() must execute arithmetic, logic and shift 68000 instructions
- * updating data registers and SR flags (N,Z,V,C,X) per the M68000 PRM. */
+/* INTENT[INT-CPU-010 -> TC-CPU-056..092 -> REQ-CPU-010,022..032 -> UFR-EXE-006]:
+ * cpu_step() must execute ADD/ADDA/ADDI/ADDQ/ADDX, SUB/SUBA/SUBI/SUBQ/SUBX,
+ * CMP/CMPA/CMPI/CMPM, AND/ANDI, OR/ORI, EOR/EORI, NEG/NEGX/NOT/TST/EXT,
+ * MULU/MULS, DIVU/DIVS, and all shift/rotation instructions,
+ * updating Dn and SR flags (N,Z,V,C,X) per the M68000 PRM. */
 
 int g_uc_fails = 0;
 

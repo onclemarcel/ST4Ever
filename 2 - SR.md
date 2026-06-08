@@ -215,12 +215,12 @@ through one or more test cases in Section 5.
 
 | ID           | User/System Functional Requirement                                                                                                    | Status       | UC    |
 |--------------|---------------------------------------------------------------------------------------------------------------------------------------|--------------|-------|
-| UFR-EXE-001  | The CPU emulator shall fetch, decode, and execute MC68000 instructions from ST machine RAM, updating registers and SR flags per the Motorola specification. | ✓ UC21 (partial) | UC21 |
+| UFR-EXE-001  | The CPU emulator shall fetch, decode, and execute MC68000 instructions from ST machine RAM, updating registers and SR flags per the Motorola specification. | ✓ UC22 (partial) | UC22 |
 | UFR-EXE-002  | The CPU emulator shall implement the full 12-mode EA decoder: Dn, An, (An), (An)+, -(An), d16(An), d8(An,Xn), abs.W, abs.L, d16(PC), d8(PC,Xn), #imm. | ✓ UC21       | UC21  |
 | UFR-EXE-003  | Byte and word writes to data registers shall preserve the unaffected upper bits; only MOVEQ and long-size operations replace all 32 bits. | ✓ UC21       | UC21  |
 | UFR-EXE-004  | MOVEA shall not affect SR flags; MOVEA.W shall sign-extend the 16-bit source to 32 bits before writing An.                            | ✓ UC21       | UC21  |
 | UFR-EXE-005  | The -(A7) and (A7)+ addressing modes with byte size shall adjust A7 by 2 (not 1) to maintain word alignment on the supervisor stack. | ✓ UC21       | UC21  |
-| UFR-EXE-006  | The CPU emulator shall implement ADD/SUB/CMP/AND/OR/EOR/shifts with correct SR flags (N, Z, V, C, X).                                | TODO UC22    | UC22  |
+| UFR-EXE-006  | The CPU emulator shall implement ADD/SUB/CMP/AND/OR/EOR/shifts with correct SR flags (N, Z, V, C, X).                                | ✓ UC22       | UC22  |
 | UFR-EXE-007  | The CPU emulator shall implement BRA/Bcc/JSR/RTS/TRAP + exception vector dispatch.                                                   | TODO UC23    | UC23  |
 | UFR-EXE-008  | The execution monitor shall provide step, run, stop, and breakpoint controls with a register/memory display view.                     | TODO UC25    | UC25  |
 
@@ -342,7 +342,7 @@ requirement that will expose it (`UFR-EXE-*`, planned UC21–27).
 | REQ-CPU-007 | `cpu_step()` shall fetch the opcode word at the current PC and return it in `ptResult->uiOpcode`.                                            | UFR-EXE-001   | ✓ UC1         | UC1   |
 | REQ-CPU-008 | Stub: `cpu_step()` advances PC by 2; ADAPTED UC21: `cpu_step()` advances PC by the full instruction length (opcode + extension words).       | UFR-EXE-001   | ADAPTED(UC21) | UC21  |
 | REQ-CPU-009 | `cpu_step()` shall decode and execute MOVE.B/W/L, MOVEA.W/L, MOVEQ, LEA, CLR.B/W/L, SWAP.                                                   | UFR-EXE-001   | ✓ UC21        | UC21  |
-| REQ-CPU-010 | `cpu_step()` shall decode and execute ADD/ADDA/ADDI/ADDQ/ADDX, SUB/SUBA/SUBI/SUBQ/SUBX, CMP/CMPA/CMPI/CMPM, AND/ANDI, OR/ORI, EOR/EORI, shifts/rotations, with correct SR flags N/Z/V/C/X. | UFR-EXE-006   | TODO UC22     | UC22  |
+| REQ-CPU-010 | `cpu_step()` shall decode and execute ADD/ADDA/ADDI/ADDQ/ADDX, SUB/SUBA/SUBI/SUBQ/SUBX, CMP/CMPA/CMPI/CMPM, AND/ANDI, OR/ORI, EOR/EORI, shifts/rotations, with correct SR flags N/Z/V/C/X. | UFR-EXE-006   | ✓ UC22        | UC22  |
 | REQ-CPU-011 | `cpu_step()` shall decode and execute BRA/BSR/Bcc (short+long), JMP, JSR/RTS/RTR/RTE, TRAP, LINK/UNLK + exception vector dispatch.          | UFR-EXE-007   | TODO UC23     | UC23  |
 | REQ-CPU-012 | `cpu_ea_read()` shall implement all 12 EA modes; (An)+ shall increment An after the read; -(An) shall decrement An before.                   | UFR-EXE-002   | ✓ UC21        | UC21  |
 | REQ-CPU-013 | For (A7)+ and -(A7) with byte size, A7 shall be adjusted by 2 (not 1) to preserve word alignment.                                           | UFR-EXE-005   | ✓ UC21        | UC21  |
@@ -354,6 +354,16 @@ requirement that will expose it (`UFR-EXE-*`, planned UC21–27).
 | REQ-CPU-019 | LEA shall use control-mode EA only (modes 2/5/6/7.0/7.1/7.2/7.3) and write the computed address to An without modifying SR.                 | UFR-EXE-001   | ✓ UC21        | UC21  |
 | REQ-CPU-020 | SWAP shall exchange bits 31–16 and bits 15–0 of Dn, then set N and Z from the 32-bit result and clear V and C.                              | UFR-EXE-001   | ✓ UC21        | UC21  |
 | REQ-CPU-021 | MOVE/CLR shall set N from bit `MSB(size)` of the result, Z if the result equals 0, and clear V and C.                                        | UFR-EXE-001   | ✓ UC21        | UC21  |
+| REQ-CPU-022 | `cpu_flags_add(src,dst,res,sz)`: C = unsigned carry (res < src \|\| res < dst); V = both operands same sign and result different sign; X = C; N/Z from masked result. | UFR-EXE-006   | ✓ UC22        | UC22  |
+| REQ-CPU-023 | `cpu_flags_sub(src,dst,res,sz)` (dst−src=res): C = borrow (src > dst unsigned); V = operands different signs and result sign ≠ dst; X = C; N/Z from masked result. | UFR-EXE-006   | ✓ UC22        | UC22  |
+| REQ-CPU-024 | ADDX/SUBX/NEGX shall use Z "not-cleared-if-zero" semantics: Z is only cleared when the result is non-zero, never set by these instructions. | UFR-EXE-006   | ✓ UC22        | UC22  |
+| REQ-CPU-025 | NEG(0) shall produce result=0, C=0, Z=1 (no borrow when subtracting 0 from 0). | UFR-EXE-006   | ✓ UC22        | UC22  |
+| REQ-CPU-026 | ADDA/SUBA shall not modify SR flags; they operate on the full 32-bit An. CMPA shall compute flags using the full 32-bit An as destination. | UFR-EXE-006   | ✓ UC22        | UC22  |
+| REQ-CPU-027 | MULU.W shall perform unsigned 16×16→32 multiplication into Dn. MULS.W shall perform signed 16×16→32 multiplication. Both set N/Z, clear V/C. | UFR-EXE-006   | ✓ UC22        | UC22  |
+| REQ-CPU-028 | DIVU/DIVS shall place the quotient in bits 15–0 of Dn and the remainder in bits 31–16. Division by zero shall be a non-fatal LOG_TODO (UC23 exception). | UFR-EXE-006   | ✓ UC22        | UC22  |
+| REQ-CPU-029 | Shift count 0 in the immediate field of group-E instructions shall be interpreted as 8. Register-mode shift count shall use `Dn & 63`. | UFR-EXE-006   | ✓ UC22        | UC22  |
+| REQ-CPU-030 | ASR shall preserve the MSB (sign extension) at each step. LSR shall insert 0. Both update C and X from the last bit shifted out. | UFR-EXE-006   | ✓ UC22        | UC22  |
+| REQ-CPU-031 | RO(L/R) shall rotate without affecting X; ROX(L/R) shall rotate through X, updating both C and X from the transferred bit. | UFR-EXE-006   | ✓ UC22        | UC22  |
 
 ### 2.5 GUI Framework — `gui.h` / `gui.c` / `win_gui.c`
 
