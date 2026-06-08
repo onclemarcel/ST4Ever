@@ -1,9 +1,0 @@
-
-  +-----------------------------------------+
-  |  ST4Ever 0.5.0                           |
-  |  Atari ST Revival Engine                 |
-  |  Type 'help' for available commands.     |
-  +-----------------------------------------+
-
-[2KST4Ever> [2KST4Ever> [2KST4Ever> [2KST4Ever> [2KST4Ever> [2KST4Ever> [2KST4Ever> [2KST4Ever> [2KST4Ever> [2KST4Ever> [2KST4Ever> [2KST4Ever> [2KST4Ever> [2KST4Ever> quit
-  Goodbye. The Atari ST lives on...

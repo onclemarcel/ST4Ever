@@ -199,3 +199,4 @@ endif
 # -----------------------------------------------------------------------------
 clean:
 	rm -rf $(BUILD) $(RELEASE) $(TDIR) $(MDIR)
+	rm -f out.txt st4ever_trace.log uc44_*.txt

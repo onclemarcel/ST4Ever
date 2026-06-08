@@ -47,13 +47,8 @@ static const renderer_color_t g_mnt_clrStatusTx  = {0.70f,0.70f,0.70f,1.0f};
 /* Chunk size for progress reporting during file copy (P40) */
 #define MOUNT_PROGRESS_CHUNK 65536u
 
-#ifdef ST_PLATFORM_WINDOWS
-#  define MOUNT_BOOT_TMP  ".\\st4ever_boot.bin"
-#  define MOUNT_FILE_TMP  ".\\st4ever_mnt_file.bin"
-#else
-#  define MOUNT_BOOT_TMP  "/tmp/st4ever_boot.bin"
-#  define MOUNT_FILE_TMP  "/tmp/st4ever_mnt_file.bin"
-#endif
+#define MOUNT_BOOT_TMP  "/tmp/st4ever_boot.bin"
+#define MOUNT_FILE_TMP  "/tmp/st4ever_mnt_file.bin"
 
 /* ------------------------------------------------------------------
  * Internal: WD1772 bootability check
