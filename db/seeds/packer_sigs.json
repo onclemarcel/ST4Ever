@@ -1,0 +1,47 @@
+{
+  "version": 1,
+  "notes": "Known Atari ST copy-protection and packer byte signatures. Pattern bytes are hex strings. Mask bytes: FF=must match, 00=any byte. iOffset=-1 means search entire sector.",
+
+  "signatures": [
+    {
+      "name": "Rob Northen Copylock",
+      "type": "protection",
+      "iOffset": 30,
+      "pattern": "4E560000",
+      "mask":    "FFFFFFFF",
+      "notes": "LINK A6,#0 opcode at offset 0x1E in bootsector. Characteristic Copylock entry."
+    },
+    {
+      "name": "Orion Sly Packer",
+      "type": "code_packer",
+      "iOffset": 0,
+      "pattern": "6000004E71",
+      "mask":    "FF0000FFFF",
+      "notes": "BRA.W + NOP at start of bootsector. First byte 0x60 (BRA), byte 3-4 = 0x4E71 (NOP)."
+    },
+    {
+      "name": "ULTRAPACK signature",
+      "type": "code_packer",
+      "iOffset": -1,
+      "pattern": "554C545241504143",
+      "mask":    "FFFFFFFFFFFFFFFF",
+      "notes": "ASCII string 'ULTRAPACK' anywhere in the bootsector."
+    },
+    {
+      "name": "ICE Packer",
+      "type": "code_packer",
+      "iOffset": -1,
+      "pattern": "4943452100",
+      "mask":    "FFFFFFFFFF",
+      "notes": "ASCII 'ICE!' followed by 0x00 — ICE packer header marker."
+    },
+    {
+      "name": "Atari ST BPB boot marker",
+      "type": "bootsector_boot",
+      "iOffset": 0,
+      "pattern": "6000",
+      "mask":    "FF00",
+      "notes": "BRA.W opcode at byte 0 — valid boot entry, first byte 0x60 any offset."
+    }
+  ]
+}

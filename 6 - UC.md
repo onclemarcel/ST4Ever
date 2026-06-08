@@ -2274,3 +2274,98 @@ Référence complète des différences syntaxiques : **`DISASM_SYNTAX.md`** à l
 
 ---
 
+## §35 — UC24A : Sector Fingerprint Engine
+
+**Périmètre fonctionnel implémenté :**
+- `src/sector_analyze.h` / `src/sector_analyze.c` — module autonome
+- Extraction d'un vecteur de features 24D depuis 512 octets (statique, UC24A)
+- Cosine similarity pondéré sur un DB de centroides (weights statiques dans `g_weights[]`)
+- Lifecycle DB : `create` / `bootstrap_defaults` / `learn` / `finalize` / `save` / `load` / `destroy`
+- Signatures de packers : scan byte-pattern avec masque, override le cosine si match
+- `tools/build_sector_db.py` — script Python autonome pour enrichir la DB depuis les seeds JSON
+- `db/seeds/` — ground truth JSON versionnés (gittrackés) ; `db/sector_db.bin` — gitignored
+- `db/seeds/whatisit.json` — labels du spécimen `whatisit.st` analysé manuellement
+- `db/seeds/packer_sigs.json` — signatures Rob Northen, Orion Sly, ULTRAPACK, ICE, BRA marker
+
+**Détail des 24 features :**
+
+| # | Nom | Description |
+|---|-----|-------------|
+| 0 | fBpbValid | BPB geometry consistent (BPS=512, SPC∈{1,2}, NFAT∈{1,2}, TS∈[720..1440], SPT∈[8..11], HDS∈[1,2]) |
+| 1 | fWd1772Bootable | 1.0 iff sum of 256 BE words == 0x1234 |
+| 2 | fFatPattern | FAT media byte (≥0xF0) followed by 0xFF 0xFF |
+| 3 | fDirDensity | Fraction of 32-byte-aligned slots with valid FAT12 dir structure |
+| 4 | fEntropy | Shannon H/8 normalized [0..1] |
+| 5 | fZeroRuns | Ratio of 0x00 bytes |
+| 6 | fE5Runs | Ratio of 0xE5 (FAT deleted marker) |
+| 7 | fFfRuns | Ratio of 0xFF (unformatted) |
+| 8 | fAsciiRatio | Ratio of printable ASCII [0x20..0x7E] |
+| 9 | fRepeating | Dominant byte frequency / 512 |
+| 10 | fOpcodeDensity | Bytes covered by forward decode from offset 0 / 512 |
+| 11 | fWordAlignRatio | Even offsets with valid 68000 opcode / 256 |
+| 12 | fBranchDensity | BRA/BSR/Bcc/JMP fraction among decoded instructions |
+| 13 | fRelBranchValid | Branches whose target is in-sector |
+| 14 | fHwImmediate | Byte pairs 0xFF 0x8x-0xFF in sector (raw count / 20) |
+| 15 | fHwInContext | HW immediates in extension words of valid opcodes |
+| 16 | fTimingLoops | DBcc (0x51C8-CF) pattern density |
+| 17 | fVblInstall | MOVE.L #imm,$70.W pattern (21 FC ?? ?? ?? ?? 00 70) |
+| 18 | fSinusProfile | First-difference near-zero ratio (|d[i]| <= 10) |
+| 19 | fGraphicsPattern | Word pairs with bits (F888) == 0 (ST palette words) |
+| 20 | fPackerEntropy | entropy>0.87 AND opcode<0.10 (derived feature) |
+| 21 | fYmAccess | 0xFF88/0xFF89 byte pairs |
+| 22 | fVideoAccess | 0xFF82/0xFF83 byte pairs |
+| 23 | fFdcAccess | 0xFFFA/0xFFFC byte pairs |
+
+**DB sémantique :**
+
+| Type | Valeur enum | Signature dominante |
+|------|-------------|---------------------|
+| bss_zero | 13 | fZeroRuns=1, fEntropy=0, fRepeating=1 |
+| unformatted | 14 | fFfRuns=1, fEntropy=0, fRepeating=1 |
+| fat12 | 3 | fFatPattern=1 |
+| directory | 4 | fDirDensity high, fZeroRuns moderate |
+| directory_deleted | 5 | fE5Runs high, fRepeating high |
+| bootsector_noboot | 1 | fBpbValid=1, fWd1772Bootable=0 |
+| bootsector_boot | 2 | fBpbValid=1, fWd1772Bootable=1, fOpcodeDensity>0.3 |
+| code_demo | 6 | fOpcodeDensity high + fHwInContext + fVblInstall |
+| data_packed | 12 | fPackerEntropy high (entropy>0.87, opcode<0.10) |
+
+**Workflow DB enrichissement :**
+```
+1. Tonton ajoute <disk>.json dans db/seeds/ (type + labeled_sectors)
+2. Image .st dans use_cases/UC20A/st/ (gitignored, copyright)
+3. python3 tools/build_sector_db.py → regenerate db/sector_db.bin
+4. make tests → 0 failure (UC24A rejoue la classification)
+```
+
+**Infrastructure et outillage validés :**
+- Dépendance `sector_analyze.c` → `disasm_one()` (UC11-14) pour fOpcodeDensity/fHwInContext
+- `-lm` ajouté à LDFLAGS Linux pour `logf()` / `sqrtf()`
+- Struct `sector_features_t` est un flat array of 24 floats → cast direct vers `float *` pour cosine
+- `db/.gitignore` : track `seeds/*.json`, ignore `*.bin`
+- `tools/build_sector_db.py` : mode `--dump-features <img.st> --lba N` pour inspection rapide
+
+**Tests R14/R15 appliqués :**
+- TEST MATRIX **40N + 8R + 2S = 50 tests**, tous PASS (2S : whatisit.st présent → executés en PASS)
+- Nominal : feature extraction 8 sectors types, DB lifecycle 4 tests, classify 5 tests, save/load, sig override, type_name, feature dim check
+- Robustesse : NULL sur extract/db_create/db_destroy/db_bootstrap/sector_classify (5 params), iMaxMatches=0, bad file load
+- Skipped conditionnels : test_whatisit_bootsector (s'exécute si image présente, SKIP sinon)
+
+**Contrats comportementaux validés :**
+
+*Module `sector_analyze` (→ UC25 pour enrichissement dynamique)*
+- `sector_features_extract(pSector, uiBase, ptFeat)` : tous les 24 champs entre 0.0 et 1.0 ; retourne ST_ERROR sur NULL
+- `sector_db_bootstrap_defaults()` : populte 6 types triviaux (bss_zero, unformatted, fat12, directory, directory_deleted, data_binary) depuis buffers synthétiques ; centroides calculés, pas hardcodés
+- `sector_db_learn() + finalize()` : centroïde = moyenne exacte des samples ; classify sur sample identique → score > 0.99
+- Packer signature override : si match → score=1.0, type=eType du sig, ignorant le cosine
+- `sector_db_save() + load()` : round-trip exact des centroides et signatures via magic SA_DB_MAGIC
+- `sector_features_t` est un tableau continu de 24 floats — cast `(const float *)` valide par construction
+
+**Points d'attention pour les UCs suivants :**
+- UC25 (exécution) : après chaque `cpu_step()`, les octets exécutés peuvent enrichir les tags sémantiques via `sector_db_learn()` — pont vers l'analyse dynamique
+- UC25 : `sector_classify()` peut être appelé sur le secteur courant du PC pour afficher le type probable dans la vue exécution (information de contexte)
+- UC32 (désassemblage annoté) : `fVblInstall`, `fHwInContext`, `fTimingLoops` sont des précurseurs des patterns UC32 — les seuils de confiance peuvent être réutilisés
+- Enrichissement DB : chaque nouvelle image .st de Tonton → nouveau JSON dans `db/seeds/` → rebuild → meilleurs centroides — zero code change
+
+---
+

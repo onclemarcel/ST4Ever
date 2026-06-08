@@ -43,7 +43,7 @@ ifeq ($(OS),Windows_NT)
 else
     PLATFORM := linux
     EXE      :=
-    LDFLAGS  := -lpthread
+    LDFLAGS  := -lpthread -lm
     # TODO(UC3): add -lX11 -lXft -lfontconfig when X11 is active
 endif
 

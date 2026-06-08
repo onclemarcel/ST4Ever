@@ -39,6 +39,7 @@
 #include "../src/exec_cpu.h"
 #include "../src/exec_asm.h"
 #include "../src/exec_screen.h"
+#include "../src/sector_analyze.h"
 
 /* ------------------------------------------------------------------
  * Test helper macros

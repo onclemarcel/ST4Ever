@@ -8,6 +8,7 @@
 - 2026-06-08: UC23 Codé/Testé : BRA/BSR/Bcc(14 cond) + NOP/STOP/RTE/RTS/RTR/TRAP/LINK/UNLK/JSR/JMP + Scc/DBcc + cpu_raise_exception (pile d'exception complète) — 79 tests PASS 0 fail
 - 2026-06-08: UC23-bis Codé/Testé : MOVEM.L/W -(An)/(An)+ (snapshot+reversed-mask) + ADDA.W/SUBA.W sign-extend 16→32 bits — 26 tests PASS 0 fail
 - 2026-06-08: UC24 Codé/Testé : Memory map ST complet — dispatcher Shifter/YM2149/MFP/ACIA + ROM bus error + bug palette offset 0x20→0x40 corrigé — 49 tests PASS 0 fail
+- 2026-06-08: UC24A Codé/Testé : Sector Fingerprint Engine — vecteur 24D + cosine pondéré + DB bootstrap/learn/finalize/save/load + signatures packers + 42 tests PASS 0 fail
 
 *L'historique des versions antérieures peut être récupéré via le change log github*
 
@@ -481,6 +482,7 @@ Les étapes de développement fonctionnelles sont formalisées en Use Cases, per
 | UC23 | interne | CPU 68000 : BRA/BSR/Bcc(14 cond) + NOP/STOP/RTE/RTS/RTR/TRAP/LINK/UNLK/JSR/JMP + Scc/DBcc + cpu_raise_exception | ✓ VALIDÉ 2026-06-08 |
 | UC23-bis | interne | CPU 68000 : MOVEM (save/restore registres, -(An)/(An)+) + ADDA.W/SUBA.W | ✓ VALIDÉ 2026-06-08 |
 | UC24 | interne | Memory map ST + registres HW stubs (Shifter, MFP, YM2149) | ✓ VALIDÉ 2026-06-08 |
+| UC24A | interne | Sector Fingerprint Engine : vecteur 24D + cosine pondéré + DB seeds/build/load/save + signatures packers | ✓ VALIDÉ 2026-06-08 |
 | UC25 | `execute` | Moteur pas-à-pas + vues CPU + mémoire | step + breakpoint sur .PRG simple |
 | UC26 | interne | Émulation vidéo ST (Shifter : low/med/high res, palette 16 couleurs) | rendu écran correct |
 | UC27 | `execute` | Vue écran Win32/GDI + X11 + synchronisation VBL | démo statique visible |
