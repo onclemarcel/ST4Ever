@@ -22,8 +22,6 @@
  *     0xFFFA00 - 0xFFFA3F    MFP 68901 - timers, UART, interrupts
  *     0xFFFC00 - 0xFFFC07    ACIA 6850 - keyboard + MIDI
  *   0xFFFF82 - 0xFFFFFF   Reserved / mirrors
- *
- * TODO(UC24): Implement hardware register read/write handlers.
  */
 
 #ifndef ST_H
@@ -61,7 +59,7 @@
 #define ST_VID_SYNC_MODE        0x0Au   /* Sync mode (50/60 Hz)      */
 #define ST_VID_SCREEN_BASE_LO   0x0Du   /* Screen base address lo    */
 #define ST_VID_LINE_WIDTH       0x0Fu   /* Scanline width            */
-#define ST_VID_PALETTE          0x20u   /* 16x word palette (0x20-0x3F) */
+#define ST_VID_PALETTE          0x40u   /* 16x word palette (0x40-0x5F) */
 #define ST_VID_RESOLUTION       0x60u   /* ST resolution register    */
 
 /* Palette size */
@@ -82,14 +80,23 @@ typedef struct st_machine_s
     st_u8_t  aRom[ST_ROM_SIZE];         /* TOS ROM image             */
     st_bool_t bRomLoaded;               /* TOS ROM present           */
 
-    /* Shifter state */
+    /* Shifter raw register bytes (index = offset from 0xFF8200)     */
+    st_u8_t  aShifterRegs[0x80];
+
+    /* Derived Shifter state (kept in sync with aShifterRegs)        */
     st_u32_t uiScreenBase;              /* Video frame buffer addr   */
     st_u16_t auPalette[ST_PALETTE_COLORS]; /* ST colour palette      */
     st_u8_t  uiResolution;              /* ST_RES_LOW/MED/HIGH       */
 
-    /* MFP interrupt state (simplified) */
-    st_u8_t  uiMfpIer;                  /* Interrupt enable register */
-    st_u8_t  uiMfpIpr;                  /* Interrupt pending register*/
+    /* YM2149 (PSG) state                                            */
+    st_u8_t  uiYmRegSel;               /* Currently selected reg (0-15) */
+    st_u8_t  auYmRegs[16];             /* YM2149 internal registers  */
+
+    /* MFP 68901 stub registers (0xFFFA00 + offset)                  */
+    st_u8_t  aMfpRegs[0x40];
+
+    /* ACIA 6850 stub registers (0xFFFC00 + offset, kbd+MIDI)        */
+    st_u8_t  aAcia[8];
 
     /* Misc */
     st_bool_t bPoweredOn;               /* Machine is running        */

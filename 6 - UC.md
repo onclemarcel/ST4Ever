@@ -2222,9 +2222,55 @@ Référence complète des différences syntaxiques : **`DISASM_SYNTAX.md`** à l
 | `cpu_exec_groupD/9()` — ADDA/SUBA .W | La distinction ADDA.W (iDir=0) vs ADDA.L (iDir=1) se fait via le bit 8 de l'opcode dans la branche `iSzCode==3`. Le SR n'est jamais modifié par ADDA/SUBA (quelle que soit la taille). |
 
 **Points d'attention pour les UCs suivants :**
-- UC24 : MOVEM vers EA de contrôle (mode 2 = (An), mode 5 = d16(An)) — le chemin `cpu_ea_calc_addr()` est sollicité mais n'a pas encore été testé sous MOVEM en conditions réelles. Surveiller lors des premiers binaires PRG chargés.
-- UC24 : MOVEP — non implémenté (LOG_TODO). Rare dans les démos mais présent dans du code C compilé ancien.
+- ~~UC24 : MOVEM vers EA de contrôle (mode 2 = (An), mode 5 = d16(An)) — le chemin `cpu_ea_calc_addr()` est sollicité mais n'a pas encore été testé sous MOVEM en conditions réelles.~~ Surveiller lors des premiers binaires PRG chargés en UC25.
+- ~~UC24 : MOVEP — non implémenté (LOG_TODO).~~ Rare dans les démos; à ajouter en UC25 si un PRG l'utilise.
 - UC25 : MOVEM.L (An)+,An — si An est dans la liste restaurée, la valeur chargée depuis la mémoire remplace An (comportement Motorola MC68000 confirmé). Ce cas edge est couvert implicitement par le round-trip mais mérite un TC dédié en UC25 si des programmes l'utilisent.
+
+---
+
+## §34 — UC24 : Memory map ST + registres HW stubs
+
+**Périmètre implémenté :**
+- `src/ST.c` refactorisé : dispatcher `st_read_byte`/`st_write_byte` complet, remplace les LOG_TODO précédents
+- Correctif bug : `ST_VID_PALETTE` 0x20 → 0x40 (adresse palette réelle ATARI ST : 0xFF8240)
+- **Shifter** (0xFF8200–0xFF827F) : `aShifterRegs[0x80]` raw storage + mise à jour cohérente des champs dérivés (`uiScreenBase`, `auPalette[16]`, `uiResolution`) sur chaque écriture
+  - Screen base : écriture hi (0xFF8201) / mi (0xFF8203) / lo STE (0xFF820D) → reconstruction automatique de `uiScreenBase`
+  - Palette : 16 × word à 0xFF8240–0xFF825E, accès byte-wide big-endian
+  - Résolution : 0xFF8260, bits [1:0] seulement
+  - Sync mode 50Hz initialisé à 0x02 dans `st_init()`
+- **YM2149/PSG** (0xFF8800–0xFF8803) : sélection registre via 0xFF8800 + écriture données via 0xFF8802 + lecture registre courant depuis 0xFF8800 ; `uiYmRegSel` masqué à 4 bits ; `auYmRegs[16]`
+- **MFP 68901** (0xFFFA00–0xFFFA3F) : `aMfpRegs[0x40]` stub byte-wide, pas de logique interrupt
+- **ACIA 6850** (0xFFFC00–0xFFFC07) : `aAcia[8]` stub byte-wide, kbd + MIDI
+- **Zone ROM** (0xF80000–0xFDFFFF) : lecture → `aRom[]` si chargé sinon 0xFF ; écriture → `ST_ERROR` (bus error)
+- **Zones non-mappées** : lecture → 0xFF (open-bus) ; écriture → ignorée silencieusement
+- Masquage 24 bits : `uiAddr & 0xFFFFFF` systématique en tête de `st_read/write_byte`
+- R22 appliqué : `st_read/write_byte/word/long` **sans** `LOG_TRACE` (appelées sur chaque accès mémoire CPU)
+- `ST_APP_VERSION` : `"0.24.0"`
+
+**Infrastructure validée :**
+- `make tests` : 49 tests UC24, 0 failure, 0 warning — totalité : 361 tests PASS 0 fail
+
+**Matrice de tests (use_case_24.c) :**
+- `[N] Nominal : 41 tests` — init/shutdown, RAM r/w, screen base hi+mi+lo, palette (mot, 16 couleurs), résolution, sync mode, YM2149 (sel+data+read+mask), MFP, ACIA, ROM read (no ROM)=0xFF, ROM write=ST_ERROR, unmapped r/w
+- `[R] Robustness : 8 tests` — NULL machine/output, unaligned word, ROM write ST_ERROR, masquage 32→24 bits
+- `[S] Skipped : 0 tests`
+
+**Contrats comportementaux validés :**
+
+| Module | Invariant |
+|--------|-----------|
+| `st_read/write_byte` — adressage | L'adresse est masquée à 24 bits (`& 0xFFFFFF`) avant dispatch ; les bits 24–31 sont ignorés sans erreur. |
+| `shifter_write_byte` — cohérence dérivée | Tout écriture sur un registre Shifter met à jour simultanément `aShifterRegs[]` ET le champ dérivé (`uiScreenBase`, `auPalette[]`, `uiResolution`). Les deux représentations sont toujours en phase. |
+| `ym2149_write_byte` — protocole PSG | L'écriture en données (0xFF8802) n'est effective que sur `auYmRegs[uiYmRegSel]` — le registre sélectionné doit avoir été préalablement positionné par une écriture à 0xFF8800. `uiYmRegSel` est masqué à 4 bits (0–15). |
+| `st_write_byte` — ROM | Toute écriture en zone 0xF80000–0xFDFFFF retourne `ST_ERROR` (bus error). `st_write_word/long` propagent ce ST_ERROR à l'appelant. |
+| `st_read_byte` — open-bus | Toute adresse non mappée (ni RAM, ni ROM, ni registre HW connu) retourne 0xFF sans erreur. |
+
+**Points d'attention pour les UCs suivants :**
+- UC25 : `cpu_step()` appelle `st_read_byte/word` pour le fetch opcode — le dispatch UC24 est maintenant actif pour toutes les adresses, y compris la zone HW. Les tests UC25 avec des PRG simples valideront le chemin complet.
+- UC25 : Division par zéro (DIVU/DIVS) : remplacer LOG_TODO par `cpu_raise_exception(CPU_VEC_DIV_ZERO)` — la mécanique d'exception est disponible depuis UC23.
+- UC25 : MOVEP — non implémenté (LOG_TODO). Rare dans les démos; à ajouter si un PRG le requiert.
+- UC25 : Chargement TOS ROM (`szRomPath` dans `st_init`) — actuellement LOG_TODO, la zone ROM retourne 0xFF. Non bloquant pour les démos qui bypassen le TOS.
+- UC26 (vidéo) : `auPalette[]` et `uiScreenBase` sont désormais maintenus à jour par UC24 — le renderer vidéo peut les lire directement sans re-parser `aShifterRegs[]`.
 
 ---
 

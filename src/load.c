@@ -20,7 +20,8 @@
  *     4 bytes  first fixup offset from .text start (0 = no fixups)
  *     1 byte   0x00 = end ; 0x01 = advance 254 ; other = advance N + fix
  *
- * TODO(UC24): Allocate load address from memory map (above TOS vars).
+ * Load address is fixed at ST_LOAD_ADDR (0x800); UC25 will allocate
+ * dynamically above TOS variables when the execution engine is active.
  */
 
 #include "load.h"

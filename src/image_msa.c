@@ -205,10 +205,34 @@ st_error_t image_msa_load(const char *szPath, image_st_t **pptImg)
     if (uiSpt == 0u || uiSides > 1u ||
         uiFirst > uiLast || uiLast >= (st_u16_t)IST_TRACKS)
     {
-        LOG_ERROR(
-            "MSA load: bad geometry spt=%u sides=%u first=%u last=%u",
-            (unsigned)uiSpt,   (unsigned)uiSides,
-            (unsigned)uiFirst, (unsigned)uiLast);
+        /* Extended formats (spt>9, tracks>80) exceed IST_DISK_SIZE=737280 */
+        if (uiSpt != (st_u16_t)IST_SPT || uiLast >= (st_u16_t)IST_TRACKS)
+        {
+            st_u32_t uiNeeded =
+                (st_u32_t)(uiSides + 1u) *
+                (st_u32_t)(uiLast - uiFirst + 1u) *
+                (st_u32_t)uiSpt *
+                (st_u32_t)IST_SECTOR_SIZE;
+            LOG_ERROR(
+                "MSA load: extended format not supported"
+                " spt=%u tracks=%u sides=%u needs=%u bytes"
+                " (max IST_DISK_SIZE=%u) in '%s'",
+                (unsigned)uiSpt,
+                (unsigned)(uiLast - uiFirst + 1u),
+                (unsigned)(uiSides + 1u),
+                (unsigned)uiNeeded,
+                (unsigned)IST_DISK_SIZE,
+                szPath);
+        }
+        else
+        {
+            LOG_ERROR(
+                "MSA load: invalid geometry spt=%u sides=%u"
+                " first=%u last=%u in '%s'",
+                (unsigned)uiSpt,   (unsigned)uiSides,
+                (unsigned)uiFirst, (unsigned)uiLast,
+                szPath);
+        }
         file_close(&ptFile);
         return ST_ERROR;
     }

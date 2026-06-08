@@ -20,3 +20,5 @@ Thumbs.db
 
 # Local test files
 use_cases/UC20A/msa/
+use_cases/UC20A/st/
+

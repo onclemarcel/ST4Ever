@@ -223,6 +223,7 @@ through one or more test cases in Section 5.
 | UFR-EXE-006  | The CPU emulator shall implement ADD/SUB/CMP/AND/OR/EOR/shifts with correct SR flags (N, Z, V, C, X).                                | ✓ UC22       | UC22  |
 | UFR-EXE-007  | The CPU emulator shall implement BRA/Bcc/JSR/RTS/TRAP + exception vector dispatch.                                                   | ✓ UC23       | UC23  |
 | UFR-EXE-008  | The execution monitor shall provide step, run, stop, and breakpoint controls with a register/memory display view.                     | TODO UC25    | UC25  |
+| UFR-EXE-009  | The ST machine memory map shall dispatch byte/word/long reads and writes to the correct hardware region (RAM, ROM, Shifter, YM2149, MFP, ACIA) without crashing; HW register state shall be maintained coherently across read and write operations. | ✓ UC24 | UC24  |
 
 ---
 
@@ -306,8 +307,8 @@ requirement that will expose it (`UFR-EXE-*`, planned UC21–27).
 
 ### 2.3 ST Machine Emulator — `ST.h` / `ST.c`
 
-> Design ref: src/ST.h (memory map 24-bit address space en commentaire fichier), CLAUDE.md §5 R6, R9
-> Parent UFR: none at UC1 level — will link to `UFR-EXE-*` when UC25 exposes execution.
+> Design ref: src/ST.h (memory map 24-bit address space), CLAUDE.md §5 R6, R9
+> Parent UFR: UFR-EXE-001 (init/shutdown), UFR-EXE-009 (memory map dispatch, UC24)
 
 | ID           | Software Requirement                                                                                    | Parent UFR    | Status        | UC    |
 |--------------|---------------------------------------------------------------------------------------------------------|---------------|---------------|-------|
@@ -321,10 +322,19 @@ requirement that will expose it (`UFR-EXE-*`, planned UC21–27).
 | REQ-STM-008  | Long read/write shall preserve 68000 big-endian byte order.                                            | — (see UC25)  | ✓ UC1         | UC1   |
 | REQ-STM-009  | Word access to an odd address shall return `ST_ERROR` (68000 address error).                           | — (see UC25)  | ✓ UC1         | UC1   |
 | REQ-STM-010  | Long access to an odd address shall return `ST_ERROR` (68000 address error).                           | — (see UC25)  | ✓ UC1         | UC1   |
-| REQ-STM-011  | Access to address ≥ `ST_RAM_SIZE` shall not crash. Stub returns `ST_NO_ERROR + 0xFF`.                 | — (see UC24)  | ADAPTED(UC24) | UC24  |
-| REQ-STM-012  | Access to unmapped address regions shall return `ST_ERROR` (bus error).                                | — (see UC24)  | TODO UC24     | UC24  |
-| REQ-STM-013  | `st_shutdown(NULL)` shall return `ST_ERROR`.                                                           | — (see UC25)  | ✓ UC1         | UC1   |
-| REQ-STM-014  | `st_shutdown(ptMachine)` shall set `ptMachine->bPoweredOn = ST_FALSE`.                                 | — (see UC25)  | ✓ UC1         | UC1   |
+| REQ-STM-011  | Any 32-bit address passed to `st_read/write_byte` shall be masked to 24 bits (`& 0xFFFFFF`) before dispatch. Access to address ≥ `ST_RAM_SIZE` shall not crash; behaviour depends on the target region. Impl: `st_read_byte()`, `st_write_byte()` | UFR-EXE-009  | ✓ UC24        | UC24  |
+| REQ-STM-012  | Reads from unmapped regions (not RAM, ROM, or any HW register block) shall return 0xFF (`ST_NO_ERROR`). Writes to unmapped regions shall be silently ignored (`ST_NO_ERROR`). Writes to the ROM area (0xF80000–0xFDFFFF) shall return `ST_ERROR` (bus error). Impl: `st_write_byte()`, `st_read_byte()` | UFR-EXE-009  | ✓ UC24        | UC24  |
+| REQ-STM-013  | `st_shutdown(NULL)` shall return `ST_ERROR`.                                                           | UFR-EXE-001  | ✓ UC1         | UC1   |
+| REQ-STM-014  | `st_shutdown(ptMachine)` shall set `ptMachine->bPoweredOn = ST_FALSE`.                                 | UFR-EXE-001  | ✓ UC1         | UC1   |
+| REQ-STM-015  | `st_init()` shall initialise `aShifterRegs[ST_VID_SYNC_MODE]` to `0x02` (50 Hz European default). Impl: `st_init()` | UFR-EXE-009  | ✓ UC24        | UC24  |
+| REQ-STM-016  | `st_write_byte()` to any Shifter offset (0xFF8200–0xFF827F) shall store the byte in `aShifterRegs[offset]` AND update the corresponding derived field: screen base bytes update `uiScreenBase`; palette bytes update `auPalette[]`; resolution byte updates `uiResolution`. Impl: `shifter_write_byte()` | UFR-EXE-009  | ✓ UC24        | UC24  |
+| REQ-STM-017  | The ST colour palette shall be stored at byte offset `ST_VID_PALETTE` (0x40) from 0xFF8200, i.e. 0xFF8240–0xFF825F. `ST_VID_PALETTE = 0x40u`. Each 16-bit colour entry is big-endian: even offset = hi byte, odd offset = lo byte. Impl: `shifter_write_byte()`, `ST.h` | UFR-EXE-009  | ✓ UC24        | UC24  |
+| REQ-STM-018  | Writing to 0xFF8800 shall set `uiYmRegSel = value & 0x0F` (register latch). Writing to 0xFF8802 shall store the value in `auYmRegs[uiYmRegSel]` (data write). Reading from 0xFF8800 shall return `auYmRegs[uiYmRegSel]` (data read). Impl: `ym2149_write_byte()`, `ym2149_read_byte()` | UFR-EXE-009  | ✓ UC24        | UC24  |
+| REQ-STM-019  | Reads and writes to the MFP 68901 region (0xFFFA00–0xFFFA3F) shall be stored/retrieved from `aMfpRegs[offset]` without crashing. No interrupt logic is implemented. Impl: `mfp_read_byte()`, `mfp_write_byte()` | UFR-EXE-009  | ✓ UC24        | UC24  |
+| REQ-STM-020  | Reads and writes to the ACIA 6850 region (0xFFFC00–0xFFFC07) shall be stored/retrieved from `aAcia[offset]` without crashing. Impl: `acia_read_byte()`, `acia_write_byte()` | UFR-EXE-009  | ✓ UC24        | UC24  |
+| REQ-STM-021  | Reads from the ROM area (0xF80000–0xFDFFFF) shall return `aRom[offset]` if `bRomLoaded == ST_TRUE` and the offset is < `ST_ROM_SIZE`; otherwise 0xFF shall be returned. Impl: `st_read_byte()` | UFR-EXE-009  | ✓ UC24        | UC24  |
+| REQ-STM-022  | Writes to the ROM area (0xF80000–0xFDFFFF) shall return `ST_ERROR` (bus error). `st_write_word/long` shall propagate this `ST_ERROR` to the caller. Impl: `st_write_byte()` | UFR-EXE-009  | ✓ UC24        | UC24  |
+| REQ-STM-023  | `st_read_byte(NULL,…)` shall return `ST_ERROR`; `st_write_byte(NULL,…)` shall return `ST_ERROR`. `st_read_word/long(…, NULL)` shall return `ST_ERROR`. Unaligned word/long accesses shall return `ST_ERROR`. | UFR-EXE-001  | ✓ UC24        | UC24  |
 
 ### 2.4 CPU 68000 Emulator — `CPU.h` / `CPU.c`
 

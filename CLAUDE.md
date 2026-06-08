@@ -7,6 +7,7 @@
 - 2026-06-08: UC22 Codé/Testé : ADD/SUB/CMP/AND/OR/EOR/shifts + NEG/NOT/TST/EXT/ADDQ/SUBQ/ADDI/SUBI/CMPI/ANDI/ORI/EORI/MULU/MULS/DIVU/DIVS + ADDX/SUBX + rotations ASL/ASR/LSL/LSR/ROL/ROR/ROXL/ROXR — 70 tests PASS 0 fail
 - 2026-06-08: UC23 Codé/Testé : BRA/BSR/Bcc(14 cond) + NOP/STOP/RTE/RTS/RTR/TRAP/LINK/UNLK/JSR/JMP + Scc/DBcc + cpu_raise_exception (pile d'exception complète) — 79 tests PASS 0 fail
 - 2026-06-08: UC23-bis Codé/Testé : MOVEM.L/W -(An)/(An)+ (snapshot+reversed-mask) + ADDA.W/SUBA.W sign-extend 16→32 bits — 26 tests PASS 0 fail
+- 2026-06-08: UC24 Codé/Testé : Memory map ST complet — dispatcher Shifter/YM2149/MFP/ACIA + ROM bus error + bug palette offset 0x20→0x40 corrigé — 49 tests PASS 0 fail
 
 *L'historique des versions antérieures peut être récupéré via le change log github*
 
@@ -428,6 +429,7 @@ Sur Linux, `termios` reste la stratégie unique (dans `linux/lx_console.c`). Cet
 | `win/win_D2D.c` | `renderer_platform_begin/end_draw`, `renderer_platform_fill/draw_rect`, `renderer_platform_draw_line/text`, `renderer_platform_get_font_metrics` |
 | `src/gui.c` | `gui_invalidate`, `gui_get_size`, `gui_msg_post`, `gui_msg_get` |
 | `win/win_gui.c` | `gui_platform_window_invalidate/get_size/get_native_handle/set_title` |
+| `src/ST.c` | `st_read_byte/word/long`, `st_write_byte/word/long` |
 
 **Fonctions conservant LOG_TRACE (cycle de vie + UX) :**
 - Cycle de vie modules : `trace_init/open/close/shutdown`, `gui_init/shutdown`, `renderer_create/resize/destroy`
@@ -478,7 +480,7 @@ Les étapes de développement fonctionnelles sont formalisées en Use Cases, per
 | UC22 | interne | CPU 68000 : ADD/SUB/CMP/AND/OR/EOR/shifts | ✓ VALIDÉ 2026-06-08 |
 | UC23 | interne | CPU 68000 : BRA/BSR/Bcc(14 cond) + NOP/STOP/RTE/RTS/RTR/TRAP/LINK/UNLK/JSR/JMP + Scc/DBcc + cpu_raise_exception | ✓ VALIDÉ 2026-06-08 |
 | UC23-bis | interne | CPU 68000 : MOVEM (save/restore registres, -(An)/(An)+) + ADDA.W/SUBA.W | ✓ VALIDÉ 2026-06-08 |
-| UC24 | interne | Memory map ST + registres HW stubs (Shifter, MFP, YM2149) | accès registres sans crash |
+| UC24 | interne | Memory map ST + registres HW stubs (Shifter, MFP, YM2149) | ✓ VALIDÉ 2026-06-08 |
 | UC25 | `execute` | Moteur pas-à-pas + vues CPU + mémoire | step + breakpoint sur .PRG simple |
 | UC26 | interne | Émulation vidéo ST (Shifter : low/med/high res, palette 16 couleurs) | rendu écran correct |
 | UC27 | `execute` | Vue écran Win32/GDI + X11 + synchronisation VBL | démo statique visible |
@@ -899,6 +901,40 @@ Les handlers groupD/group9 gèrent déjà sz=3 → ADDA.L. La forme ADDA.W (sz=2
 | P44 (ADDA.W/SUBA.W) | ACCEPTÉ | UC23-bis |
 
 *Propositions P43/P44 arbitrées — UC23 est clos.*
+
+---
+
+### Arbitrage UC20A post-validation (2026-06-08)
+
+**P45 — Support des formats MSA étendus (spt > 9, tracks > 80)** → **À ARBITRER**
+
+Contexte : `msa2st --all` sur un répertoire de test a révélé que 3 des 4 fichiers MSA
+ne se convertissent pas. Analyse header :
+
+| Fichier | spt | tracks | Taille | Résultat |
+|---------|-----|--------|--------|----------|
+| 7.msa  | 10  | 81     | 829 Ko | REJETÉ   |
+| 8.msa  | 10  | 81     | 829 Ko | REJETÉ   |
+| 9.msa  | 10  | 82     | 840 Ko | REJETÉ   |
+| 10.msa | 9   | 80     | 720 Ko | OK ✓     |
+
+Les 3 fichiers sont des MSA valides en format **étendu ATARI ST** (10 spt × 2 sides ×
+81-82 tracks), utilisé par certaines démos et utilitaires exploitant la capacité
+maximale du WD1772. ST4Ever ne les supporte pas car `image_st_t` a un buffer fixe
+de 737 280 octets (standard DD : 9×2×80×512).
+
+**Correction appliquée (Option A)** : message d'erreur explicite dans
+`image_msa_load()` — "extended format not supported spt=10 tracks=81 needs=829440
+bytes (max IST_DISK_SIZE=737280)" — à la place de l'ancien "bad geometry" générique.
+
+**Correction complète (Option B)** : rendre `image_st_t` à géométrie variable
+(buffer dynamique, champs spt/tracks/sides). Touche `image_st.h/.c`, `image_msa.c`,
+et tous les consommateurs. Scope significatif.
+
+Avis Claude : **DIFFÉRÉ**. Si la démo cible UC31 est en format standard (9 spt,
+80 tracks — c'est le cas de la quasi-totalité des démos ATARI ST connues), ce UC
+n'est pas bloquant avant UC31. Si une démo cible exige le format étendu, activer
+l'Option B avant UC31. À confirmer lors du choix de la démo en UC31.
 
 ---
 

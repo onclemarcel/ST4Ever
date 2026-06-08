@@ -60,6 +60,13 @@ Each INTENT is extracted verbatim from a `/* INTENT: */` block in
 | INT-STM-010 | address beyond RAM (cartridge/ROM space) must not crash                   |
 | INT-STM-011 | st_shutdown must reject a NULL pointer                                    |
 | INT-STM-012 | st_shutdown must power off the machine cleanly                            |
+| INT-STM-013 | Shifter HW registers (0xFF8200–0xFF827F) must be stored and derive coherent uiScreenBase / auPalette / uiResolution | UC24 |
+| INT-STM-014 | YM2149 register-select + data-write + data-read protocol must work correctly | UC24 |
+| INT-STM-015 | MFP 68901 (0xFFFA00–0xFFFA3F) stub reads/writes must not crash           | UC24 |
+| INT-STM-016 | ACIA 6850 (0xFFFC00–0xFFFC07) stub reads/writes must not crash           | UC24 |
+| INT-STM-017 | ROM area reads return 0xFF when no ROM loaded; ROM writes return ST_ERROR | UC24 |
+| INT-STM-018 | Unmapped area reads return 0xFF; writes are silently ignored              | UC24 |
+| INT-STM-019 | Any 32-bit address is masked to 24 bits before dispatch                   | UC24 |
 
 #### Group 4 — CPU 68000
 
@@ -124,9 +131,58 @@ Source: `use_cases/use_case_01.c` — Group 3
 | TC-STM-007  | Long round-trip preserves big-endian order          | [N]  | — (see UC25) | REQ-STM-008  | INT-STM-007 | write `0xDEADBEEF` @ `0x3000`; read back → `0xDEADBEEF`                       | PASS UC1      |
 | TC-STM-008  | Unaligned word access → bus error                   | [R]  | — (see UC25) | REQ-STM-009  | INT-STM-008 | `st_write_word(&m, 0x1001, 0)` → `ST_ERROR`                                   | PASS UC1      |
 | TC-STM-009  | Unaligned long access → bus error                   | [R]  | — (see UC25) | REQ-STM-010  | INT-STM-009 | `st_write_long(&m, 0x1003, 0)` → `ST_ERROR`                                   | PASS UC1      |
-| TC-STM-010  | Out-of-RAM access does not crash (stub)             | [R]  | — (see UC24) | REQ-STM-011  | INT-STM-010 | `st_read_byte(&m, ST_RAM_SIZE, &b)` → `ST_NO_ERROR` + `b==0xFF` ADAPTED(UC24) | PASS UC1      |
+| TC-STM-010  | Out-of-RAM access returns 0xFF (unmapped open-bus)  | [R]  | UFR-EXE-009  | REQ-STM-011,REQ-STM-012 | INT-STM-010 | `st_read_byte(&m, ST_RAM_SIZE, &b)` → `ST_NO_ERROR`; `b==0xFF` — ADAPTED(UC24): now full dispatcher | PASS UC24     |
 | TC-STM-011  | `st_shutdown` rejects NULL pointer                  | [R]  | — (see UC25) | REQ-STM-013  | INT-STM-011 | `st_shutdown(NULL)` → `ST_ERROR`                                               | PASS UC1      |
 | TC-STM-012  | `st_shutdown` powers off the machine                | [N]  | — (see UC25) | REQ-STM-014  | INT-STM-012 | `st_shutdown(&m)` → `ST_NO_ERROR`; `bPoweredOn==FALSE`                         | PASS UC1      |
+
+### 5.4b Test Cases — ST Machine Emulator UC24
+
+Source: `use_cases/use_case_24.c`
+
+| ID          | Functional description                                         | Type | UFR           | REQ           | INTENT       | Input / Expected output                                                                                | Status         |
+|-------------|----------------------------------------------------------------|------|---------------|---------------|--------------|--------------------------------------------------------------------------------------------------------|----------------|
+| TC-STM-013  | `st_init` sets sync mode 50Hz default                          | [N]  | UFR-EXE-009   | REQ-STM-015   | INT-STM-013  | `st_init(&m, NULL)`; `m.aShifterRegs[ST_VID_SYNC_MODE] == 0x02`                                       | PASS UC24      |
+| TC-STM-014  | Shifter screen base hi+mi write → `uiScreenBase`              | [N]  | UFR-EXE-009   | REQ-STM-016   | INT-STM-013  | write `0x07` @ 0xFF8201, `0xB2` @ 0xFF8203 → `uiScreenBase == 0x07B200`                               | PASS UC24      |
+| TC-STM-015  | Shifter screen base lo (STE) write → `uiScreenBase`           | [N]  | UFR-EXE-009   | REQ-STM-016   | INT-STM-013  | write `0x04` @ 0xFF820D → `uiScreenBase == 0x07B204` (cumulative)                                     | PASS UC24      |
+| TC-STM-016  | Shifter screen base hi read back                               | [N]  | UFR-EXE-009   | REQ-STM-016   | INT-STM-013  | `st_read_byte(&m, 0xFF8201, &b)` → `b == 0x07`                                                        | PASS UC24      |
+| TC-STM-017  | Palette color 0 word write via `st_write_word`                 | [N]  | UFR-EXE-009   | REQ-STM-016,REQ-STM-017 | INT-STM-013 | `st_write_word(&m, 0xFF8240, 0x0777)` → `m.auPalette[0] == 0x0777`                    | PASS UC24      |
+| TC-STM-018  | Palette color 0 hi-byte read via `st_read_byte`                | [N]  | UFR-EXE-009   | REQ-STM-017   | INT-STM-013  | `rb(0xFF8240) == 0x07`                                                                                 | PASS UC24      |
+| TC-STM-019  | Palette color 0 lo-byte read via `st_read_byte`                | [N]  | UFR-EXE-009   | REQ-STM-017   | INT-STM-013  | `rb(0xFF8241) == 0x77`                                                                                 | PASS UC24      |
+| TC-STM-020  | Palette color 15 (last entry) word write                       | [N]  | UFR-EXE-009   | REQ-STM-016,REQ-STM-017 | INT-STM-013 | `st_write_word(&m, 0xFF825E, 0x0ABC)` → `m.auPalette[15] == 0x0ABC`                   | PASS UC24      |
+| TC-STM-021  | All 16 palette colors filled correctly                         | [N]  | UFR-EXE-009   | REQ-STM-017   | INT-STM-013  | loop write 0x0100+i → palette[0]=0x0100, palette[7]=0x0107, palette[15]=0x010F                         | PASS UC24      |
+| TC-STM-022  | Shifter resolution MED write → `uiResolution`                  | [N]  | UFR-EXE-009   | REQ-STM-016   | INT-STM-013  | `st_write_byte(&m, 0xFF8260, ST_RES_MED)` → `m.uiResolution == ST_RES_MED`; read back == ST_RES_MED   | PASS UC24      |
+| TC-STM-023  | YM2149 reg 0: select + write + read                            | [N]  | UFR-EXE-009   | REQ-STM-018   | INT-STM-014  | write 0x00 @ 0xFF8800 (select); write 0xAA @ 0xFF8802 (data); read 0xFF8800 → 0xAA                    | PASS UC24      |
+| TC-STM-024  | YM2149 reg select masks to 4 bits                              | [N]  | UFR-EXE-009   | REQ-STM-018   | INT-STM-014  | write 0xF3 @ 0xFF8800 → `m.uiYmRegSel == 0x03`                                                        | PASS UC24      |
+| TC-STM-025  | MFP IER stub write/read round-trip                             | [N]  | UFR-EXE-009   | REQ-STM-019   | INT-STM-015  | write 0x40 @ 0xFFFA07 → `m.aMfpRegs[7] == 0x40`; read 0xFFFA07 → 0x40                                 | PASS UC24      |
+| TC-STM-026  | MFP last register (0xFFFA3F) accessible                        | [N]  | UFR-EXE-009   | REQ-STM-019   | INT-STM-015  | write 0xFF @ 0xFFFA3F → read back 0xFF                                                                 | PASS UC24      |
+| TC-STM-027  | ACIA keyboard stub write/read round-trip                       | [N]  | UFR-EXE-009   | REQ-STM-020   | INT-STM-016  | write 0x03 @ 0xFFFC00 → `m.aAcia[0] == 0x03`; read 0xFFFC00 → 0x03                                    | PASS UC24      |
+| TC-STM-028  | ROM read (no ROM loaded) returns 0xFF                          | [N]  | UFR-EXE-009   | REQ-STM-021   | INT-STM-017  | `bRomLoaded==FALSE`; `st_read_byte(&m, 0xF80000, &b)` → `ST_NO_ERROR`, `b==0xFF`                       | PASS UC24      |
+| TC-STM-029  | ROM write → `ST_ERROR` (bus error)                             | [N]  | UFR-EXE-009   | REQ-STM-022   | INT-STM-017  | `st_write_byte(&m, 0xF80000, 0x00)` → `ST_ERROR`                                                      | PASS UC24      |
+| TC-STM-030  | Unmapped read returns 0xFF, write is ignored                   | [N]  | UFR-EXE-009   | REQ-STM-012   | INT-STM-018  | `rb(0x080000)==0xFF`; `st_write_byte(&m, 0x080000, 0xAA)==ST_NO_ERROR`                                 | PASS UC24      |
+| TC-STM-031  | 32-bit address masked to 24 bits before dispatch               | [R]  | UFR-EXE-009   | REQ-STM-011   | INT-STM-019  | write 0x77 @ 0x001000; `rb(0x01001000)==0x77` (high byte ignored)                                      | PASS UC24      |
+| TC-STM-032  | NULL machine rejected by read/write word functions             | [R]  | UFR-EXE-009   | REQ-STM-023   | INT-STM-004  | `st_read_word(NULL,…)` → `ST_ERROR`; `st_write_word(NULL,…)` → `ST_ERROR`                              | PASS UC24      |
+
+#### REQ → TC coverage (UC24)
+
+| REQ           | TC(s)                                                              | Status        |
+|---------------|--------------------------------------------------------------------|---------------|
+| REQ-STM-011   | TC-STM-031 (24-bit addr mask)                                      | ✓ UC24        |
+| REQ-STM-012   | TC-STM-030 (unmapped r/w) ; TC-STM-029 (ROM write = ST_ERROR)     | ✓ UC24        |
+| REQ-STM-015   | TC-STM-013 (sync mode init 50Hz)                                   | ✓ UC24        |
+| REQ-STM-016   | TC-STM-014..016 (screen base) ; TC-STM-017 (palette) ; TC-STM-022 (resolution) | ✓ UC24 |
+| REQ-STM-017   | TC-STM-017..021 (palette 0x40 offset, byte-wide big-endian)        | ✓ UC24        |
+| REQ-STM-018   | TC-STM-023..024 (YM2149 select+data+read, mask 4-bit)              | ✓ UC24        |
+| REQ-STM-019   | TC-STM-025..026 (MFP stub)                                         | ✓ UC24        |
+| REQ-STM-020   | TC-STM-027 (ACIA stub)                                             | ✓ UC24        |
+| REQ-STM-021   | TC-STM-028 (ROM read no-ROM = 0xFF)                                | ✓ UC24        |
+| REQ-STM-022   | TC-STM-029 (ROM write = ST_ERROR)                                  | ✓ UC24        |
+| REQ-STM-023   | TC-STM-032 (NULL machine/word guard)                               | ✓ UC24        |
+
+#### UFR traceability (UC24)
+
+| UFR           | REQ(s)                                             | TC(s)                                    | Status   |
+|---------------|----------------------------------------------------|------------------------------------------|----------|
+| UFR-EXE-009   | REQ-STM-011..012, REQ-STM-015..023                 | TC-STM-013..032                          | ✓ UC24   |
 
 ### 5.5 Test Cases — CPU 68000
 
