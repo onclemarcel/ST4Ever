@@ -1,31 +1,27 @@
 # Project : ST4Ever : The Revival Engine for the Timeless ATARI ST
 
-*(Current project state: UC3.3 validated — interactive directory tree view with Direct2D rendering live. See CLAUDE.md for details.)*
+## 1. Contexte du projet
 
-This project is a cross-platform interactive console application developed in pure C for educational purposes allowing to:
+***Contexte***: Ce projet est une application console interactive multi-plateforme développée en C pur à but éducatif permettant de:
+- lire/écrire des fichiers ATARI ST (texte ou binaires .PRG, .TTP, .TOS)
+- créer/lire/extraire des images disques ATARI ST de type .st/.msa à partir de/vers des répertoires PC
+- visualiser, modifier, compiler, assembler, désassembler, décompiler les programmes ATARI ST et/ou les disques démos
+- émuler les binaires ATARI ST via divers vues (CPU, Mémoire, écran) en pas à pas, temps ralenti ou temps réel 
 
-- read/write ATARI ST files (text or binary .PRG, .TTP, .TOS)
-- create/read ATARI ST disk images of types .st, .msa, .stx from/to PC directories
-- modify, compile, assemble, disassemble, decompile ATARI ST programs
-- emulate ATARI ST binaries through various views (CPU, Memory, Screen) in step-by-step mode, slowed time, or real-time 
+***User Interaction***: La console interactive permet l'interaction utilisateur via des commandes et des vues GUI associées comprenant:
+- un éditeur de fichier texte et/ou fichier source d'un binaire (e.g. assembleur d'un .PRG)
+- un éditeur héxadécimal pour l'édition des binaires (e.g. un .PRG, .TTP)
+- une vue assembleur 68000 au format DevPac3 ATARI ST pour les sections binaires pertinentes de la vue hexadécimale (e.g. .text ou toute plage d'adresse fournie par utilisateur)
+- un visualisateur d'arborescence fichiers/répertoires pour les sélections/gestions de fichiers et des images disques .st, .msa, .stx
+- une console de trace/logs/erreurs pour l'application et debuggage développeur de ST4Ever
+- un moniteur d'exécution des binaires ATARI ST permettant la sélection pas à pas, stop, go, temps d'exécution par instruction
+    - un visualisateur CPU 68000 avec état des registres pour l'exécution des binaires
+    - un visualisateur mémoire ATARI ST pour l'exécution des binaires
+    - un émulateur écran/inputs/outputs ATARI ST simple pour l'exécution des binaires
 
-The project views, launched by the interactive console commands, include:
+ ***Objectif éducatif***: ST4Ever est un projet totalement développé from scratch dans un but d'apprentissage du développement en C pur de chaque brique/étape. Cf section R0 pour les principes documentaires du projet afin de maîtriser et maintenir chaque étape de développement.
 
-- a text file and/or source file editor for a binary (e.g. assembler source of a .PRG)
-- a hexadecimal editor for editing binaries (e.g. a .PRG, .TTP)
-- a 68000 assembler view in DevPac3 ATARI ST format for the relevant binary sections of the hexadecimal view (e.g. .text or any address range provided by the user)
-- an execution monitor for ATARI ST binaries allowing step-by-step selection, stop, go, execution time per instruction
-- a 68000 CPU viewer with register states for binary execution
-- an ATARI ST memory viewer for binary execution
-- a simple ATARI ST screen/inputs/outputs emulator for binary execution
-- a file/directory tree viewer for file and disk image management and selection (.st, .msa, .stx)
-- a trace/logs/errors console for the application and for ST4Ever developer debugging
-
-Note that the ST4Ever ATARI ST emulation is completely developed from scratch for educational purposes: Hatari and STeem are very good complete and efficient emulators. The ST4Ever ATARI ST emulation is simplified to meet the needs of step-by-step execution of the functions mentioned above.
-
-Future evolutions of the project will include ancillary utilities such as a GEN.TTP version of Devpac3 ported to PC for generating binaries on PC without using an emulator like Hatari or STeem (Vincent Rivière's m68k-atari-mint cross-tools also exist and is excellent, but once again, educational purpose is the goal of this project, not the use of existing programs). Also, the development of a 68000 assembler to pure C decompiler to recompile the program under msys2 on PC.
-
-The ultimate goal is to produce pure C source code compiled under Msys2 from ATARI ST demo disk images, to compile them in PC format and run them under Msys2 in a graphical Windows or Linux window without ATARI ST emulation (hence the "revival"...).
+***Revival***: La phase de "Revival" est une extension de ST4Ever au-delà de l'émulation ATARI ST vers un portage du code d'une démo ST sous forme de C portable exécutable nativement, sans émulateur 68k, sur de multiples cibles. Le comportement de la démo portée ne sera pas strictement exacte par rapport à l'original ST, mais restera fidèle au "feeling" utilisateur : effets visuels reconnaissables, timing VBL raisonnable, son et inputs présents. 
 
 ## Current development progress
 
@@ -33,23 +29,7 @@ The project is developed Use Case by Use Case, with a rigorous test-driven appro
 and full traceability (SRTD.md). Each UC is validated by an automated test suite
 before being committed.
 
-UC3 brought the first real GUI to life: a live Win32 window built from scratch
-using Direct2D COM (pure C, no C++ wrapper), a portable renderer abstraction, and
-an interactive directory tree view driven by the `dir` command.  The view renders
-the file hierarchy in ASCII-art style (`+-- ` / `\-- ` connectors built with a
-32-bit bitmask trick for O(1) prefix construction), with lazy directory scanning,
-keyboard navigation (↑↓ PgUp/PgDn Home End Enter), mouse click expand/collapse,
-and mouse-wheel scroll — all running in a dedicated Win32 thread communicating
-with the console via a mutex-protected circular event queue.
-
-| UC    | Scope                                   | Status              |
-|-------|-----------------------------------------|---------------------|
-| UC1   | Console + trace subsystem + ST/CPU stubs | ✅ Validated         |
-| UC2   | `trace on/off/toggle` command            | ✅ Validated         |
-| UC3.1 | GUI infrastructure: Win32 window thread, msg_queue, WndProc | ✅ Validated |
-| UC3.2 | Direct2D renderer (win_D2D.c + renderer.c portable) | ✅ Validated |
-| UC3.3 | `dir` command: lazy-load FS tree, D2D render, keyboard/mouse/scroll | ✅ Validated |
-| UC4+  | Rich line editor, more commands, emulation | 📋 Planned        |
+Use Cases status and progress is provided in ***CLAUDE.md section 6***
 
 ## Co-development with Claude AI
 
