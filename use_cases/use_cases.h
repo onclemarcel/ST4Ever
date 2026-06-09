@@ -40,6 +40,7 @@
 #include "../src/exec_asm.h"
 #include "../src/exec_screen.h"
 #include "../src/sector_analyze.h"
+#include "../src/image_annot.h"
 
 /* ------------------------------------------------------------------
  * Test helper macros

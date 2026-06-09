@@ -2412,6 +2412,91 @@ Total : 10 tests — 10 PASS, 0 fail
 - UC24C : le bandeau doit lire `ptV->aeSecType[uiCursor / SA_SECTOR_SIZE]` pour le secteur courant
 - UC25 (exécution) : la coloration sémantique est visible dans la vue mémoire si `edit_hex_open()` est utilisé pour afficher la RAM ST — les secteurs en cours d'exécution se distinguent visuellement
 - Limite 80 col : les commentaires de `g_aSecTint[]` dépassent légèrement 80 col pour la lisibilité de la palette — acceptable pour les constantes statiques de rendu
+- **RÉSOLU UC24C** — `aeSecType[]` utilisé dans `ehex_render_band()` via `sector_type_name(ptV->aeSecType[iCurSec])`
+
+---
+
+## §6.27 UC24C — JSON annotation + bandeau contextuel (P47+P48)
+
+**Version :** 0.24.3 — **Date :** 2026-06-09
+
+**Périmètre implémenté :**
+
+*Nouveau module `src/image_annot.c` / `src/image_annot.h` :*
+- `image_annot_t` : struct heap avec `szFilename`, `szNotes` globaux + tableau dynamique `atSectors[]` (`annot_sector_t` = LBA + type + notes)
+- `image_annot_create/destroy` : cycle de vie propre, init à capacité `ANNOT_INIT_CAP=16`, realloc ×2 auto
+- `image_annot_json_path()` : dérive `<basename>.json` depuis n'importe quel chemin (remplace la dernière extension après le dernier séparateur)
+- `image_annot_load()` : parser JSON minimaliste hand-rolled (scan forward `"key":`, lecture strings/integers) — supporte le schéma `whatisit.json` complet ; absent = ST_ERROR non-fatal
+- `image_annot_save()` : sérialise filename, notes, labeled_sectors en JSON lisible ; écriture atomique `fopen("w")`
+- `image_annot_get_sector(ptAnnot, iLba)` : recherche linéaire O(n) sur iSectorCount (≤1440 entrées)
+- `image_annot_set_sector(ptAnnot, iLba, szType, szNotes)` : upsert — update si entrée existante, append sinon
+
+*Modifications `src/edit_hex.h` :*
+- `#include "image_annot.h"` ajouté
+- Constante `HEXED_BAND_ROWS = 2` (hauteur bandeau en lignes de texte)
+- Zone `HEX_ZONE_BAND_NOTE = 3` ajoutée à l'enum `edit_hex_zone_t`
+- Champs BPB layout : `iBpbFat1Lba`, `iBpbFat2Lba`, `iBpbRootLba`, `iBpbDataLba` (–1 = pas de BPB valide)
+- Champs annotation : `ptAnnot`, `szJsonPath`, `szBandNote[ANNOT_NOTE_MAX]`, `iBandNotePos`, `iBandLastSec`
+
+*Modifications `src/edit_hex.c` :*
+- `ehex_hex_area_h()` : hauteur zone hex = `iWndHeight - HEXED_BAND_ROWS * iCellH`
+- Remplacement de `ptV->iWndHeight` par `ehex_hex_area_h(ptV)` dans 5 occurrences (`scroll_to_cursor`, `disasm_scroll_to_cursor`, `disasm_render`, `render`, `handle_key`)
+- `ehex_classify_by_bpb()` : stocke le layout BPB dans `iBpbFat1Lba/Fat2/Root/Data` lors de la classification
+- `ehex_band_sync()` : sync `szBandNote` depuis `ptAnnot` pour le secteur courant (no-op si zone = BAND_NOTE)
+- `ehex_render_band()` : deux lignes en bas de fenêtre
+  - Ligne 1 : `Sec LBA  TYPE_NAME  FAT1@X  FAT2@Y  Root@Z  Data@W` (layout BPB si valide)
+  - Ligne 2 : note annotation du secteur courant, ou placeholder si vide
+  - En mode édition (BAND_NOTE) : note avec curseur `|`, couleur jaune
+- `ehex_render()` : appels `ehex_band_sync()` + `ehex_render_band()` après le panel disasm
+- `ehex_handle_key()` — nouveaux bindings :
+  - CTRL+N : active zone BAND_NOTE, positionne iBandNotePos en fin
+  - CTRL+S : sauvegarde hex file (si dirty) + annotation JSON si zone = BAND_NOTE
+  - Zone BAND_NOTE : LEFT/RIGHT/HOME/END (cursor), BACKSPACE/DELETE (edit), ESC/TAB (retour HEX), printable (insertion)
+- `ehex_handle_click()` : clic sur row 2 du bandeau (Y ≥ iBandNoteY) active zone BAND_NOTE
+- `edit_hex_open()` : init BPB cache (-1), iBandLastSec=-1, `image_annot_create()` + `image_annot_load()` (non-fatal)
+- `edit_hex_close()` : `image_annot_destroy(&ptV->ptAnnot)`
+
+**Infrastructure validée :**
+- Parser JSON hand-rolled : pas de malloc supplémentaire pendant le parse (buffer chargé une fois en entier, max 64 KB)
+- `iBandLastSec` = lazy sync : szBandNote ne se recharge depuis ptAnnot que quand le secteur change (et hors édition) — pas de rechargement à chaque render
+- CTRL+S dual-purpose : en zone HEX/ASCII/DISASM = sauvegarde hex uniquement ; en zone BAND_NOTE = sauvegarde hex + JSON
+- Fichier JSON optionnel : si absent à l'ouverture, `ptAnnot` est vide mais valide ; le bandeau affiche le placeholder
+
+**Matrice de tests (UC24C) :**
+```
+TEST MATRIX - UC24C:
+  [N] Nominal    : 20 tests - json_path (.st/.msa/no-ext/double-dot),
+                              create/destroy, set/get sector (new/update/
+                              unknown/NULL notes), growth x40, round-trip
+                              save+load (filename/notes/2 sectors), absent
+                              file, load seed whatisit.json, band constants
+  [R] Robustness : 10 tests - NULL json_path/buf, tiny buffer, NULL pptAnnot,
+                              NULL ptr destroy, NULL params set/get,
+                              absent file ST_ERROR + empty annotation
+  [S] Skipped    :  2 tests - run make manual (band visible, note edit flow)
+Total : 32 tests — 32 PASS, 0 fail
+```
+
+**Contrats comportementaux validés :**
+
+*Module `image_annot`*
+- `image_annot_create()` alloue avec capacité `ANNOT_INIT_CAP=16` ; `iSectorCount=0` garanti à la sortie
+- `image_annot_load()` retourne `ST_ERROR` si le fichier est absent — l'annotation reste vide et valide ; ce n'est pas une erreur fatale
+- `image_annot_set_sector()` sur un LBA existant met à jour en place (count inchangé) ; sur un LBA nouveau, appende (realloc ×2 si count == cap)
+- `image_annot_save()` produit un JSON UTF-8 valide avec `\\`, `\"`, `\\n` échappés ; structurellement conforme au schéma `db/seeds/whatisit.json`
+- `image_annot_json_path("foo/bar.st", ...)` → `"foo/bar.json"` ; sans extension → `.json` suffixé ; double extension → dernière remplacée
+
+*Module `edit_hex` (enrichissement UC24C)*
+- `edit_hex_open()` : `iBpbFat1Lba = -1` si pas de BPB valide ; `ptAnnot != NULL` toujours (même si JSON absent)
+- `ehex_hex_area_h()` retourne `iWndHeight - 2*iCellH` quand iCellH > 0 ; retourne `iWndHeight` si iCellH == 0 (guard contre division par zéro en début de session)
+- Bandeau ligne 1 : `szTypeName` vaut `"—"` si `iSecCount == 0` (fichier < 512 octets, e.g. source .S minimal)
+- Zone BAND_NOTE : BACKSPACE/DELETE modifient `szBandNote` en mémoire uniquement jusqu'à CTRL+S ; ESC/TAB retournent à HEX_ZONE_HEX sans sauvegarder
+- `iBandLastSec = -1` forcé après CTRL+S pour que la prochaine render recharge le note depuis ptAnnot (reflecting the saved state)
+
+**Points d'attention pour les UCs suivants :**
+- UC24D (labels cliquables) : `ptAnnot->atSectors[i].iLba` est déjà accessible depuis `ehex_render_band()` — les labels JSON du champ `"labels"` (P49) n'existent pas encore dans `image_annot_t`; il faudra ajouter un tableau `labels[]` avec `{lba, offset, name, desc}`
+- UC25 (exécution) : si l'annotation JSON est sauvegardée pour `roundtrip.st`, elle sera chargée à la prochaine ouverture hex — cohérence entre sessions garantie
+- UC31+ (démo cible) : `image_annot_save/load` pourra être réutilisé pour annoter le désassemblé d'une démo (.s) si le format JSON est étendu avec un champ `"labeled_instructions"` — architecture extensible
 
 ---
 

@@ -46,6 +46,9 @@
  * R18: title updated on open and on every save.
  * UC9:  initial hex+ASCII implementation.
  * UC10: disassembly panel + bidirectional cursor sync.
+ * UC24C: info band at bottom (sector type, BPB layout, editable note).
+ *        JSON annotation file colocated with the image (P47 + P48).
+ *        CTRL+N enters note-edit zone; CTRL+S saves annotation + file.
  */
 
 #ifndef EDIT_HEX_H
@@ -57,6 +60,7 @@
 #include "line.h"
 #include "disassemble.h"
 #include "sector_analyze.h"
+#include "image_annot.h"
 
 /* ------------------------------------------------------------------
  * Layout constants — hex+ASCII columns
@@ -79,6 +83,14 @@
 
 /* Maximum file size that can be loaded (16 MB)                         */
 #define EDIT_HEX_MAX_SIZE       (16u * 1024u * 1024u)
+
+/* ------------------------------------------------------------------
+ * Info band (UC24C / P47+P48)
+ * ------------------------------------------------------------------ */
+
+/* Number of text rows reserved at the bottom of the window for the
+ * sector-info band (type, BPB layout, editable note).               */
+#define HEXED_BAND_ROWS  2
 
 /* ------------------------------------------------------------------
  * Layout constants — disassembly panel (UC10)
@@ -114,9 +126,10 @@
 
 typedef enum edit_hex_zone_e
 {
-    HEX_ZONE_HEX    = 0,   /* cursor in hex columns                     */
-    HEX_ZONE_ASCII  = 1,   /* cursor in ASCII column                    */
-    HEX_ZONE_DISASM = 2    /* cursor in disassembly panel (read-only)   */
+    HEX_ZONE_HEX       = 0, /* cursor in hex columns                    */
+    HEX_ZONE_ASCII     = 1, /* cursor in ASCII column                   */
+    HEX_ZONE_DISASM    = 2, /* cursor in disassembly panel (read-only)  */
+    HEX_ZONE_BAND_NOTE = 3  /* note field in the info band (UC24C)      */
 } edit_hex_zone_t;
 
 /* ------------------------------------------------------------------
@@ -162,6 +175,19 @@ typedef struct edit_hex_view_s
     /* Sector classification cache (UC24B) ---------------------------------*/
     sector_type_t    *aeSecType;          /* heap, iSecCount entries     */
     int               iSecCount;          /* classified sector count     */
+
+    /* BPB layout cache (UC24C) -------------------------------------------*/
+    int               iBpbFat1Lba;        /* >=0 if BPB valid, -1 else  */
+    int               iBpbFat2Lba;        /* >=0 if dual FAT, -1 else   */
+    int               iBpbRootLba;        /* first root dir sector       */
+    int               iBpbDataLba;        /* first data sector           */
+
+    /* JSON annotation and info band (UC24C) ------------------------------*/
+    image_annot_t    *ptAnnot;            /* disk annotation (heap)      */
+    char              szJsonPath[ST_MAX_PATH]; /* annotation .json path  */
+    char              szBandNote[ANNOT_NOTE_MAX]; /* note edit buffer    */
+    int               iBandNotePos;       /* insertion cursor in note    */
+    int               iBandLastSec;       /* sector last synced to band  */
 
     line_context_t   *ptLineCtx;
 } edit_hex_view_t;

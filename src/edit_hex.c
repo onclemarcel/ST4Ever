@@ -7,6 +7,10 @@
  *       bidirectionally with the hex cursor.  Cache of CACHE_LINES
  *       instructions around the cursor is rebuilt on each cursor move.
  *       TAB now cycles HEX → ASCII → DISASM → HEX.  F2 toggles panel.
+ * UC24C: Info band at the bottom (2 rows): sector type + BPB layout on
+ *       row 1, editable annotation note on row 2.  JSON annotation file
+ *       (<basename>.json) loaded/saved alongside the image.  CTRL+N
+ *       activates note editing; CTRL+S saves both hex file and JSON.
  */
 
 #include "edit_hex.h"
@@ -16,6 +20,7 @@
 #include "renderer.h"
 #include "disassemble.h"
 #include "sector_analyze.h"
+#include "image_annot.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -78,6 +83,19 @@ static const renderer_color_t g_aSecTint[SECTOR_TYPE_COUNT] = {
 };
 
 /* ------------------------------------------------------------------
+ * Colours — info band (UC24C)
+ * ------------------------------------------------------------------ */
+
+static const renderer_color_t g_clrBandBg   = { 0.08f, 0.08f, 0.12f,
+                                                  1.0f };
+static const renderer_color_t g_clrBandText = { 0.78f, 0.78f, 0.90f,
+                                                  1.0f };
+static const renderer_color_t g_clrBandNote = { 0.55f, 0.75f, 0.55f,
+                                                  1.0f };
+static const renderer_color_t g_clrBandNoteActive = { 0.90f, 0.90f,
+                                                        0.40f, 1.0f };
+
+/* ------------------------------------------------------------------
  * Hex nibble lookup
  * ------------------------------------------------------------------ */
 
@@ -93,11 +111,14 @@ static st_error_t ehex_save(edit_hex_view_t *ptV);
 static void       ehex_update_title(edit_hex_view_t *ptV);
 static void       ehex_recalc_layout(edit_hex_view_t *ptV);
 static int        ehex_row_count(const edit_hex_view_t *ptV);
+static int        ehex_hex_area_h(const edit_hex_view_t *ptV);
 static void       ehex_scroll_to_cursor(edit_hex_view_t *ptV);
 static void       ehex_build_hex_row(const edit_hex_view_t *ptV,
                                       int iRow, char *szOut);
 static void       ehex_build_asc_row(const edit_hex_view_t *ptV,
                                       int iRow, char *szOut);
+static void       ehex_band_sync(edit_hex_view_t *ptV);
+static void       ehex_render_band(edit_hex_view_t *ptV);
 static void       ehex_render(edit_hex_view_t *ptV);
 static void       ehex_handle_key(edit_hex_view_t *ptV,
                                    gui_key_t eKey, char cChar,
@@ -261,6 +282,12 @@ static st_bool_t ehex_classify_by_bpb(edit_hex_view_t *ptV)
          iSec < iRoot + iRootSecs && iSec < ptV->iSecCount;
          iSec++)
         ptV->aeSecType[iSec] = SECTOR_DIRECTORY;
+
+    /* Cache BPB layout for info band (UC24C) */
+    ptV->iBpbFat1Lba = iFat1;
+    ptV->iBpbFat2Lba = ((int)nfat >= 2) ? iFat1 + (int)spf : -1;
+    ptV->iBpbRootLba = iRoot;
+    ptV->iBpbDataLba = iRoot + iRootSecs;
 
     LOG_INFO("BPB layout: boot=0 FAT1=%d..%d root=%d..%d data=%d..",
              iFat1, iFat1 + (int)spf - 1,
@@ -505,13 +532,23 @@ static int ehex_row_count(const edit_hex_view_t *ptV)
                  / EDIT_HEX_BYTES_PER_ROW);
 }
 
+/* Height of the hex+disasm area (window height minus info band). */
+static int ehex_hex_area_h(const edit_hex_view_t *ptV)
+{
+    int iBandH = (ptV->iCellH > 0)
+                 ? HEXED_BAND_ROWS * ptV->iCellH : 0;
+    int iAvail = ptV->iWndHeight - iBandH;
+    return (iAvail > 0) ? iAvail : ptV->iWndHeight;
+}
+
 static void ehex_scroll_to_cursor(edit_hex_view_t *ptV)
 {
     int iCurRow;
     int iVisRows;
 
     iCurRow  = (int)(ptV->uiCursor / EDIT_HEX_BYTES_PER_ROW);
-    iVisRows = (ptV->iCellH > 0) ? ptV->iWndHeight / ptV->iCellH : 1;
+    iVisRows = (ptV->iCellH > 0)
+               ? ehex_hex_area_h(ptV) / ptV->iCellH : 1;
     if (iVisRows < 1) iVisRows = 1;
 
     if (iCurRow < ptV->iScrollRow)
@@ -648,7 +685,8 @@ static void ehex_disasm_scroll_to_cursor(edit_hex_view_t *ptV)
     int iVisRows;
     int iIdx = ptV->iDisasmCursorIdx;
 
-    iVisRows = (ptV->iCellH > 0) ? ptV->iWndHeight / ptV->iCellH : 1;
+    iVisRows = (ptV->iCellH > 0)
+               ? ehex_hex_area_h(ptV) / ptV->iCellH : 1;
     if (iVisRows < 1) iVisRows = 1;
 
     if (iIdx < ptV->iDisasmScrollRow)
@@ -678,7 +716,8 @@ static void ehex_disasm_render(edit_hex_view_t *ptV)
 
     iSep2X   = ptV->iAsciiX + EDIT_HEX_ASCII_CHARS * ptV->iCellW;
     fPanelW  = (float)(EDIT_HEX_DISASM_PANEL_CHARS * ptV->iCellW);
-    iVisRows = (ptV->iCellH > 0) ? ptV->iWndHeight / ptV->iCellH : 1;
+    iVisRows = (ptV->iCellH > 0)
+               ? ehex_hex_area_h(ptV) / ptV->iCellH : 1;
     if (iVisRows < 1) iVisRows = 1;
 
     /* Separator background */
@@ -748,6 +787,166 @@ static void ehex_disasm_render(edit_hex_view_t *ptV)
 }
 
 /* ------------------------------------------------------------------
+ * Info band helpers (UC24C)
+ * ------------------------------------------------------------------ */
+
+/*
+ * Sync szBandNote / iBandNotePos from ptAnnot for the current sector.
+ * No-op when zone is BAND_NOTE (preserves the edit buffer).
+ */
+static void ehex_band_sync(edit_hex_view_t *ptV)
+{
+    int                   iCurSec;
+    const annot_sector_t *ptSec;
+
+    if (ptV->eZone == HEX_ZONE_BAND_NOTE)
+        return;
+
+    iCurSec = (int)(ptV->uiCursor / SA_SECTOR_SIZE);
+    if (iCurSec == ptV->iBandLastSec)
+        return;
+
+    ptV->iBandLastSec = iCurSec;
+    ptSec = image_annot_get_sector(ptV->ptAnnot, iCurSec);
+    if (ptSec != NULL)
+    {
+        strncpy(ptV->szBandNote, ptSec->szNotes,
+                ANNOT_NOTE_MAX - 1);
+        ptV->szBandNote[ANNOT_NOTE_MAX - 1] = '\0';
+    }
+    else
+    {
+        ptV->szBandNote[0] = '\0';
+    }
+    ptV->iBandNotePos = (int)strlen(ptV->szBandNote);
+}
+
+/*
+ * Render the two-row info band at the bottom of the window.
+ *   Row 1: current sector LBA, type name, BPB layout if available.
+ *   Row 2: annotation note (editable when zone is BAND_NOTE).
+ */
+static void ehex_render_band(edit_hex_view_t *ptV)
+{
+    renderer_rect_t         tRect;
+    char                    szLine1[160];
+    char                    szLine2[ANNOT_NOTE_MAX + 32];
+    char                    szBuf[ANNOT_NOTE_MAX + 4];
+    int                     iBandH;
+    int                     iTop;
+    int                     iCurSec;
+    const char             *szTypeName;
+    const annot_sector_t   *ptSec;
+    int                     iPos;
+    int                     iLen;
+
+    if (ptV->hRenderer == NULL || ptV->iCellH <= 0)
+        return;
+
+    iBandH  = HEXED_BAND_ROWS * ptV->iCellH;
+    iTop    = ptV->iWndHeight - iBandH;
+    if (iTop < 0)
+        iTop = 0;
+
+    iCurSec = (int)(ptV->uiCursor / SA_SECTOR_SIZE);
+
+    /* -- Background ------------------------------------------------- */
+    tRect.fX = 0.0f;
+    tRect.fY = (float)iTop;
+    tRect.fW = (float)ptV->iWndWidth;
+    tRect.fH = (float)iBandH;
+    renderer_fill_rect(ptV->hRenderer, &tRect, &g_clrBandBg);
+
+    /* Separator line at top of band */
+    tRect.fX = 0.0f;
+    tRect.fY = (float)iTop;
+    tRect.fW = (float)ptV->iWndWidth;
+    tRect.fH = 1.0f;
+    renderer_fill_rect(ptV->hRenderer, &tRect, &g_clrSep);
+
+    /* -- Row 1: sector info + BPB layout ----------------------------- */
+    szTypeName = "—";
+    if (ptV->iSecCount > 0
+    &&  iCurSec >= 0 && iCurSec < ptV->iSecCount)
+        szTypeName = sector_type_name(ptV->aeSecType[iCurSec]);
+
+    if (ptV->iBpbFat1Lba >= 0)
+    {
+        if (ptV->iBpbFat2Lba >= 0)
+            snprintf(szLine1, sizeof(szLine1),
+                     " Sec %-4d  %-22s  "
+                     "FAT1@%d  FAT2@%d  Root@%d  Data@%d",
+                     iCurSec, szTypeName,
+                     ptV->iBpbFat1Lba,
+                     ptV->iBpbFat2Lba,
+                     ptV->iBpbRootLba,
+                     ptV->iBpbDataLba);
+        else
+            snprintf(szLine1, sizeof(szLine1),
+                     " Sec %-4d  %-22s  "
+                     "FAT1@%d  Root@%d  Data@%d",
+                     iCurSec, szTypeName,
+                     ptV->iBpbFat1Lba,
+                     ptV->iBpbRootLba,
+                     ptV->iBpbDataLba);
+    }
+    else
+    {
+        snprintf(szLine1, sizeof(szLine1),
+                 " Sec %-4d  %s",
+                 iCurSec, szTypeName);
+    }
+
+    tRect.fX = 0.0f;
+    tRect.fY = (float)iTop;
+    tRect.fW = (float)ptV->iWndWidth;
+    tRect.fH = (float)ptV->iCellH;
+    renderer_draw_text(ptV->hRenderer, szLine1, &tRect,
+                       &g_clrBandText, RENDERER_FONT_MONO,
+                       RENDERER_ALIGN_LEFT);
+
+    /* -- Row 2: annotation note -------------------------------------- */
+    ptSec = image_annot_get_sector(ptV->ptAnnot, iCurSec);
+
+    if (ptV->eZone == HEX_ZONE_BAND_NOTE)
+    {
+        /* Show edit buffer with insertion cursor '|' */
+        iPos = ptV->iBandNotePos;
+        iLen = (int)strlen(ptV->szBandNote);
+        if (iPos < 0)      iPos = 0;
+        if (iPos > iLen)   iPos = iLen;
+
+        memcpy(szBuf, ptV->szBandNote, (size_t)iPos);
+        szBuf[iPos] = '|';
+        memcpy(szBuf + iPos + 1,
+               ptV->szBandNote + iPos,
+               (size_t)(iLen - iPos) + 1u); /* +1 for NUL */
+
+        snprintf(szLine2, sizeof(szLine2), " Note> %s", szBuf);
+    }
+    else if (ptSec != NULL && ptSec->szNotes[0] != '\0')
+    {
+        snprintf(szLine2, sizeof(szLine2),
+                 " Note: %s", ptSec->szNotes);
+    }
+    else
+    {
+        snprintf(szLine2, sizeof(szLine2),
+                 " Note: (none — CTRL+N or click to annotate)");
+    }
+
+    tRect.fX = 0.0f;
+    tRect.fY = (float)(iTop + ptV->iCellH);
+    tRect.fW = (float)ptV->iWndWidth;
+    tRect.fH = (float)ptV->iCellH;
+    renderer_draw_text(ptV->hRenderer, szLine2, &tRect,
+                       (ptV->eZone == HEX_ZONE_BAND_NOTE)
+                       ? &g_clrBandNoteActive : &g_clrBandNote,
+                       RENDERER_FONT_MONO,
+                       RENDERER_ALIGN_LEFT);
+}
+
+/* ------------------------------------------------------------------
  * Rendering
  * ------------------------------------------------------------------ */
 
@@ -771,7 +970,8 @@ static void ehex_render(edit_hex_view_t *ptV)
 
     if (ptV->hRenderer == NULL) return;
 
-    iVisRows = (ptV->iCellH > 0) ? ptV->iWndHeight / ptV->iCellH : 1;
+    iVisRows = (ptV->iCellH > 0)
+               ? ehex_hex_area_h(ptV) / ptV->iCellH : 1;
     iRowCount = ehex_row_count(ptV);
     iCurRow   = (int)(ptV->uiCursor / EDIT_HEX_BYTES_PER_ROW);
     iCurCol   = (int)(ptV->uiCursor % EDIT_HEX_BYTES_PER_ROW);
@@ -939,6 +1139,10 @@ static void ehex_render(edit_hex_view_t *ptV)
     if (ptV->bShowDisasm)
         ehex_disasm_render(ptV);
 
+    /* Info band (UC24C) */
+    ehex_band_sync(ptV);
+    ehex_render_band(ptV);
+
     renderer_end_draw(ptV->hRenderer);
 }
 
@@ -972,7 +1176,8 @@ static void ehex_handle_key(edit_hex_view_t *ptV,
     size_t    uiRowEnd;
     int       iCurCol;
 
-    iVisRows = (ptV->iCellH > 0) ? ptV->iWndHeight / ptV->iCellH : 10;
+    iVisRows = (ptV->iCellH > 0)
+               ? ehex_hex_area_h(ptV) / ptV->iCellH : 10;
     if (iVisRows < 1) iVisRows = 1;
 
     /* --- F2: toggle disasm panel (all zones) ---------------------- */
@@ -996,7 +1201,7 @@ static void ehex_handle_key(edit_hex_view_t *ptV,
     if (bCtrl && eKey >= GUI_KEY_PRINTABLE)
     {
         int iLetter = (int)(eKey - GUI_KEY_PRINTABLE);
-        if (iLetter == 'S')
+        if (iLetter == 'S' || iLetter == 's')
         {
             if (ptV->bDirty)
             {
@@ -1005,8 +1210,112 @@ static void ehex_handle_key(edit_hex_view_t *ptV,
                 else
                     LOG_ERROR("save failed for '%s'", ptV->szPath);
             }
+            /* Save annotation when in note-edit zone */
+            if (ptV->eZone == HEX_ZONE_BAND_NOTE
+            &&  ptV->ptAnnot != NULL)
+            {
+                int        iSec  = (int)(ptV->uiCursor / SA_SECTOR_SIZE);
+                const char *szTy = (ptV->iSecCount > 0
+                                    && iSec < ptV->iSecCount)
+                                   ? sector_type_name(
+                                       ptV->aeSecType[iSec])
+                                   : "";
+                image_annot_set_sector(ptV->ptAnnot, iSec,
+                                       szTy, ptV->szBandNote);
+                if (image_annot_save(ptV->ptAnnot,
+                                     ptV->szJsonPath) == ST_NO_ERROR)
+                    LOG_INFO("annotation saved for sec %d", iSec);
+                ptV->iBandLastSec = -1; /* force re-sync next render */
+            }
+            gui_invalidate(ptV->hWnd);
+        }
+        else if (iLetter == 'N' || iLetter == 'n')
+        {
+            /* CTRL+N: enter note-edit zone for current sector */
+            ptV->eZone       = HEX_ZONE_BAND_NOTE;
+            ptV->iBandLastSec = -1; /* force sync to load note */
+            ehex_band_sync(ptV);
+            /* After sync, switch zone back to editing */
+            ptV->eZone       = HEX_ZONE_BAND_NOTE;
+            ptV->iBandNotePos = (int)strlen(ptV->szBandNote);
+            gui_invalidate(ptV->hWnd);
         }
         return;
+    }
+
+    /* --- BAND_NOTE zone: note text editing ----------------------- */
+    if (ptV->eZone == HEX_ZONE_BAND_NOTE)
+    {
+        int iLen = (int)strlen(ptV->szBandNote);
+
+        switch (eKey)
+        {
+        case GUI_KEY_LEFT:
+            if (ptV->iBandNotePos > 0)
+                ptV->iBandNotePos--;
+            gui_invalidate(ptV->hWnd);
+            return;
+
+        case GUI_KEY_RIGHT:
+            if (ptV->iBandNotePos < iLen)
+                ptV->iBandNotePos++;
+            gui_invalidate(ptV->hWnd);
+            return;
+
+        case GUI_KEY_HOME:
+            ptV->iBandNotePos = 0;
+            gui_invalidate(ptV->hWnd);
+            return;
+
+        case GUI_KEY_END:
+            ptV->iBandNotePos = iLen;
+            gui_invalidate(ptV->hWnd);
+            return;
+
+        case GUI_KEY_BACKSPACE:
+            if (ptV->iBandNotePos > 0)
+            {
+                int iPos = ptV->iBandNotePos - 1;
+                memmove(ptV->szBandNote + iPos,
+                        ptV->szBandNote + iPos + 1,
+                        (size_t)(iLen - iPos));
+                ptV->iBandNotePos = iPos;
+            }
+            gui_invalidate(ptV->hWnd);
+            return;
+
+        case GUI_KEY_DELETE:
+            if (ptV->iBandNotePos < iLen)
+            {
+                int iPos = ptV->iBandNotePos;
+                memmove(ptV->szBandNote + iPos,
+                        ptV->szBandNote + iPos + 1,
+                        (size_t)(iLen - iPos));
+            }
+            gui_invalidate(ptV->hWnd);
+            return;
+
+        case GUI_KEY_ESCAPE:
+        case GUI_KEY_TAB:
+            ptV->eZone   = HEX_ZONE_HEX;
+            ptV->iNibble = 0;
+            gui_invalidate(ptV->hWnd);
+            return;
+
+        default:
+            if (eKey >= GUI_KEY_PRINTABLE
+            &&  iLen < ANNOT_NOTE_MAX - 1)
+            {
+                int iPos = ptV->iBandNotePos;
+                memmove(ptV->szBandNote + iPos + 1,
+                        ptV->szBandNote + iPos,
+                        (size_t)(iLen - iPos + 1));
+                ptV->szBandNote[iPos] = cChar;
+                ptV->iBandNotePos++;
+            }
+            gui_invalidate(ptV->hWnd);
+            return;
+        }
     }
 
     /* --- DISASM zone navigation (read-only) ----------------------- */
@@ -1295,8 +1604,30 @@ static void ehex_handle_click(edit_hex_view_t *ptV, int iX, int iY)
     size_t uiOffset;
     int    iPos;
     int    i;
+    int    iBandH;
+    int    iBandTop;
+    int    iBandNoteY;
 
     if (ptV->iCellH <= 0 || ptV->iCellW <= 0) return;
+
+    /* Click in the info band (UC24C) -------------------------------- */
+    iBandH     = HEXED_BAND_ROWS * ptV->iCellH;
+    iBandTop   = ptV->iWndHeight - iBandH;
+    iBandNoteY = iBandTop + ptV->iCellH;
+    if (ptV->iCellH > 0 && iY >= iBandTop)
+    {
+        if (iY >= iBandNoteY)
+        {
+            /* Click on note row: enter BAND_NOTE zone */
+            ptV->iBandLastSec = -1; /* force sync */
+            ptV->eZone        = HEX_ZONE_HEX; /* allow sync */
+            ehex_band_sync(ptV);
+            ptV->eZone        = HEX_ZONE_BAND_NOTE;
+            ptV->iBandNotePos = (int)strlen(ptV->szBandNote);
+            gui_invalidate(ptV->hWnd);
+        }
+        return; /* click in band → no hex cursor change */
+    }
 
     iRow    = iY / ptV->iCellH;
 
@@ -1519,8 +1850,15 @@ st_error_t edit_hex_open(const char       *szPath,
 
     strncpy(ptV->szPath, szPath, ST_MAX_PATH - 1);
     ptV->szPath[ST_MAX_PATH - 1] = '\0';
-    ptV->ptLineCtx = ptLineCtx;
-    ptV->eZone     = HEX_ZONE_HEX;
+    ptV->ptLineCtx    = ptLineCtx;
+    ptV->eZone        = HEX_ZONE_HEX;
+
+    /* Initialise BPB cache and band state (UC24C) */
+    ptV->iBpbFat1Lba  = -1;
+    ptV->iBpbFat2Lba  = -1;
+    ptV->iBpbRootLba  = -1;
+    ptV->iBpbDataLba  = -1;
+    ptV->iBandLastSec = -1;
 
     if (ehex_load(ptV, szPath) != ST_NO_ERROR)
     {
@@ -1529,8 +1867,21 @@ st_error_t edit_hex_open(const char       *szPath,
         return ST_ERROR;
     }
 
-    /* Classify sectors for tinting (UC24B) */
+    /* Classify sectors for tinting (UC24B) and BPB cache (UC24C) */
     ehex_classify_sectors(ptV);
+
+    /* Load JSON annotation (UC24C); absent file is non-fatal */
+    image_annot_json_path(szPath, ptV->szJsonPath,
+                          sizeof(ptV->szJsonPath));
+    if (image_annot_create(&ptV->ptAnnot) == ST_NO_ERROR)
+    {
+        const char *pBase = szPath;
+        const char *p;
+        for (p = szPath; *p; p++)
+            if (*p == '/' || *p == '\\') pBase = p + 1;
+        strncpy(ptV->ptAnnot->szFilename, pBase, ST_MAX_PATH - 1);
+        image_annot_load(ptV->szJsonPath, ptV->ptAnnot); /* non-fatal */
+    }
 
     /* Allocate disasm cache (UC10) */
     ptV->atDisasmCache = (disasm_result_t *)malloc(
@@ -1594,6 +1945,7 @@ st_error_t edit_hex_close(edit_hex_view_t **pptView)
     ptV->atDisasmCache = NULL;
     free(ptV->aeSecType);
     ptV->aeSecType = NULL;
+    image_annot_destroy(&ptV->ptAnnot);
     free(ptV->pData);
     ptV->pData = NULL;
     free(ptV);
