@@ -9,10 +9,10 @@
  *   [S] Skipped    :  1 test  - run make manual (visual tint in hex view)
  *
  * Module-level traceability:
- *   UFR-HEX-004 → REQ-HEX-010..012 → TC-HEX-010..015 → INT-HEX-010..015
+ *   UFR-HEX-006 → REQ-HEX-021..023 → TC-HEX-065..073 → INT-HEX-065..070
  *
- * INTENT[INT-HEX-010..015 → TC-HEX-010..015 → REQ-HEX-010..012
- *        → UFR-HEX-004]:
+ * INTENT[INT-HEX-065..070 → TC-HEX-065..073 → REQ-HEX-021..023
+ *        → UFR-HEX-006]:
  *   The hex editor classifies every 512-byte sector of the loaded file
  *   at open time and renders a distinct background tint per sector type,
  *   so the user can instantly locate boot sectors, FAT tables, directory
@@ -37,7 +37,7 @@ static void test_type_names(void)
     for (i = 0; i < SECTOR_TYPE_COUNT; i++)
     {
         sz = sector_type_name((sector_type_t)i);
-        /* INTENT[INT-HEX-010]: every valid type returns a non-NULL,
+        /* INTENT[INT-HEX-065]: every valid type returns a non-NULL,
          *   non-empty label — guarantees tint table has no silent gap. */
         UC_TEST("[N] sector_type_name not NULL",
                   sz != NULL);
@@ -59,7 +59,7 @@ static void test_sector_count_formula(void)
     size_t uiOdd  = 512u + 17u; /* 529 → 1 full sector                  */
 
     printf("  --- sector count formula ---\n");
-    /* INTENT[INT-HEX-011]: sector count = floor(size / SA_SECTOR_SIZE).
+    /* INTENT[INT-HEX-066]: sector count = floor(size / SA_SECTOR_SIZE).
      *   Standard .st = 1440, sub-sector = 0, partial+512 = 1.         */
     UC_TEST("[N] .st 737280 → 1440 sectors",
               (int)(uiSt / SA_SECTOR_SIZE) == 1440);
@@ -85,7 +85,7 @@ static void test_classify_zero_sector(void)
     printf("  --- classify zero sector ---\n");
     memset(aBuf, 0x00, SA_SECTOR_SIZE);
 
-    /* INTENT[INT-HEX-012]: sector_classify on a zero-filled buffer
+    /* INTENT[INT-HEX-067]: sector_classify on a zero-filled buffer
      *   returns SECTOR_BSS_ZERO (score > 0.5) using bootstrap DB.     */
     UC_CHECK("[N] sector_db_create",  sector_db_create(&ptDb));
     UC_CHECK("[N] bootstrap_defaults",sector_db_bootstrap_defaults(ptDb));
@@ -111,17 +111,17 @@ static void test_robustness(void)
     sector_features_t tFeat;
 
     printf("  --- robustness ---\n");
-    /* INTENT[INT-HEX-013]: NULL sector pointer returns ST_ERROR        */
+    /* INTENT[INT-HEX-068]: NULL sector pointer returns ST_ERROR        */
     UC_TEST("[R] NULL sector → ST_ERROR",
               sector_features_extract(NULL, 0u, &tFeat) == ST_ERROR);
-    /* INTENT[INT-HEX-014]: NULL feature output returns ST_ERROR        */
+    /* INTENT[INT-HEX-069]: NULL feature output returns ST_ERROR        */
     {
         st_u8_t aBuf[SA_SECTOR_SIZE];
         memset(aBuf, 0, SA_SECTOR_SIZE);
         UC_TEST("[R] NULL feat out → ST_ERROR",
                   sector_features_extract(aBuf, 0u, NULL) == ST_ERROR);
     }
-    /* INTENT[INT-HEX-015]: sector_db_create NULL pptDb → ST_ERROR     */
+    /* INTENT[INT-HEX-070]: sector_db_create NULL pptDb → ST_ERROR     */
     UC_TEST("[R] sector_db_create NULL → ST_ERROR",
               sector_db_create(NULL) == ST_ERROR);
 }

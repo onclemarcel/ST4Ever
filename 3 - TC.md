@@ -3204,3 +3204,183 @@ TEST MATRIX: **40N + 8R + 2S = 50 tests** — all PASS (2S run as PASS when imag
 | Module | [N] | [R] | [S] | Total | Result               |
 |--------|-----|-----|-----|-------|----------------------|
 | SAN    | 40  | 8   | 2   | 50    | ALL PASS (2S cond.)  |
+
+
+---
+
+### 5.67 INTENT Catalog — UC24B
+
+Source: `use_cases/use_case_24B.c`
+
+| ID           | INTENT text                                                                                         |
+|--------------|-----------------------------------------------------------------------------------------------------|
+| INT-HEX-065  | Every valid sector_type_t value returns a non-NULL, non-empty label — guarantees tint table has no silent gap |
+| INT-HEX-066  | Sector count = floor(size / SA_SECTOR_SIZE). Standard .st = 1440, sub-sector = 0, partial+512 = 1  |
+| INT-HEX-067  | sector_classify on a zero-filled buffer returns SECTOR_BSS_ZERO (score > 0.5) using bootstrap DB   |
+| INT-HEX-068  | NULL sector pointer returns ST_ERROR                                                                |
+| INT-HEX-069  | NULL feature output returns ST_ERROR                                                                |
+| INT-HEX-070  | sector_db_create NULL pptDb returns ST_ERROR                                                        |
+
+---
+
+### 5.68 Test Cases — UC24B (hex editor sector tinting)
+
+| TC           | Description                                                          | Type | UFR          | REQ          | INT          | Expected result                                           | Status       |
+|--------------|----------------------------------------------------------------------|------|--------------|--------------|--------------|-----------------------------------------------------------|--------------|
+| TC-HEX-065  | `sector_type_name(i)` non-NULL for all 0..(SECTOR_TYPE_COUNT-1)    | [N]  | UFR-HEX-006  | REQ-HEX-021  | INT-HEX-065  | non-NULL for every valid type                             | PASS UC24B   |
+| TC-HEX-066  | `sector_type_name(i)` non-empty for all valid types                  | [N]  | UFR-HEX-006  | REQ-HEX-021  | INT-HEX-065  | sz[0] != NUL for every valid type                         | PASS UC24B   |
+| TC-HEX-067  | 737280 bytes (.st) -> 1440 sectors                                   | [N]  | UFR-HEX-006  | REQ-HEX-022  | INT-HEX-066  | 737280 / 512 == 1440                                      | PASS UC24B   |
+| TC-HEX-068  | 256 bytes (sub-sector) -> 0 sectors                                  | [N]  | UFR-HEX-006  | REQ-HEX-022  | INT-HEX-066  | 256 / 512 == 0                                            | PASS UC24B   |
+| TC-HEX-069  | 529 bytes (512+17) -> 1 full sector                                  | [N]  | UFR-HEX-006  | REQ-HEX-022  | INT-HEX-066  | 529 / 512 == 1                                            | PASS UC24B   |
+| TC-HEX-070  | `sector_classify` on zero buffer -> SECTOR_BSS_ZERO, score > 0.5   | [N]  | UFR-HEX-006  | REQ-HEX-021  | INT-HEX-067  | eType == SECTOR_BSS_ZERO && fScore > 0.5                  | PASS UC24B   |
+| TC-HEX-071  | `sector_features_extract(NULL, 0, &tFeat)` -> ST_ERROR              | [R]  | UFR-HEX-006  | REQ-HEX-023  | INT-HEX-068  | ST_ERROR                                                  | PASS UC24B   |
+| TC-HEX-072  | `sector_features_extract(aBuf, 0, NULL)` -> ST_ERROR                | [R]  | UFR-HEX-006  | REQ-HEX-023  | INT-HEX-069  | ST_ERROR                                                  | PASS UC24B   |
+| TC-HEX-073  | `sector_db_create(NULL)` -> ST_ERROR                                 | [R]  | UFR-HEX-006  | REQ-HEX-023  | INT-HEX-070  | ST_ERROR                                                  | PASS UC24B   |
+| TC-HEX-074  | Hex editor: sector tints visible on .st file (visual)                | [S]  | UFR-HEX-006  | REQ-HEX-022  | INT-HEX-065  | boot=violet, FAT=blue, dir=teal; tint per 32 rows         | SKIP (manual)|
+
+#### Test Summary — UC24B
+
+| Module | [N] | [R] | [S] | Total | Result    |
+|--------|-----|-----|-----|-------|-----------|
+| HEX    | 6   | 3   | 1   | 10    | ALL PASS  |
+
+#### REQ -> TC coverage (UC24B)
+
+| REQ          | TC(s)                            | Status    |
+|--------------|----------------------------------|-----------|
+| REQ-HEX-021  | TC-HEX-065..066, TC-HEX-070      | v UC24B   |
+| REQ-HEX-022  | TC-HEX-067..069, TC-HEX-074      | v UC24B   |
+| REQ-HEX-023  | TC-HEX-071..073                  | v UC24B   |
+
+#### UFR traceability (UC24B)
+
+| UFR          | REQ(s)                    | TC(s)             | Status    |
+|--------------|---------------------------|-------------------|-----------|
+| UFR-HEX-006  | REQ-HEX-021..023          | TC-HEX-065..074   | v UC24B   |
+
+---
+
+### 5.69 INTENT Catalog — UC24C
+
+Source: `use_cases/use_case_24C.c`
+
+| ID           | INTENT text                                                                                         |
+|--------------|-----------------------------------------------------------------------------------------------------|
+| INT-HEX-074  | Extension replaced by .json for any image path                                                      |
+| INT-HEX-075  | NULL path and tiny buffer handled without crash or overflow                                         |
+| INT-HEX-076  | image_annot_create returns a valid empty annotation (iSectorCount=0, iSectorCap>0)                 |
+| INT-HEX-077  | image_annot_destroy frees memory and sets the pointer to NULL                                       |
+| INT-HEX-078  | NULL params return ST_ERROR without crash                                                           |
+| INT-HEX-079  | set_sector creates a new entry when the LBA is not yet present                                      |
+| INT-HEX-080  | set_sector updates an existing entry when the LBA is already present                                |
+| INT-HEX-081  | get_sector returns NULL for a LBA that has no annotation                                            |
+| INT-HEX-082  | set_sector with NULL notes stores an empty note without crash                                       |
+| INT-HEX-083  | NULL ptAnnot yields ST_ERROR / NULL from set/get                                                    |
+| INT-HEX-084  | The internal sector array grows via realloc when the count exceeds the current capacity             |
+| INT-HEX-085  | save then load round-trip preserves filename, global notes, sector count, per-sector type and notes |
+| INT-HEX-086  | Loading an absent JSON file returns ST_ERROR silently without modifying the annotation              |
+| INT-HEX-087  | Parser correctly handles the reference seed file db/seeds/whatisit.json                             |
+| INT-HEX-088  | Band height is exactly HEXED_BAND_ROWS rows; HEX_ZONE_BAND_NOTE is distinct from other zones       |
+
+---
+
+### 5.70 Test Cases — UC24C (JSON annotation + info band)
+
+| TC           | Description                                                              | Type | UFR          | REQ          | INT          | Expected result                                                | Status       |
+|--------------|--------------------------------------------------------------------------|------|--------------|--------------|--------------|----------------------------------------------------------------|--------------|
+| TC-HEX-075  | "foo/bar.st" -> "foo/bar.json"                                           | [N]  | UFR-HEX-007  | REQ-HEX-024  | INT-HEX-074  | strcmp == 0                                                    | PASS UC24C   |
+| TC-HEX-076  | "C:\\game.msa" -> "C:\\game.json" (MSA extension)                       | [N]  | UFR-HEX-007  | REQ-HEX-024  | INT-HEX-074  | strcmp == 0                                                    | PASS UC24C   |
+| TC-HEX-077  | "nodot" -> "nodot.json" (no extension appended)                          | [N]  | UFR-HEX-007  | REQ-HEX-024  | INT-HEX-074  | strcmp == 0                                                    | PASS UC24C   |
+| TC-HEX-078  | "a.b.st" -> "a.b.json" (last extension replaced)                         | [N]  | UFR-HEX-007  | REQ-HEX-024  | INT-HEX-074  | strcmp == 0                                                    | PASS UC24C   |
+| TC-HEX-079  | `image_annot_json_path(NULL, out, N)` -> out[0]==0                      | [R]  | UFR-HEX-007  | REQ-HEX-024  | INT-HEX-075  | no crash; empty result                                         | PASS UC24C   |
+| TC-HEX-080  | `image_annot_json_path("f.st", out, 4)` -> no crash                    | [R]  | UFR-HEX-007  | REQ-HEX-024  | INT-HEX-075  | no crash; buffer not overflowed                                | PASS UC24C   |
+| TC-HEX-081  | `image_annot_create(&ptA)` -> non-NULL, count=0, cap>0                  | [N]  | UFR-HEX-007  | REQ-HEX-025  | INT-HEX-076  | ptA != NULL; iSectorCount == 0; iSectorCap > 0                 | PASS UC24C   |
+| TC-HEX-082  | `image_annot_destroy(&ptA)` -> ptA == NULL                              | [N]  | UFR-HEX-007  | REQ-HEX-025  | INT-HEX-077  | ptA == NULL                                                    | PASS UC24C   |
+| TC-HEX-083  | `create(NULL)` and `destroy(NULL)` -> ST_ERROR both                     | [R]  | UFR-HEX-007  | REQ-HEX-025  | INT-HEX-078  | ST_ERROR both                                                  | PASS UC24C   |
+| TC-HEX-084  | `set_sector(ptA, 0, "fat12", "FAT1")` creates entry, count==1           | [N]  | UFR-HEX-007  | REQ-HEX-026  | INT-HEX-079  | iSectorCount == 1; szType/szNotes match                        | PASS UC24C   |
+| TC-HEX-085  | `set_sector(ptA, 0, "fat12", "Updated")` updates; count still 1        | [N]  | UFR-HEX-007  | REQ-HEX-026  | INT-HEX-080  | count == 1; notes == Updated                                   | PASS UC24C   |
+| TC-HEX-086  | `get_sector(ptA, 999)` -> NULL (unknown LBA)                             | [N]  | UFR-HEX-007  | REQ-HEX-026  | INT-HEX-081  | NULL returned                                                  | PASS UC24C   |
+| TC-HEX-087  | `set_sector(ptA, 5, "bss", NULL)` -> no crash, empty note               | [N]  | UFR-HEX-007  | REQ-HEX-026  | INT-HEX-082  | no crash; ST_NO_ERROR                                          | PASS UC24C   |
+| TC-HEX-088  | 40 set_sector calls grow array beyond initial cap                        | [N]  | UFR-HEX-007  | REQ-ANNOT-005 | INT-HEX-084  | iSectorCount == 40; last entry retrievable                    | PASS UC24C   |
+| TC-HEX-089  | Save + load round-trip preserves filename, notes, 2 sectors              | [N]  | UFR-HEX-007  | REQ-HEX-027  | INT-HEX-085  | all fields match after reload                                  | PASS UC24C   |
+| TC-HEX-090  | load on absent file -> ST_ERROR; annotation unchanged                    | [R]  | UFR-HEX-007  | REQ-HEX-027  | INT-HEX-086  | ST_ERROR; iSectorCount == 0                                    | PASS UC24C   |
+| TC-HEX-091  | Info band visible: row 1 shows type + BPB layout (visual)               | [S]  | UFR-HEX-007  | REQ-HEX-028  | INT-HEX-088  | band row 1 shows LBA + type + FAT1/FAT2/Root/Data LBAs        | SKIP (manual)|
+
+#### Test Summary — UC24C
+
+| Module | [N] | [R] | [S] | Total | Result    |
+|--------|-----|-----|-----|-------|-----------|
+| HEX    | 12  | 4   | 1   | 17    | ALL PASS  |
+
+#### REQ -> TC coverage (UC24C)
+
+| REQ           | TC(s)                             | Status    |
+|---------------|-----------------------------------|-----------|
+| REQ-HEX-024   | TC-HEX-075..080                   | v UC24C   |
+| REQ-HEX-025   | TC-HEX-081..083                   | v UC24C   |
+| REQ-HEX-026   | TC-HEX-084..087                   | v UC24C   |
+| REQ-ANNOT-005 | TC-HEX-088                        | v UC24C   |
+| REQ-HEX-027   | TC-HEX-089..090                   | v UC24C   |
+| REQ-HEX-028   | TC-HEX-091                        | v UC24C (manual) |
+
+#### UFR traceability (UC24C)
+
+| UFR          | REQ(s)                    | TC(s)             | Status    |
+|--------------|---------------------------|-------------------|-----------|
+| UFR-HEX-007  | REQ-HEX-024..028          | TC-HEX-075..091   | v UC24C   |
+
+---
+
+### 5.71 INTENT Catalog — UC24D
+
+Source: `use_cases/use_case_24D.c`
+
+| ID           | INTENT text                                                                                          |
+|--------------|------------------------------------------------------------------------------------------------------|
+| INT-HEX-091  | HEXED_BAND_MAX_LABELS covers 4 BPB auto-labels plus extra JSON chips; arrays sized by the constant  |
+| INT-HEX-092  | Label tracking arrays in edit_hex_view_t are exactly HEXED_BAND_MAX_LABELS entries wide             |
+| INT-HEX-093  | All four zone enum values (HEX=0/ASCII=1/DISASM=2/BAND_NOTE=3) are distinct after UC24D additions   |
+| INT-HEX-094  | NULL ptView returns ST_ERROR without crash from edit_hex_set_cursor_pos                              |
+| INT-HEX-095  | A zero-size view causes edit_hex_set_cursor_pos to leave uiCursor at 0                               |
+| INT-HEX-096  | edit_hex_set_cursor_pos(0) positions cursor at 0 in HEX_ZONE_HEX with nibble=0                      |
+| INT-HEX-097  | edit_hex_set_cursor_pos(256) positions cursor exactly at the mid-point                               |
+| INT-HEX-098  | edit_hex_set_cursor_pos(uiSize-1) positions cursor at the last valid byte                            |
+| INT-HEX-099  | edit_hex_set_cursor_pos with out-of-bounds offset clamps to uiSize-1                                 |
+
+---
+
+### 5.72 Test Cases — UC24D (clickable band labels + set_cursor_pos)
+
+| TC           | Description                                                                     | Type | UFR          | REQ          | INT          | Expected result                                      | Status       |
+|--------------|---------------------------------------------------------------------------------|------|--------------|--------------|--------------|------------------------------------------------------|--------------|
+| TC-HEX-092  | HEXED_BAND_MAX_LABELS >= 4 and <= 16                                            | [N]  | UFR-HEX-008  | REQ-HEX-029  | INT-HEX-091  | 4 <= HEXED_BAND_MAX_LABELS <= 16                     | PASS UC24D   |
+| TC-HEX-093  | `ST_ARRAY_SIZE(ptView->aiBandLabelX) == HEXED_BAND_MAX_LABELS`                  | [N]  | UFR-HEX-008  | REQ-HEX-029  | INT-HEX-092  | array size matches constant                          | PASS UC24D   |
+| TC-HEX-094  | Zone enum: HEX=0, ASCII=1, DISASM=2, BAND_NOTE=3 — all distinct                | [N]  | UFR-HEX-008  | REQ-HEX-030  | INT-HEX-093  | four distinct values, existing unchanged             | PASS UC24D   |
+| TC-HEX-095  | `edit_hex_set_cursor_pos(NULL, 0)` -> ST_ERROR                                  | [R]  | UFR-HEX-008  | REQ-HEX-031  | INT-HEX-094  | ST_ERROR; no crash                                   | PASS UC24D   |
+| TC-HEX-096  | `set_cursor_pos(ptV, 42)` on zero-size view -> uiCursor == 0                    | [R]  | UFR-HEX-008  | REQ-HEX-031  | INT-HEX-095  | uiCursor == 0                                        | PASS UC24D   |
+| TC-HEX-097  | `set_cursor_pos(ptV, 0)` -> cursor=0, zone=HEX, nibble=0                        | [N]  | UFR-HEX-008  | REQ-HEX-031  | INT-HEX-096  | cursor 0; HEX_ZONE_HEX; iNibble 0                   | PASS UC24D   |
+| TC-HEX-098  | `set_cursor_pos(ptV, 256)` -> uiCursor == 256                                   | [N]  | UFR-HEX-008  | REQ-HEX-031  | INT-HEX-097  | uiCursor == 256                                      | PASS UC24D   |
+| TC-HEX-099  | `set_cursor_pos(ptV, 511)` -> uiCursor == 511                                   | [N]  | UFR-HEX-008  | REQ-HEX-031  | INT-HEX-098  | uiCursor == 511                                      | PASS UC24D   |
+| TC-HEX-100  | `set_cursor_pos(ptV, 9999)` -> uiCursor clamped to 511                          | [N]  | UFR-HEX-008  | REQ-HEX-031  | INT-HEX-099  | uiCursor == 511                                      | PASS UC24D   |
+| TC-HEX-101  | Clicking FAT1@1 label jumps hex cursor to offset 512 (visual)                  | [S]  | UFR-HEX-008  | REQ-HEX-031  | INT-HEX-091  | cursor at 0x200; sector highlight changes             | SKIP (manual)|
+| TC-HEX-102  | Clicking a JSON [N] chip jumps to that sector start (visual)                   | [S]  | UFR-HEX-008  | REQ-HEX-029  | INT-HEX-091  | cursor jumps to lba * 512                             | SKIP (manual)|
+
+#### Test Summary — UC24D
+
+| Module | [N] | [R] | [S] | Total | Result    |
+|--------|-----|-----|-----|-------|-----------|
+| HEX    | 6   | 2   | 2   | 10    | ALL PASS  |
+
+#### REQ -> TC coverage (UC24D)
+
+| REQ          | TC(s)                             | Status    |
+|--------------|-----------------------------------|-----------|
+| REQ-HEX-029  | TC-HEX-092..093, TC-HEX-102      | v UC24D   |
+| REQ-HEX-030  | TC-HEX-094                        | v UC24D   |
+| REQ-HEX-031  | TC-HEX-095..101                   | v UC24D   |
+
+#### UFR traceability (UC24D)
+
+| UFR          | REQ(s)                    | TC(s)             | Status    |
+|--------------|---------------------------|-------------------|-----------|
+| UFR-HEX-008  | REQ-HEX-029..031          | TC-HEX-092..102   | v UC24D   |

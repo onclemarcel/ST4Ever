@@ -2494,9 +2494,53 @@ Total : 32 tests — 32 PASS, 0 fail
 - `iBandLastSec = -1` forcé après CTRL+S pour que la prochaine render recharge le note depuis ptAnnot (reflecting the saved state)
 
 **Points d'attention pour les UCs suivants :**
-- UC24D (labels cliquables) : `ptAnnot->atSectors[i].iLba` est déjà accessible depuis `ehex_render_band()` — les labels JSON du champ `"labels"` (P49) n'existent pas encore dans `image_annot_t`; il faudra ajouter un tableau `labels[]` avec `{lba, offset, name, desc}`
+- **RÉSOLU UC24D** — labels cliquables implémentés via `ptAnnot->atSectors[i].iLba` (chips JSON `[N]`) + BPB auto-labels ; le champ `"labels"` avec `{lba, offset, name, desc}` de P47 reste optionnel pour des UCs futurs
 - UC25 (exécution) : si l'annotation JSON est sauvegardée pour `roundtrip.st`, elle sera chargée à la prochaine ouverture hex — cohérence entre sessions garantie
 - UC31+ (démo cible) : `image_annot_save/load` pourra être réutilisé pour annoter le désassemblé d'une démo (.s) si le format JSON est étendu avec un champ `"labeled_instructions"` — architecture extensible
+
+---
+
+## §6.28 UC24D — Labels cliquables dans le bandeau (P49)
+
+**Version :** 0.24.4 — **Date :** 2026-06-09
+
+**Périmètre fonctionnel implémenté :**
+- `src/edit_hex.c` / `src/edit_hex.h` : UC24D enrichit la bande info UC24C
+  - **Tracking des labels BPB** : après construction de `szLine1`, `ehex_render_band()` scanne la chaîne avec `strstr()` pour trouver `FAT1@N`, `FAT2@N`, `Root@N`, `Data@N` et stocke leurs positions pixel dans `aiBandLabelX[]` + leur LBA dans `aiBandLabelLba[]` + leur texte dans `aszBandLabelText[]`
+  - **Chips JSON** : les `ptAnnot->atSectors[i].iLba` sont appended comme `[N]` dans `szLine1` avec leurs positions trackées
+  - **Rendu cyan** : chaque label est re-dessiné en `g_clrBandLink` (cyan clair) par-dessus le texte normal — indique la cliquabilité
+  - **`ehex_handle_click()`** : détection click en bande row 1 → itération sur `iBandLabelCount` labels → `ehex_jump_to_lba()` si hit
+  - **`ehex_jump_to_lba()`** (private) : calcule `uiTarget = iLba * SA_SECTOR_SIZE`, clamp au dernier secteur valide, assigne `uiCursor`, `ehex_scroll_to_cursor()`, `gui_invalidate()`
+  - **`edit_hex_set_cursor_pos()`** (public API) : API programmable pour naviguer à un offset arbitraire ; clamp `uiSize == 0 → 0`, `offset >= uiSize → uiSize-1`
+  - Constante `HEXED_BAND_MAX_LABELS = 8` (4 BPB + 4 JSON max)
+
+**Infrastructure et outillage validés :**
+- Aucun nouveau module — toutes les modifications dans `edit_hex.c/.h`
+- Pattern de hit-test pixel monospace : `X_label = char_offset * iCellW`, `strstr()` sur `szLine1` pour trouver l'offset caractère → X pixel exact
+- `memset(ptV, 0, ...)` dans `edit_hex_open()` initialise `iBandLabelCount = 0` implicitement
+
+**Matrice de tests (UC24D) :**
+
+```
+TEST MATRIX - UC24D:
+  [N] Nominal    : 6 tests  - HEXED_BAND_MAX_LABELS, zones enum, set_cursor_pos
+                               offset 0/mid/last, clamping out-of-bounds
+  [R] Robustness : 2 tests  - NULL ptView -> ST_ERROR, zero-size -> cursor=0
+  [S] Skipped    : 2 tests  - run make manual (click FAT1@1, click [N] chip)
+```
+
+**Contrats comportementaux validés :**
+
+*Module `edit_hex` (navigation UC24D)*
+- `edit_hex_set_cursor_pos(ptView, uiOffset)` : NULL ptView → `ST_ERROR` ; `uiSize == 0` → cursor fixé à 0 ; `uiOffset >= uiSize` → cursor clamped à `uiSize - 1` ; cas nominal → cursor = offset, zone = HEX, nibble = 0
+- `ehex_jump_to_lba(ptV, iLba)` : `iLba < 0` → no-op ; `iLba * 512 >= uiSize` → saute au dernier secteur complet ; cas nominal → cursor = `iLba * 512`, scroll, invalidate
+- `iBandLabelCount` est recomputed à chaque `ehex_render_band()` — les positions pixel sont cohérentes avec le rendu courant (même thread GUI)
+- Les chips JSON `[N]` sont tracés dans l'ordre de `ptAnnot->atSectors[]` jusqu'à `HEXED_BAND_MAX_LABELS` total ou saturation de `szLine1[160]`
+- Clicking en bande row 2 (note) reste inchangé depuis UC24C
+
+**Points d'attention pour les UCs suivants :**
+- UC25 (exécution) : `edit_hex_set_cursor_pos()` peut être utilisée depuis un breakpoint handler pour synchroniser la vue hex avec le PC du CPU émulé
+- UC31+ : `aszBandLabelText[i][12]` est assez court pour les LBA ≤ 9999 — au-delà (images > 5 MB), truncation inoffensive car les LBA > 9999 sont hors portée ST standard
 
 ---
 

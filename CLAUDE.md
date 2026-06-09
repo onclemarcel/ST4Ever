@@ -11,6 +11,7 @@
 - 2026-06-08: UC24A Codé/Testé : Sector Fingerprint Engine — vecteur 24D + cosine pondéré + DB bootstrap/learn/finalize/save/load + signatures packers + 42 tests PASS 0 fail
 - 2026-06-08: UC24B Codé/Testé : Coloration sémantique secteurs dans hex_edit — aeSecType heap + ehex_classify_sectors() + table g_aSecTint[16] + tint rendu par row — 10 tests PASS 0 fail
 - 2026-06-09: UC24C Codé/Testé : JSON annotation + bandeau contextuel — image_annot.c (load/save/get/set, parser hand-rolled) + ehex_render_band() 2 lignes (LBA/type/BPB + note éditable) + CTRL+N/CTRL+S + HEX_ZONE_BAND_NOTE — 32 tests PASS 0 fail
+- 2026-06-09: UC24D Codé/Testé : Labels cliquables dans le bandeau — FAT1/FAT2/Root/Data en cyan cliquables + chips JSON [N] + ehex_jump_to_lba() + edit_hex_set_cursor_pos() API publique — 10 tests PASS 0 fail
 
 *L'historique des versions antérieures peut être récupéré via le change log github*
 
@@ -487,7 +488,7 @@ Les étapes de développement fonctionnelles sont formalisées en Use Cases, per
 | UC24A | interne | Sector Fingerprint Engine : vecteur 24D + cosine pondéré + DB seeds/build/load/save + signatures packers | ✓ VALIDÉ 2026-06-08 |
 | UC24B | `edit` hex | **P46** — Coloration sémantique secteurs dans hex_edit : passe `sector_classify()` à l'ouverture → `aeSecType[iSectorCount]` dans `edit_hex_view_t` → teinte fond par type (boot/FAT/dir/BSS/code/packer) dans `ehex_render()`. Fichiers clés : `src/edit_hex.c`, `src/edit_hex.h`, `src/sector_analyze.h`. Aucun nouveau module. | ✓ VALIDÉ 2026-06-08 |
 | UC24C | `edit` hex | **P47+P48** — JSON annotation (`<basename>.json` colocalisé avec `.st`) + bandeau contextuel : nouveau module `src/image_annot.c`/`.h` (`image_annot_load/save`), champ `labels[]`/`labeled_sectors[]` ; bandeau `HEXED_BAND_H` px en bas de hex_edit (`edit_hex_render_band()`) : type/score secteur courant, BPB décodé si valide (FAT1/FAT2/root dir/data LBA), zone notes éditable CTRL+S → JSON. Dépend de UC24B. | ✓ VALIDÉ 2026-06-09 |
-| UC24D | `edit` hex | **P49** — Labels cliquables dans le bandeau → navigation adresse : labels JSON + auto-labels BPB (`FAT1`, `FAT2`, `Root dir`, `Data`) cliquables → `edit_hex_set_cursor_pos(lba*512+offset)`. Dépend de UC24C. | P49 à arbitrer |
+| UC24D | `edit` hex | **P49** — Labels cliquables dans le bandeau → navigation adresse : labels JSON + auto-labels BPB (`FAT1`, `FAT2`, `Root dir`, `Data`) cliquables → `edit_hex_set_cursor_pos(lba*512+offset)`. Dépend de UC24C. | ✓ VALIDÉ 2026-06-09 |
 | UC25 | `execute` | Moteur pas-à-pas + vues CPU + mémoire | step + breakpoint sur .PRG simple |
 | UC26 | interne | Émulation vidéo ST (Shifter : low/med/high res, palette 16 couleurs) | rendu écran correct |
 | UC27 | `execute` | Vue écran Win32/GDI + X11 + synchronisation VBL | démo statique visible |
@@ -1034,9 +1035,9 @@ calcul offset → `edit_hex_set_cursor_pos()`). Cible : **UC24B** (après P47/P4
 | Proposition | Décision provisoire | UC cible proposée |
 |-------------|---------------------|-------------------|
 | P46 (coloration sémantique secteurs)     | ACCEPTÉ — **IMPLÉMENTÉ UC24B** | ✓ clos |
-| P47 (JSON annotation colocalisé)         | ACCEPTÉ MODIFIÉ (colocalisé `.st`, pas limité UC20A/st/) | **UC24C** |
-| P48 (bandeau contextuel secteur/BPB)     | ACCEPTÉ | **UC24C** (avec P47) |
-| P49 (labels cliquables → navigation)     | ACCEPTÉ | **UC24D** |
+| P47 (JSON annotation colocalisé)         | ACCEPTÉ — **IMPLÉMENTÉ UC24C** | ✓ clos |
+| P48 (bandeau contextuel secteur/BPB)     | ACCEPTÉ — **IMPLÉMENTÉ UC24C** | ✓ clos |
+| P49 (labels cliquables → navigation)     | ACCEPTÉ — **IMPLÉMENTÉ UC24D** | ✓ clos |
 
 **Découpage contexte conversation** (décidé 2026-06-08) :
 - **UC24B** : P46 seul — ~150 lignes, zéro nouveau module. Conversation légère.

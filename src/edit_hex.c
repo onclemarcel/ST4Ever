@@ -11,6 +11,10 @@
  *       row 1, editable annotation note on row 2.  JSON annotation file
  *       (<basename>.json) loaded/saved alongside the image.  CTRL+N
  *       activates note editing; CTRL+S saves both hex file and JSON.
+ * UC24D: Band row 1 BPB labels (FAT1/FAT2/Root/Data) and JSON labeled-
+ *       sector chips are rendered in link colour and clickable; clicking
+ *       jumps the hex cursor to that sector.  edit_hex_set_cursor_pos()
+ *       added as public API.
  */
 
 #include "edit_hex.h"
@@ -94,6 +98,9 @@ static const renderer_color_t g_clrBandNote = { 0.55f, 0.75f, 0.55f,
                                                   1.0f };
 static const renderer_color_t g_clrBandNoteActive = { 0.90f, 0.90f,
                                                         0.40f, 1.0f };
+/* Clickable navigation label colour (UC24D) */
+static const renderer_color_t g_clrBandLink = { 0.40f, 0.88f, 0.95f,
+                                                  1.0f };
 
 /* ------------------------------------------------------------------
  * Hex nibble lookup
@@ -107,6 +114,7 @@ static const char g_szNib[] = "0123456789ABCDEF";
 
 static st_error_t ehex_load(edit_hex_view_t *ptV, const char *szPath);
 static void       ehex_classify_sectors(edit_hex_view_t *ptV);
+static void       ehex_jump_to_lba(edit_hex_view_t *ptV, int iLba);
 static st_error_t ehex_save(edit_hex_view_t *ptV);
 static void       ehex_update_title(edit_hex_view_t *ptV);
 static void       ehex_recalc_layout(edit_hex_view_t *ptV);
@@ -839,6 +847,14 @@ static void ehex_render_band(edit_hex_view_t *ptV)
     const annot_sector_t   *ptSec;
     int                     iPos;
     int                     iLen;
+    char                    szLbl[12];
+    char                   *pHit;
+    int                     iL;
+    int                     iSec;
+    int                     iLba;
+    int                     iLblLen;
+    size_t                  uiLen;
+    char                    szChip[12];
 
     if (ptV->hRenderer == NULL || ptV->iCellH <= 0)
         return;
@@ -897,6 +913,92 @@ static void ehex_render_band(edit_hex_view_t *ptV)
                  iCurSec, szTypeName);
     }
 
+    /* -- UC24D: locate BPB labels and append JSON chips --------------- */
+    ptV->iBandLabelCount = 0;
+    if (ptV->iBpbFat1Lba >= 0 && ptV->iCellW > 0)
+    {
+        snprintf(szLbl, sizeof(szLbl), "FAT1@%d", ptV->iBpbFat1Lba);
+        pHit = strstr(szLine1, szLbl);
+        if (pHit != NULL)
+        {
+            ptV->aiBandLabelX[ptV->iBandLabelCount]   =
+                (int)(pHit - szLine1) * ptV->iCellW;
+            ptV->aiBandLabelLba[ptV->iBandLabelCount] =
+                ptV->iBpbFat1Lba;
+            strncpy(ptV->aszBandLabelText[ptV->iBandLabelCount],
+                    szLbl, 11);
+            ptV->aszBandLabelText[ptV->iBandLabelCount][11] = '\0';
+            ptV->iBandLabelCount++;
+        }
+        if (ptV->iBpbFat2Lba >= 0)
+        {
+            snprintf(szLbl, sizeof(szLbl), "FAT2@%d", ptV->iBpbFat2Lba);
+            pHit = strstr(szLine1, szLbl);
+            if (pHit != NULL
+            &&  ptV->iBandLabelCount < HEXED_BAND_MAX_LABELS)
+            {
+                ptV->aiBandLabelX[ptV->iBandLabelCount]   =
+                    (int)(pHit - szLine1) * ptV->iCellW;
+                ptV->aiBandLabelLba[ptV->iBandLabelCount] =
+                    ptV->iBpbFat2Lba;
+                strncpy(ptV->aszBandLabelText[ptV->iBandLabelCount],
+                        szLbl, 11);
+                ptV->aszBandLabelText[ptV->iBandLabelCount][11] = '\0';
+                ptV->iBandLabelCount++;
+            }
+        }
+        snprintf(szLbl, sizeof(szLbl), "Root@%d", ptV->iBpbRootLba);
+        pHit = strstr(szLine1, szLbl);
+        if (pHit != NULL && ptV->iBandLabelCount < HEXED_BAND_MAX_LABELS)
+        {
+            ptV->aiBandLabelX[ptV->iBandLabelCount]   =
+                (int)(pHit - szLine1) * ptV->iCellW;
+            ptV->aiBandLabelLba[ptV->iBandLabelCount] = ptV->iBpbRootLba;
+            strncpy(ptV->aszBandLabelText[ptV->iBandLabelCount],
+                    szLbl, 11);
+            ptV->aszBandLabelText[ptV->iBandLabelCount][11] = '\0';
+            ptV->iBandLabelCount++;
+        }
+        snprintf(szLbl, sizeof(szLbl), "Data@%d", ptV->iBpbDataLba);
+        pHit = strstr(szLine1, szLbl);
+        if (pHit != NULL && ptV->iBandLabelCount < HEXED_BAND_MAX_LABELS)
+        {
+            ptV->aiBandLabelX[ptV->iBandLabelCount]   =
+                (int)(pHit - szLine1) * ptV->iCellW;
+            ptV->aiBandLabelLba[ptV->iBandLabelCount] = ptV->iBpbDataLba;
+            strncpy(ptV->aszBandLabelText[ptV->iBandLabelCount],
+                    szLbl, 11);
+            ptV->aszBandLabelText[ptV->iBandLabelCount][11] = '\0';
+            ptV->iBandLabelCount++;
+        }
+    }
+    /* Append JSON labeled_sectors as "[N]" chips to row 1 */
+    if (ptV->ptAnnot != NULL)
+    {
+        uiLen = strlen(szLine1);
+        for (iSec = 0;
+             iSec < ptV->ptAnnot->iSectorCount
+             && ptV->iBandLabelCount < HEXED_BAND_MAX_LABELS;
+             iSec++)
+        {
+            iLba = ptV->ptAnnot->atSectors[iSec].iLba;
+            snprintf(szChip, sizeof(szChip), " [%d]", iLba);
+            if (uiLen + strlen(szChip) >= sizeof(szLine1) - 1u)
+                break;
+            /* '[' starts one char past the leading space */
+            ptV->aiBandLabelX[ptV->iBandLabelCount]   =
+                (int)(uiLen + 1u) * ptV->iCellW;
+            ptV->aiBandLabelLba[ptV->iBandLabelCount] = iLba;
+            snprintf(ptV->aszBandLabelText[ptV->iBandLabelCount],
+                     12, "[%d]", iLba);
+            ptV->iBandLabelCount++;
+            strncat(szLine1, szChip,
+                    sizeof(szLine1) - uiLen - 1u);
+            uiLen = strlen(szLine1);
+        }
+    }
+
+    /* Row 1: full text in normal colour, then labels overlaid in link  */
     tRect.fX = 0.0f;
     tRect.fY = (float)iTop;
     tRect.fW = (float)ptV->iWndWidth;
@@ -904,6 +1006,21 @@ static void ehex_render_band(edit_hex_view_t *ptV)
     renderer_draw_text(ptV->hRenderer, szLine1, &tRect,
                        &g_clrBandText, RENDERER_FONT_MONO,
                        RENDERER_ALIGN_LEFT);
+    if (ptV->iBandLabelCount > 0 && ptV->iCellW > 0)
+    {
+        for (iL = 0; iL < ptV->iBandLabelCount; iL++)
+        {
+            iLblLen = (int)strlen(ptV->aszBandLabelText[iL]);
+            tRect.fX = (float)ptV->aiBandLabelX[iL];
+            tRect.fY = (float)iTop;
+            tRect.fW = (float)(iLblLen * ptV->iCellW);
+            tRect.fH = (float)ptV->iCellH;
+            renderer_draw_text(ptV->hRenderer,
+                               ptV->aszBandLabelText[iL], &tRect,
+                               &g_clrBandLink, RENDERER_FONT_MONO,
+                               RENDERER_ALIGN_LEFT);
+        }
+    }
 
     /* -- Row 2: annotation note -------------------------------------- */
     ptSec = image_annot_get_sector(ptV->ptAnnot, iCurSec);
@@ -1607,16 +1724,38 @@ static void ehex_handle_click(edit_hex_view_t *ptV, int iX, int iY)
     int    iBandH;
     int    iBandTop;
     int    iBandNoteY;
+    int    iL;
+    int    iLblW;
 
     if (ptV->iCellH <= 0 || ptV->iCellW <= 0) return;
 
-    /* Click in the info band (UC24C) -------------------------------- */
+    /* Click in the info band (UC24C/UC24D) ----------------------------- */
     iBandH     = HEXED_BAND_ROWS * ptV->iCellH;
     iBandTop   = ptV->iWndHeight - iBandH;
     iBandNoteY = iBandTop + ptV->iCellH;
     if (ptV->iCellH > 0 && iY >= iBandTop)
     {
-        if (iY >= iBandNoteY)
+        if (iY < iBandNoteY)
+        {
+            /* Band row 1: check BPB / JSON label click (UC24D) */
+            if (ptV->iBandLabelCount > 0 && ptV->iCellW > 0)
+            {
+                for (iL = 0; iL < ptV->iBandLabelCount; iL++)
+                {
+                    iLblW = (int)strlen(
+                                ptV->aszBandLabelText[iL])
+                            * ptV->iCellW;
+                    if (iX >= ptV->aiBandLabelX[iL]
+                    &&  iX <  ptV->aiBandLabelX[iL] + iLblW)
+                    {
+                        ehex_jump_to_lba(ptV,
+                                          ptV->aiBandLabelLba[iL]);
+                        return;
+                    }
+                }
+            }
+        }
+        else
         {
             /* Click on note row: enter BAND_NOTE zone */
             ptV->iBandLastSec = -1; /* force sync */
@@ -1815,6 +1954,38 @@ static void ehex_event_callback(gui_window_t  hWnd,
 }
 
 /* ------------------------------------------------------------------
+ * Navigation helper (UC24D)
+ * ------------------------------------------------------------------ */
+
+/*
+ * Jump the hex cursor to the first byte of iLba.  Clamps to the last
+ * valid sector if iLba is out of range.  No-op if iLba < 0.
+ */
+static void ehex_jump_to_lba(edit_hex_view_t *ptV, int iLba)
+{
+    size_t uiTarget;
+    int    iTotalSecs;
+
+    if (iLba < 0) return;
+
+    uiTarget = (size_t)iLba * SA_SECTOR_SIZE;
+    if (ptV->uiSize > 0 && uiTarget >= ptV->uiSize)
+    {
+        iTotalSecs = (int)(ptV->uiSize / SA_SECTOR_SIZE);
+        uiTarget   = (iTotalSecs > 0)
+                     ? (size_t)(iTotalSecs - 1) * SA_SECTOR_SIZE
+                     : 0u;
+    }
+    ptV->uiCursor = uiTarget;
+    ptV->iNibble  = 0;
+    ptV->eZone    = HEX_ZONE_HEX;
+    ehex_scroll_to_cursor(ptV);
+    if (ptV->bShowDisasm)
+        ehex_disasm_find_cursor(ptV);
+    gui_invalidate(ptV->hWnd);
+}
+
+/* ------------------------------------------------------------------
  * Public API
  * ------------------------------------------------------------------ */
 
@@ -1952,5 +2123,27 @@ st_error_t edit_hex_close(edit_hex_view_t **pptView)
     *pptView = NULL;
 
     LOG_INFO("edit_hex view closed");
+    return ST_NO_ERROR;
+}
+
+st_error_t edit_hex_set_cursor_pos(edit_hex_view_t *ptView,
+                                    size_t           uiOffset)
+{
+    if (ptView == NULL)
+    {
+        LOG_ERROR("NULL parameter: ptView=%p", (void *)ptView);
+        return ST_ERROR;
+    }
+    if (ptView->uiSize == 0u)
+        uiOffset = 0u;
+    else if (uiOffset >= ptView->uiSize)
+        uiOffset = ptView->uiSize - 1u;
+    ptView->uiCursor = uiOffset;
+    ptView->iNibble  = 0;
+    ptView->eZone    = HEX_ZONE_HEX;
+    ehex_scroll_to_cursor(ptView);
+    if (ptView->bShowDisasm)
+        ehex_disasm_find_cursor(ptView);
+    gui_invalidate(ptView->hWnd);
     return ST_NO_ERROR;
 }

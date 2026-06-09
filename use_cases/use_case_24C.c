@@ -11,10 +11,10 @@
  *   [S] Skipped    :  2 tests - run make manual (band visible in hex view)
  *
  * Module-level traceability:
- *   UFR-HEX-005 → REQ-HEX-013..017 → TC-HEX-016..030 → INT-HEX-016..030
+ *   UFR-HEX-007 → REQ-HEX-024..028 → TC-HEX-074..090 → INT-HEX-074..088
  *
- * INTENT[INT-HEX-016..030 → TC-HEX-016..030 → REQ-HEX-013..017
- *        → UFR-HEX-005]:
+ * INTENT[INT-HEX-074..088 → TC-HEX-074..090 → REQ-HEX-024..028
+ *        → UFR-HEX-007]:
  *   The hex editor persists per-sector annotations in a JSON file
  *   colocated with the disk image, and displays sector type, BPB layout,
  *   and the editable note in a two-row band at the bottom of the window,
@@ -71,7 +71,7 @@ static void test_json_path(void)
 
     printf("  --- image_annot_json_path ---\n");
 
-    /* INTENT[INT-HEX-016]: extension replaced by .json for .st path  */
+    /* INTENT[INT-HEX-074]: extension replaced by .json for .st path  */
     image_annot_json_path("foo/bar.st", szOut, sizeof(szOut));
     UC_TEST("[N] .st -> .json",
               strcmp(szOut, "foo/bar.json") == 0);
@@ -88,7 +88,7 @@ static void test_json_path(void)
     UC_TEST("[N] double dot -> last ext replaced",
               strcmp(szOut, "a.b.json") == 0);
 
-    /* INTENT[INT-HEX-017]: NULL/tiny buffer handled gracefully        */
+    /* INTENT[INT-HEX-075]: NULL/tiny buffer handled gracefully        */
     image_annot_json_path(NULL, szOut, sizeof(szOut));
     UC_TEST("[R] NULL path -> empty result", szOut[0] == '\0');
 
@@ -106,7 +106,7 @@ static void test_lifecycle(void)
 
     printf("  --- create/destroy lifecycle ---\n");
 
-    /* INTENT[INT-HEX-018]: create returns valid empty annotation     */
+    /* INTENT[INT-HEX-076]: create returns valid empty annotation     */
     UC_CHECK("[N] create",   image_annot_create(&ptA));
     UC_TEST("[N] not NULL",   ptA != NULL);
     if (ptA != NULL)
@@ -115,11 +115,11 @@ static void test_lifecycle(void)
         UC_TEST("[N] cap > 0",      ptA->iSectorCap   >  0);
     }
 
-    /* INTENT[INT-HEX-019]: destroy frees and sets pointer to NULL    */
+    /* INTENT[INT-HEX-077]: destroy frees and sets pointer to NULL    */
     UC_CHECK("[N] destroy",  image_annot_destroy(&ptA));
     UC_TEST("[N] NULL after destroy", ptA == NULL);
 
-    /* INTENT[INT-HEX-020]: robustness NULL params                    */
+    /* INTENT[INT-HEX-078]: robustness NULL params                    */
     UC_TEST("[R] create NULL -> ST_ERROR",
               image_annot_create(NULL) == ST_ERROR);
     UC_TEST("[R] destroy NULL ptr -> ST_ERROR",
@@ -144,7 +144,7 @@ static void test_set_get(void)
         return;
     }
 
-    /* INTENT[INT-HEX-021]: set_sector creates new entry              */
+    /* INTENT[INT-HEX-079]: set_sector creates new entry              */
     UC_CHECK("[N] set lba=0",
              image_annot_set_sector(ptA, 0, "fat12", "First FAT"));
     UC_TEST("[N] count == 1", ptA->iSectorCount == 1);
@@ -157,7 +157,7 @@ static void test_set_get(void)
               ptSec != NULL &&
               strcmp(ptSec->szNotes, "First FAT") == 0);
 
-    /* INTENT[INT-HEX-022]: set_sector updates existing entry         */
+    /* INTENT[INT-HEX-080]: set_sector updates existing entry         */
     UC_CHECK("[N] update lba=0",
              image_annot_set_sector(ptA, 0, "fat12", "Updated"));
     UC_TEST("[N] count still 1", ptA->iSectorCount == 1);
@@ -166,15 +166,15 @@ static void test_set_get(void)
               ptSec != NULL &&
               strcmp(ptSec->szNotes, "Updated") == 0);
 
-    /* INTENT[INT-HEX-023]: get_sector returns NULL for unknown LBA   */
+    /* INTENT[INT-HEX-081]: get_sector returns NULL for unknown LBA   */
     UC_TEST("[N] get unknown lba → NULL",
               image_annot_get_sector(ptA, 999) == NULL);
 
-    /* INTENT[INT-HEX-024]: set NULL note does not crash              */
+    /* INTENT[INT-HEX-082]: set NULL note does not crash              */
     UC_CHECK("[N] set NULL notes",
              image_annot_set_sector(ptA, 5, "bss", NULL));
 
-    /* INTENT[INT-HEX-025]: NULL ptAnnot → ST_ERROR / NULL            */
+    /* INTENT[INT-HEX-083]: NULL ptAnnot → ST_ERROR / NULL            */
     UC_TEST("[R] set NULL ptAnnot → ST_ERROR",
               image_annot_set_sector(NULL, 0, "", "") == ST_ERROR);
     UC_TEST("[R] get NULL ptAnnot → NULL",
@@ -198,7 +198,7 @@ static void test_growth(void)
     UC_CHECK("[N] create", image_annot_create(&ptA));
     if (ptA == NULL) return;
 
-    /* INTENT[INT-HEX-026]: realloc triggered when count exceeds cap  */
+    /* INTENT[INT-HEX-084]: realloc triggered when count exceeds cap  */
     for (i = 0; i < 40; i++)
     {
         snprintf(szNote, sizeof(szNote), "sector %d", i);
@@ -237,7 +237,7 @@ static void test_roundtrip(void)
     UC_CHECK("[N] create save", image_annot_create(&ptSave));
     if (ptSave == NULL) return;
 
-    /* INTENT[INT-HEX-027]: round-trip preserves filename/notes/sectors */
+    /* INTENT[INT-HEX-085]: round-trip preserves filename/notes/sectors */
     strncpy(ptSave->szFilename, "test.st", ST_MAX_PATH - 1);
     strncpy(ptSave->szNotes, "Test disk", ANNOT_NOTE_MAX - 1);
     UC_CHECK("[N] set sector 0",
@@ -299,7 +299,7 @@ static void test_absent_file(void)
     UC_CHECK("[N] create", image_annot_create(&ptA));
     if (ptA == NULL) return;
 
-    /* INTENT[INT-HEX-028]: load absent file returns ST_ERROR silently */
+    /* INTENT[INT-HEX-086]: load absent file returns ST_ERROR silently */
     UC_TEST("[R] absent file → ST_ERROR",
               image_annot_load("/nonexistent/path.json", ptA)
               == ST_ERROR);
@@ -323,7 +323,7 @@ static void test_load_seed(void)
     UC_CHECK("[N] create", image_annot_create(&ptA));
     if (ptA == NULL) return;
 
-    /* INTENT[INT-HEX-029]: parser handles the reference seed file    */
+    /* INTENT[INT-HEX-087]: parser handles the reference seed file    */
     if (image_annot_load("db/seeds/whatisit.json", ptA) != ST_NO_ERROR)
     {
         printf("  [SKIP] seed file absent or unreadable\n");
@@ -355,10 +355,10 @@ static void test_band_constants(void)
 {
     printf("  --- band layout constants ---\n");
 
-    /* INTENT[INT-HEX-030]: band height is exactly 2 rows             */
+    /* INTENT[INT-HEX-088]: band height is exactly 2 rows             */
     UC_TEST("[N] HEXED_BAND_ROWS == 2", HEXED_BAND_ROWS == 2);
 
-    /* INTENT[INT-HEX-030]: BAND_NOTE zone is distinct                */
+    /* INTENT[INT-HEX-088]: BAND_NOTE zone is distinct                */
     UC_TEST("[N] BAND_NOTE != HEX zone",
               HEX_ZONE_BAND_NOTE != HEX_ZONE_HEX);
     UC_TEST("[N] BAND_NOTE != ASCII zone",

@@ -49,6 +49,10 @@
  * UC24C: info band at bottom (sector type, BPB layout, editable note).
  *        JSON annotation file colocated with the image (P47 + P48).
  *        CTRL+N enters note-edit zone; CTRL+S saves annotation + file.
+ * UC24D: BPB labels (FAT1/FAT2/Root/Data) and JSON labeled-sector chips
+ *        in band row 1 are rendered in link colour and clickable.
+ *        Clicking jumps the hex cursor to that sector (P49).
+ *        edit_hex_set_cursor_pos() added to public API.
  */
 
 #ifndef EDIT_HEX_H
@@ -91,6 +95,11 @@
 /* Number of text rows reserved at the bottom of the window for the
  * sector-info band (type, BPB layout, editable note).               */
 #define HEXED_BAND_ROWS  2
+
+/* Maximum clickable navigation labels shown in band row 1.
+ * Covers up to 4 BPB auto-labels (FAT1/FAT2/Root/Data) and up to 4
+ * JSON labeled-sector chips appended to the right.                  */
+#define HEXED_BAND_MAX_LABELS  8
 
 /* ------------------------------------------------------------------
  * Layout constants — disassembly panel (UC10)
@@ -189,6 +198,12 @@ typedef struct edit_hex_view_s
     int               iBandNotePos;       /* insertion cursor in note    */
     int               iBandLastSec;       /* sector last synced to band  */
 
+    /* Band navigation labels (UC24D) ------------------------------------*/
+    int               aiBandLabelX[HEXED_BAND_MAX_LABELS];   /* px start */
+    int               aiBandLabelLba[HEXED_BAND_MAX_LABELS];  /* LBA     */
+    char              aszBandLabelText[HEXED_BAND_MAX_LABELS][12]; /* txt */
+    int               iBandLabelCount;    /* active clickable labels     */
+
     line_context_t   *ptLineCtx;
 } edit_hex_view_t;
 
@@ -228,5 +243,23 @@ st_error_t edit_hex_open(const char       *szPath,
  *   ST_ERROR    if pptView is NULL.
  */
 st_error_t edit_hex_close(edit_hex_view_t **pptView);
+
+/*
+ * edit_hex_set_cursor_pos() - Move the hex cursor to a byte offset.
+ *
+ * Clamps uiOffset to [0, uiSize-1], resets to HEX_ZONE_HEX, scrolls
+ * the view into view, and invalidates the window for repaint.
+ * Must be called from the GUI thread (same thread as event callbacks).
+ *
+ * Parameters:
+ *   ptView   [in] : View to update (must be open).
+ *   uiOffset [in] : Target byte offset (0-based).
+ *
+ * Returns:
+ *   ST_NO_ERROR on success.
+ *   ST_ERROR    if ptView is NULL.
+ */
+st_error_t edit_hex_set_cursor_pos(edit_hex_view_t *ptView,
+                                    size_t           uiOffset);
 
 #endif /* EDIT_HEX_H */

@@ -177,6 +177,9 @@ through one or more test cases in Section 5.
 | UFR-HEX-003 | The editor shall support two zones toggled by TAB: HEX zone (nibble-by-nibble editing: 0–9/A–F) and ASCII zone (byte editing: printable 0x20–0x7E); cursor color distinguishes the active zone (blue=HEX, yellow=ASCII). | ✓ UC9 | UC9 |
 | UFR-HEX-004 | CTRL+S shall save the file in-place (replace-mode, fixed size); the title bar shall show `[*]` when dirty and remove it after a successful save. ESC closes with a trace log entry if dirty. | ✓ UC9 | UC9 |
 | UFR-HEX-005 | The hex editor shall display a disassembly panel to the right of the ASCII column showing 68000 instructions decoded from the file content. The panel shall be toggled with F2 (default on). TAB shall cycle three zones: HEX → ASCII → DISASM → HEX. Navigation in the DISASM zone (↑↓/PgUp/PgDn) shall move by instruction and keep the hex cursor synchronised; conversely, cursor movement in HEX/ASCII shall keep the DISASM highlight synchronised. The DISASM zone is read-only. Clicking in the DISASM panel shall switch to DISASM zone and position the cursor at the clicked instruction. Mouse scroll in the DISASM zone shall scroll the disasm panel independently of the hex panel. | ✓ UC10 | UC10 |
+| UFR-HEX-006 | At `edit_hex_open()` time, the hex editor shall classify every 512-byte sector of the loaded file via `sector_classify()` and store the results in `aeSecType[]`. Each row of 16 bytes shall be rendered with a distinct background tint corresponding to the sector type (boot/FAT/dir/BSS/code/packer/data), enabling the user to locate key disk structures at a glance without navigating to each one. (P46) | ✓ UC24B | UC24B |
+| UFR-HEX-007 | The hex editor shall load and save a JSON annotation file colocated with the disk image (`<basename>.json`, same directory). A 2-row info band at the bottom of the window shall display the current sector's LBA, type, BPB-derived layout (FAT1/FAT2/Root/Data LBAs) in row 1, and an editable per-sector note field in row 2. CTRL+N activates note editing; CTRL+S saves both the data file and the JSON annotation. (P47+P48) | ✓ UC24C | UC24C |
+| UFR-HEX-008 | BPB auto-labels (FAT1/FAT2/Root/Data) and JSON `labeled_sectors` chips displayed in band row 1 shall be rendered in link colour (cyan) and be clickable; clicking a label shall move the hex cursor to the start of the corresponding sector (`lba * 512`). `edit_hex_set_cursor_pos()` shall provide a programmatic equivalent. (P49) | ✓ UC24D | UC24D |
 
 ### 1.8 Disk Image — `DSK` (UC16 .st ✓; UC17 .msa ✓; UC20 create TODO)
 
@@ -611,6 +614,17 @@ requirement that will expose it (`UFR-EXE-*`, planned UC21–27).
 | REQ-HEX-018  | TAB shall cycle zones HEX → ASCII → DISASM (if `bShowDisasm`) → HEX; when `bShowDisasm` is FALSE TAB shall toggle between HEX and ASCII only. | UFR-HEX-005 | ✓ UC10 | UC10 |
 | REQ-HEX-019  | Mouse scroll in `HEX_ZONE_DISASM` shall update `iDisasmScrollRow`; in any other zone it shall update `iScrollRow` (hex panel). Both shall be clamped to valid range. | UFR-HEX-005 | ✓ UC10 | UC10 |
 | REQ-HEX-020  | `edit_hex_open()` shall allocate `atDisasmCache` heap and set `bShowDisasm=TRUE`; `edit_hex_close()` shall free it. If the allocation fails, `bShowDisasm` shall be `ST_FALSE` and the window shall still open. | UFR-HEX-005 | ✓ UC10 | UC10 |
+| REQ-HEX-021  | `sector_type_name(eType)` shall return a non-NULL, non-empty static string for every value 0..(SECTOR_TYPE_COUNT-1); an out-of-range value shall return `"unknown"` without crash. (Used by hex editor tint table to guarantee no silent gap.) Impl: `sector_type_name()` | UFR-HEX-006 | ✓ UC24B | UC24B |
+| REQ-HEX-022  | The sector count stored in `edit_hex_view_t.iSecCount` shall equal `floor(uiSize / SA_SECTOR_SIZE)`; a file smaller than one sector shall produce `iSecCount = 0`; a zero-size file shall also produce `iSecCount = 0`. Impl: `edit_hex_open()` | UFR-HEX-006 | ✓ UC24B | UC24B |
+| REQ-HEX-023  | `sector_features_extract(NULL, *, *)` and `sector_features_extract(*, *, NULL)` shall return `ST_ERROR`; `sector_db_create(NULL)` shall return `ST_ERROR`. These robustness contracts are relied upon by the tint classification pass at open time. Impl: `sector_features_extract()`, `sector_db_create()` | UFR-HEX-006 | ✓ UC24B | UC24B |
+| REQ-HEX-024  | `image_annot_json_path(szImg, szOut, uiLen)` shall derive the JSON annotation path by replacing the last `.` extension of `szImg` with `.json`; if `szImg` has no extension, `.json` shall be appended; if `szImg` is NULL, `szOut[0]` shall be set to `'\0'`; if `uiLen` is too small, the function shall not overflow the buffer. Impl: `image_annot_json_path()` | UFR-HEX-007 | ✓ UC24C | UC24C |
+| REQ-HEX-025  | `image_annot_create(pptA)` shall heap-allocate an `image_annot_t` with `iSectorCount=0` and `iSectorCap > 0`; `image_annot_destroy(pptA)` shall free all memory and set `*pptA = NULL`. Both shall return `ST_ERROR` if their pointer parameter is NULL. Impl: `image_annot_create()`, `image_annot_destroy()` | UFR-HEX-007 | ✓ UC24C | UC24C |
+| REQ-HEX-026  | `image_annot_set_sector(ptA, iLba, szType, szNotes)` shall create a new `annot_sector_t` entry if `iLba` is not present, or update the existing entry if it is. Passing `szNotes = NULL` shall store an empty note without crash. `image_annot_get_sector(ptA, iLba)` shall return a const pointer to the matching entry, or NULL if not found. Both shall return `ST_ERROR` / NULL if `ptA` is NULL. Impl: `image_annot_set_sector()`, `image_annot_get_sector()` | UFR-HEX-007 | ✓ UC24C | UC24C |
+| REQ-HEX-027  | `image_annot_save(ptA, szPath)` shall write a well-formed JSON file encoding `szFilename`, `szNotes`, and all `labeled_sectors[]` entries. `image_annot_load(szPath, ptA)` shall parse the file and populate `ptA`; if the file is absent, `ST_ERROR` shall be returned without modifying `ptA`'s existing state. A save-then-load round-trip shall reproduce the original `szFilename`, `szNotes`, sector count, and all per-sector `szType`/`szNotes` fields exactly. Impl: `image_annot_save()`, `image_annot_load()` | UFR-HEX-007 | ✓ UC24C | UC24C |
+| REQ-HEX-028  | The info band shall occupy exactly `HEXED_BAND_ROWS` (2) text rows at the bottom of the hex editor window. `HEX_ZONE_BAND_NOTE` shall be a fourth distinct value (3) in `edit_hex_zone_t`; the existing zone values (HEX=0, ASCII=1, DISASM=2) shall be unchanged. Impl: `ehex_render_band()`, `edit_hex_zone_t` | UFR-HEX-007 | ✓ UC24C | UC24C |
+| REQ-HEX-029  | `HEXED_BAND_MAX_LABELS` shall be between 4 and 16 (inclusive). The label-tracking arrays `aiBandLabelX[]`, `aiBandLabelLba[]`, and `aszBandLabelText[][12]` in `edit_hex_view_t` shall each have exactly `HEXED_BAND_MAX_LABELS` entries. Impl: `edit_hex.h` constants and struct | UFR-HEX-008 | ✓ UC24D | UC24D |
+| REQ-HEX-030  | `HEX_ZONE_BAND_NOTE` shall equal 3; all four zone enum values (HEX=0, ASCII=1, DISASM=2, BAND_NOTE=3) shall remain distinct after UC24D additions. Impl: `edit_hex_zone_t` | UFR-HEX-008 | ✓ UC24D | UC24D |
+| REQ-HEX-031  | `edit_hex_set_cursor_pos(ptView, uiOffset)` shall: (a) return `ST_ERROR` if `ptView` is NULL; (b) set `uiCursor = 0` if `uiSize == 0`; (c) clamp `uiOffset` to `uiSize - 1` if `uiOffset >= uiSize`; (d) reset `eZone` to `HEX_ZONE_HEX` and `iNibble` to 0; (e) call `ehex_scroll_to_cursor()` and `gui_invalidate()`. Impl: `edit_hex_set_cursor_pos()` | UFR-HEX-008 | ✓ UC24D | UC24D |
 
 ---
 
@@ -752,6 +766,33 @@ requirement that will expose it (`UFR-EXE-*`, planned UC21–27).
 | REQ-SAN-008  | `sector_db_save(ptDb, szPath)` shall write the DB to binary format prefixed with magic `SA_DB_MAGIC` (0x53544442). `sector_db_load(ptDb, szPath)` shall restore it; loading a non-existent file shall return `ST_ERROR` without modifying the DB's existing state. Impl: `sector_db_save()`, `sector_db_load()` | UFR-EXE-010 | ✓ UC24A | UC24A |
 | REQ-SAN-009  | `sector_type_name(eType)` shall return a non-NULL static C string for all valid `sector_type_t` values; an out-of-range value shall return `"unknown"` without crash. Impl: `sector_type_name()` | UFR-EXE-010 | ✓ UC24A | UC24A |
 | REQ-SAN-010  | `sector_features_t` shall be a flat struct of exactly `SA_FEATURE_DIM` (24) floats with no padding: `sizeof(sector_features_t) / sizeof(float) == SA_FEATURE_DIM`. This invariant enables casting to `const float *` for the cosine dot product. | UFR-EXE-010 | ✓ UC24A | UC24A |
+
+---
+
+### 2.19 Image Annotation — `image_annot.h` / `image_annot.c`
+
+> Design ref: CLAUDE.md §6.36 (UC24C P47+P48); depends on `common.h`; used by `edit_hex.c`.
+> Parent UFR: UFR-HEX-007 (JSON annotation + info band).
+
+| ID              | Software Requirement                                                                                                                                                                     | Parent UFR  | Status   | UC     |
+|-----------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------|----------|--------|
+| REQ-ANNOT-001   | `image_annot_json_path(szImg, szOut, uiLen)` derives the annotation path by replacing `szImg`'s last extension with `.json`. See REQ-HEX-024 for full contract. Impl: `image_annot_json_path()` | UFR-HEX-007 | ✓ UC24C | UC24C |
+| REQ-ANNOT-002   | `image_annot_create(pptA)` / `image_annot_destroy(pptA)` lifecycle. See REQ-HEX-025. Impl: `image_annot_create()`, `image_annot_destroy()` | UFR-HEX-007 | ✓ UC24C | UC24C |
+| REQ-ANNOT-003   | `image_annot_set_sector()` / `image_annot_get_sector()` CRUD. See REQ-HEX-026. Impl: `image_annot_set_sector()`, `image_annot_get_sector()` | UFR-HEX-007 | ✓ UC24C | UC24C |
+| REQ-ANNOT-004   | `image_annot_save()` / `image_annot_load()` JSON round-trip. See REQ-HEX-027. Impl: `image_annot_save()`, `image_annot_load()` | UFR-HEX-007 | ✓ UC24C | UC24C |
+| REQ-ANNOT-005   | The `annot_sector_t` array inside `image_annot_t` shall grow dynamically via `realloc` when `iSectorCount` reaches `iSectorCap`; the new capacity shall be at least `iSectorCap * 2`. Impl: `image_annot_set_sector()` | UFR-HEX-007 | ✓ UC24C | UC24C |
+
+**Function table — `image_annot.h`:**
+
+| Function | REQ | Impl. |
+|---|---|---|
+| `image_annot_json_path()` | REQ-ANNOT-001, REQ-HEX-024 | `image_annot.c` |
+| `image_annot_create()` | REQ-ANNOT-002, REQ-HEX-025 | `image_annot.c` |
+| `image_annot_destroy()` | REQ-ANNOT-002, REQ-HEX-025 | `image_annot.c` |
+| `image_annot_set_sector()` | REQ-ANNOT-003, REQ-ANNOT-005, REQ-HEX-026 | `image_annot.c` |
+| `image_annot_get_sector()` | REQ-ANNOT-003, REQ-HEX-026 | `image_annot.c` |
+| `image_annot_save()` | REQ-ANNOT-004, REQ-HEX-027 | `image_annot.c` |
+| `image_annot_load()` | REQ-ANNOT-004, REQ-HEX-027 | `image_annot.c` |
 
 ---
 
