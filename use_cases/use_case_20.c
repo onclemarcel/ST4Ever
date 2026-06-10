@@ -145,7 +145,7 @@ int main(void)
     /* ==== [R] mount_make_bootable NULL guard ==== */
     printf("\n--- [R] Robustness ---\n");
 
-    /* INTENT[INT-MNT-036 -> TC-MNT-089 -> REQ-MNT-022 -> UFR-MNT-010]:
+    /* INTENT[INT-MNT-036 -> TC-MNT-089 -> REQ-MNT-022 -> UFR-MNT-012]:
      * mount_make_bootable(NULL) shall return ST_ERROR without crash. */
     UC_TEST("[R] mount_make_bootable(NULL) == ST_ERROR",
             mount_make_bootable(NULL) == ST_ERROR);
@@ -153,7 +153,7 @@ int main(void)
     /* ==== [N] mount_make_bootable on blank image ==== */
     printf("\n--- [N] mount_make_bootable ---\n");
 
-    /* INTENT[INT-MNT-037 -> TC-MNT-090 -> REQ-MNT-022 -> UFR-MNT-010]:
+    /* INTENT[INT-MNT-037 -> TC-MNT-090 -> REQ-MNT-022 -> UFR-MNT-012]:
      * A blank image is not bootable; after mount_make_bootable() the
      * WD1772 checksum equals 0x1234 and mount_is_bootable returns ST_TRUE. */
     eResult = image_st_create(&ptImg);
@@ -236,7 +236,7 @@ test_image_cmd:
     /* ==== [N] image from .st (via mount view) ==== */
     printf("\n--- [N] image from mount view ---\n");
 
-    /* INTENT[INT-MNT-038 -> TC-MNT-091 -> REQ-MNT-023 -> UFR-MNT-010]:
+    /* INTENT[INT-MNT-038 -> TC-MNT-091 -> REQ-MNT-023 -> UFR-CON-075]:
      * mount_save_image from an open mount view saves a valid .st file. */
     eResult = mount_view_open(szSrcSt, &tLineCtx, &ptView);
     if (eResult != ST_NO_ERROR || ptView == NULL)
@@ -274,7 +274,7 @@ test_image_cmd:
     /* ==== [N] image from directory (no mount view) ==== */
     printf("\n--- [N] image from directory ---\n");
 
-    /* INTENT[INT-MNT-039 -> TC-MNT-092 -> REQ-MNT-023 -> UFR-MNT-010]:
+    /* INTENT[INT-MNT-039 -> TC-MNT-092 -> REQ-MNT-023 -> UFR-CON-075]:
      * mount_view_open on a directory creates a populated image; save
      * produces a valid .st loadable afterwards. */
     eResult = mount_view_open(szSrcDir, &tLineCtx, &ptView);
@@ -315,7 +315,7 @@ test_image_cmd:
     /* ==== [R] additional robustness ==== */
     printf("\n--- [R] image from non-dir selected ---\n");
 
-    /* INTENT[INT-MNT-040 -> TC-MNT-093 -> REQ-MNT-023 -> UFR-MNT-010]:
+    /* INTENT[INT-MNT-040 -> TC-MNT-093 -> REQ-MNT-023 -> UFR-CON-075]:
      * mount_view_open on a .st file (not a directory) dispatches correctly. */
     eResult = mount_view_open(szSrcSt, &tLineCtx, &ptView);
     UC_TEST("[R] mount_view_open .st again == ST_NO_ERROR",

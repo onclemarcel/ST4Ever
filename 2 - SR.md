@@ -23,69 +23,48 @@ through one or more test cases in Section 5.
 
 ### 1.1 Console Interface — `CON`
 
-| ID          | Requirement                                                                                       | Status   | UC   |
-|-------------|---------------------------------------------------------------------------------------------------|----------|------|
-| UFR-CON-001 | The application shall present an interactive console with a prompt (`ST4>`).                      | ✓ UC1    | UC1  |
-| UFR-CON-002 | The console shall accept a text command line terminated by Enter and dispatch it immediately.      | ✓ UC1    | UC1  |
-| UFR-CON-003 | The console shall remain active until the user issues the quit command or signals EOF (CTRL+Z).   | ✓ UC1    | UC1  |
-| UFR-CON-004 | An unrecognised command shall display an informative error and keep the console active.           | ✓ UC1    | UC1  |
-| UFR-CON-005 | Every command shall be invokable by its full name, its single-letter alias, or a CTRL shortcut.  | ✓ UC1    | UC1  |
-| UFR-CON-006 | Arguments to unimplemented commands shall produce a "not yet implemented" message.                | ✓ UC1    | UC1  |
-| UFR-CON-007 | Command history shall be navigable with the up/down arrow keys; the most recent entry browsed then restored on DOWN past newest. | ✓ UC4.3 | UC4.3 |
-| UFR-CON-008 | Home/End keys shall move the cursor to the start/end of the input line.                          | ✓ UC4.2  | UC4.2 |
-| UFR-CON-009 | Tab shall complete the command name on the first word, file/directory names on further words; a single match inserts immediately, multiple matches cycle as ghost text. | ✓ UC4.3 | UC4.3 |
-| UFR-CON-047 | `colors [on|off]` shall toggle or force ANSI colour codes in console output; useful for terminals without VT100 or file redirection. | ✓ UC4.3 | UC4.3 |
-| UFR-CON-048 | `--script <file>` shall execute commands from the given file line-by-line without interactive input; a missing file shall return an error and exit. | ✓ UC4.3 | UC4.3 |
-| UFR-CON-049 | The prompt shall display `[T]` when the trace view is open and `[basename]` when a file is currently selected, so the user sees active state at a glance. | ✓ UC4.3 | UC4.3 |
-| UFR-CON-041 | The application shall support cursor movement (←/→) within the current input line.               | ✓ UC4.2  | UC4.2 |
-| UFR-CON-042 | The application shall support character insertion at cursor position.                             | ✓ UC4.2  | UC4.2 |
-| UFR-CON-043 | The application shall support character deletion (Backspace before cursor, Delete at cursor).     | ✓ UC4.2  | UC4.2 |
-| UFR-CON-044 | ESC shall clear the current input line without executing it.                                      | ✓ UC4.2  | UC4.2 |
-| UFR-CON-045 | CTRL+C shall cancel the current input; if the buffer is empty it shall request quit.              | ✓ UC4.2  | UC4.2 |
-| UFR-CON-046 | CTRL shortcuts (CTRL+T, CTRL+D, CTRL+L, CTRL+E, CTRL+U, CTRL+W, CTRL+X, CTRL+Q) shall immediately execute the mapped command. | ✓ UC4.2 | UC4.2 |
-
-#### 1.1.1 `help` command (`h` | `help` | CTRL+H)
-
-| ID          | Requirement                                                                                       | Status   | UC   |
-|-------------|---------------------------------------------------------------------------------------------------|----------|------|
-| UFR-CON-010 | `help` shall display the list of all available commands with a one-line summary for each.         | ✓ UC1    | UC1  |
-| UFR-CON-011 | `help` shall ignore any arguments and warn the user if any are provided.                         | ✓ UC1    | UC1  |
-
-#### 1.1.2 `quit` command (`q` | `quit` | CTRL+Q | CTRL+C)
-
-| ID          | Requirement                                                                                       | Status   | UC   |
-|-------------|---------------------------------------------------------------------------------------------------|----------|------|
-| UFR-CON-020 | `quit` shall close all open views and exit the application cleanly.                               | ✓ UC1    | UC1  |
-| UFR-CON-021 | `quit` shall ignore any arguments and warn the user if any are provided.                         | ✓ UC1    | UC1  |
-
-#### 1.1.3 `trace` command (`t` | `trace` | CTRL+T)
-
-| ID          | Requirement                                                                                       | Status   | UC   |
-|-------------|---------------------------------------------------------------------------------------------------|----------|------|
-| UFR-CON-030 | `trace on` shall open the trace console if not already visible.                                  | ✓ UC2    | UC2  |
-| UFR-CON-031 | `trace off` shall filter LOG_TRACE output without closing the trace view; LOG_INFO/ERROR/TODO remain visible. Use `trace` (no arg) to close. (ADAPTED P19) | ✓ P19 | UC2 |
-| UFR-CON-032 | `trace` with no argument shall toggle the trace console visibility.                               | ✓ UC2    | UC2  |
-| UFR-CON-033 | The `-t` application flag shall open the trace console immediately at startup.                   | ✓ UC1    | UC1  |
-
-#### 1.1.4 Other commands (future UCs)
-
-| ID          | Requirement                                                                                       | Status      | UC   |
-|-------------|---------------------------------------------------------------------------------------------------|-------------|------|
-| UFR-CON-040 | `dir [path]` shall open a file-tree view of the given (or current) directory.                    | ✓ UC3.3     | UC3.3|
-| UFR-CON-050 | `load <file>` shall load a file or binary into emulated ST memory.                               | TODO UC7    | UC7  |
-| UFR-CON-060 | `edit <file>` shall open the appropriate editor view for the file type.                          | TODO UC8-10 | UC8  |
-| UFR-CON-070 | `mount [path]` shall emulate an Atari ST floppy drive A:\ from the given directory.             | ✓ UC18.1    | UC18.1 |
-| UFR-CON-071 | `umount` shall eject the emulated floppy, offering to save a disk image if modified.             | ✓ UC19      | UC19   |
-| UFR-CON-080 | `where` shall display the current working directory and the currently selected file/directory.   | ✓ UC5       | UC5  |
-| UFR-CON-081 | `info` shall display a status dashboard: cwd, selected file, trace state, colors state, history count, mounted disk, loaded binary. | ✓ UC5 | UC5 |
-| UFR-CON-082 | `history [N]` shall display the last N command history entries numbered in order (default N=10). | ✓ UC5       | UC5  |
-| UFR-CON-083 | The OS window/terminal title bar shall be updated automatically after each command to reflect the current cwd, selection, and trace state. (P8) | ✓ UC5 | UC5 |
-| UFR-CON-084 | On Tab with multiple completion candidates, the longest common prefix shall be inserted into the input buffer before cycling ghost text candidates. (P23bis) | ✓ UC5 | UC5 |
-| UFR-CON-085 | ANSI colour output shall be auto-enabled or auto-disabled based on `isatty(stdout)` at startup; `colors on/off` shall remain available to override. (P24) | ✓ UC5 | UC5 |
-| UFR-CON-090 | `execute <file>` shall open the full execution engine with all linked views.                     | TODO UC25   | UC25 |
-| UFR-CON-091 | `image` shall create a `.st` or `.msa` disk image from the mounted floppy content.              | TODO UC20   | UC20 |
-| UFR-CON-092 | `st2msa [--dir p] [--all] [-r]` shall convert `.st` disk image(s) to `.msa` format; `--all` processes all `.st` files in a directory; `-r` recurses into subdirectories. (P42) | ✓ UC20A | UC20A |
-| UFR-CON-093 | `msa2st [--dir p] [--all] [-r]` shall convert `.msa` disk image(s) to `.st` format; `--all` processes all `.msa` files in a directory; `-r` recurses into subdirectories. (P42) | ✓ UC20A | UC20A |
+| ID          | Requirement                                                                                       |  UC   |
+|-------------|-------------------------------------------------------------------------------------------------|------|
+| UFR-CON-001 | The application shall present an interactive console with a prompt (`ST4>`).                |      UC1  |
+| UFR-CON-002 | The console shall accept a text command line terminated by Enter and dispatch it immediately.  |    UC1  |
+| UFR-CON-003 | The console shall remain active until the user issues the `quit` command .  | UC1  |
+| UFR-CON-004 | An unrecognised command shall display an informative error and keep the console active.           |UC1  |
+| UFR-CON-005 | Every command shall be invokable by its full name, or its single-letter alias. See `1 - OC.md` §1.1 for the list of console commands, their alias and CTRL command, when applicable   | UC1  |
+| UFR-CON-006 | Arguments to unimplemented commands shall produce a "not yet implemented" message.                | UC1  |
+| UFR-CON-007 | Command history shall be navigable with the up/down arrow keys; the most recent entry browsed then restored on DOWN past newest. | UC4.3 |
+| UFR-CON-008 | Home/End keys shall move the cursor to the start/end of the input line.                            | UC4.2 |
+| UFR-CON-009 | Tab shall complete the command name on the first word, file/directory names on further words; a single match inserts immediately, multiple matches cycle as ghost text. | UC4.3 |
+| UFR-CON-010 | The `help` command (`h` \| `help`) shall display the list of all available commands with a one-line summary for each.         | UC1  |
+| UFR-CON-011 | `help` shall ignore any arguments and warn the user if any are provided.                         | UC1  |
+| UFR-CON-020 | The `quit` command (`q` \| `quit` \| CTRL+Q \| CTRL+C) shall close all open views and exit the application cleanly.                                   | UC1  |
+| UFR-CON-021 | `quit` shall ignore any arguments and warn the user if any are provided.                          | UC1  |
+| UFR-CON-030 | `trace on` shall open the trace console if not already visible.                                     | UC2  |
+| UFR-CON-031 | `trace off` shall filter LOG_TRACE output without closing the trace view; LOG_INFO/ERROR/TODO remain visible. Use `trace` (no arg) to close. (ADAPTED P19) |  UC2 |
+| UFR-CON-032 | `trace` command (`t` \| `trace` \| CTRL+T) with no argument shall toggle the trace console visibility.                               |  UC2  |
+| UFR-CON-033 | The `-t` application flag shall open the trace console immediately at startup.                   | UC1  |
+| UFR-CON-040 | The `dir [path]` command (`d` \| `dir` \| `CTRL+D`) shall open a file-tree view of the given (or current) directory.                        | UC3.3|
+| UFR-CON-041 | The application shall support cursor movement (←/→) within the current input line.                 | UC4.2 |
+| UFR-CON-042 | The application shall support character insertion at cursor position.                               | UC4.2 |
+| UFR-CON-043 | The application shall support character deletion (Backspace before cursor, Delete at cursor).       | UC4.2 |
+| UFR-CON-044 | ESC shall clear the current input line without executing it.                                      | UC4.2 |
+| UFR-CON-045 | CTRL+C shall cancel the current input; if the buffer is empty it shall request `quit`.             | UC4.2 |
+| UFR-CON-046 | CTRL shortcuts shall immediately execute the mapped command:<br>CTRL+Q = `quit`, CTRL+T = `trace`, CTRL+D = `dir`, CTRL+W = `where`, CTRL+L = `load`, CTRL+E = `edit`. | UC4.2 |
+| UFR-CON-047 | `colors [on\|off]` shall toggle or force ANSI colour codes in console output; useful for terminals without VT100 or file redirection. |  UC4.3 |
+| UFR-CON-048 | `--script <file>` shall execute commands from the given file line-by-line without interactive input; a missing file shall return an error and exit. |  UC4.3 |
+| UFR-CON-049 | The prompt shall display `[T]` when the trace view is open and `[basename]` when a file is currently selected, so the user sees active state at a glance. |  UC4.3 |
+| UFR-CON-050 | The `load` command (`l` \| `load` \| `CTRL+L`)  shall load the `dir` selected file or binary into emulated ST memory.                               |  UC7  |
+| UFR-CON-060 | The `edit` command (`e` \| `edit` \| `CTRL+E`) shall open the appropriate editor view for the `dir` selected file type.                           | UC8  |
+| UFR-CON-070 | The `mount [path]` command (`m` \| `mount` \| `CTRL+M`) shall emulate an Atari ST floppy drive A:\ from the given directory.             |  UC18.1 |
+| UFR-CON-075  | The `image [--st\|--msa] [--bootable] [path]` command (`i` \| `image`) shall create a disk image from the currently mounted content or, when no mount view is open, from a specified directory. | UC20     |
+| UFR-CON-080 | The `where` command (`w` \| `where` \| `CTRL+W`) shall display the current working directory and the currently selected file/directory.   | UC5  |
+| UFR-CON-081 | The `info` command ( `n` \| `info`) shall display a status dashboard: cwd, selected file, trace state, colors state, history count, mounted disk, loaded binary. | UC5 |
+| UFR-CON-082 | The `history [N]` command (`y` \| `history`) shall display the last N command history entries numbered in order (default N=10). | UC5  |
+| UFR-CON-083 | The OS window/terminal title bar shall be updated automatically after each command to reflect the current cwd, selection, and trace state. | UC5 |
+| UFR-CON-084 | On Tab with multiple completion candidates, the longest common prefix shall be inserted into the input buffer before cycling ghost text candidates.| UC5 |
+| UFR-CON-085 | ANSI colour output shall be auto-enabled or auto-disabled based on `isatty(stdout)` at startup; `colors on/off` shall remain available to override. | UC5 |
+| UFR-CON-090 | The `execute <file>` command (`x` \| `execute` \| `CTRL+X`) shall open the full execution engine with all linked views.                     | TODO UC25   | UC25 |
+| UFR-CON-092 | `st2msa [--dir p] [--all] [-r]` shall convert `.st` disk image(s) to `.msa` format; `--all` processes all `.st` files in a directory; `-r` recurses into subdirectories. | UC20A |
+| UFR-CON-093 | `msa2st [--dir p] [--all] [-r]` shall convert `.msa` disk image(s) to `.st` format; `--all` processes all `.msa` files in a directory; `-r` recurses into subdirectories. | UC20A |
 
 ### 1.2 Trace Console — `TRC`
 
@@ -208,7 +187,7 @@ through one or more test cases in Section 5.
 | UFR-MNT-007  | The `B` key in the mount view shall extract the 512-byte bootsector from `aDisk[0..511]` to a temporary file and open it via `edit_hex_open()`. The window title shall include a heuristic description (heads/sectors/tracks, bootable flag). Only one bootsector view shall be open at a time; pressing `B` again replaces the previous view. (P38) | ✓ UC18.2 | UC18.2 |
 | UFR-MNT-008  | `umount` shall offer a dialog (or accept `--st`/`--msa`/`--dir [path]` flags) to save the in-memory disk image as `.st`, `.msa`, or an extracted directory when the image is dirty; a clean image shall close without any dialog. (P35) | ✓ UC19      | UC19     |
 | UFR-MNT-009  | The mount view shall display a persistent status bar at the bottom of the window showing free space in KB, file count, and a `[*] unsaved` indicator when the image has been modified. The status bar occupies the last cell row; `iVisRows` is reduced by 2 (header + status bar). (P39) | ✓ UC19      | UC19     |
-| UFR-MNT-010  | `image [--st|--msa] [--bootable] [path]` shall create a disk image from the currently mounted content or, when no mount view is open, from a specified directory; `--bootable` applies `mount_make_bootable()` before saving. | ✓ UC20      | UC20     |
+
 | UFR-MNT-011  | ENTER on a selected file in the mount view shall extract the FAT entry to `MOUNT_FILE_TMP` and open it via `edit_hex_open()`; only one file hex view is open at a time; pressing ENTER on a new file closes the previous view first. (P41) | ✓ UC20      | UC20     |
 | UFR-MNT-012  | The `F` key in the mount view shall patch bootsector word[0] so that the sum of the 256 LE16 words equals `0x1234 mod 0x10000`; the `Bootable` indicator shall update to `Yes` and the dirty flag shall be set. The operation is idempotent. (P37 write) | ✓ UC20      | UC20     |
 
@@ -744,7 +723,7 @@ requirement that will expose it (`UFR-EXE-*`, planned UC21–27).
 | REQ-MNT-020  | `mount_render()` shall reserve the last row as a status bar (`iVisRows = (iWndH/iCellH) - 2`) showing Free KB, file count, and `[*] unsaved` when `bDirty == ST_TRUE`. | UFR-MNT-009 | ✓ UC19 | UC19 |
 | REQ-MNT-021  | `line_cmd_umount()` shall show an interactive save dialog (keys 1/2/3/n/ESC) when `bDirty == ST_TRUE` and no bypass flag is present; `--st`, `--msa`, and `--dir [path]` shall bypass the dialog. | UFR-MNT-008 | ✓ UC19 | UC19 |
 | REQ-MNT-022  | `mount_make_bootable(ptImg)` shall return `ST_ERROR` if `ptImg == NULL`; otherwise it shall compute the WD1772 checksum (sum of 256 LE16 words) and patch `pDisk[0..1]` so the sum equals `0x1234 mod 0x10000`; the operation shall be idempotent. | UFR-MNT-012 | ✓ UC20 | UC20 |
-| REQ-MNT-023  | `line_cmd_image()` shall save the image from an already-open mount view (`g_line_ptMountView != NULL`) or create a transient view from the selected directory; `--bootable` shall call `mount_make_bootable()` before saving; `--st`/`--msa` flags select the output format. | UFR-MNT-010 | ✓ UC20 | UC20 |
+| REQ-MNT-023  | `line_cmd_image()` shall save the image from an already-open mount view (`g_line_ptMountView != NULL`) or create a transient view from the selected directory; `--bootable` shall call `mount_make_bootable()` before saving; `--st`/`--msa` flags select the output format. | UFR-CON-075 | ✓ UC20 | UC20 |
 | REQ-MNT-024  | `mount_open_file_hex()` shall be a no-op if no entry is selected or the entry is empty; otherwise it shall extract the file via `image_st_read_file()`, write to `MOUNT_FILE_TMP`, close any previous file hex view, and open in `edit_hex_open()`. | UFR-MNT-011 | ✓ UC20 | UC20 |
 
 ---
