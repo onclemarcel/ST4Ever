@@ -12,6 +12,8 @@
 - 2026-06-08: UC24B Codé/Testé : Coloration sémantique secteurs dans hex_edit — aeSecType heap + ehex_classify_sectors() + table g_aSecTint[16] + tint rendu par row — 10 tests PASS 0 fail
 - 2026-06-09: UC24C Codé/Testé : JSON annotation + bandeau contextuel — image_annot.c (load/save/get/set, parser hand-rolled) + ehex_render_band() 2 lignes (LBA/type/BPB + note éditable) + CTRL+N/CTRL+S + HEX_ZONE_BAND_NOTE — 32 tests PASS 0 fail
 - 2026-06-09: UC24D Codé/Testé : Labels cliquables dans le bandeau — FAT1/FAT2/Root/Data en cyan cliquables + chips JSON [N] + ehex_jump_to_lba() + edit_hex_set_cursor_pos() API publique — 10 tests PASS 0 fail
+- 2026-06-10: Revue console + 1-OC.md mis à jour par Tonton — 3 bugs corrigés (trace level warning, image --msa .st→.msa Case 3, auto-complétion espaces `\ `) + P50-P56 déposées + DOC UFR-MNT-010 noté — 0 régression tests
+- 2026-06-10: UC24E Codé/Testé : `dir --select` headless (P50) + `script <file>` commande interactive (P51) + CTRL+O→mount (P52) + `edit -h/--hex` force hex (P54) + suppression `umount` (P55) + `image --dir` extraction .st/.msa → répertoire (P56) — 19 tests PASS 0 fail
 
 *L'historique des versions antérieures peut être récupéré via le change log github*
 
@@ -489,6 +491,8 @@ Les étapes de développement fonctionnelles sont formalisées en Use Cases, per
 | UC24B | `edit` hex | **P46** — Coloration sémantique secteurs dans hex_edit : passe `sector_classify()` à l'ouverture → `aeSecType[iSectorCount]` dans `edit_hex_view_t` → teinte fond par type (boot/FAT/dir/BSS/code/packer) dans `ehex_render()`. Fichiers clés : `src/edit_hex.c`, `src/edit_hex.h`, `src/sector_analyze.h`. Aucun nouveau module. | ✓ VALIDÉ 2026-06-08 |
 | UC24C | `edit` hex | **P47+P48** — JSON annotation (`<basename>.json` colocalisé avec `.st`) + bandeau contextuel : nouveau module `src/image_annot.c`/`.h` (`image_annot_load/save`), champ `labels[]`/`labeled_sectors[]` ; bandeau `HEXED_BAND_H` px en bas de hex_edit (`edit_hex_render_band()`) : type/score secteur courant, BPB décodé si valide (FAT1/FAT2/root dir/data LBA), zone notes éditable CTRL+S → JSON. Dépend de UC24B. | ✓ VALIDÉ 2026-06-09 |
 | UC24D | `edit` hex | **P49** — Labels cliquables dans le bandeau → navigation adresse : labels JSON + auto-labels BPB (`FAT1`, `FAT2`, `Root dir`, `Data`) cliquables → `edit_hex_set_cursor_pos(lba*512+offset)`. Dépend de UC24C. | ✓ VALIDÉ 2026-06-09 |
+| UC24E | console | **P50/P51/P52/P54/P55/P56** — Évolutions console : `dir --select` headless + commande `script <file>` interactive + CTRL+O→mount + `edit --hex/-h` force hex + suppression `umount` (remplacé par image/ESC) + `image --dir` extraction image→répertoire | ✓ VALIDÉ 2026-06-10 |
+| UC-mount-tree | `mount` | **P53** — Navigation arborescente vue mount : `image_st_mkdir()` + `image_st_list_dir()` + récursivité `mount_dir_cb()` + chemin courant + pile ←/→ dans `mount_view_t` | arbre répertoires .st navigable |
 | UC25 | `execute` | Moteur pas-à-pas + vues CPU + mémoire | step + breakpoint sur .PRG simple |
 | UC26 | interne | Émulation vidéo ST (Shifter : low/med/high res, palette 16 couleurs) | rendu écran correct |
 | UC27 | `execute` | Vue écran Win32/GDI + X11 + synchronisation VBL | démo statique visible |
@@ -1085,6 +1089,243 @@ Avis Claude : **DIFFÉRÉ**. Si la démo cible UC31 est en format standard (9 sp
 80 tracks — c'est le cas de la quasi-totalité des démos ATARI ST connues), ce UC
 n'est pas bloquant avant UC31. Si une démo cible exige le format étendu, activer
 l'Option B avant UC31. À confirmer lors du choix de la démo en UC31.
+
+---
+
+### Bugs et évolutions 2026-06-10 — Revue console + 2-SR.md §1.1
+
+*(Tonton Marcel a mis à jour 1-OC.md suite à la revue de 2-SR.md §1.1.)*
+
+#### Bugs corrigés (implémenter immédiatement)
+
+**BUG-01 — `trace level info` émettait un warning parasite** → **CORRIGÉ**
+
+La vérification générique `iArgc > 2` dans `line_cmd_trace()` se déclenchait avant
+le branchement `level`, qui prend légitimement un 3ème argument. Fix : exclure
+`level` et `clear` de cette garde (les deux branches gèrent déjà leur propre
+vérification d'arité).
+
+**BUG-02 — `image --msa` sur un fichier `.st` créait un `.st`** → **CORRIGÉ**
+
+`line_cmd_image()` ignorait les fichiers `.st`/`.msa` sélectionnés et ne proposait
+que le Case "open mount" ou "directory→image". Ajout du Case 2 : si la sélection
+(ou l'argument) est un fichier `.st` ou `.msa` existant, le charger comme source
+et le sauvegarder au format cible (extension remplacée automatiquement).
+Comportement : `image --msa path/xx.st` → `path/xx.msa` ; `image --st path/xx.msa`
+→ `path/xx.st`. Distinct des commandes `st2msa`/`msa2st` (batch sur répertoire).
+
+**BUG-03 — Noms de fichiers avec espaces non fonctionnels en auto-complétion** → **CORRIGÉ**
+
+Deux problèmes liés :
+
+1. *Parser* (`line_parse_cmd`) : `strtok_r` découpait sur tous les espaces sans
+   reconnaître l'échappement `\ `. Remplacé par `line_next_token_unescape()` qui
+   traite `\ `, `\(`, `\)` comme des littéraux dans un token.
+
+2. *Auto-complétion TAB* :
+   - Le scan de token cherchant `uiTokenStart` ne distinguait pas l'espace unescapé
+     (séparateur) de l'espace escapé `\ ` (partie du nom). Corrigé.
+   - `line_complete_path_query()` retournait des noms bruts avec espaces, provoquant
+     une confusion à l'insertion. Ajout de `line_escape_path()` : les espaces et
+     parenthèses sont escapés dans les candidats retournés. Le prefix entrant est
+     d'abord unescapé via `line_unescape_path()` pour la comparaison filesystem.
+   - Résultat : `load My` + TAB → `load My\ File.prg` (suffixe `\ File.prg`
+     inséré, puis unescape dans le parser → argv[1] = `"My File.prg"`).
+
+---
+
+#### Propositions nouvelles — À arbitrer par Tonton Marcel
+
+**P50 — `dir --select <path>` : sélectionner un fichier/répertoire sans GUI** → **À ARBITRER**
+
+Permet de sélectionner directement un fichier ou répertoire depuis la console sans
+ouvrir de fenêtre GUI. Utile dans les scripts (`--script`) pour pré-sélectionner une
+cible avant un `load`, `mount`, `image`, etc.
+`dir --select path/to/file.prg` → équivalent à naviguer et appuyer ESPACE dans la
+vue dir, mais en mode headless.
+
+Avis Claude : **ACCEPTÉ** — coût faible : `line_cmd_dir()` détecte `--select`,
+appelle `line_set_selected()` directement sans `dir_open()`. Aucun nouveau module.
+Très utile pour les tests automatisés via `--script`.
+
+**P51 — Commande `script <file>` depuis une session interactive** → **À ARBITRER**
+
+Actuellement, l'exécution d'un script nécessite de lancer ST4Ever avec
+`ST4Ever --script <file>` depuis l'extérieur. P51 ajoute la commande `script
+<file>` utilisable depuis une session active, sans quitter l'application.
+Comportement : ouvre `<file>`, exécute chaque ligne comme une commande console,
+affiche les retours, puis rend la main à l'utilisateur. En cas d'erreur sur une
+ligne : log + continue (pas d'arrêt du script).
+
+Avis Claude : **ACCEPTÉ** — `--script` existe déjà dans `line_run_script()` (UC4.3).
+La commande `script <file>` réutilise cette fonction directement depuis
+`line_cmd_script()`. Coût minimal. Planifier dans le prochain UC console (potentiellement UC5-bis ou UC25-pre).
+
+**P52 — Raccourci CTRL+O pour ouvrir le mount** → **À ARBITRER**
+
+CTRL+M est déjà utilisé (MOVE terminal standard). CTRL+O (`Open`) est libre.
+Comportement : CTRL+O dans la console → `mount_open` sur la sélection courante
+(même effet que taper `mount` + ENTER).
+
+Avis Claude : **ACCEPTÉ** — même pattern que les autres raccourcis CTRL (CTRL+D→dir,
+CTRL+L→load, CTRL+E→edit). Un seul `case CON_KEY_CTRL_O` dans la boucle
+`line_read_rich()` → `line_shortcut(ptCtx, szBuf, "mount")`. Coût nul.
+Planifiable dès le prochain UC qui touche `line_read_rich()`.
+
+**P53 — Navigation arborescente dans la vue mount (répertoire local + sous-répertoires FAT12)** → **À ARBITRER**
+
+UFR-CON-070 mentionne "from a given directory". Deux problèmes confirmés par Tonton
+Marcel le 2026-06-10 :
+
+1. **`mount ./répertoire` incomplet** : `mount_dir_cb()` ligne ~850 ignore
+   silencieusement tous les sous-répertoires locaux (`if (bIsDir) return;`).
+   Résultat : `mount ./linux` n'affiche que les fichiers situés à la racine du
+   répertoire (sous-répertoires absents).
+
+2. **Images `.st` avec sous-répertoires non navigables** : `image_st_list_root()`
+   retourne les entrées FAT12 du root dir, y compris les dossiers, mais ceux-ci
+   apparaissent comme des fichiers de 0 octet dans la vue mount sans possibilité
+   de les ouvrir ou naviguer dedans.
+
+**P53 étendu** — proposition révisée : navigation arborescente dans la vue mount
+avec le même principe +/- que la vue `dir` :
+
+*Côté local → image (.st création)* :
+- Lors du montage d'un répertoire local, `mount_dir_cb` crée les sous-répertoires
+  FAT12 correspondants via `image_st_mkdir()` (à créer) et y place récursivement
+  les fichiers enfants. Les noms sont tronqués au format 8.3 ATARI. Alerte si un
+  fichier dépasse 512 Ko ou si le nombre total d'entrées FAT12 est insuffisant.
+
+*Côté image .st → navigation* :
+- Les entrées de répertoire FAT12 (attr `IST_ATTR_DIR`) dans la liste mount sont
+  affichables comme nœuds expansibles. Un clic ou ENTER sur un dossier navigue
+  dedans (nouveau `image_st_list_dir(ptImg, szDirPath, ...)` à créer). Un raccourci
+  `←`/backspace remonte au niveau parent (chemin courant conservé dans `mount_view_t`).
+- Les champs BPB dans le panneau propriétés restent valides (inchangés) ; les
+  sous-répertoires n'ont pas de BPB propre.
+
+*État BPB sur montage depuis répertoire local* :
+- Les champs BPB standard (head/spt/tracks) sont affichés comme `—` car non définis
+  par un bootsector réel. Le reste du panneau (taille, espace libre, dirty) est
+  calculé normalement.
+
+Avis Claude : **ACCEPTÉ — coût significatif**. Nécessite `image_st_mkdir()` +
+`image_st_list_dir()` dans `image_st.c`, modification `mount_dir_cb()` (récursivité),
+et extension `mount_view_t` (chemin courant + pile de navigation). À planifier en
+**UC-mount-tree** (nouveau UC après UC24E, avant UC25).
+
+**P54 — `edit --hex <file>` force l'ouverture en hexadécimal** → **À ARBITRER**
+
+Permet d'ouvrir n'importe quel fichier binaire (dump mémoire, `.txt`, etc.) en vue
+hex, sans détection automatique du type. Déjà noté P33 (arbitré ACCEPTÉ, cible
+UC10-bis). La numérotation P54 est une ré-émergence confirmant la priorité.
+
+Avis Claude : **ACCEPTÉ — DÉJÀ ARBITRÉ sous P33**. Vérifier si implémenté dans UC10.
+Si non, reporter en UC25-pre ou UC26-pre. Un flag `-h`/`--hex` dans `line_cmd_edit()`
+force `edit_hex_open()` quel que soit le type détecté.
+
+**P55 — Supprimer la commande `umount` : fermeture de la fenêtre mount suffit** → **ACCEPTÉ**
+
+Arbitrage révisé 2026-06-10 (Tonton Marcel) : `mount` dans un script n'a aucun sens
+actuellement — il n'existe pas de commande console permettant de manipuler le
+contenu d'une image de façon headless (ajout/suppression de fichiers dans l'image).
+Dès lors, `umount --st/--msa/--dir` dans un script n'aurait d'intérêt que si le
+script pouvait d'abord modifier l'image via mount, ce qui n'est pas le cas.
+
+Avec P56 (`image --dir`), toutes les opérations batch de conversion sont couvertes
+sans ouvrir de vue mount :
+- Créer image .st/msa depuis répertoire → `image --st mydir/` ou `image --msa mydir/`
+- Convertir .st ↔ .msa → `image --msa x.st` / `image --st x.msa`
+- Extraire image → répertoire → `image --dir x.st` (P56)
+
+La commande `umount` est donc supprimée. ESC ou WM_CLOSE sur la fenêtre mount
+déclenche déjà la boîte de dialogue save (si dirty). La commande `help` est mise à
+jour. Le raccourci CTRL+U dans la console est libéré.
+
+Planifié UC24E (même UC que P50/P52/P56 — coût nul : simple suppression de
+l'entrée CMD_UMOUNT dans la table des commandes + mise à jour `help`).
+
+**P56 — `image --dir [<folder>] [<path/xx.st|msa>]` : extraire image → répertoire local** → **À ARBITRER**
+
+Complément de la commande `image` pour l'opération inverse : extraire le contenu
+d'une image `.st` ou `.msa` dans un répertoire local. Sans argument folder, le
+répertoire cible est `./disk` (ou `./disk[N]` si `disk` existe déjà). Exemple :
+`image --dir path/xx.st` → crée `./disk/` contenant tous les fichiers de l'image.
+`image --dir myfolder path/xx.msa` → crée `myfolder/`.
+
+Avis Claude : **ACCEPTÉ** — `mount_save_image(..., MOUNT_SAVE_DIR, szDstDir)` existe
+déjà (UC19). Il suffit d'ajouter le flag `--dir` dans `line_cmd_image()` et de gérer
+la numérotation `disk[N]`. Coût faible. Peut s'intégrer dans le même UC que P50/P51
+ou dans un UC console dédié.
+
+---
+
+#### Point documentaire (action SR.md)
+
+**DOC — UFR-MNT-010 à reclasser en UFR-CON-075** → **TRAITÉ**
+
+UFR-MNT-010 existait dans l'archivé `SRTD.md` et dans `3 - TC.md`. L'équivalent
+fonctionnel UFR-CON-075 est déjà présent dans `2 - SR.md` §1.1 (UC20). La
+référence dans `3 - TC.md` (tableau UFR traceability UC20) a été mise à jour de
+`UFR-MNT-010` → `UFR-CON-075`. Aucune modification de `use_case_20.c` requise.
+
+| Proposition | Avis Claude | UC cible proposée |
+|-------------|-------------|-------------------|
+| BUG-01 (trace level warning)       | CORRIGÉ 2026-06-10 | ✓ clos |
+| BUG-02 (image --msa .st→.msa)      | CORRIGÉ 2026-06-10 | ✓ clos |
+| BUG-03 (espaces auto-complétion)   | CORRIGÉ 2026-06-10 | ✓ clos |
+| P50 (dir --select headless)        | IMPLÉMENTÉ UC24E | ✓ clos |
+| P51 (commande script interactive)  | IMPLÉMENTÉ UC24E | ✓ clos |
+| P52 (CTRL+O → mount)               | IMPLÉMENTÉ UC24E | ✓ clos |
+| P53 (navigation arborescente mount)| ACCEPTÉ — coût signif. | UC-mount-tree |
+| P54 (edit --hex) = P33             | IMPLÉMENTÉ UC24E | ✓ clos |
+| P55 (supprimer umount)             | IMPLÉMENTÉ UC24E | ✓ clos |
+| P56 (image --dir extraction)       | IMPLÉMENTÉ UC24E | ✓ clos |
+| DOC UFR-MNT-010→UFR-CON-075        | TRAITÉ 2026-06-10 | ✓ clos |
+
+---
+
+### Arbitrage UC24E (2026-06-10)
+
+*Toutes les propositions P50/P51/P52/P54/P55/P56 ont été implémentées et validées
+dans UC24E. La proposition P53 (navigation arborescente mount) a été acceptée avec
+coût significatif et planifiée en UC-mount-tree. Aucune nouvelle proposition
+UX/fonctionnelle n'a émergé pendant l'implémentation — UC24E est clos.*
+
+**P50 — `dir --select <path>` headless** → **IMPLÉMENTÉ — UC24E**
+
+`line_cmd_dir()` détecte `--select`, valide le chemin via `file_stat()`,
+appelle `line_set_selected()` directement sans `dir_open()`. Utile dans les
+scripts batch pour pré-sélectionner une cible.
+
+**P51 — Commande `script <file>` interactive** → **IMPLÉMENTÉ — UC24E**
+
+`line_exec_script()` (refactorisation de `line_run_script()`) est réutilisée
+par `line_cmd_script()`. Alias `r`. En cas d'erreur sur une ligne : LOG_ERROR +
+continue (pas d'arrêt). Forward declaration ajoutée pour satisfaire C89.
+
+**P52 — CTRL+O → mount** → **IMPLÉMENTÉ — UC24E**
+
+`CON_KEY_CTRL_O 0x0F` dans `console.h` ; remplace `CON_KEY_CTRL_U` (supprimé
+avec P55). Case dans `line_read_rich()` → `line_shortcut(ptCtx, szBuf, "mount")`.
+
+**P54 — `edit -h` / `edit --hex` force hex** → **IMPLÉMENTÉ — UC24E**
+
+Flag `bForceHex` dans `line_cmd_edit()`. Avec `-h`/`--hex`, `edit_hex_open()`
+est appelé quel que soit le type détecté par `file_stat()`.
+
+**P55 — Supprimer la commande `umount`** → **IMPLÉMENTÉ — UC24E**
+
+`CMD_UMOUNT` supprimé de `cmd_id_t`, `line_cmd_umount()` (~175 lignes) supprimée,
+entrée retirée de `g_line_aCmds[]` et `g_line_aHandlers[]`. ESC / WM_CLOSE
+sur la fenêtre mount déclenche déjà la boîte de dialogue save.
+
+**P56 — `image --dir [folder]` extraction image → répertoire** → **IMPLÉMENTÉ — UC24E**
+
+Flag `bExtractDir` dans `line_cmd_image()`. Source : mount view ouverte ou
+fichier `.st`/`.msa` en sélection/argument. Répertoire cible : `disk` →
+`disk2` … → `disk99` (auto-numérotation). Utilise `mount_view_open()` +
+`mount_save_image(MOUNT_SAVE_DIR, szDstDir)`.
 
 ---
 

@@ -10,7 +10,7 @@
  *        Ghost text: dim suffix shown at cursor.
  *        Contextual prompt: [T] and [selection] indicators.
  *        colors on/off: runtime ANSI toggle via c_*() functions.
- *        --script: batch mode via line_run_script().
+ *        --script: batch mode via line_exec_script().
  *        Mutex-protected szSelected via line_set/get_selected().
  *        CTRL conflict resolution: TAB reserved for completion
  *        (CMD_IMAGE via "i"/"image" only); ENTER reserved for
@@ -218,11 +218,7 @@ static const cmd_entry_t g_line_aCmds[] =
 
     { "mount",   "m", CMD_MOUNT,
       "mount [path]",
-      "Mount a directory as the ST floppy drive A:\\" },
-
-    { "umount",  "u", CMD_UMOUNT,
-      "umount",
-      "Unmount the ST floppy A:\\ (save image if changed)" },
+      "Mount a directory or .st/.msa image on A:\\" },
 
     { "where",   "w", CMD_WHERE,
       "where",
@@ -255,6 +251,10 @@ static const cmd_entry_t g_line_aCmds[] =
     { "msa2st",  "a", CMD_MSA2ST,
       "msa2st [--dir path] [--all] [-r]",
       "Convert .msa disk image(s) to .st format" },
+
+    { "script",  "r", CMD_SCRIPT,
+      "script <file>",
+      "Run commands from a script file" },
 };
 
 /* ------------------------------------------------------------------
@@ -321,6 +321,67 @@ static const char *line_path_basename(const char *szPath)
 }
 
 /* ------------------------------------------------------------------
+ * Internal: command tokenizer (backslash-escape aware)
+ * ------------------------------------------------------------------ */
+
+/* Split szArgBuf in place on unescaped whitespace.  Recognized escape
+ * sequences (\<space>, \(, \)) are collapsed: the backslash is removed and
+ * the next char is kept literally.  Other backslash combos are left as-is.
+ *
+ * *ppPtr must initially point to the start of the buffer.  Each call
+ * advances it past the found token (and its terminating NUL/space).
+ * Returns NULL when no more tokens remain. */
+static char *line_next_token_unescape(char **ppPtr)
+{
+    char *pRead;
+    char *pWrite;
+    char *pStart;
+    char  cNext;
+
+    pRead = *ppPtr;
+
+    while (*pRead == ' ' || *pRead == '\t')
+        pRead++;
+
+    if (*pRead == '\0')
+    {
+        *ppPtr = pRead;
+        return NULL;
+    }
+
+    pStart = pRead;
+    pWrite = pRead;
+
+    while (*pRead != '\0')
+    {
+        if (*pRead == '\\')
+        {
+            cNext = *(pRead + 1);
+            if (cNext == ' ' || cNext == '\t' ||
+                cNext == '(' || cNext == ')')
+            {
+                pRead++;
+                *pWrite++ = *pRead++;
+                continue;
+            }
+        }
+        if (*pRead == ' ' || *pRead == '\t')
+        {
+            *pWrite = '\0';
+            pRead++;
+            break;
+        }
+        *pWrite++ = *pRead++;
+    }
+
+    if (*pRead == '\0')
+        *pWrite = '\0';
+
+    *ppPtr = pRead;
+    return pStart;
+}
+
+/* ------------------------------------------------------------------
  * Internal: command parser
  * ------------------------------------------------------------------ */
 
@@ -357,14 +418,16 @@ static st_error_t line_parse_cmd(const char   *szInput,
         return ST_NO_ERROR;
     }
 
-    iArgIdx = 0;
-    pToken  = strtok_r(ptParsed->szArgBuf, " \t", &pSaveptr);
+    iArgIdx  = 0;
+    pSaveptr = ptParsed->szArgBuf;
 
-    while (pToken != NULL && iArgIdx < LINE_MAX_ARGS)
+    while (iArgIdx < LINE_MAX_ARGS)
     {
+        pToken = line_next_token_unescape(&pSaveptr);
+        if (pToken == NULL)
+            break;
         ptParsed->aszArgv[iArgIdx] = pToken;
         iArgIdx++;
-        pToken = strtok_r(NULL, " \t", &pSaveptr);
     }
     ptParsed->iArgc = iArgIdx;
 
@@ -662,6 +725,54 @@ static void line_split_path(const char *szPath,
     }
 }
 
+/* Unescape a path token: "foo\ bar" → "foo bar", "foo\(bar\)" → "foo(bar)".
+ * Recognised sequences: \<space>, \(, \).  Other backslash combos pass through
+ * unchanged (e.g. directory separators on Windows are left untouched). */
+static void line_unescape_path(const char *szSrc,
+                                char       *szDst,
+                                size_t      uiDst)
+{
+    size_t      uiOut = 0;
+    const char *p     = szSrc;
+    char        c;
+
+    while (*p != '\0' && uiOut + 1 < uiDst)
+    {
+        if (*p == '\\' && *(p + 1) != '\0')
+        {
+            c = *(p + 1);
+            if (c == ' ' || c == '(' || c == ')')
+            {
+                p++;
+                szDst[uiOut++] = *p++;
+                continue;
+            }
+        }
+        szDst[uiOut++] = *p++;
+    }
+    szDst[uiOut] = '\0';
+}
+
+/* Escape a path candidate for shell-style insertion into the command buffer.
+ * Characters escaped: space, (, ).                                            */
+static void line_escape_path(const char *szSrc,
+                               char       *szDst,
+                               size_t      uiDst)
+{
+    size_t      uiOut = 0;
+    const char *p     = szSrc;
+
+    while (*p != '\0' && uiOut + 2 < uiDst)
+    {
+        if (*p == ' ' || *p == '(' || *p == ')')
+        {
+            szDst[uiOut++] = '\\';
+        }
+        szDst[uiOut++] = *p++;
+    }
+    szDst[uiOut] = '\0';
+}
+
 int line_complete_path_query(const char *szPrefix,
                               const char *szCwd,
                               char       (*aOut)[ST_MAX_PATH],
@@ -669,6 +780,8 @@ int line_complete_path_query(const char *szPrefix,
 {
     char           szDir[ST_MAX_PATH];
     char           szNamePfx[ST_MAX_PATH];
+    char           szUnescapedPfx[ST_MAX_PATH];
+    char           szEscaped[ST_MAX_PATH];
     char           szScanDir[ST_MAX_PATH];
     char           szFullPath[ST_MAX_PATH + ST_MAX_PATH];
     DIR           *pDir;
@@ -685,7 +798,11 @@ int line_complete_path_query(const char *szPrefix,
         return -1;
     }
 
-    line_split_path(szPrefix, szDir, sizeof(szDir),
+    /* Unescape the incoming prefix so filesystem comparisons work with
+     * actual filenames (e.g. "My\ File" → "My File"). */
+    line_unescape_path(szPrefix, szUnescapedPfx, sizeof(szUnescapedPfx));
+
+    line_split_path(szUnescapedPfx, szDir, sizeof(szDir),
                     szNamePfx, sizeof(szNamePfx));
 
     /* Use szDir directly for scanning (may be "." for relative) */
@@ -725,8 +842,10 @@ int line_complete_path_query(const char *szPrefix,
             bIsDir = 1;
         }
 
-        /* Build candidate via explicit memcpy to avoid snprintf
-         * truncation warning. Skip if total length would overflow. */
+        /* Build candidate: escape special chars (spaces, parens) so the
+         * result can be inserted directly into the command buffer.
+         * The dir part is already from the user-typed prefix (escaped or
+         * plain), so it is kept as-is; only the filename part is escaped. */
         {
             const char *szDirPfx;
             size_t      uiDirLen;
@@ -735,7 +854,11 @@ int line_complete_path_query(const char *szPrefix,
 
             szDirPfx = (strcmp(szDir, ".") == 0) ? "" : szDir;
             uiDirLen  = strlen(szDirPfx);
-            uiNameLen = strlen(pEntry->d_name);
+
+            /* Escape the filename component */
+            line_escape_path(pEntry->d_name, szEscaped, sizeof(szEscaped));
+            uiNameLen = strlen(szEscaped);
+
             if (uiDirLen + uiNameLen + 2 >= ST_MAX_PATH)
             {
                 continue;
@@ -743,7 +866,7 @@ int line_complete_path_query(const char *szPrefix,
             uiPos = 0;
             memcpy(aOut[iCount], szDirPfx, uiDirLen);
             uiPos += uiDirLen;
-            memcpy(aOut[iCount] + uiPos, pEntry->d_name, uiNameLen);
+            memcpy(aOut[iCount] + uiPos, szEscaped, uiNameLen);
             uiPos += uiNameLen;
             if (bIsDir)
             {
@@ -967,7 +1090,10 @@ static st_error_t line_cmd_trace(const parsed_cmd_t *ptParsed,
 
     szArg = ptParsed->aszArgv[1];
 
-    if (ptParsed->iArgc > 2)
+    /* "level" and "clear" take their own sub-argument — skip generic check */
+    if (ptParsed->iArgc > 2 &&
+        strcmp(szArg, "level") != 0 &&
+        strcmp(szArg, "clear") != 0)
     {
         line_print_warning("trace: ignoring extra arguments after '%s'",
                            szArg);
@@ -1066,9 +1192,12 @@ static st_error_t line_cmd_trace(const parsed_cmd_t *ptParsed,
 static st_error_t line_cmd_dir(const parsed_cmd_t *ptParsed,
                                  line_context_t     *ptCtx)
 {
+    char        szSelPath[ST_MAX_PATH];
     const char *szPath;
     st_bool_t   bShowHidden;
+    st_bool_t   bSelectOnly;
     st_error_t  eResult;
+    file_stat_t tStat;
     int         iArg;
 
     LOG_TRACE("ptParsed=%p ptCtx=%p",
@@ -1081,13 +1210,26 @@ static st_error_t line_cmd_dir(const parsed_cmd_t *ptParsed,
     }
 
     bShowHidden = ST_FALSE;
+    bSelectOnly = ST_FALSE;
     szPath      = NULL;
+    szSelPath[0] = '\0';
 
     for (iArg = 1; iArg < ptParsed->iArgc; iArg++)
     {
         if (strcmp(ptParsed->aszArgv[iArg], "-a") == 0)
         {
             bShowHidden = ST_TRUE;
+        }
+        else if (strcmp(ptParsed->aszArgv[iArg], "--select") == 0)
+        {
+            bSelectOnly = ST_TRUE;
+            if (iArg + 1 < ptParsed->iArgc)
+            {
+                strncpy(szSelPath, ptParsed->aszArgv[iArg + 1],
+                        ST_MAX_PATH - 1);
+                szSelPath[ST_MAX_PATH - 1] = '\0';
+                iArg++;
+            }
         }
         else if (szPath == NULL)
         {
@@ -1098,6 +1240,27 @@ static st_error_t line_cmd_dir(const parsed_cmd_t *ptParsed,
             line_print_warning("dir: ignoring extra argument '%s'",
                                ptParsed->aszArgv[iArg]);
         }
+    }
+
+    /* P50: headless selection — set selected path without opening GUI */
+    if (bSelectOnly)
+    {
+        if (szSelPath[0] == '\0')
+        {
+            line_print_warning("dir --select: path argument required.");
+            return ST_NO_ERROR;
+        }
+        memset(&tStat, 0, sizeof(tStat));
+        eResult = file_stat(szSelPath, &tStat);
+        if (eResult != ST_NO_ERROR || !tStat.bExists)
+        {
+            line_print_error("dir --select: '%s': not found.", szSelPath);
+            return ST_NO_ERROR;
+        }
+        line_set_selected(ptCtx, szSelPath);
+        line_print_msg("Selected: %s", szSelPath);
+        line_update_console_title(ptCtx);
+        return ST_NO_ERROR;
     }
 
     if (g_line_ptDirView != NULL)
@@ -1302,6 +1465,7 @@ static st_error_t line_cmd_edit(const parsed_cmd_t *ptParsed,
     char        szSel[ST_MAX_PATH];
     file_stat_t tStat;
     st_error_t  eResult;
+    st_bool_t   bForceHex;
     int         i;
 
     LOG_TRACE("ptParsed=%p ptCtx=%p",
@@ -1313,14 +1477,19 @@ static st_error_t line_cmd_edit(const parsed_cmd_t *ptParsed,
         return ST_ERROR;
     }
 
+    bForceHex = ST_FALSE;
     szPath[0] = '\0';
     for (i = 1; i < ptParsed->iArgc; i++)
     {
-        if (ptParsed->aszArgv[i][0] != '-')
+        if (strcmp(ptParsed->aszArgv[i], "-h") == 0
+         || strcmp(ptParsed->aszArgv[i], "--hex") == 0)
+        {
+            bForceHex = ST_TRUE;
+        }
+        else if (ptParsed->aszArgv[i][0] != '-')
         {
             strncpy(szPath, ptParsed->aszArgv[i], ST_MAX_PATH - 1);
             szPath[ST_MAX_PATH - 1] = '\0';
-            break;
         }
     }
 
@@ -1360,8 +1529,9 @@ static st_error_t line_cmd_edit(const parsed_cmd_t *ptParsed,
         return ST_NO_ERROR;
     }
 
-    /* ATARI ST binaries, disk images, and generic binary extensions → hex */
-    if (strcmp(tStat.szExt, "prg") == 0
+    /* Force hex mode (-h / --hex) or recognised binary extensions → hex */
+    if (bForceHex
+     || strcmp(tStat.szExt, "prg") == 0
      || strcmp(tStat.szExt, "ttp") == 0
      || strcmp(tStat.szExt, "tos") == 0
      || strcmp(tStat.szExt, "bin") == 0
@@ -1738,181 +1908,6 @@ static st_error_t line_cmd_mount(const parsed_cmd_t *ptParsed,
     return ST_NO_ERROR;
 }
 
-static st_error_t line_cmd_umount(const parsed_cmd_t *ptParsed,
-                                   line_context_t     *ptCtx)
-{
-    mount_save_fmt_t  eSaveFmt;
-    char              szOutPath[ST_MAX_PATH];
-    char              szBase[ST_MAX_PATH];
-    const char       *szArg;
-    const char       *szDirArg;
-    int               iKey;
-    int               i;
-    st_bool_t         bSaveRequested;
-    st_bool_t         bHaveFlag;
-
-    if (g_line_ptMountView == NULL)
-    {
-        line_print_warning("no disk is currently mounted.");
-        return ST_NO_ERROR;
-    }
-
-    /* --- Parse flags --st / --msa / --dir <path> --- */
-    eSaveFmt      = MOUNT_SAVE_ST;   /* default, used only when flag set */
-    szOutPath[0]  = '\0';
-    szDirArg      = NULL;
-    bHaveFlag     = ST_FALSE;
-
-    for (i = 0; i < ptParsed->iArgc; i++)
-    {
-        szArg = ptParsed->aszArgv[i];
-        if (strcmp(szArg, "--st") == 0)
-        {
-            eSaveFmt  = MOUNT_SAVE_ST;
-            bHaveFlag = ST_TRUE;
-        }
-        else if (strcmp(szArg, "--msa") == 0)
-        {
-            eSaveFmt  = MOUNT_SAVE_MSA;
-            bHaveFlag = ST_TRUE;
-        }
-        else if (strcmp(szArg, "--dir") == 0)
-        {
-            eSaveFmt  = MOUNT_SAVE_DIR;
-            bHaveFlag = ST_TRUE;
-            if (i + 1 < ptParsed->iArgc)
-            {
-                szDirArg = ptParsed->aszArgv[i + 1];
-                i++;
-            }
-        }
-        else
-        {
-            line_print_warning("unknown flag '%s' — ignored.", szArg);
-        }
-    }
-
-    /* --- Determine output path when flag given --- */
-    if (bHaveFlag)
-    {
-        if (eSaveFmt == MOUNT_SAVE_DIR)
-        {
-            if (szDirArg != NULL)
-                strncpy(szOutPath, szDirArg, ST_MAX_PATH - 1);
-            else
-                snprintf(szOutPath, sizeof(szOutPath),
-                         "%.*s/disk",
-                         (int)(sizeof(szOutPath) - 6), ptCtx->szCwd);
-        }
-        else
-        {
-            snprintf(szOutPath, sizeof(szOutPath), "%.*s/disk%s",
-                     (int)(sizeof(szOutPath) - 10), ptCtx->szCwd,
-                     (eSaveFmt == MOUNT_SAVE_MSA) ? ".msa" : ".st");
-        }
-        szOutPath[ST_MAX_PATH - 1] = '\0';
-
-        line_print_msg("Saving to '%s'...", szOutPath);
-        if (mount_save_image(g_line_ptMountView, eSaveFmt,
-                             szOutPath) == ST_NO_ERROR)
-            line_print_msg("Saved.");
-        else
-            line_print_error("save failed.");
-        goto do_close;
-    }
-
-    /* --- Interactive dialog when disk is dirty --- */
-    bSaveRequested = ST_FALSE;
-    if (g_line_ptMountView->bDirty)
-    {
-        /* Build a default base name from the source path */
-        strncpy(szBase, g_line_ptMountView->szSrcPath, ST_MAX_PATH - 1);
-        szBase[ST_MAX_PATH - 1] = '\0';
-        /* Strip trailing slashes */
-        {
-            int iLast = (int)strlen(szBase) - 1;
-            while (iLast > 0 &&
-                   (szBase[iLast] == '/' || szBase[iLast] == '\\'))
-            {
-                szBase[iLast] = '\0';
-                iLast--;
-            }
-        }
-
-        printf("\n");
-        line_print_msg(
-            "Disk has unsaved changes. Save before unmounting?");
-        printf("%s  [1]%s Save as .st     -> %s/disk.st\n",
-               c_yellow(), c_reset(), ptCtx->szCwd);
-        printf("%s  [2]%s Save as .msa    -> %s/disk.msa\n",
-               c_yellow(), c_reset(), ptCtx->szCwd);
-        printf("%s  [3]%s Extract to dir  -> %s/disk/\n",
-               c_yellow(), c_reset(), ptCtx->szCwd);
-        printf("%s  [n]%s Discard changes\n",
-               c_yellow(), c_reset());
-        printf("Choice: ");
-        fflush(stdout);
-
-        iKey = 0;
-        if (console_read_key(&iKey) == ST_NO_ERROR)
-        {
-            printf("%c\n", (char)iKey);
-            if (iKey == (int)'1')
-            {
-                eSaveFmt = MOUNT_SAVE_ST;
-                snprintf(szOutPath, sizeof(szOutPath),
-                         "%.*s/disk.st",
-                         (int)(sizeof(szOutPath) - 9), ptCtx->szCwd);
-                bSaveRequested = ST_TRUE;
-            }
-            else if (iKey == (int)'2')
-            {
-                eSaveFmt = MOUNT_SAVE_MSA;
-                snprintf(szOutPath, sizeof(szOutPath),
-                         "%.*s/disk.msa",
-                         (int)(sizeof(szOutPath) - 10), ptCtx->szCwd);
-                bSaveRequested = ST_TRUE;
-            }
-            else if (iKey == (int)'3')
-            {
-                eSaveFmt = MOUNT_SAVE_DIR;
-                snprintf(szOutPath, sizeof(szOutPath),
-                         "%.*s/disk",
-                         (int)(sizeof(szOutPath) - 6), ptCtx->szCwd);
-                bSaveRequested = ST_TRUE;
-            }
-            else
-            {
-                printf("\n");
-                line_print_msg("Changes discarded.");
-            }
-        }
-        else
-        {
-            printf("\n");
-            line_print_msg("(could not read input — discarding changes)");
-        }
-
-        if (bSaveRequested)
-        {
-            szOutPath[ST_MAX_PATH - 1] = '\0';
-            line_print_msg("Saving to '%s'...", szOutPath);
-            if (mount_save_image(g_line_ptMountView, eSaveFmt,
-                                 szOutPath) == ST_NO_ERROR)
-                line_print_msg("Saved.");
-            else
-                line_print_error("save failed.");
-        }
-    }
-
-do_close:
-    mount_view_close(&g_line_ptMountView);
-    g_line_ptMountView = NULL;
-    line_print_msg("Disk unmounted.");
-    line_update_console_title(ptCtx);
-    return ST_NO_ERROR;
-}
-
 /* ------------------------------------------------------------------
  * image — create or save a .st/.msa disk image
  * ------------------------------------------------------------------ */
@@ -1920,20 +1915,31 @@ do_close:
 static st_error_t line_cmd_image(const parsed_cmd_t *ptParsed,
                                   line_context_t     *ptCtx)
 {
-    mount_view_t    *ptTmpView = NULL;
+    mount_view_t    *ptTmpView      = NULL;
+    image_st_t      *ptConvImg      = NULL;
     char             szSrcPath[ST_MAX_PATH];
     char             szOutPath[ST_MAX_PATH];
     char             szCwdBuf[ST_MAX_PATH];
+    char             szConvDst[ST_MAX_PATH];
+    char             szExtractDst[ST_MAX_PATH];
     file_stat_t      tStat;
-    mount_save_fmt_t eFmt      = MOUNT_SAVE_ST;
-    st_bool_t        bBootable = ST_FALSE;
-    st_bool_t        bHavePath = ST_FALSE;
+    mount_save_fmt_t eFmt           = MOUNT_SAVE_ST;
+    st_bool_t        bBootable      = ST_FALSE;
+    st_bool_t        bHavePath      = ST_FALSE;
+    st_bool_t        bSrcIsSt       = ST_FALSE;
+    st_bool_t        bSrcIsMsa      = ST_FALSE;
+    st_bool_t        bExtractDir    = ST_FALSE;
     const char      *szExt;
+    const char      *szDot;
     size_t           uiCwdLen;
+    size_t           uiBaseLen;
+    int              iExtNum;
     int              i;
     st_error_t       eResult;
 
     LOG_TRACE("argc=%d", ptParsed->iArgc);
+
+    szExtractDst[0] = '\0';
 
     /* Parse arguments (skip argv[0] = command name) */
     szOutPath[0] = '\0';
@@ -1945,6 +1951,19 @@ static st_error_t line_cmd_image(const parsed_cmd_t *ptParsed,
             eFmt = MOUNT_SAVE_ST;
         else if (strcmp(ptParsed->aszArgv[i], "--bootable") == 0)
             bBootable = ST_TRUE;
+        else if (strcmp(ptParsed->aszArgv[i], "--dir") == 0)
+        {
+            bExtractDir = ST_TRUE;
+            /* Optional folder argument after --dir */
+            if (i + 1 < ptParsed->iArgc
+             && ptParsed->aszArgv[i + 1][0] != '-')
+            {
+                strncpy(szExtractDst, ptParsed->aszArgv[i + 1],
+                        ST_MAX_PATH - 1);
+                szExtractDst[ST_MAX_PATH - 1] = '\0';
+                i++;
+            }
+        }
         else if (ptParsed->aszArgv[i][0] != '-' && !bHavePath)
         {
             strncpy(szOutPath, ptParsed->aszArgv[i], ST_MAX_PATH - 1);
@@ -1972,6 +1991,94 @@ static st_error_t line_cmd_image(const parsed_cmd_t *ptParsed,
         szCwdBuf[uiCwdLen + 1] = '\0';
     }
 
+    /* Case 0: --dir extraction — extract image contents to a directory */
+    if (bExtractDir)
+    {
+        /* Determine output directory: provided, or auto-numbered */
+        if (szExtractDst[0] == '\0')
+        {
+            snprintf(szExtractDst, sizeof(szExtractDst), "%sdisk",
+                     szCwdBuf);
+            memset(&tStat, 0, sizeof(tStat));
+            if (file_stat(szExtractDst, &tStat) == ST_NO_ERROR
+             && tStat.bExists)
+            {
+                for (iExtNum = 2; iExtNum <= 99; iExtNum++)
+                {
+                    snprintf(szExtractDst, sizeof(szExtractDst),
+                             "%sdisk%d", szCwdBuf, iExtNum);
+                    memset(&tStat, 0, sizeof(tStat));
+                    if (file_stat(szExtractDst, &tStat) != ST_NO_ERROR
+                     || !tStat.bExists)
+                        break;
+                }
+            }
+        }
+
+        /* Source: currently mounted image */
+        if (g_line_ptMountView != NULL)
+        {
+            eResult = mount_save_image(g_line_ptMountView,
+                                       MOUNT_SAVE_DIR, szExtractDst);
+            if (eResult == ST_NO_ERROR)
+                line_print_msg("Extracted to: %s", szExtractDst);
+            else
+                line_print_error("Extraction failed.");
+            return ST_NO_ERROR;
+        }
+
+        /* Source: .st or .msa file from selection or explicit path */
+        szSrcPath[0] = '\0';
+        if (bHavePath)
+        {
+            strncpy(szSrcPath, szOutPath, ST_MAX_PATH - 1);
+            szSrcPath[ST_MAX_PATH - 1] = '\0';
+        }
+        else
+        {
+            line_get_selected(ptCtx, szSrcPath, ST_MAX_PATH);
+        }
+
+        if (szSrcPath[0] != '\0')
+        {
+            szDot     = strrchr(szSrcPath, '.');
+            bSrcIsSt  = (szDot != NULL &&
+                         (strcmp(szDot, ".st")  == 0 ||
+                          strcmp(szDot, ".ST")  == 0));
+            bSrcIsMsa = (szDot != NULL &&
+                         (strcmp(szDot, ".msa") == 0 ||
+                          strcmp(szDot, ".MSA") == 0));
+
+            if ((bSrcIsSt || bSrcIsMsa) &&
+                file_stat(szSrcPath, &tStat) == ST_NO_ERROR &&
+                tStat.bExists && !tStat.bIsDir)
+            {
+                eResult = mount_view_open(szSrcPath, ptCtx, &ptTmpView);
+                if (eResult != ST_NO_ERROR || ptTmpView == NULL)
+                {
+                    line_print_error(
+                        "image: failed to open disk '%s'", szSrcPath);
+                    return ST_NO_ERROR;
+                }
+
+                eResult = mount_save_image(ptTmpView, MOUNT_SAVE_DIR,
+                                           szExtractDst);
+                mount_view_close(&ptTmpView);
+
+                if (eResult == ST_NO_ERROR)
+                    line_print_msg("Extracted to: %s", szExtractDst);
+                else
+                    line_print_error("Extraction failed.");
+                return ST_NO_ERROR;
+            }
+        }
+
+        line_print_warning(
+            "image --dir: no mounted disk and no .st/.msa file "
+            "selected. Use 'dir' to select a disk image first.");
+        return ST_NO_ERROR;
+    }
+
     /* Case 1: mount view already open — save its content */
     if (g_line_ptMountView != NULL)
     {
@@ -1988,7 +2095,82 @@ static st_error_t line_cmd_image(const parsed_cmd_t *ptParsed,
         return ST_NO_ERROR;
     }
 
-    /* Case 2: create image from a directory (selected or cwd) */
+    /* Case 2: file-to-file conversion (.st ↔ .msa) */
+    /* If selected/specified path is an existing .st or .msa file,        */
+    /* treat it as the source and derive the output from it.              */
+    szSrcPath[0] = '\0';
+    if (bHavePath)
+    {
+        strncpy(szSrcPath, szOutPath, ST_MAX_PATH - 1);
+        szSrcPath[ST_MAX_PATH - 1] = '\0';
+    }
+    else
+    {
+        line_get_selected(ptCtx, szSrcPath, ST_MAX_PATH);
+    }
+
+    if (szSrcPath[0] != '\0')
+    {
+        szDot     = strrchr(szSrcPath, '.');
+        bSrcIsSt  = (szDot != NULL &&
+                     (strcmp(szDot, ".st")  == 0 ||
+                      strcmp(szDot, ".ST")  == 0));
+        bSrcIsMsa = (szDot != NULL &&
+                     (strcmp(szDot, ".msa") == 0 ||
+                      strcmp(szDot, ".MSA") == 0));
+
+        if ((bSrcIsSt || bSrcIsMsa) &&
+            file_stat(szSrcPath, &tStat) == ST_NO_ERROR &&
+            tStat.bExists && !tStat.bIsDir)
+        {
+            /* Derive output path: replace extension */
+            if (!bHavePath ||
+                (bHavePath && strcmp(szSrcPath, szOutPath) == 0))
+            {
+                uiBaseLen = (size_t)(szDot - szSrcPath);
+                snprintf(szConvDst, sizeof(szConvDst), "%.*s.%s",
+                         (int)uiBaseLen, szSrcPath, szExt);
+            }
+            else
+            {
+                strncpy(szConvDst, szOutPath, ST_MAX_PATH - 1);
+                szConvDst[ST_MAX_PATH - 1] = '\0';
+            }
+
+            /* Load source */
+            if (bSrcIsSt)
+                eResult = image_st_load(szSrcPath, &ptConvImg);
+            else
+                eResult = image_msa_load(szSrcPath, &ptConvImg);
+
+            if (eResult != ST_NO_ERROR || ptConvImg == NULL)
+            {
+                line_print_error("image: failed to load '%s'", szSrcPath);
+                return ST_NO_ERROR;
+            }
+
+            if (bBootable)
+                mount_make_bootable(ptConvImg);
+
+            /* Save as target format */
+            if (eFmt == MOUNT_SAVE_MSA)
+                eResult = image_msa_save(ptConvImg, szConvDst);
+            else
+                eResult = image_st_save(ptConvImg, szConvDst);
+
+            image_st_close(&ptConvImg);
+
+            if (eResult == ST_NO_ERROR)
+                line_print_msg("Image saved: %s", szConvDst);
+            else
+                line_print_error("Failed to save image.");
+
+            line_update_console_title(ptCtx);
+            return ST_NO_ERROR;
+        }
+    }
+
+    /* Case 3: create image from a directory (selected or cwd) */
     szSrcPath[0] = '\0';
     line_get_selected(ptCtx, szSrcPath, ST_MAX_PATH);
     if (szSrcPath[0] == '\0')
@@ -2002,8 +2184,8 @@ static st_error_t line_cmd_image(const parsed_cmd_t *ptParsed,
         !tStat.bExists || !tStat.bIsDir)
     {
         line_print_warning(
-            "image: select a directory with 'dir' or open a disk with "
-            "'mount' before using 'image'.");
+            "image: select a directory or .st/.msa file with 'dir', "
+            "or open a disk with 'mount' before using 'image'.");
         return ST_NO_ERROR;
     }
 
@@ -2371,6 +2553,10 @@ static st_error_t line_cmd_msa2st(const parsed_cmd_t *ptParsed,
  * Dispatch table  (indexed by cmd_id_t value)
  * ------------------------------------------------------------------ */
 
+/* Forward declaration — defined after line_read_rich() */
+static st_error_t line_cmd_script(const parsed_cmd_t *ptParsed,
+                                   line_context_t     *ptCtx);
+
 typedef st_error_t (*cmd_handler_fn)(const parsed_cmd_t *,
                                       line_context_t *);
 
@@ -2384,7 +2570,6 @@ static const cmd_handler_fn g_line_aHandlers[CMD_COUNT] =
     /* CMD_EDIT       */ line_cmd_edit,
     /* CMD_IMAGE      */ line_cmd_image,
     /* CMD_MOUNT      */ line_cmd_mount,
-    /* CMD_UMOUNT     */ line_cmd_umount,
     /* CMD_WHERE      */ line_cmd_where,
     /* CMD_TRACE      */ line_cmd_trace,
     /* CMD_EXECUTE    */ line_cmd_stub,
@@ -2393,6 +2578,7 @@ static const cmd_handler_fn g_line_aHandlers[CMD_COUNT] =
     /* CMD_HISTORY    */ line_cmd_history,
     /* CMD_ST2MSA     */ line_cmd_st2msa,
     /* CMD_MSA2ST     */ line_cmd_msa2st,
+    /* CMD_SCRIPT     */ line_cmd_script,
 };
 
 static st_error_t line_dispatch(const parsed_cmd_t *ptParsed,
@@ -2749,9 +2935,9 @@ static st_error_t line_read_rich(line_context_t *ptCtx,
         {
             return line_shortcut(ptCtx, szBuf, "edit");
         }
-        if (iKey == CON_KEY_CTRL_U)
+        if (iKey == CON_KEY_CTRL_O)
         {
-            return line_shortcut(ptCtx, szBuf, "umount");
+            return line_shortcut(ptCtx, szBuf, "mount");
         }
         if (iKey == CON_KEY_CTRL_W)
         {
@@ -2767,16 +2953,26 @@ static st_error_t line_read_rich(line_context_t *ptCtx,
         {
             if (iCompleteCur == -1)
             {
-                /* Start new completion session */
+                /* Start new completion session.
+                 * Scan for the start of the current token, treating
+                 * backslash-escaped spaces (\<space>) as non-separators. */
                 uiTokenStart  = 0;
                 bIsFirstToken = ST_TRUE;
-                for (uiScanIdx = 0; uiScanIdx < uiCursor; uiScanIdx++)
+                uiScanIdx     = 0;
+                while (uiScanIdx < uiCursor)
                 {
+                    if (szBuf[uiScanIdx] == '\\' &&
+                        uiScanIdx + 1 < uiCursor)
+                    {
+                        uiScanIdx += 2; /* skip escaped char */
+                        continue;
+                    }
                     if (szBuf[uiScanIdx] == ' ')
                     {
                         uiTokenStart  = uiScanIdx + 1;
                         bIsFirstToken = ST_FALSE;
                     }
+                    uiScanIdx++;
                 }
 
                 uiCompletePrefixLen = uiCursor - uiTokenStart;
@@ -3064,7 +3260,8 @@ static st_error_t line_read_rich(line_context_t *ptCtx,
  * Script (batch) mode
  * ------------------------------------------------------------------ */
 
-static st_error_t line_run_script(line_context_t *ptCtx)
+static st_error_t line_exec_script(line_context_t *ptCtx,
+                                    const char     *szPath)
 {
     FILE         *pFile;
     char          szInput[ST_MAX_CMD];
@@ -3072,18 +3269,24 @@ static st_error_t line_run_script(line_context_t *ptCtx)
     st_error_t    eResult;
     size_t        uiLen;
 
-    LOG_TRACE("ptCtx=%p szScriptFile='%s'",
-              (void *)ptCtx, ptCtx->szScriptFile);
+    LOG_TRACE("ptCtx=%p szPath='%s'", (void *)ptCtx,
+              szPath ? szPath : "NULL");
 
-    pFile = fopen(ptCtx->szScriptFile, "r");
-    if (pFile == NULL)
+    if (ptCtx == NULL || szPath == NULL || szPath[0] == '\0')
     {
-        LOG_ERROR("cannot open script '%s': %s",
-                  ptCtx->szScriptFile, strerror(errno));
+        LOG_ERROR("NULL/empty parameter");
         return ST_ERROR;
     }
 
-    LOG_INFO("running script '%s'", ptCtx->szScriptFile);
+    pFile = fopen(szPath, "r");
+    if (pFile == NULL)
+    {
+        LOG_ERROR("cannot open script '%s': %s",
+                  szPath, strerror(errno));
+        return ST_ERROR;
+    }
+
+    LOG_INFO("running script '%s'", szPath);
 
     while (ptCtx->bRunning == ST_TRUE
            && fgets(szInput, sizeof(szInput), pFile) != NULL)
@@ -3097,21 +3300,46 @@ static st_error_t line_run_script(line_context_t *ptCtx)
             szInput[--uiLen] = '\0';
         }
 
-        /* Skip comment lines */
+        /* Skip comment lines and blank lines */
         if (szInput[0] == '#' || uiLen == 0)
-        {
             continue;
-        }
 
         eResult = line_parse_cmd(szInput, &tParsed);
         if (eResult == ST_NO_ERROR)
-        {
             line_dispatch(&tParsed, ptCtx);
-        }
     }
 
     fclose(pFile);
-    LOG_INFO("script '%s' complete", ptCtx->szScriptFile);
+    LOG_INFO("script '%s' complete", szPath);
+    return ST_NO_ERROR;
+}
+
+static st_error_t line_cmd_script(const parsed_cmd_t *ptParsed,
+                                   line_context_t     *ptCtx)
+{
+    char szPath[ST_MAX_PATH];
+
+    LOG_TRACE("ptParsed=%p ptCtx=%p",
+              (void *)ptParsed, (void *)ptCtx);
+
+    if (ptParsed == NULL || ptCtx == NULL)
+    {
+        LOG_ERROR("NULL parameter");
+        return ST_ERROR;
+    }
+
+    if (ptParsed->iArgc < 2)
+    {
+        line_print_warning("script: usage: script <file>");
+        return ST_NO_ERROR;
+    }
+
+    strncpy(szPath, ptParsed->aszArgv[1], ST_MAX_PATH - 1);
+    szPath[ST_MAX_PATH - 1] = '\0';
+
+    if (line_exec_script(ptCtx, szPath) != ST_NO_ERROR)
+        line_print_error("script: failed to run '%s'.", szPath);
+
     return ST_NO_ERROR;
 }
 
@@ -3184,7 +3412,7 @@ st_error_t line_run(line_context_t *ptCtx)
     /* -- Batch / script mode ----------------------------------- */
     if (ptCtx->szScriptFile[0] != '\0')
     {
-        return line_run_script(ptCtx);
+        return line_exec_script(ptCtx, ptCtx->szScriptFile);
     }
 
     /* -- Banner ------------------------------------------------ */

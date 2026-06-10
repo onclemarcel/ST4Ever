@@ -21,11 +21,12 @@
  *   - colors      : ANSI output toggled by `colors on/off`
  *   - script      : non-interactive batch mode via --script file
  *
- * CTRL conflict notes (UC4.3):
+ * CTRL conflict notes (UC4.3 / UC24E):
  *   CTRL+I = 0x09 = TAB — TAB always drives tab-completion;
  *     CMD_IMAGE is accessible only via "i" / "image".
  *   CTRL+M = 0x0D = CR  — CR always drives ENTER/commit;
- *     CMD_MOUNT is accessible only via "m" / "mount".
+ *     CMD_MOUNT also via CTRL+O (0x0F, UC24E P52).
+ *   CTRL+U removed (UC24E P55 — umount command deleted).
  */
 
 #ifndef LINE_H
@@ -48,15 +49,16 @@ typedef enum cmd_id_s
     CMD_EDIT,           /* e | edit    | CTRL+E                      */
     CMD_IMAGE,          /* i | image   (no CTRL+I — TAB reserved)    */
     CMD_MOUNT,          /* m | mount   (no CTRL+M — ENTER reserved)  */
-    CMD_UMOUNT,         /* u | umount  | CTRL+U                      */
+                        /*   also CTRL+O (UC24E P52)                 */
     CMD_WHERE,          /* w | where   | CTRL+W                      */
     CMD_TRACE,          /* t | trace   | CTRL+T                      */
     CMD_EXECUTE,        /* x | execute | CTRL+X                      */
     CMD_COLORS,         /* c | colors  on|off (toggle ANSI output)   */
-    CMD_INFO,           /* (none) | info      (application dashboard)*/
-    CMD_HISTORY,        /* (none) | history [N]                      */
+    CMD_INFO,           /* n | info      (application dashboard)     */
+    CMD_HISTORY,        /* y | history [N]                           */
     CMD_ST2MSA,         /* s | st2msa  [--dir p] [--all] [-r]        */
     CMD_MSA2ST,         /* a | msa2st  [--dir p] [--all] [-r]        */
+    CMD_SCRIPT,         /* r | script  <file>                        */
     CMD_COUNT           /* Sentinel - must be last                   */
 } cmd_id_t;
 

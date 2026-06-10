@@ -2741,7 +2741,7 @@ Each INTENT maps to one or more test blocks in `use_cases/use_case_19.c`.
 
 | UFR           | REQ(s)                           | TC(s)                                               | Status  |
 |---------------|----------------------------------|-----------------------------------------------------|---------|
-| UFR-MNT-010   | REQ-MNT-023                      | TC-MNT-091a..d, TC-MNT-092a..c, TC-MNT-S030..S033  | UC20    |
+| UFR-CON-075   | REQ-MNT-023                      | TC-MNT-091a..d, TC-MNT-092a..c, TC-MNT-S030..S033  | UC20    |
 | UFR-MNT-011   | REQ-MNT-024                      | TC-MNT-S026, TC-MNT-S027                            | UC20    |
 | UFR-MNT-012   | REQ-MNT-022                      | TC-MNT-089..090g, TC-MNT-S028..S029                 | UC20    |
 
@@ -3384,3 +3384,54 @@ Source: `use_cases/use_case_24D.c`
 | UFR          | REQ(s)                    | TC(s)             | Status    |
 |--------------|---------------------------|-------------------|-----------|
 | UFR-HEX-008  | REQ-HEX-029..031          | TC-HEX-092..102   | v UC24D   |
+
+
+---
+
+### 8.29 Test Cases — UC24E (Console evolution P50/P51/P52/P54/P55/P56)
+
+| TC ID       | Test Description                                                                | Type | UFR          | REQ          | INT          | Expected Result                                      | Status       |
+|-------------|---------------------------------------------------------------------------------|------|--------------|--------------|--------------|------------------------------------------------------|--------------|
+| TC-CON-155  | `CON_KEY_CTRL_O == 0x0F`                                                        | [N]  | UFR-CON-096  | REQ-CON-037  | INT-CON-100  | constant value == 15                                 | PASS UC24E   |
+| TC-CON-156  | `line_complete_cmd_query("umount", ...)` returns 0                              | [R]  | UFR-CON-099  | REQ-CON-040  | INT-CON-101  | iCount == 0; 'umount' absent                         | PASS UC24E   |
+| TC-CON-157  | `line_complete_cmd_query("u", ...)` returns 0                                   | [R]  | UFR-CON-099  | REQ-CON-040  | INT-CON-102  | iCount == 0; no 'u' prefix commands                  | PASS UC24E   |
+| TC-CON-158  | `line_complete_cmd_query("script", ...)` returns >= 1                           | [N]  | UFR-CON-095  | REQ-CON-036  | INT-CON-103  | 'script' found in table                              | PASS UC24E   |
+| TC-CON-159  | `line_complete_cmd_query("r", ...)` returns 1 candidate == "script"             | [N]  | UFR-CON-095  | REQ-CON-036  | INT-CON-104  | iCount==1; aCands[0]=="script"                       | PASS UC24E   |
+| TC-CON-160  | `CMD_SCRIPT > CMD_MOUNT` enum order                                             | [N]  | UFR-CON-095  | REQ-CON-036  | INT-CON-105  | (int)CMD_SCRIPT > (int)CMD_MOUNT                     | PASS UC24E   |
+| TC-CON-161  | Batch script with `where` runs and returns ST_NO_ERROR                          | [N]  | UFR-CON-095  | REQ-CON-036  | INT-CON-106  | line_run ST_NO_ERROR                                 | PASS UC24E   |
+| TC-CON-162  | Batch script with missing file -> ST_ERROR                                      | [R]  | UFR-CON-095  | REQ-CON-036  | INT-CON-107  | line_run ST_ERROR                                    | PASS UC24E   |
+| TC-CON-163  | Batch `dir --select use_cases` sets selected containing "use_cases"             | [N]  | UFR-CON-094  | REQ-CON-035  | INT-CON-108  | selected path contains "use_cases"                   | PASS UC24E   |
+| TC-CON-164  | Batch `dir --select /nonexistent` -> ST_NO_ERROR (no crash)                     | [R]  | UFR-CON-094  | REQ-CON-035  | INT-CON-109  | ST_NO_ERROR; error printed                           | PASS UC24E   |
+| TC-CON-165  | `edit` still in command table after P55                                         | [N]  | UFR-CON-097  | REQ-CON-038  | INT-CON-110  | iCount > 0                                           | PASS UC24E   |
+| TC-CON-166  | Batch `edit -h nonexistent.txt` -> ST_NO_ERROR (error printed)                  | [N]  | UFR-CON-097  | REQ-CON-038  | INT-CON-111  | ST_NO_ERROR; "file not found" error                  | PASS UC24E   |
+| TC-CON-167  | Batch `edit --hex nonexistent.txt` -> ST_NO_ERROR (error printed)               | [N]  | UFR-CON-097  | REQ-CON-038  | INT-CON-111  | ST_NO_ERROR; "file not found" error                  | PASS UC24E   |
+| TC-CON-168  | Batch `image --dir` with no source -> ST_NO_ERROR (warning printed)             | [N]  | UFR-CON-098  | REQ-CON-039  | INT-CON-112  | ST_NO_ERROR; warning message                         | PASS UC24E   |
+| TC-CON-169  | Batch `image --dir /tmp/testout` with no source -> ST_NO_ERROR                  | [N]  | UFR-CON-098  | REQ-CON-039  | INT-CON-113  | ST_NO_ERROR; warning message                         | PASS UC24E   |
+
+#### Test Summary — UC24E
+
+| Module | [N] | [R] | [S] | Total | Result    |
+|--------|-----|-----|-----|-------|-----------|
+| CON    | 11  | 4   | 0   | 15    | ALL PASS  |
+
+#### REQ -> TC coverage (UC24E)
+
+| REQ          | TC(s)                             | Status    |
+|--------------|-----------------------------------|-----------|
+| REQ-CON-035  | TC-CON-163..164                   | v UC24E   |
+| REQ-CON-036  | TC-CON-158..162                   | v UC24E   |
+| REQ-CON-037  | TC-CON-155                        | v UC24E   |
+| REQ-CON-038  | TC-CON-165..167                   | v UC24E   |
+| REQ-CON-039  | TC-CON-168..169                   | v UC24E   |
+| REQ-CON-040  | TC-CON-156..157                   | v UC24E   |
+
+#### UFR traceability (UC24E)
+
+| UFR          | REQ(s)       | TC(s)                    | Status    |
+|--------------|--------------|--------------------------|-----------|
+| UFR-CON-094  | REQ-CON-035  | TC-CON-163..164          | v UC24E   |
+| UFR-CON-095  | REQ-CON-036  | TC-CON-158..162          | v UC24E   |
+| UFR-CON-096  | REQ-CON-037  | TC-CON-155               | v UC24E   |
+| UFR-CON-097  | REQ-CON-038  | TC-CON-165..167          | v UC24E   |
+| UFR-CON-098  | REQ-CON-039  | TC-CON-168..169          | v UC24E   |
+| UFR-CON-099  | REQ-CON-040  | TC-CON-156..157          | v UC24E   |

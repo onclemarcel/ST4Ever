@@ -2544,3 +2544,56 @@ TEST MATRIX - UC24D:
 
 ---
 
+## §6.29 UC24E — Évolutions console (P50/P51/P52/P54/P55/P56)
+
+**Périmètre fonctionnel implémenté :**
+- **P50 — `dir --select <path>`** : sélection headless sans ouvrir la vue GUI ; résolution + validation du chemin via `file_stat()` ; `line_set_selected()` appelé directement ; utilisable dans scripts batch
+- **P51 — `script <file>`** : nouvelle commande interactive (`CMD_SCRIPT`, alias court `r`) ; `line_exec_script(ptCtx, szPath)` factorisé depuis `line_run()` batch mode ; forward-declaration pour respecter l'ordre de définition C89
+- **P52 — CTRL+O → mount** : `CON_KEY_CTRL_O = 0x0F` ajouté dans `console.h` ; remplace l'ancien CTRL+U (umount supprimé)
+- **P54 — `edit -h` / `edit --hex`** : flag `bForceHex` dans `line_cmd_edit()` ; si présent, court-circuite la détection par extension et ouvre directement `edit_hex_open()` quel que soit le type détecté
+- **P55 — Suppression `umount`** : `CMD_UMOUNT` retiré de `cmd_id_t`, `line_cmd_umount()` supprimé, entrée `umount` retirée de `g_line_aCmds[]`, CTRL+U retiré de `line_read_rich()`
+- **P56 — `image --dir [dest] [source]`** : extraction d'image `.st`/`.msa` → répertoire ; auto-numérotation `disk`/`disk2`/… si aucune destination fournie ; source : vue montée en priorité, sinon fichier sélectionné/spécifié ; réutilise `mount_view_open()` + `mount_save_image(MOUNT_SAVE_DIR)`
+
+**Infrastructure et outillage validés :**
+- `line_exec_script(ptCtx, szPath)` : refactoring propre de l'ancien `line_run_script(ptCtx)` — même logique, paramètre path explicite ; `line_run()` appelle `line_exec_script(ptCtx, ptCtx->szScriptFile)` ; `line_cmd_script()` appelle `line_exec_script(ptCtx, argv[1])`
+- Forward declaration `static st_error_t line_cmd_script(...)` dans la section dispatch (avant le tableau `g_line_aHandlers`) — nécessaire car la définition suit `line_read_rich()`
+- `image --dir` Case 0 avant Case 1/2/3 dans `line_cmd_image()` — s'intercale sans modifier la logique existante
+- Suppression de `CMD_UMOUNT` sans renumérotation manuelle — les valeurs de l'enum restent cohérentes car le compilateur les réattribue séquentiellement
+
+**Matrice de tests (UC24E) :**
+
+```
+TEST MATRIX - UC24E:
+  [N] Nominal    : 15 tests - CON_KEY_CTRL_O==0x0F, 'script' in table,
+                              'r' alias, CMD_SCRIPT>CMD_MOUNT, batch
+                              'where' OK, batch 'dir --select use_cases',
+                              batch 'image --dir' no-source graceful,
+                              'edit -h nonexistent' graceful,
+                              'edit --hex nonexistent' graceful,
+                              'image --dir dest' no-source graceful,
+                              script missing-arg batch OK
+  [R] Robustness :  4 tests - 'umount' 0 matches, 'u' 0 matches,
+                              missing batch script ST_ERROR,
+                              'dir --select nonexistent' no crash
+  [S] Skipped    :  0 tests
+```
+
+**Contrats comportementaux validés :**
+
+*Module `line` — commandes console (UC24E)*
+- `dir --select <path>` : si le chemin n'existe pas → `line_print_error` + `ST_NO_ERROR` (selection inchangée) ; si le chemin existe → `line_set_selected(ptCtx, path)` + confirmation console + `ST_NO_ERROR` ; sans argument `<path>` → warning + `ST_NO_ERROR`
+- `script <file>` : si `iArgc < 2` → warning usage + `ST_NO_ERROR` ; si fichier absent → `line_print_error` + `ST_NO_ERROR` (interne : `line_exec_script` → `ST_ERROR`) ; si fichier valide → exécution séquentielle des commandes, lignes `#` ignorées, `ST_NO_ERROR`
+- `line_exec_script(NULL, ...)` → `ST_ERROR` ; `line_exec_script(ptCtx, NULL)` → `ST_ERROR` ; `line_exec_script(ptCtx, "")` → `ST_ERROR` ; fichier inexistant → `ST_ERROR` ; fichier valide → `ST_NO_ERROR`
+- CTRL+O (0x0F) dispatche `"mount"` dans `line_read_rich()` — comportement identique à taper `mount` + ENTER
+- `edit -h <file>` / `edit --hex <file>` : si le fichier n'existe pas → `line_print_error` + `ST_NO_ERROR` ; si le fichier existe → `edit_hex_open()` quel que soit l'extension
+- `umount` retourne `CMD_UNKNOWN` depuis `line_complete_cmd_query` ; `u` prefix retourne 0 candidats
+- `image --dir [dest]` sans source montée et sans fichier sélectionné → warning + `ST_NO_ERROR`
+- `image --dir [dest]` avec fichier `.st`/`.msa` sélectionné → `mount_view_open()` + `mount_save_image(MOUNT_SAVE_DIR, szExtractDst)` ; auto-numérotation `disk`→`disk2`→…`disk99` si `szExtractDst` absent
+
+**Points d'attention pour les UCs suivants :**
+- UC-mount-tree : P53 — navigation arborescente dans les images `.st` ; `image_st_list_dir()` à ajouter ; `mount_dir_cb()` actuellement silencieux sur les sous-répertoires (`if (ptStat->bIsDir) return;`)
+- UC25 : `dir --select` permet la sélection headless d'un binaire `.PRG` avant `execute` — utilisable dans scripts de test automatisés
+- UC-mount-tree / UC25 : `image --dir` extrait le contenu d'une image sans ouvrir de fenêtre mount — peut servir de préparation batch avant montage ou exécution
+
+---
+

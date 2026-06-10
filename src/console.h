@@ -37,7 +37,7 @@
 #define CON_KEY_ENTER      0x0D   /* ENTER / CR  (also CTRL+M)         */
 #define CON_KEY_CTRL_Q     0x11   /* Quit shortcut                     */
 #define CON_KEY_CTRL_T     0x14   /* Trace shortcut                    */
-#define CON_KEY_CTRL_U     0x15   /* Umount shortcut                   */
+#define CON_KEY_CTRL_O     0x0F   /* Mount shortcut (UC24E P52)        */
 #define CON_KEY_CTRL_W     0x17   /* Where shortcut                    */
 #define CON_KEY_CTRL_X     0x18   /* Execute shortcut                  */
 #define CON_KEY_TAB        0x09   /* Tab / CTRL+I  (completion UC4.3)  */
