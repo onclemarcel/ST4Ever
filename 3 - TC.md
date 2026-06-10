@@ -3435,3 +3435,85 @@ Source: `use_cases/use_case_24D.c`
 | UFR-CON-097  | REQ-CON-038  | TC-CON-165..167          | v UC24E   |
 | UFR-CON-098  | REQ-CON-039  | TC-CON-168..169          | v UC24E   |
 | UFR-CON-099  | REQ-CON-040  | TC-CON-156..157          | v UC24E   |
+
+---
+
+### 5.88 INTENT Catalog — UC24F
+
+Source: `use_cases/use_case_24F.c`
+
+| ID           | INTENT text                                                                                         |
+|--------------|-----------------------------------------------------------------------------------------------------|
+| INT-IST-070  | `image_st_mkdir` creates a SUBDIR entry visible in root listing                                     |
+| INT-IST-071  | `image_st_mkdir` normalises the name to uppercase                                                   |
+| INT-IST-072  | `image_st_list_dir(NULL)` returns the same entries as `image_st_list_root()`                        |
+| INT-IST-073  | `image_st_list_dir("")` also returns root entries                                                   |
+| INT-IST-074  | `image_st_list_dir` on an empty subdir returns 0 entries (`.` and `..` are skipped)                 |
+| INT-IST-075  | `image_st_list_dir` after `write_file_in_dir` returns that file with correct name and size          |
+| INT-IST-076  | `image_st_write_file_in_dir` returns ST_NO_ERROR and places the file in the subdir                  |
+| INT-IST-077  | File written via `write_file_in_dir` does not appear in the root directory listing                  |
+| INT-IST-078  | File content written via `write_file_in_dir` is readable back via `image_st_read_file`              |
+| INT-IST-079  | Two independent subdirs each contain only their own files                                           |
+| INT-IST-080  | `write_file_in_dir` with `uiSize=0` and `pData=NULL` succeeds and is visible in listing             |
+| INT-IST-081  | `mount_view_t` has `szCurDir`, `aszNavStack[8]`, `iNavDepth` fields with correct types/sizes        |
+| INT-IST-082  | NULL params to `mkdir`, `list_dir` return ST_ERROR without crash                                    |
+| INT-IST-083  | `image_st_list_dir` on a nonexistent directory name returns ST_ERROR                                |
+| INT-IST-084  | `image_st_list_dir` on a regular file (not a directory) returns ST_ERROR                            |
+| INT-IST-085  | `image_st_write_file_in_dir` to a nonexistent directory returns ST_ERROR                            |
+| INT-IST-086  | `image_st_mkdir` with a duplicate name returns ST_ERROR                                             |
+| INT-IST-087  | `image_st_mkdir` with an invalid 8.3 name (> 8 chars) returns ST_ERROR                             |
+| INT-IST-088  | NULL params to `image_st_write_file_in_dir` return ST_ERROR without crash                           |
+
+---
+
+### 5.89 Test Cases — UC24F (FAT12 subdirectory support)
+
+| TC           | Description                                                                         | Type | UFR          | REQ          | INT          | Expected result                                              | Status       |
+|--------------|-------------------------------------------------------------------------------------|------|--------------|--------------|--------------|--------------------------------------------------------------|--------------|
+| TC-IST-070  | `image_st_mkdir('AUTO')` → entry in root listing with `bIsDir=true`                 | [N]  | UFR-CON-100  | REQ-IST-030  | INT-IST-070  | `iCount >= 1`; entry found with `bIsDir == ST_TRUE`          | PASS UC24F   |
+| TC-IST-071  | `image_st_mkdir("games")` → stored as `"GAMES"` (uppercase normalisation)           | [N]  | UFR-CON-100  | REQ-IST-030  | INT-IST-071  | root listing contains `"GAMES"` not `"games"`                | PASS UC24F   |
+| TC-IST-072  | `image_st_list_dir(NULL)` count equals `image_st_list_root()` count                 | [N]  | UFR-CON-101  | REQ-IST-031  | INT-IST-072  | `iDirCnt == iRootCnt`; first entry names match               | PASS UC24F   |
+| TC-IST-073  | `image_st_list_dir("")` count equals `image_st_list_root()` count                   | [N]  | UFR-CON-101  | REQ-IST-031  | INT-IST-073  | `iDirCnt == iRootCnt`                                        | PASS UC24F   |
+| TC-IST-074  | `image_st_list_dir("AUTO")` on fresh subdir → 0 entries (`.`/`..` skipped)          | [N]  | UFR-CON-101  | REQ-IST-031  | INT-IST-074  | `ST_NO_ERROR`; `iCount == 0`                                 | PASS UC24F   |
+| TC-IST-075  | `image_st_list_dir("AUTO")` after writing `DEMO.PRG` → 1 entry, correct name+size   | [N]  | UFR-CON-101  | REQ-IST-031  | INT-IST-075  | `iCount == 1`; `szName == "DEMO.PRG"`; `uiSize == 256`       | PASS UC24F   |
+| TC-IST-076  | `image_st_write_file_in_dir("LEVEL1","DATA.BIN",…)` → ST_NO_ERROR                   | [N]  | UFR-CON-102  | REQ-IST-032  | INT-IST-076  | `ST_NO_ERROR`                                                | PASS UC24F   |
+| TC-IST-077  | `DATA.BIN` not visible in root dir after `write_file_in_dir`                         | [N]  | UFR-CON-102  | REQ-IST-032  | INT-IST-077  | `bRootFilePresent == ST_FALSE`                               | PASS UC24F   |
+| TC-IST-078  | File content readable via `image_st_read_file` using cluster from `list_dir`         | [N]  | UFR-CON-102  | REQ-IST-032  | INT-IST-078  | `ST_NO_ERROR`; `memcmp(aRead, aWrite) == 0`                  | PASS UC24F   |
+| TC-IST-079  | Two subdirs `DIRA`/`DIRB`: each has 1 file, names differ                             | [N]  | UFR-CON-100  | REQ-IST-030  | INT-IST-079  | `iCountA == 1`; `iCountB == 1`; names differ                 | PASS UC24F   |
+| TC-IST-080  | `write_file_in_dir("EMPTY","STUB.TXT",NULL,0)` → ST_NO_ERROR, visible in listing     | [N]  | UFR-CON-102  | REQ-IST-032  | INT-IST-080  | `ST_NO_ERROR`; `iCount == 1`                                 | PASS UC24F   |
+| TC-IST-081  | `mount_view_t.szCurDir` empty, `iNavDepth==0`, stack capacity ≥ 8 after `memset`     | [N]  | UFR-CON-103  | REQ-IST-033  | INT-IST-081  | 4 assertions on field sizes and initial values               | PASS UC24F   |
+| TC-IST-082  | NULL params to `mkdir`/`list_dir` → ST_ERROR without crash (5 asserts)               | [R]  | UFR-CON-104  | REQ-IST-034  | INT-IST-082  | ST_ERROR for each NULL combination                           | PASS UC24F   |
+| TC-IST-083  | `image_st_list_dir("GHOST")` → ST_ERROR (nonexistent dir)                            | [R]  | UFR-CON-104  | REQ-IST-034  | INT-IST-083  | `ST_ERROR`                                                   | PASS UC24F   |
+| TC-IST-084  | `image_st_list_dir("FILE.TXT")` → ST_ERROR (not a directory)                         | [R]  | UFR-CON-104  | REQ-IST-034  | INT-IST-084  | `ST_ERROR`                                                   | PASS UC24F   |
+| TC-IST-085  | `write_file_in_dir("NODIRHERE",…)` → ST_ERROR (nonexistent dir)                      | [R]  | UFR-CON-105  | REQ-IST-035  | INT-IST-085  | `ST_ERROR`                                                   | PASS UC24F   |
+| TC-IST-086  | `image_st_mkdir("DUPE")` twice → second call returns ST_ERROR                        | [R]  | UFR-CON-100  | REQ-IST-030  | INT-IST-086  | `ST_ERROR`                                                   | PASS UC24F   |
+| TC-IST-087  | `image_st_mkdir("TOOLONGNAME")` → ST_ERROR (name > 8 chars)                          | [R]  | UFR-CON-100  | REQ-IST-030  | INT-IST-087  | `ST_ERROR`                                                   | PASS UC24F   |
+| TC-IST-088  | NULL params to `write_file_in_dir` → ST_ERROR (3 combinations)                       | [R]  | UFR-CON-105  | REQ-IST-035  | INT-IST-088  | ST_ERROR for each NULL combination                           | PASS UC24F   |
+
+#### Test Summary — UC24F
+
+| Module | [N] | [R] | [S] | Total | Result    |
+|--------|-----|-----|-----|-------|-----------|
+| IST    | 16  | 10  | 0   | 26    | ALL PASS  |
+
+#### REQ -> TC coverage (UC24F)
+
+| REQ          | TC(s)                             | Status    |
+|--------------|-----------------------------------|-----------|
+| REQ-IST-030  | TC-IST-070..071, 079, 086..087    | v UC24F   |
+| REQ-IST-031  | TC-IST-072..075                   | v UC24F   |
+| REQ-IST-032  | TC-IST-076..078, 080, 085         | v UC24F   |
+| REQ-IST-033  | TC-IST-081                        | v UC24F   |
+| REQ-IST-034  | TC-IST-082..084                   | v UC24F   |
+| REQ-IST-035  | TC-IST-085, 088                   | v UC24F   |
+
+#### UFR traceability (UC24F)
+
+| UFR          | REQ(s)       | TC(s)                         | Status    |
+|--------------|--------------|-------------------------------|-----------|
+| UFR-CON-100  | REQ-IST-030  | TC-IST-070..071, 079, 086..087| v UC24F   |
+| UFR-CON-101  | REQ-IST-031  | TC-IST-072..075               | v UC24F   |
+| UFR-CON-102  | REQ-IST-032  | TC-IST-076..078, 080, 085     | v UC24F   |
+| UFR-CON-103  | REQ-IST-033  | TC-IST-081                    | v UC24F   |
+| UFR-CON-104  | REQ-IST-034  | TC-IST-082..084               | v UC24F   |
+| UFR-CON-105  | REQ-IST-035  | TC-IST-085, 088               | v UC24F   |

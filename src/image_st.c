@@ -688,6 +688,339 @@ st_error_t image_st_write_file(image_st_t    *ptImg,
     return ST_NO_ERROR;
 }
 
+/* ------------------------------------------------------------------
+ * Internal helpers — subdirectory support (UC24F)
+ * ------------------------------------------------------------------ */
+
+/*
+ * Enumerate directory entries from a raw 32-byte-entry buffer.
+ * Skips: deleted (0xE5), volume labels (VOLNAME), dot entries ('.')
+ * Stops at unused terminator (0x00).
+ * Returns number of valid entries written, or -1 if a 0x00 was hit
+ * (so caller knows to stop scanning further clusters).
+ */
+static int ist_list_entries_from_data(const st_u8_t    *pData,
+                                       int               iEntryCount,
+                                       image_st_dirent_t *aOut,
+                                       int               iMaxOut,
+                                       st_bool_t        *pbTerminated)
+{
+    const st_u8_t *pE;
+    char           szName[IST_NAME_MAX];
+    int            i;
+    int            iOut = 0;
+
+    *pbTerminated = ST_FALSE;
+    for (i = 0; i < iEntryCount; i++)
+    {
+        pE = pData + (st_u32_t)i * 32u;
+        if (pE[0] == 0x00u)
+        {
+            *pbTerminated = ST_TRUE;
+            break;
+        }
+        if (pE[0] == 0xE5u)
+            continue;
+        if (pE[11] & IST_ATTR_VOLNAME)
+            continue;
+        if (pE[0] == (st_u8_t)'.')  /* skip . and .. */
+            continue;
+        if (iOut >= iMaxOut)
+            break;
+
+        ist_raw_to_name(pE, szName);
+        strncpy(aOut[iOut].szName, szName, IST_NAME_MAX - 1);
+        aOut[iOut].szName[IST_NAME_MAX - 1] = '\0';
+        aOut[iOut].uiSize =
+            (st_u32_t)pE[28]              |
+            ((st_u32_t)pE[29] << 8)       |
+            ((st_u32_t)pE[30] << 16)      |
+            ((st_u32_t)pE[31] << 24);
+        aOut[iOut].uiAttr    = pE[11];
+        aOut[iOut].uiCluster = ist_rd16(pE + 26);
+        aOut[iOut].bIsDir    = (pE[11] & IST_ATTR_SUBDIR) ?
+                               ST_TRUE : ST_FALSE;
+        iOut++;
+    }
+    return iOut;
+}
+
+/*
+ * Find a named entry in the root directory and return its starting cluster
+ * if it is a subdirectory, or 0 if not found / not a directory.
+ * Returns the start cluster (>= IST_CLUSTER_FIRST) on success.
+ */
+static st_u16_t ist_find_subdir_cluster(image_st_t *ptImg,
+                                         const char *szName)
+{
+    st_u8_t *pE;
+    int      iSlot;
+
+    iSlot = ist_root_find(ptImg, szName);
+    if (iSlot < 0)
+        return 0u;
+    pE = ist_root_entry(ptImg, iSlot);
+    if (!(pE[11] & IST_ATTR_SUBDIR))
+        return 0u;
+    return ist_rd16(pE + 26);
+}
+
+st_error_t image_st_list_dir(image_st_t        *ptImg,
+                               const char        *szDirName,
+                               image_st_dirent_t *aEntries,
+                               int                iMaxEntries,
+                               int               *piCount)
+{
+    st_u16_t   uiCluster;
+    st_u8_t   *pData;
+    int        iEPC;
+    int        iAdded;
+    st_bool_t  bDone;
+
+    LOG_TRACE("ptImg=%p dir='%s' iMax=%d",
+              (void *)ptImg, szDirName ? szDirName : "(root)", iMaxEntries);
+    if (ptImg == NULL || aEntries == NULL || piCount == NULL ||
+        iMaxEntries <= 0)
+    {
+        LOG_ERROR("invalid parameter");
+        return ST_ERROR;
+    }
+
+    if (szDirName == NULL || szDirName[0] == '\0')
+        return image_st_list_root(ptImg, aEntries, iMaxEntries, piCount);
+
+    uiCluster = ist_find_subdir_cluster(ptImg, szDirName);
+    if (uiCluster < (st_u16_t)IST_CLUSTER_FIRST)
+    {
+        LOG_ERROR("directory not found: '%s'", szDirName);
+        return ST_ERROR;
+    }
+
+    iEPC     = ((int)IST_SPC * (int)IST_BPS) / 32; /* entries per cluster */
+    *piCount = 0;
+    bDone    = ST_FALSE;
+
+    while (!bDone &&
+           uiCluster >= (st_u16_t)IST_CLUSTER_FIRST &&
+           uiCluster <  (st_u16_t)(IST_CLUSTER_FIRST + IST_DATA_CLUSTERS))
+    {
+        pData  = ptImg->aDisk + ist_cluster_offset(uiCluster);
+        iAdded = ist_list_entries_from_data(pData, iEPC,
+                                             aEntries + *piCount,
+                                             iMaxEntries - *piCount,
+                                             &bDone);
+        *piCount += iAdded;
+        if (*piCount >= iMaxEntries)
+            break;
+        uiCluster = ist_fat_get(ptImg, uiCluster);
+        if (uiCluster >= (st_u16_t)IST_FAT_EOC)
+            break;
+    }
+
+    return ST_NO_ERROR;
+}
+
+st_error_t image_st_mkdir(image_st_t *ptImg, const char *szName)
+{
+    st_u8_t  aName83[11];
+    st_u8_t *pEntry;
+    st_u8_t *pDirData;
+    int      iSlot;
+    st_u16_t uiCluster;
+
+    LOG_TRACE("ptImg=%p name='%s'",
+              (void *)ptImg, szName ? szName : "(null)");
+    if (ptImg == NULL || szName == NULL)
+    {
+        LOG_ERROR("NULL parameter");
+        return ST_ERROR;
+    }
+    if (!ist_name_to_83(szName, aName83))
+    {
+        LOG_ERROR("invalid 8.3 name: '%s'", szName);
+        return ST_ERROR;
+    }
+    if (ist_root_find(ptImg, szName) >= 0)
+    {
+        LOG_ERROR("entry already exists: '%s'", szName);
+        return ST_ERROR;
+    }
+
+    iSlot = ist_root_alloc_slot(ptImg);
+    if (iSlot < 0)
+    {
+        LOG_ERROR("root directory is full");
+        return ST_ERROR;
+    }
+
+    uiCluster = ist_fat_alloc(ptImg);
+    if (uiCluster == 0u)
+    {
+        LOG_ERROR("disk full creating directory '%s'", szName);
+        return ST_ERROR;
+    }
+    ist_fat_set(ptImg, uiCluster, (st_u16_t)IST_FAT_EOC);
+
+    /* Initialise directory cluster: '.' then '..' then zeroed */
+    pDirData = ptImg->aDisk + ist_cluster_offset(uiCluster);
+    memset(pDirData, 0, (size_t)IST_SPC * IST_BPS);
+
+    /* '.' entry */
+    memset(pDirData, ' ', 11);
+    pDirData[0]  = (st_u8_t)'.';
+    pDirData[11] = IST_ATTR_SUBDIR;
+    ist_wr16(pDirData + 26, uiCluster);
+
+    /* '..' entry (offset 32) */
+    memset(pDirData + 32, ' ', 11);
+    pDirData[32]      = (st_u8_t)'.';
+    pDirData[33]      = (st_u8_t)'.';
+    pDirData[32 + 11] = IST_ATTR_SUBDIR;
+    ist_wr16(pDirData + 32 + 26, 0u);  /* parent = root = cluster 0 */
+
+    /* Root directory entry */
+    pEntry = ist_root_entry(ptImg, iSlot);
+    memset(pEntry, 0, 32);
+    memcpy(pEntry, aName83, 11);
+    pEntry[11] = IST_ATTR_SUBDIR;
+    ist_wr16(pEntry + 26, uiCluster);
+    /* size = 0 for directories */
+
+    LOG_INFO("created directory '%s' at cluster %u",
+             szName, (unsigned)uiCluster);
+    return ST_NO_ERROR;
+}
+
+st_error_t image_st_write_file_in_dir(image_st_t    *ptImg,
+                                        const char    *szDirName,
+                                        const char    *szFileName,
+                                        const st_u8_t *pData,
+                                        st_u32_t       uiSize)
+{
+    st_u8_t  aName83[11];
+    st_u8_t *pDirSlot;
+    st_u8_t *pClusterData;
+    st_u16_t uiDirCluster;
+    st_u16_t uiWalk;
+    st_u16_t uiFirst;
+    st_u16_t uiPrev;
+    st_u16_t uiNew;
+    st_u32_t uiClusterBytes;
+    st_u32_t uiRemaining;
+    st_u32_t uiCopy;
+    int      iEPC;
+    int      i;
+    st_bool_t bFound;
+
+    LOG_TRACE("ptImg=%p dir='%s' name='%s' size=%u",
+              (void *)ptImg,
+              szDirName   ? szDirName   : "(null)",
+              szFileName  ? szFileName  : "(null)",
+              (unsigned)uiSize);
+    if (ptImg == NULL || szDirName == NULL || szFileName == NULL)
+    {
+        LOG_ERROR("NULL parameter");
+        return ST_ERROR;
+    }
+    if (uiSize > 0u && pData == NULL)
+    {
+        LOG_ERROR("pData is NULL for non-empty file");
+        return ST_ERROR;
+    }
+    if (!ist_name_to_83(szFileName, aName83))
+    {
+        LOG_ERROR("invalid 8.3 name: '%s'", szFileName);
+        return ST_ERROR;
+    }
+
+    uiDirCluster = ist_find_subdir_cluster(ptImg, szDirName);
+    if (uiDirCluster < (st_u16_t)IST_CLUSTER_FIRST)
+    {
+        LOG_ERROR("directory not found: '%s'", szDirName);
+        return ST_ERROR;
+    }
+
+    /* Find a free slot in the subdir cluster chain */
+    iEPC       = ((int)IST_SPC * (int)IST_BPS) / 32;
+    pDirSlot   = NULL;
+    bFound     = ST_FALSE;
+    uiWalk     = uiDirCluster;
+
+    while (!bFound &&
+           uiWalk >= (st_u16_t)IST_CLUSTER_FIRST &&
+           uiWalk <  (st_u16_t)(IST_CLUSTER_FIRST + IST_DATA_CLUSTERS))
+    {
+        pClusterData = ptImg->aDisk + ist_cluster_offset(uiWalk);
+        for (i = 0; i < iEPC; i++)
+        {
+            st_u8_t bFirst = pClusterData[(st_u32_t)i * 32u];
+            if (bFirst == 0x00u || bFirst == 0xE5u)
+            {
+                pDirSlot = pClusterData + (st_u32_t)i * 32u;
+                bFound   = ST_TRUE;
+                break;
+            }
+        }
+        if (!bFound)
+        {
+            uiWalk = ist_fat_get(ptImg, uiWalk);
+            if (uiWalk >= (st_u16_t)IST_FAT_EOC)
+                break;
+        }
+    }
+
+    if (!bFound || pDirSlot == NULL)
+    {
+        LOG_ERROR("directory '%s' is full", szDirName);
+        return ST_ERROR;
+    }
+
+    /* Allocate FAT clusters and write file data */
+    uiClusterBytes = (st_u32_t)IST_SPC * IST_BPS;
+    uiFirst        = 0u;
+    uiPrev         = 0u;
+    uiRemaining    = uiSize;
+
+    while (uiRemaining > 0u)
+    {
+        st_u8_t *pDst;
+
+        uiNew = ist_fat_alloc(ptImg);
+        if (uiNew == 0u)
+        {
+            if (uiFirst != 0u)
+                ist_fat_free_chain(ptImg, uiFirst);
+            LOG_ERROR("disk full writing '%s' in '%s'", szFileName, szDirName);
+            return ST_ERROR;
+        }
+        if (uiPrev != 0u)
+            ist_fat_set(ptImg, uiPrev, uiNew);
+        else
+            uiFirst = uiNew;
+        ist_fat_set(ptImg, uiNew, (st_u16_t)IST_FAT_EOC);
+
+        pDst    = ptImg->aDisk + ist_cluster_offset(uiNew);
+        uiCopy  = ST_MIN(uiRemaining, uiClusterBytes);
+        memcpy(pDst, pData, uiCopy);
+        if (uiCopy < uiClusterBytes)
+            memset(pDst + uiCopy, 0, uiClusterBytes - uiCopy);
+        pData       += uiCopy;
+        uiRemaining -= uiCopy;
+        uiPrev       = uiNew;
+    }
+
+    /* Write directory entry in subdir */
+    memset(pDirSlot, 0, 32);
+    memcpy(pDirSlot, aName83, 11);
+    pDirSlot[11] = IST_ATTR_ARCHIVE;
+    ist_wr16(pDirSlot + 26, uiFirst);
+    ist_wr32(pDirSlot + 28, uiSize);
+
+    LOG_INFO("written '%s' (%u bytes) in dir '%s'",
+             szFileName, (unsigned)uiSize, szDirName);
+    return ST_NO_ERROR;
+}
+
 st_error_t image_st_delete_file(image_st_t *ptImg, const char *szName)
 {
     st_u8_t *pEntry;

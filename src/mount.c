@@ -43,6 +43,7 @@ static const renderer_color_t g_mnt_clrBootY     = {0.20f,0.90f,0.20f,1.0f};
 static const renderer_color_t g_mnt_clrBootN     = {0.55f,0.55f,0.55f,1.0f};
 static const renderer_color_t g_mnt_clrStatusBg  = {0.11f,0.11f,0.18f,1.0f};
 static const renderer_color_t g_mnt_clrStatusTx  = {0.70f,0.70f,0.70f,1.0f};
+static const renderer_color_t g_mnt_clrDir       = {0.40f,0.80f,1.00f,1.0f};
 
 /* Chunk size for progress reporting during file copy (P40) */
 #define MOUNT_PROGRESS_CHUNK 65536u
@@ -257,9 +258,11 @@ static void mount_refresh(mount_view_t *ptView)
     ptView->iEntryCount = 0;
     if (ptView->ptImg == NULL)
         return;
-    image_st_list_root(ptView->ptImg,
-                       ptView->aEntries, IST_RDE,
-                       &ptView->iEntryCount);
+    /* UC24F: list current dir (NULL/empty = root) */
+    image_st_list_dir(ptView->ptImg,
+                      ptView->szCurDir[0] ? ptView->szCurDir : NULL,
+                      ptView->aEntries, IST_RDE,
+                      &ptView->iEntryCount);
 }
 
 /* ------------------------------------------------------------------
@@ -360,10 +363,16 @@ static void mount_render(mount_view_t *ptView)
     case MOUNT_SRC_MSA: szSrc = ".MSA"; break;
     default:            szSrc = "DIR";  break;
     }
-    snprintf(szLine, sizeof(szLine),
-             " A:\\  [%s]  %d file%s",
-             szSrc, ptView->iEntryCount,
-             ptView->iEntryCount == 1 ? "" : "s");
+    if (ptView->szCurDir[0] != '\0')
+        snprintf(szLine, sizeof(szLine),
+                 " A:\\%s  [%s]  %d entr%s",
+                 ptView->szCurDir, szSrc, ptView->iEntryCount,
+                 ptView->iEntryCount == 1 ? "y" : "ies");
+    else
+        snprintf(szLine, sizeof(szLine),
+                 " A:\\  [%s]  %d file%s",
+                 szSrc, ptView->iEntryCount,
+                 ptView->iEntryCount == 1 ? "" : "s");
     tText.fX = 4.0f;
     tText.fY = 0.0f;
     tText.fW = (float)(MOUNT_LIST_WIDTH - 8);
@@ -391,16 +400,23 @@ static void mount_render(mount_view_t *ptView)
             renderer_fill_rect(ptView->hRenderer, &tRect, &g_mnt_clrSel);
         }
 
-        snprintf(szLine, sizeof(szLine),
-                 "  %-12s   %7lu",
-                 ptView->aEntries[iIdx].szName,
-                 (unsigned long)ptView->aEntries[iIdx].uiSize);
+        if (ptView->aEntries[iIdx].bIsDir)
+            snprintf(szLine, sizeof(szLine),
+                     "  %-12s  [DIR]",
+                     ptView->aEntries[iIdx].szName);
+        else
+            snprintf(szLine, sizeof(szLine),
+                     "  %-12s   %7lu",
+                     ptView->aEntries[iIdx].szName,
+                     (unsigned long)ptView->aEntries[iIdx].uiSize);
         tText.fX = 4.0f;
         tText.fY = (float)(iRow * ptView->iCellH);
         tText.fW = (float)(MOUNT_LIST_WIDTH - 8);
         tText.fH = (float)ptView->iCellH;
         renderer_draw_text(ptView->hRenderer, szLine,
-                           &tText, &g_mnt_clrFile,
+                           &tText,
+                           ptView->aEntries[iIdx].bIsDir
+                               ? &g_mnt_clrDir : &g_mnt_clrFile,
                            RENDERER_FONT_MONO, RENDERER_ALIGN_LEFT);
     }
 
@@ -660,8 +676,46 @@ static void mount_handle_key(mount_view_t *ptView,
         return;
 
     case GUI_KEY_ENTER:
-        /* P41: open selected file in hex editor */
+        /* UC24F: navigate into directory or open file in hex (P41) */
+        if (ptView->iSelectedEntry >= 0 &&
+            ptView->iSelectedEntry < ptView->iEntryCount &&
+            ptView->aEntries[ptView->iSelectedEntry].bIsDir)
+        {
+            if (ptView->iNavDepth < 7)
+            {
+                strncpy(ptView->aszNavStack[ptView->iNavDepth],
+                        ptView->szCurDir, IST_NAME_MAX - 1);
+                ptView->aszNavStack[ptView->iNavDepth][IST_NAME_MAX-1] = '\0';
+                ptView->iNavDepth++;
+            }
+            strncpy(ptView->szCurDir,
+                    ptView->aEntries[ptView->iSelectedEntry].szName,
+                    IST_NAME_MAX - 1);
+            ptView->szCurDir[IST_NAME_MAX - 1] = '\0';
+            ptView->iSelectedEntry = -1;
+            ptView->iScrollOffset  = 0;
+            mount_refresh(ptView);
+            gui_invalidate(hWnd);
+            return;
+        }
         mount_open_file_hex(ptView);
+        return;
+
+    case GUI_KEY_LEFT:
+    case GUI_KEY_BACKSPACE:
+        /* UC24F: navigate up to parent directory */
+        if (ptView->iNavDepth > 0)
+        {
+            ptView->iNavDepth--;
+            strncpy(ptView->szCurDir,
+                    ptView->aszNavStack[ptView->iNavDepth],
+                    IST_NAME_MAX - 1);
+            ptView->szCurDir[IST_NAME_MAX - 1] = '\0';
+            ptView->iSelectedEntry = -1;
+            ptView->iScrollOffset  = 0;
+            mount_refresh(ptView);
+            gui_invalidate(hWnd);
+        }
         return;
 
     default:
@@ -834,6 +888,7 @@ typedef struct mount_dir_ctx_s
     mount_view_t *ptView;
     int           iAdded;
     int           iSkipped;
+    char          szDirName[IST_NAME_MAX]; /* "" = root, else subdir   */
 } mount_dir_ctx_t;
 
 static void mount_dir_cb(const char        *szFull,
@@ -841,18 +896,49 @@ static void mount_dir_cb(const char        *szFull,
                           const file_stat_t *ptStat,
                           void              *pCtx)
 {
-    mount_dir_ctx_t *ptCbCtx = (mount_dir_ctx_t *)pCtx;
-    file_t          *ptFile  = NULL;
-    st_u8_t         *pBuf    = NULL;
-    size_t           uiRead  = 0;
+    mount_dir_ctx_t  tSub;
+    mount_dir_ctx_t *ptCbCtx  = (mount_dir_ctx_t *)pCtx;
+    file_t          *ptFile   = NULL;
+    st_u8_t         *pBuf     = NULL;
+    size_t           uiRead   = 0;
+    st_error_t       eRes;
 
     if (ptStat->bIsDir)
-        return;  /* skip subdirectories */
+    {
+        /* Recurse into subdirs 1 level deep (root dirs only, UC24F P53) */
+        if (ptCbCtx->szDirName[0] == '\0')
+        {
+            if (image_st_mkdir(ptCbCtx->ptView->ptImg,
+                               szName) == ST_NO_ERROR)
+            {
+                memset(&tSub, 0, sizeof(tSub));
+                tSub.ptView = ptCbCtx->ptView;
+                strncpy(tSub.szDirName, szName, IST_NAME_MAX - 1);
+                tSub.szDirName[IST_NAME_MAX - 1] = '\0';
+                file_list_dir(szFull, ST_FALSE, mount_dir_cb, &tSub);
+                ptCbCtx->iAdded   += tSub.iAdded;
+                ptCbCtx->iSkipped += tSub.iSkipped;
+            }
+            else
+            {
+                LOG_INFO("dir mount: skipped subdir '%s' (name or disk)", szName);
+                ptCbCtx->iSkipped++;
+            }
+        }
+        /* else: skip nested sub-subdirs (Atari ST 1-level practical limit) */
+        return;
+    }
 
     if (ptStat->uiSize == 0)
     {
-        if (image_st_write_file(ptCbCtx->ptView->ptImg,
-                                szName, NULL, 0) == ST_NO_ERROR)
+        if (ptCbCtx->szDirName[0] == '\0')
+            eRes = image_st_write_file(ptCbCtx->ptView->ptImg,
+                                        szName, NULL, 0);
+        else
+            eRes = image_st_write_file_in_dir(ptCbCtx->ptView->ptImg,
+                                               ptCbCtx->szDirName,
+                                               szName, NULL, 0);
+        if (eRes == ST_NO_ERROR)
             ptCbCtx->iAdded++;
         else
         {
@@ -880,8 +966,14 @@ static void mount_dir_cb(const char        *szFull,
     file_read(ptFile, pBuf, (size_t)ptStat->uiSize, &uiRead);
     file_close(&ptFile);
 
-    if (image_st_write_file(ptCbCtx->ptView->ptImg,
-                             szName, pBuf, (st_u32_t)uiRead) == ST_NO_ERROR)
+    if (ptCbCtx->szDirName[0] == '\0')
+        eRes = image_st_write_file(ptCbCtx->ptView->ptImg,
+                                    szName, pBuf, (st_u32_t)uiRead);
+    else
+        eRes = image_st_write_file_in_dir(ptCbCtx->ptView->ptImg,
+                                           ptCbCtx->szDirName,
+                                           szName, pBuf, (st_u32_t)uiRead);
+    if (eRes == ST_NO_ERROR)
         ptCbCtx->iAdded++;
     else
     {
@@ -931,6 +1023,12 @@ st_error_t mount_save_image(mount_view_t    *ptView,
         break;
 
     case MOUNT_SAVE_DIR:
+    {
+        image_st_dirent_t  aSubEntries[IST_RDE];
+        char               szSubDir[ST_MAX_PATH];
+        int                iSubCount;
+        int                j;
+
         if (file_mkdir(szOutPath) != ST_NO_ERROR)
         {
             LOG_ERROR("mount_save_image: cannot create dir '%s'", szOutPath);
@@ -944,7 +1042,77 @@ st_error_t mount_save_image(mount_view_t    *ptView,
         }
         for (i = 0; i < iCount; i++)
         {
-            if (aEntries[i].bIsDir || aEntries[i].uiSize == 0)
+            if (aEntries[i].bIsDir)
+            {
+                /* UC24F: extract subdirectory */
+                snprintf(szSubDir, sizeof(szSubDir),
+                         "%s/%s", szOutPath, aEntries[i].szName);
+                if (file_mkdir(szSubDir) != ST_NO_ERROR)
+                {
+                    LOG_ERROR("mount_save_image: cannot create '%s'",
+                              szSubDir);
+                    eResult = ST_ERROR;
+                    continue;
+                }
+                iSubCount = 0;
+                if (image_st_list_dir(ptView->ptImg, aEntries[i].szName,
+                                       aSubEntries, IST_RDE,
+                                       &iSubCount) != ST_NO_ERROR)
+                    continue;
+                for (j = 0; j < iSubCount; j++)
+                {
+                    if (aSubEntries[j].bIsDir || aSubEntries[j].uiSize == 0)
+                        continue;
+                    pBuf = (st_u8_t *)malloc(
+                               (size_t)aSubEntries[j].uiSize);
+                    if (pBuf == NULL)
+                    {
+                        LOG_ERROR("malloc failed for '%s'",
+                                  aSubEntries[j].szName);
+                        eResult = ST_ERROR;
+                        continue;
+                    }
+                    if (image_st_read_file(ptView->ptImg,
+                                           aSubEntries[j].uiCluster,
+                                           aSubEntries[j].uiSize,
+                                           pBuf,
+                                           aSubEntries[j].uiSize)
+                        != ST_NO_ERROR)
+                    {
+                        LOG_ERROR("read_file failed for '%s'",
+                                  aSubEntries[j].szName);
+                        free(pBuf);
+                        pBuf    = NULL;
+                        eResult = ST_ERROR;
+                        continue;
+                    }
+                    snprintf(szFilePath, sizeof(szFilePath),
+                             "%s/%s", szSubDir, aSubEntries[j].szName);
+                    if (file_open(szFilePath, FILE_MODE_WRITE,
+                                   &ptFile) != ST_NO_ERROR)
+                    {
+                        LOG_ERROR("cannot open '%s' for write", szFilePath);
+                        free(pBuf);
+                        pBuf    = NULL;
+                        eResult = ST_ERROR;
+                        continue;
+                    }
+                    if (file_write(ptFile, pBuf,
+                                    aSubEntries[j].uiSize) != ST_NO_ERROR)
+                    {
+                        LOG_ERROR("write failed for '%s'", szFilePath);
+                        eResult = ST_ERROR;
+                    }
+                    file_close(&ptFile);
+                    free(pBuf);
+                    pBuf = NULL;
+                    LOG_INFO("mount_save_image: extracted '%s/%s'",
+                             aEntries[i].szName, aSubEntries[j].szName);
+                }
+                continue;
+            }
+
+            if (aEntries[i].uiSize == 0)
                 continue;
 
             pBuf = (st_u8_t *)malloc((size_t)aEntries[i].uiSize);
@@ -987,6 +1155,7 @@ st_error_t mount_save_image(mount_view_t    *ptView,
             LOG_INFO("mount_save_image: extracted '%s'", aEntries[i].szName);
         }
         break;
+    }
 
     default:
         LOG_ERROR("mount_save_image: unknown format %d", (int)eFmt);
@@ -1049,6 +1218,8 @@ st_error_t mount_view_open(const char     *szPath,
     memset(ptView, 0, sizeof(mount_view_t));
     ptView->iSelectedEntry = -1;
     ptView->ptLineCtx      = ptLineCtx;
+    ptView->szCurDir[0]    = '\0';
+    ptView->iNavDepth      = 0;
     strncpy(ptView->szSrcPath, szEffPath, ST_MAX_PATH - 1);
 
     /* Load or create the disk image */

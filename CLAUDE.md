@@ -14,6 +14,7 @@
 - 2026-06-09: UC24D Codé/Testé : Labels cliquables dans le bandeau — FAT1/FAT2/Root/Data en cyan cliquables + chips JSON [N] + ehex_jump_to_lba() + edit_hex_set_cursor_pos() API publique — 10 tests PASS 0 fail
 - 2026-06-10: Revue console + 1-OC.md mis à jour par Tonton — 3 bugs corrigés (trace level warning, image --msa .st→.msa Case 3, auto-complétion espaces `\ `) + P50-P56 déposées + DOC UFR-MNT-010 noté — 0 régression tests
 - 2026-06-10: UC24E Codé/Testé : `dir --select` headless (P50) + `script <file>` commande interactive (P51) + CTRL+O→mount (P52) + `edit -h/--hex` force hex (P54) + suppression `umount` (P55) + `image --dir` extraction .st/.msa → répertoire (P56) — 19 tests PASS 0 fail
+- 2026-06-10: UC24F Codé/Testé : Navigation arborescente vue mount (P53) — `image_st_mkdir`/`image_st_list_dir`/`image_st_write_file_in_dir` + mount ENTER→subdir/LEFT→parent + `mount_dir_cb` récursif 1 niveau + `mount_save_image` extrait subdirs — 26 tests PASS 0 fail
 
 *L'historique des versions antérieures peut être récupéré via le change log github*
 
@@ -492,7 +493,7 @@ Les étapes de développement fonctionnelles sont formalisées en Use Cases, per
 | UC24C | `edit` hex | **P47+P48** — JSON annotation (`<basename>.json` colocalisé avec `.st`) + bandeau contextuel : nouveau module `src/image_annot.c`/`.h` (`image_annot_load/save`), champ `labels[]`/`labeled_sectors[]` ; bandeau `HEXED_BAND_H` px en bas de hex_edit (`edit_hex_render_band()`) : type/score secteur courant, BPB décodé si valide (FAT1/FAT2/root dir/data LBA), zone notes éditable CTRL+S → JSON. Dépend de UC24B. | ✓ VALIDÉ 2026-06-09 |
 | UC24D | `edit` hex | **P49** — Labels cliquables dans le bandeau → navigation adresse : labels JSON + auto-labels BPB (`FAT1`, `FAT2`, `Root dir`, `Data`) cliquables → `edit_hex_set_cursor_pos(lba*512+offset)`. Dépend de UC24C. | ✓ VALIDÉ 2026-06-09 |
 | UC24E | console | **P50/P51/P52/P54/P55/P56** — Évolutions console : `dir --select` headless + commande `script <file>` interactive + CTRL+O→mount + `edit --hex/-h` force hex + suppression `umount` (remplacé par image/ESC) + `image --dir` extraction image→répertoire | ✓ VALIDÉ 2026-06-10 |
-| UC-mount-tree | `mount` | **P53** — Navigation arborescente vue mount : `image_st_mkdir()` + `image_st_list_dir()` + récursivité `mount_dir_cb()` + chemin courant + pile ←/→ dans `mount_view_t` | arbre répertoires .st navigable |
+| UC24F | `mount` | **P53** — Navigation arborescente vue mount : `image_st_mkdir()` + `image_st_list_dir()` + `image_st_write_file_in_dir()` + récursivité `mount_dir_cb()` 1 niveau + ENTER/LEFT nav + extraction subdirs `mount_save_image()` | ✓ VALIDÉ 2026-06-10 |
 | UC25 | `execute` | Moteur pas-à-pas + vues CPU + mémoire | step + breakpoint sur .PRG simple |
 | UC26 | interne | Émulation vidéo ST (Shifter : low/med/high res, palette 16 couleurs) | rendu écran correct |
 | UC27 | `execute` | Vue écran Win32/GDI + X11 + synchronisation VBL | démo statique visible |

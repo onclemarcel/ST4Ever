@@ -35,6 +35,8 @@
  *           dir multi-select (P14).
  * UC19   : umount with optional image-save dialog.
  * UC20   : image command, ENTER→hex (P41), make-bootable (P37 write).
+ * UC24F  : subdir navigation (P53): ENTER→subdir, LEFT→parent;
+ *          local dir mount recurses 1 level; SAVE_DIR extracts subdirs.
  */
 
 #ifndef MOUNT_H
@@ -97,6 +99,11 @@ typedef struct mount_view_s
     void              *ptFileHexView;
     /* Back-ref to console context for P38/P41 edit_hex_open             */
     line_context_t    *ptLineCtx;
+
+    /* UC24F: in-image directory navigation                              */
+    char               szCurDir[IST_NAME_MAX]; /* "" = root dir         */
+    char               aszNavStack[8][IST_NAME_MAX]; /* back stack      */
+    int                iNavDepth;              /* 0 = at root           */
 } mount_view_t;
 
 /* ------------------------------------------------------------------

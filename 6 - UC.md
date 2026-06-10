@@ -2591,9 +2591,69 @@ TEST MATRIX - UC24E:
 - `image --dir [dest]` avec fichier `.st`/`.msa` sélectionné → `mount_view_open()` + `mount_save_image(MOUNT_SAVE_DIR, szExtractDst)` ; auto-numérotation `disk`→`disk2`→…`disk99` si `szExtractDst` absent
 
 **Points d'attention pour les UCs suivants :**
-- UC-mount-tree : P53 — navigation arborescente dans les images `.st` ; `image_st_list_dir()` à ajouter ; `mount_dir_cb()` actuellement silencieux sur les sous-répertoires (`if (ptStat->bIsDir) return;`)
+- **RÉSOLU UC24F** : UC-mount-tree — navigation arborescente dans les images `.st` ; `image_st_list_dir()` ajoutée ; `mount_dir_cb()` récursif 1 niveau ; ENTER/LEFT nav fonctionnels
 - UC25 : `dir --select` permet la sélection headless d'un binaire `.PRG` avant `execute` — utilisable dans scripts de test automatisés
-- UC-mount-tree / UC25 : `image --dir` extrait le contenu d'une image sans ouvrir de fenêtre mount — peut servir de préparation batch avant montage ou exécution
+- UC25 : `image --dir` extrait le contenu d'une image sans ouvrir de fenêtre mount — peut servir de préparation batch avant montage ou exécution
+
+---
+
+## §6.30 UC24F — Navigation arborescente vue mount (P53)
+
+**Périmètre implémenté :**
+
+- `image_st.c/h` : 3 nouvelles fonctions publiques FAT12 subdir :
+  - `image_st_list_dir(ptImg, szDirName, ...)` — énumère root si NULL/vide, sinon la chaîne de clusters du sous-répertoire nommé ; saute `.` / `..` / supprimés / labels
+  - `image_st_mkdir(ptImg, szName)` — crée un sous-répertoire en root ; alloue 1 cluster ; initialise `.` / `..` ; entrée SUBDIR dans root
+  - `image_st_write_file_in_dir(ptImg, szDirName, szFileName, pData, uiSize)` — écrit un fichier dans un sous-répertoire de root existant
+
+- `mount.h` : 3 champs ajoutés à `mount_view_t` — `szCurDir[IST_NAME_MAX]`, `aszNavStack[8][IST_NAME_MAX]`, `iNavDepth`
+
+- `mount.c` :
+  - `mount_refresh()` : utilise `image_st_list_dir(szCurDir)` au lieu de `image_st_list_root()`
+  - `mount_dir_cb()` : structure `mount_dir_ctx_t` + champ `szDirName`; récursion 1 niveau via `image_st_mkdir()` + `image_st_write_file_in_dir()`
+  - `mount_handle_key()` : `ENTER` sur bIsDir → navigate-in (push stack) ; `GUI_KEY_LEFT` / `GUI_KEY_BACKSPACE` → navigate-up (pop stack)
+  - `mount_render()` : header affiche chemin courant `A:\AUTO` ; entrées DIR en cyan `[DIR]` au lieu de la taille
+  - `mount_save_image(MOUNT_SAVE_DIR)` : extrait aussi les sous-répertoires (mkdir + liste + fichiers)
+
+**Infrastructure validée :**
+- Compilation 0 warnings 0 erreurs
+- `make tests` → 26 tests PASS, 0 fail
+
+**Matrice de tests (UC24F) :**
+```
+TEST MATRIX - UC24F:
+  [N] Nominal    : 16 tests - mkdir crée SUBDIR entry ; list_dir root == list_root ;
+                              list_dir subdir vide = 0 entries ; list_dir après write ;
+                              write_file_in_dir: DATA.BIN absent de root ;
+                              read-back contenu correct ; 2 subdirs indépendants ;
+                              empty file in subdir ; nav fields mount_view_t
+  [R] Robustness : 10 tests - NULL params mkdir/list_dir/write_in_dir ;
+                              list_dir nonexistent → ST_ERROR ;
+                              list_dir sur fichier → ST_ERROR ;
+                              write_in_dir dir inexistant → ST_ERROR ;
+                              mkdir duplicate → ST_ERROR ; mkdir nom trop long → ST_ERROR
+  [S] Skipped    :  0 tests - (navigation GUI validée manuellement)
+```
+
+**Contrats comportementaux validés :**
+
+*Module `image_st` — FAT12 subdirs (UC24F)*
+- `image_st_mkdir("AUTO")` crée un SUBDIR visible dans `image_st_list_root()` avec `bIsDir=ST_TRUE`
+- `image_st_list_dir(ptImg, NULL, ...)` est identique à `image_st_list_root()`
+- `image_st_list_dir(ptImg, "AUTO", ...)` n'inclut jamais les entrées `.` et `..`
+- `image_st_write_file_in_dir(ptImg, "AUTO", "DEMO.PRG", ...)` : le fichier est absent de la root dir et lisible via `image_st_read_file()` depuis le cluster de l'entrée retournée par `list_dir`
+- `image_st_list_dir` sur un nom inexistant ou un fichier non-SUBDIR → `ST_ERROR`
+- `image_st_mkdir` en double → `ST_ERROR` ; nom invalide 8.3 → `ST_ERROR`
+
+*Module `mount_view_t` — navigation (UC24F)*
+- `szCurDir = ""` → root ; `szCurDir = "AUTO"` → sous-répertoire AUTO
+- `iNavDepth = 0` → on est en root ; `iNavDepth > 0` → on peut remonter (←/BACKSPACE)
+- Profondeur max du stack : 8 niveaux (Atari ST demos: 1 niveau en pratique)
+
+**Points d'attention pour les UCs suivants :**
+- UC25 (`execute`) : `image_st_list_dir` peut servir à lister le contenu d'un AUTO/ pour trouver un binaire auto-exécutable
+- UC25 / `image --dir` : `mount_save_image(MOUNT_SAVE_DIR)` extrait maintenant les subdirs — résultat de `image --dir` reflète l'arborescence complète
+- DEL en sous-répertoire : non implémenté (root-only) ; `image_st_delete_file()` opère uniquement sur root — à étendre si besoin dans un UC futur
 
 ---
 

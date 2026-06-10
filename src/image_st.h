@@ -234,6 +234,79 @@ st_error_t image_st_write_file(image_st_t    *ptImg,
                                 st_u32_t       uiSize);
 
 /*
+ * image_st_list_dir() - Enumerate entries in a named subdirectory.
+ *
+ * If szDirName is NULL or empty, behaves identically to
+ * image_st_list_root().  Otherwise finds the named entry in the root
+ * directory, verifies it is a subdirectory (IST_ATTR_SUBDIR), and
+ * enumerates its cluster chain.  Dot entries ('.' and '..'), deleted
+ * entries (0xE5), volume labels and unused terminators (0x00) are
+ * skipped.
+ *
+ * Parameters:
+ *   ptImg       [in]  : Image handle.
+ *   szDirName   [in]  : Subdirectory name ("AUTO"), or NULL/"" for root.
+ *   aEntries    [out] : Caller-supplied array to receive entries.
+ *   iMaxEntries [in]  : Capacity of aEntries (must be > 0).
+ *   piCount     [out] : Number of entries written.
+ *
+ * Returns:
+ *   ST_NO_ERROR on success.
+ *   ST_ERROR    if any pointer is NULL / iMaxEntries <= 0, or the named
+ *               directory is not found.
+ */
+st_error_t image_st_list_dir(image_st_t        *ptImg,
+                               const char        *szDirName,
+                               image_st_dirent_t *aEntries,
+                               int                iMaxEntries,
+                               int               *piCount);
+
+/*
+ * image_st_mkdir() - Create a subdirectory in the root directory.
+ *
+ * Allocates one FAT12 cluster for directory data, initialises '.' and
+ * '..' entries, and writes a SUBDIR entry in the root directory.
+ * szName must be a valid 8.3 name; a directory with the same name must
+ * not already exist.
+ *
+ * Parameters:
+ *   ptImg  [in] : Image handle.
+ *   szName [in] : Directory name (e.g. "AUTO").
+ *
+ * Returns:
+ *   ST_NO_ERROR on success.
+ *   ST_ERROR    if ptImg or szName is NULL, the name is not valid 8.3,
+ *               the entry already exists, the root dir or disk is full.
+ */
+st_error_t image_st_mkdir(image_st_t *ptImg, const char *szName);
+
+/*
+ * image_st_write_file_in_dir() - Add a file inside a named subdirectory.
+ *
+ * Finds szDirName in the root directory, locates a free slot in its
+ * cluster chain, allocates data clusters for szFileName, and writes
+ * the directory entry.  For an empty file uiSize == 0 and pData may
+ * be NULL.
+ *
+ * Parameters:
+ *   ptImg      [in] : Image handle.
+ *   szDirName  [in] : Target subdirectory name (must already exist).
+ *   szFileName [in] : File name inside the subdirectory.
+ *   pData      [in] : File content (may be NULL iff uiSize == 0).
+ *   uiSize     [in] : Byte count.
+ *
+ * Returns:
+ *   ST_NO_ERROR on success.
+ *   ST_ERROR    if any pointer is NULL (when required), name invalid,
+ *               directory not found, directory full, or disk full.
+ */
+st_error_t image_st_write_file_in_dir(image_st_t    *ptImg,
+                                        const char    *szDirName,
+                                        const char    *szFileName,
+                                        const st_u8_t *pData,
+                                        st_u32_t       uiSize);
+
+/*
  * image_st_delete_file() - Remove a file from the root directory.
  *
  * Marks the directory entry as deleted (first byte = 0xE5) and frees
