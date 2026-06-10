@@ -37,12 +37,13 @@ Les concepts opérationnels sont le point de départ du développement du dével
 | `history` | `y`   | —        | Liste les 10 dernières commandes, par défaut (sans argument). <br>`history N` : les N dernières commandes ou l'historique complet si N est supérieur au nombre de commandes dans l'historique |
 | `dir`    | `d`   | CTRL+D          | Ouvre la vue arborescence du répertoire courant ou du répertoire donné en argument et permet la sélection d'un répertoire ou fichier de travail.<br>Sans argument: ouvre le répertoire courant et liste les répertoires et fichiers non cachés.<br>`dir <nom_de_répertoire>`: ouvre le répertoire donné en argument. <br>|
 | `load`    | `l`   | CTRL+L          | Charge un fichier en mémoire émulée ATARI ST.<br>Sans argument: Charge le fichier sélectionné par la commande `dir`.<br>`load <file>` charge le fichier spécifié en argument.|
-| `edit`    | `e`   | CTRL+E          | Ouvre une vue éditeur adaptée au type de fichier sélectionné.<br>Sans argument: Edite le fichier sélectionné par la commande `dir`.<br>`edit <file>` charge le fichier spécifié en argument.|
+| `edit`    | `e`   | CTRL+E          | Ouvre une vue éditeur adaptée au type de fichier sélectionné.<br>Sans argument: Edite le fichier sélectionné par la commande `dir`.<br>`edit <file>` charge le fichier spécifié en argument.<br>`edit [-h\|--hex]`: force l'ouverture du fichier en vue héxadécimale. |
 | `mount`    | `m`   | -          | Ouvre une vue arborescence disquette ATARI ST et émule la montée d'un répertoire ou d'une image .st/.msa.<br>Sans argument: émule le répertoire sélectionné par la commande `dir`.<br>`mount <file/dir>` charge le fichier image .st/.msa ou le répertoire spécifié en argument.|
-| `image`  | `i`  | -      | Crée une image disk .st ou .msa à partir d'un fichier ou répertoire.<br>Sans Argument: crée l'image à partir de la sélection de la commande `dir`.<br>`image [--st\msa]`: spécifie le format de l'image créée. <br>`image --bootable`: Rend l'image disquette bootable sur ATARI ST.|
+| `image`  | `i`  | -      | Crée une image disk .st ou .msa à partir d'un fichier ou répertoire.<br>Sans Argument: crée l'image à partir de la sélection de la commande `dir`.<br>`image [--st\msa]`: spécifie le format de l'image créée. <br>`image --bootable`: Rend l'image disquette bootable sur ATARI ST.<br>`image --dir`: duplique l'arborescence de la disquette ATARI ST dans un répertoire local (./disk[N] par défaut avec N[0..99]|
 | `execute`  | `x`  | CTRL-X      | Execute un programme en mémoire émulée ATARI ST et ouvre les fenêtre de visualisation de l'exécution (video, CPU, mémoire, instructions, moniteur d'exécution).<br>Sans argument: exécute le programme ou l'image sélectionné par `dir`.<br>`execute <file>`: charge et exécute le contenu (e.g. .PRG ou .st/.msa)|
 | `st2msa`  | -  | -      | Convertit une image .st en format .msa.<br>Sans Argument: convertit le fichier sélectionné par la commande `dir`; envoie un warning si le fichier actuellement sélectionné n'est pas une image '.st'.<br>`st2msa --dir [path] --all`: permet une conversion de tous les fichiers .st détectés dans \[path\].<br>Option `-r` active la récursion dans le répertoire indiqué par `--dir`|
 | `msa2st`  | -  | -      | Convertit une image .msa en format .st.<br>Sans Argument: convertit le fichier sélectionné par la commande `dir`; envoie un warning si le fichier actuellement sélectionné n'est pas une image '.msa'.<br>`msa2st --dir [path] --all`: permet une conversion de tous les fichiers .msa détectés dans \[path\].<br>Option `-r` active la récursion dans le répertoire indiqué par `--dir`|
+| `script`    | `r`   | -          | Charge un fichier de commande et exécute l'ensemble des commandes du fichier.<br>Sans argument: renvoie un warning à l'utilisateur, pas de sélection de fichier par défaut.<br>`script <file>` lance les commandes du fichier spécifié en argument.|
 <br>
 
 ## 1.2 - OC-ST4-002 : La commande `help`
@@ -75,13 +76,18 @@ La fenêtre de trace est ouverte au démarrage de l'application avec l'option `-
 **Commande (`d` | `dir` | `CTRL+D`)**
 Cette commande ouvre une vue GUI de type tree view et affiche l'arborescence indentée du contenu du répertoire fourni en argument de la commande. La commande sans paramètre ouvre le répertoire courant. La vue GUI permet :
   - la sélection d'un fichier ou répertoire par clic gauche souris ou par touche 'espace', surlignée dans la vue GUI: la sélection devient l'argument par défaut des commandes de manipulation de fichiers/répertoires/images (e.g. `load`, `edit`, `image`, `mount`, `wf`).
-  - l'expansion ou non d'un répertoire par clic gauche souris sur + devant le nom du répertoire
-  - la rétractation d'un répertoire expansé par clic gauche souris sur - devant le nom du répertoire
-  - la remontée de l'arborescence du répertoire parent via une première ligne '..' en haut de l'arborescence
+  - l'expansion ou non d'un répertoire par clic gauche souris sur + devant le nom du répertoire ou flèche ->
+  - la rétractation d'un répertoire expansé par clic gauche souris sur - devant le nom du répertoire ou flèche <-
+  - la remontée de l'arborescence du répertoire parent via une première ligne '..' en haut de l'arborescence par touche ENTREE
   - l'affichage d'un menu contextuel par clic droit souris sur un fichier ou répertoire:
        - clic droit sur fichier affiche les commandes (`load`, `edit`)
        - clic droit sur répertoire affiche les commandes (`mount`, `image`)
-
+  - l'affichage des fichiers cachés du répertoire local par la touche `H`
+  - le rafraichissement de la vue par F5
+  - la multi-sélection de fichier par `CTRL+ESPACE`
+    
+La commande `dir` fonctionne également sans vue GUI avec l'option `--select` permettant de sélectionner directement le fichier/répertoire voulu.
+    
   <br>
   
 ## 1.6 - OC-ST4-006 : La commande `load`
@@ -105,6 +111,8 @@ Cette commande prend en argument un nom de fichier (+ path) en entrée ou le fic
            - la modification ASCII par la vue ASCII change les octets hexadecimaux,
            - la modification de code assembleur 68000 en ligne par recompilation de la section concernée; les impacts binaires sont à déterminer par l'outil d'assemblage et demande de confirmation par utilisateur. La vue assembleur 68000 est cliquable bouton droit pour sauvegarder le fichier texte correspondant au source assembleur.
 
+La commande `edit` peut forcer la vue héxadécimale pour tout type de fichiers avec l'option `-h | --hex`.
+  
 ## 1.8 OC-ST4-008: La commande `mount` 
 **Commande (`m` | `mount` | `CTRL+M`)**
 Cette commande prend un chemin de répertoire en entrée ou le répertoire sélectionné via la commande `dir`; si aucun chemin n'est sélectionné et aucun paramètre donné, le chemin courant de l'application est utilisé, mais une demande de confirmation utilisateur est nécessaire. `mount` se comporte de la manière suivante:
@@ -120,6 +128,7 @@ Cette commande crée le fichier image disquette ATARI ST avec le contenu de la v
   - La création d'une image peut se faire à partir d'un répertoire local; un message utilisateur indique si la taille des fichiers dépasse celle de l'image créée, l'image n'est pas créée en cas de dépassement.
   - La fonctionnalité de création d'image permet la conversion d'une image .st en .msa et vice-versa si l'option `--st | --msa` est fournie et l'autre type de fichier donné en argument
   - Une image peut être générée bootable avec une option `--bootable`
+  - Une image inverse d'un fichier .st/.msa peut également déployer l'arborescence de fichiers contenus dans l'image vers un répertoire local avec l'option `--dir`
 
 ## 1.10 - OC-ST4-010 : La commande `where`
 **Commande (`w` | `where` | `CTRL+W`)**
@@ -156,5 +165,10 @@ Cette commande convertit une image .st en format .msa. Elle prend en argument un
   ## 1.15 - OC-ST4-015: La commande 'msa2st'
 **Commande (`msa2st`)**
 Cette commande convertit une image .msa en format .st. Elle prend en argument un fichier ou un répertoire (avec option `--dir [path]`) ou convertit le fichier sélectionné par la commande `dir` si aucun argument n'est donné. Un warning est envoyé à l'utilisateur si le fichier actuellement sélectionné n'est pas une image '.msa'.<br>`msa2st --dir [path] --all`: permet une conversion de tous les fichiers .msa détectés dans \[path\].<br>Option `-r` active la récursion dans le répertoire indiqué par `--dir`
+<br>
+  
+## 1.16 - OC-ST4-016: La commande 'script'
+**Commande (`r` | `script`)**
+Cette commande permet l'exécution automatique de la liste de commandes du fichier spécifié en argument. La commande sans argument renvoie un warning utilisateur, il n'y a pas de fichier/script par défaut. Le fichier est structuré en une liste de commande ST4Ever (voir `help` pour la liste des commandes acceptées). Les lignes commençant par '#' sont ignorées par la commande et permettent de commenter le script.
 <br>
   

@@ -66,7 +66,7 @@ through one or more test cases in Section 5.
 | UFR-CON-092 | `st2msa [--dir p] [--all] [-r]` shall convert `.st` disk image(s) to `.msa` format; `--all` processes all `.st` files in a directory; `-r` recurses into subdirectories. | UC20A |
 | UFR-CON-093 | `msa2st [--dir p] [--all] [-r]` shall convert `.msa` disk image(s) to `.st` format; `--all` processes all `.msa` files in a directory; `-r` recurses into subdirectories. | UC20A |
 | UFR-CON-094 | `dir --select <path>` shall set the selected file/directory headlessly (without opening the GUI dir view); the path is validated via `file_stat()`; invalid paths shall print an error and leave the selection unchanged. | UC24E |
-| UFR-CON-095 | `script <file>` (`r` \| `script`) shall execute commands from a text file interactively, identical to `--script` batch mode; lines starting with `#` and blank lines are skipped. | UC24E |
+| UFR-CON-095 | The `script <file>` command (`r` \| `script`) shall execute commands from a text file interactively, identical to `--script` batch mode; lines starting with `#` and blank lines are skipped. | UC24E |
 | UFR-CON-096 | `CTRL+O` (0x0F) shall dispatch the `mount` command instantly from the line editor, replacing the removed `CTRL+U` (umount). | UC24E |
 | UFR-CON-097 | `edit -h <file>` / `edit --hex <file>` shall force the hex editor regardless of file extension; without the flag, extension-based routing remains unchanged. | UC24E |
 | UFR-CON-098 | `image --dir [folder]` shall extract the currently mounted image (or a selected/specified `.st`/`.msa` file) to a local directory; if no folder is given, auto-number as `disk`/`disk2`/… in cwd. | UC24E |
@@ -80,64 +80,64 @@ through one or more test cases in Section 5.
 
 ### 1.2 Trace Console — `TRC`
 
-| ID          | Requirement                                                                                                   | Status   | UC   |
-|-------------|---------------------------------------------------------------------------------------------------------------|----------|------|
-| UFR-TRC-001 | The trace console shall display log entries with colour coding by level (TRACE, INFO, ERROR, TODO).           | ✓ UC1    | UC1  |
-| UFR-TRC-002 | Each entry shall be timestamped and include the emitting function name and source line number.                                   | ✓ UC1    | UC1  |
-| UFR-TRC-003 | Repeated TRACE entries from the same function shall be compacted as a single `[xN]` counter entry.           | ✓ UC1    | UC1  |
-| UFR-TRC-004 | All log entries shall be written to `st4ever_trace.log` regardless of console visibility.                    | ✓ UC1    | UC1  |
-| UFR-TRC-005 | LOG_INFO, LOG_ERROR, and LOG_TODO shall always be emitted regardless of the TRACE filter.                    | ✓ UC1    | UC1  |
-| UFR-TRC-006 | LOG_TRACE entries shall be suppressible independently from the other levels.                                  | ✓ UC1    | UC1  |
-| UFR-TRC-007 | The trace console shall appear as a dedicated non-modal GUI window (Win32 / X11).                            | ✓ UC4.4    | UC4.4|
-| UFR-TRC-008 | The trace window shall render log entries colour-coded by level: TRACE=grey, INFO=cyan, ERROR=red, TODO=magenta. | ✓ UC4.4  | UC4.4|
-| UFR-TRC-009 | The trace window shall auto-scroll to the newest entry on append; manual scroll disables auto-scroll until End is pressed. | ✓ UC4.4 | UC4.4|
-| UFR-TRC-010 | Opening the trace window shall not steal keyboard focus from the console.                                     | ✓ UC4.4    | UC4.4|
-| UFR-TRC-011 | `trace clear` shall erase all lines from the GUI trace window ring buffer without affecting the log file. (P27) | ✓ UC5    | UC5  |
-| UFR-TRC-012 | `trace level <trace\|info\|error>` shall set a display filter on the GUI trace window; lines below the filter level shall be hidden without being removed from the ring buffer or the log file. (P28) | ✓ UC5 | UC5 |
+| ID          | Requirement                                                                                                   |  UC   |
+|-------------|---------------------------------------------------------------------------------------------------------------|------|
+| UFR-TRC-001 | The trace console shall display log entries with colour coding by level (TRACE, INFO, ERROR, TODO).           |  UC1  |
+| UFR-TRC-002 | Each entry shall be timestamped and include the emitting function name and source line number.                                   |  UC1  |
+| UFR-TRC-003 | Repeated TRACE entries from the same function shall be compacted as a single `[xN]` counter entry.           | UC1  |
+| UFR-TRC-004 | All log entries shall be written to `st4ever_trace.log` regardless of console visibility.                    |  UC1  |
+| UFR-TRC-005 | LOG_INFO, LOG_ERROR, and LOG_TODO shall always be emitted regardless of the TRACE filter.                    | UC1  |
+| UFR-TRC-006 | LOG_TRACE entries shall be suppressible independently from the other levels.                                  |  UC1  |
+| UFR-TRC-007 | The trace console shall appear as a dedicated non-modal GUI window (Win32 / X11).                            |  UC4.4|
+| UFR-TRC-008 | The trace window shall render log entries colour-coded by level: TRACE=grey, INFO=cyan, ERROR=red, TODO=magenta. |  UC4.4|
+| UFR-TRC-009 | The trace window shall auto-scroll to the newest entry on append; manual scroll disables auto-scroll until End is pressed. |  UC4.4|
+| UFR-TRC-010 | Opening the trace window shall not steal keyboard focus from the console.                                     | UC4.4|
+| UFR-TRC-011 | `trace clear` shall erase all lines from the GUI trace window ring buffer without affecting the log file. (P27) | UC5  |
+| UFR-TRC-012 | `trace level <trace\|info\|error>` shall set a display filter on the GUI trace window; lines below the filter level shall be hidden without being removed from the ring buffer or the log file. (P28)  | UC5 |
 
 ### 1.3 GUI Framework — `GUI` (UC3.1 infra ✓, UC3.2 renderer, UC3.3 dir view)
 
-| ID          | Requirement                                                                                                   | Status      | UC     |
-|-------------|---------------------------------------------------------------------------------------------------------------|-------------|--------|
-| UFR-GUI-001 | Each view command shall open a dedicated non-modal window running in its own thread.                          | ✓ UC3.1     | UC3.1  |
-| UFR-GUI-002 | The console thread shall communicate with view threads via a bounded thread-safe message queue.               | ✓ UC3.1     | UC3.1  |
-| UFR-GUI-003 | A view shall notify the console of user actions (file selected, close) via a registered event callback.       | ✓ UC3.1     | UC3.1  |
-| UFR-GUI-004 | The application shall support up to 16 simultaneously open views.                                             | ✓ UC3.1     | UC3.1  |
-| UFR-GUI-005 | All 2D rendering (text, rectangles, lines) shall use Direct2D (Windows) or X11/XRender (Linux).              | ✓ UC3.2     | UC3.2  |
-| UFR-GUI-006 | Each view's window title bar shall be updated dynamically to reflect the current context (R18).               | ✓ UC3.3     | UC3.3  |
-| UFR-GUI-007 | A newly opened view window shall automatically receive keyboard focus without requiring the user to click or alt-tab. | ✓ UC4.1 | UC4.1 |
+| ID          | Requirement                                                                                                   |  UC     |
+|-------------|---------------------------------------------------------------------------------------------------------------|--------|
+| UFR-GUI-001 | Each view command shall open a dedicated non-modal window running in its own thread.                          | UC3.1  |
+| UFR-GUI-002 | The console thread shall communicate with view threads via a bounded thread-safe message queue.               | UC3.1  |
+| UFR-GUI-003 | A view shall notify the console of user actions (file selected, close) via a registered event callback.       | UC3.1  |
+| UFR-GUI-004 | The application shall support up to 16 simultaneously open views.                                             | UC3.1  |
+| UFR-GUI-005 | All 2D rendering (text, rectangles, lines) shall use Direct2D (Windows) or X11/XRender (Linux).              |  UC3.2  |
+| UFR-GUI-006 | Each view's window title bar shall be updated dynamically to reflect the current context (R18).               | UC3.3  |
+| UFR-GUI-007 | A newly opened view window shall automatically receive keyboard focus without requiring the user to click or alt-tab. |  UC4.1 |
 
 ### 1.4 Directory View — `DIR` (TODO UC3.3)
 
-| ID          | Requirement                                                                                                   | Status   | UC   |
-|-------------|---------------------------------------------------------------------------------------------------------------|----------|------|
-| UFR-DIR-001 | The directory view shall display the file tree of the target path, indented and expandable.                  | ✓ UC3.3  | UC3.3|
-| UFR-DIR-002 | Left-clicking a file or pressing Space shall select it as the default argument for load, edit, image, where. | ✓ UC3.3  | UC3.3|
-| UFR-DIR-003 | A `+` / `-` control shall expand or collapse a directory node.                                               | ✓ UC3.3  | UC3.3|
-| UFR-DIR-004 | A `..` entry at the top shall navigate to the parent directory.                                               | ✓ UC3.3  | UC3.3|
-| UFR-DIR-005 | Right-clicking a file shall display a context menu with `load` and `edit` options.                           | TODO UC7 | UC7  |
-| UFR-DIR-006 | Right-clicking a directory shall display a context menu with `mount` and `image` options.                    | TODO UC18| UC18 |
-| UFR-DIR-007 | Hidden entries (names starting with `.`) shall be excluded from the directory view by default; `dir -a` shall include them. | ✓ UC4.1 | UC4.1 |
-| UFR-DIR-008 | ESC key shall close the directory view without requiring console-thread action.                              | ✓ UC4.1  | UC4.1 |
-| UFR-DIR-009 | LEFT arrow key shall collapse an expanded directory node; RIGHT arrow key shall expand a collapsed directory node (loading children lazily if needed). | ✓ UC4.1 | UC4.1 |
-| UFR-DIR-010 | SPACE shall update the default selection without modifying the expand/collapse state; ENTER shall activate the node (expand/collapse/navigate). | ✓ UC4.1 | UC4.1 |
-| UFR-DIR-011 | The `H` key shall toggle the visibility of hidden files (entries starting with `.`) in the currently open directory view, reloading the root children with the new filter. (P21) | ✓ UC5 | UC5 |
-| UFR-DIR-012 | The F5 key shall refresh the directory listing from disk while preserving the current expansion state: directories that were expanded before the refresh shall remain expanded afterwards; deleted directories are silently dropped. (P22) | ✓ UC5 | UC5 |
-| UFR-DIR-013 | When a file is committed via ENTER or SPACE in the dir view, a dark green secondary background (`g_dir_clrLastSel`) shall be rendered on that row in `dir_render()`, visually distinct from the navigation-cursor highlight. The indicator persists when the cursor moves; a new commit updates it. (P11) | ✓ UC7 | UC7 |
-| UFR-DIR-014 | ALT+LEFT shall navigate to the previous path in the directory view's navigation history; ALT+RIGHT shall navigate to the next path. The history shall be seeded with the initial path at `dir_open()` time and updated each time the root changes via `dir_navigate_up()` or explicit navigation. The history stack is non-cyclical (max `DIR_NAV_HIST_MAX` entries). (P10) | ✓ UC18.2 | UC18.2 |
-| UFR-DIR-015 | CTRL+SPACE shall toggle multi-selection of the currently focused **file** entry (not directories). The multi-selected set is displayed with a purple background (`g_dir_clrMultiSel`), distinct from the green last-committed indicator (P11) and the blue cursor highlight. The set holds up to `DIR_MULTI_SEL_MAX` paths. (P14) | ✓ UC18.2 | UC18.2 |
+| ID          | Requirement                                                                                                   |  UC   |
+|-------------|---------------------------------------------------------------------------------------------------------------|------|
+| UFR-DIR-001 | The directory view shall display the file tree of the target path, indented and expandable.                  | UC3.3|
+| UFR-DIR-002 | Left-clicking a file or pressing Space shall select it as the default argument for load, edit, image, where. | UC3.3|
+| UFR-DIR-003 | A `+` / `-` control shall expand or collapse a directory node.                                               |  UC3.3|
+| UFR-DIR-004 | A `..` entry at the top shall navigate to the parent directory.                                                 | UC3.3|
+| UFR-DIR-005 | Right-clicking a file shall display a context menu with `load` and `edit` options.    | TODO UC7 |
+| UFR-DIR-006 | Right-clicking a directory shall display a context menu with `mount` and `image` options.    | TODO UC18|
+| UFR-DIR-007 | Hidden entries (names starting with `.`) shall be excluded from the directory view by default; `dir -a` shall include them. | UC4.1 |
+| UFR-DIR-008 | ESC key shall close the directory view without requiring console-thread action.                              | UC4.1 |
+| UFR-DIR-009 | LEFT arrow key shall collapse an expanded directory node; RIGHT arrow key shall expand a collapsed directory node (loading children lazily if needed). | UC4.1 |
+| UFR-DIR-010 | SPACE shall update the default selection without modifying the expand/collapse state; ENTER shall activate the node (expand/collapse/navigate). |  UC4.1 |
+| UFR-DIR-011 | The `H` key shall toggle the visibility of hidden files (entries starting with `.`) in the currently open directory view, reloading the root children with the new filter. | UC5 |
+| UFR-DIR-012 | The F5 key shall refresh the directory listing from disk while preserving the current expansion state: directories that were expanded before the refresh shall remain expanded afterwards; deleted directories are silently dropped. (P22) |  UC5 |
+| UFR-DIR-013 | When a file is committed via ENTER or SPACE in the dir view, a dark green secondary background (`g_dir_clrLastSel`) shall be rendered on that row in `dir_render()`, visually distinct from the navigation-cursor highlight. The indicator persists when the cursor moves; a new commit updates it. (P11) |  UC7 |
+| UFR-DIR-014 | ALT+LEFT shall navigate to the previous path in the directory view's navigation history; ALT+RIGHT shall navigate to the next path. The history shall be seeded with the initial path at `dir_open()` time and updated each time the root changes via `dir_navigate_up()` or explicit navigation. The history stack is non-cyclical (max `DIR_NAV_HIST_MAX` entries). (P10) |  UC18.2 |
+| UFR-DIR-015 | CTRL+SPACE shall toggle multi-selection of the currently focused **file** entry (not directories). The multi-selected set is displayed with a purple background (`g_dir_clrMultiSel`), distinct from the green last-committed indicator (P11) and the blue cursor highlight. The set holds up to `DIR_MULTI_SEL_MAX` paths. (P14) | UC18.2 |
 
 ### 1.5 File System Abstraction — `FIL` (UC6)
 
-| ID          | Requirement                                                                                                         | Status   | UC   |
-|-------------|---------------------------------------------------------------------------------------------------------------------|----------|------|
-| UFR-FIL-001 | The application shall provide a portable `file_stat()` function that returns whether a path exists, whether it is a directory, its size in bytes, and its lowercase extension (without the dot). A non-existent path shall not be an error. | ✓ UC6 | UC6 |
-| UFR-FIL-002 | The application shall provide `file_open()` to open an existing file for reading, create/truncate for writing, or open/create for appending, returning an opaque handle. | ✓ UC6 | UC6 |
-| UFR-FIL-003 | `file_read()` shall read up to N bytes from an open file into a caller-supplied buffer, reporting the actual byte count; a partial read at EOF shall not be an error. | ✓ UC6 | UC6 |
-| UFR-FIL-004 | `file_write()` shall write exactly N bytes to an open file; a short write shall be an error. | ✓ UC6 | UC6 |
-| UFR-FIL-005 | `file_close()` shall close the file, release the handle, and set the caller's pointer to NULL; calling on a NULL handle shall be a safe no-op. | ✓ UC6 | UC6 |
-| UFR-FIL-006 | `file_mkdir()` shall create a single directory level; calling on an already-existing directory shall succeed silently. | ✓ UC6 | UC6 |
-| UFR-FIL-007 | `file_list_dir()` shall enumerate directory entries via a user-supplied callback, excluding `.` and `..` always and optionally entries starting with `.`; the callback receives the full path, the entry name, and a pre-filled `file_stat_t`. | ✓ UC6 | UC6 |
+| ID          | Requirement                                                                                                         |  UC   |
+|-------------|---------------------------------------------------------------------------------------------------------------------|------|
+| UFR-FIL-001 | The application shall provide a portable `file_stat()` function that returns whether a path exists, whether it is a directory, its size in bytes, and its lowercase extension (without the dot). A non-existent path shall not be an error. |  UC6 |
+| UFR-FIL-002 | The application shall provide `file_open()` to open an existing file for reading, create/truncate for writing, or open/create for appending, returning an opaque handle. |  UC6 |
+| UFR-FIL-003 | `file_read()` shall read up to N bytes from an open file into a caller-supplied buffer, reporting the actual byte count; a partial read at EOF shall not be an error. |  UC6 |
+| UFR-FIL-004 | `file_write()` shall write exactly N bytes to an open file; a short write shall be an error. |  UC6 |
+| UFR-FIL-005 | `file_close()` shall close the file, release the handle, and set the caller's pointer to NULL; calling on a NULL handle shall be a safe no-op. | UC6 |
+| UFR-FIL-006 | `file_mkdir()` shall create a single directory level; calling on an already-existing directory shall succeed silently. | UC6 |
+| UFR-FIL-007 | `file_list_dir()` shall enumerate directory entries via a user-supplied callback, excluding `.` and `..` always and optionally entries starting with `.`; the callback receives the full path, the entry name, and a pre-filled `file_stat_t`. | UC6 |
 
 ### 1.6 Load Command — `LOD` (UC7)
 
