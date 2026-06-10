@@ -1118,9 +1118,16 @@ static void dir_handle_key(dir_view_t  *ptView,
             ptNode = ptView->aptFlat[ptView->iSelectedFlat].ptNode;
             if (uiMods & GUI_MOD_CTRL)
             {
-                /* P14: CTRL+SPACE = toggle multi-selection (files only) */
+                /* P14: CTRL+SPACE = toggle multi-selection (files only).
+                 * P60: starting multi-sel clears single selection first. */
                 if (!ptNode->bIsDir)
                 {
+                    if (ptView->szLastSelected[0] != '\0')
+                    {
+                        ptView->szLastSelected[0] = '\0';
+                        if (ptView->ptLineCtx != NULL)
+                            line_set_selected(ptView->ptLineCtx, "");
+                    }
                     dir_toggle_multi_sel(ptView, ptNode->szPath);
                     bRedraw = ST_TRUE;
                     LOG_INFO("dir: multi-sel toggle '%s' (count=%d)",
@@ -1129,7 +1136,15 @@ static void dir_handle_key(dir_view_t  *ptView,
             }
             else
             {
-                /* P13: SPACE = pure selection — update szSelected, no expand */
+                /* P13: SPACE = pure selection — update szSelected, no expand.
+                 * P60: clear multi-selection before setting single select. */
+                if (ptView->iMultiSelCount > 0)
+                {
+                    memset(ptView->aszMultiSel, 0,
+                           sizeof(ptView->aszMultiSel));
+                    ptView->iMultiSelCount = 0;
+                    LOG_INFO("dir: multi-sel cleared on single SPACE");
+                }
                 if (ptView->ptLineCtx != NULL)
                 {
                     line_set_selected(ptView->ptLineCtx, ptNode->szPath);
@@ -1139,6 +1154,8 @@ static void dir_handle_key(dir_view_t  *ptView,
                     ptView->szLastSelected[ST_MAX_PATH - 1] = '\0';
                     LOG_INFO("dir: SPACE selected '%s'", ptNode->szPath);
                 }
+                /* BUG-08: refresh immediately so green highlight is visible */
+                bRedraw = ST_TRUE;
             }
         }
         break;

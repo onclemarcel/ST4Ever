@@ -104,6 +104,9 @@ typedef struct mount_view_s
     char               szCurDir[IST_NAME_MAX]; /* "" = root dir         */
     char               aszNavStack[8][IST_NAME_MAX]; /* back stack      */
     int                iNavDepth;              /* 0 = at root           */
+
+    /* BUG-04: files skipped during directory import (8.3 limit / full) */
+    int                iNotImported;
 } mount_view_t;
 
 /* ------------------------------------------------------------------

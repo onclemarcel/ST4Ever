@@ -15,6 +15,8 @@
 - 2026-06-10: Revue console + 1-OC.md mis à jour par Tonton — 3 bugs corrigés (trace level warning, image --msa .st→.msa Case 3, auto-complétion espaces `\ `) + P50-P56 déposées + DOC UFR-MNT-010 noté — 0 régression tests
 - 2026-06-10: UC24E Codé/Testé : `dir --select` headless (P50) + `script <file>` commande interactive (P51) + CTRL+O→mount (P52) + `edit -h/--hex` force hex (P54) + suppression `umount` (P55) + `image --dir` extraction .st/.msa → répertoire (P56) — 19 tests PASS 0 fail
 - 2026-06-10: UC24F Codé/Testé : Navigation arborescente vue mount (P53) — `image_st_mkdir`/`image_st_list_dir`/`image_st_write_file_in_dir` + mount ENTER→subdir/LEFT→parent + `mount_dir_cb` récursif 1 niveau + `mount_save_image` extrait subdirs — 26 tests PASS 0 fail
+- 2026-06-10: Revue UC24E/UC24F — 6 bugs corrigés : BUG-04 (iNotImported + avertissement Skipped dans panneau mount), BUG-05 (T1440→T80 via TS/SPT/Heads), BUG-06 (Geometry '—' sur mount répertoire local), BUG-07 (image --dir xx.st : xx.st source pas dest), BUG-08 (ESPACE vue dir → rafraîchissement immédiat), BUG-09 (historique ALT+← persistant entre sessions dir) — 0 régression tests
+- 2026-06-10: UC24G Codé/Testé : P57 `trace level all|info|error|todo` incrémental + P58 `image --in/--out` explicites + P60 sélection simple/multi exclusive dans vue dir + Phase 2 DOC-01/DOC-02 SR.md restructuré + TC.md UC24G (14 tests) + use_case_24G.c — 14 tests PASS 0 fail
 
 *L'historique des versions antérieures peut être récupéré via le change log github*
 
@@ -494,6 +496,7 @@ Les étapes de développement fonctionnelles sont formalisées en Use Cases, per
 | UC24D | `edit` hex | **P49** — Labels cliquables dans le bandeau → navigation adresse : labels JSON + auto-labels BPB (`FAT1`, `FAT2`, `Root dir`, `Data`) cliquables → `edit_hex_set_cursor_pos(lba*512+offset)`. Dépend de UC24C. | ✓ VALIDÉ 2026-06-09 |
 | UC24E | console | **P50/P51/P52/P54/P55/P56** — Évolutions console : `dir --select` headless + commande `script <file>` interactive + CTRL+O→mount + `edit --hex/-h` force hex + suppression `umount` (remplacé par image/ESC) + `image --dir` extraction image→répertoire | ✓ VALIDÉ 2026-06-10 |
 | UC24F | `mount` | **P53** — Navigation arborescente vue mount : `image_st_mkdir()` + `image_st_list_dir()` + `image_st_write_file_in_dir()` + récursivité `mount_dir_cb()` 1 niveau + ENTER/LEFT nav + extraction subdirs `mount_save_image()` | ✓ VALIDÉ 2026-06-10 |
+| UC24G | `trace`, `image`, `dir` | **P57** `trace level all\|info\|error\|todo` incrémental + **P58** `image --in/--out` explicites + **P60** sélection simple/multi exclusives dans vue dir — Phase 2 : DOC-01 (UFR-CON-099..105→SW reqs) + DOC-02 (§1.5 SR.md→derived reqs) | ✓ VALIDÉ 2026-06-10 |
 | UC25 | `execute` | Moteur pas-à-pas + vues CPU + mémoire | step + breakpoint sur .PRG simple |
 | UC26 | interne | Émulation vidéo ST (Shifter : low/med/high res, palette 16 couleurs) | rendu écran correct |
 | UC27 | `execute` | Vue écran Win32/GDI + X11 + synchronisation VBL | démo statique visible |
@@ -1327,6 +1330,144 @@ Flag `bExtractDir` dans `line_cmd_image()`. Source : mount view ouverte ou
 fichier `.st`/`.msa` en sélection/argument. Répertoire cible : `disk` →
 `disk2` … → `disk99` (auto-numérotation). Utilise `mount_view_open()` +
 `mount_save_image(MOUNT_SAVE_DIR, szDstDir)`.
+
+---
+
+### Arbitrage UC24F (2026-06-10)
+
+*UC24F implémente P53 (navigation arborescente mount). Les bugs et évolutions
+ci-dessous ont émergé lors de la revue UC24E/UC24F — corrections appliquées
+2026-06-10, 0 régression.*
+
+#### Bugs corrigés UC24E/UC24F (2026-06-10)
+
+**BUG-04 — `mount ./linux` : seulement 2 fichiers sur 4 visibles** → **CORRIGÉ**
+
+Cause : les fichiers `lx_console.c` et `lx_platform.c` ont un nom de base > 8
+caractères (contrainte FAT12 8.3). Ils sont silencieusement ignorés par
+`mount_dir_cb()`. Fix : champ `iNotImported` ajouté à `mount_view_t` ; panneau
+propriétés affiche `Skipped: N (8.3 limit)` en orange quand N > 0. Même
+comportement pour `mount ./use_cases/test` (fichiers `.st`/`.msa` trop grands).
+
+**BUG-05 — Geometry T1440 au lieu de T80** → **CORRIGÉ**
+
+BPB offset 0x13 = `Total Sectors` (1440) et non `Tracks`. Fix : lire comme
+`uiTS`, calculer `uiTracks = uiTS / (uiSPT × uiHeads)` = 1440 / 18 = 80.
+
+**BUG-06 — Geometry affiche H2/S9/T1440 sur mount répertoire local** → **CORRIGÉ**
+
+P53 spécifiait `—` pour la géométrie sur montage de répertoire local (pas de
+bootsector réel). Fix : lorsque `ptView->eSrc == MOUNT_SRC_DIR`, les lignes
+Geometry et Bootable affichent `—` au lieu des valeurs BPB synthétiques.
+
+**BUG-07 — `image --dir path/xx.st` : xx.st traité comme répertoire de sortie** → **CORRIGÉ**
+
+Fix : dans l'analyse des arguments de `--dir`, si le token suivant se termine
+en `.st`/`.msa`, il n'est PAS consommé comme `szExtractDst` mais laissé pour
+être capturé comme `szOutPath` (source) par la suite du parseur.
+
+**BUG-08 — ESPACE dans vue dir : surlignage vert non immédiat** → **CORRIGÉ**
+
+`bRedraw = ST_TRUE` était absent du handler SPACE simple dans
+`dir_handle_key()`. Ajouté — le fond vert (P11 szLastSelected) s'affiche
+dès l'appui barre espace, sans attendre le déplacement du curseur.
+
+**BUG-09 — ALT+LEFT ne fonctionne pas entre deux commandes `dir`** → **CORRIGÉ**
+
+Chaque appel `dir` fermait l'ancien view (réinitialisant l'historique) avant
+d'ouvrir le nouveau. Fix : dans `line_cmd_dir()`, l'historique du view précédent
+est sauvegardé dans les statiques `g_line_aDirNavHist/Head/Count` de `line.c`,
+puis restauré dans le nouveau view avec le nouveau chemin ajouté en tête. Ainsi
+`dir ./use_cases` → `dir ./linux` → ALT+← revient à `./use_cases`.
+
+---
+
+### Propositions nouvelles UC24F — À arbitrer par Tonton Marcel
+
+**DOC-01 — UFR-CON-099...105 devraient être en section SW requirements** → **À ARBITRER**
+
+UFR-CON-099 (commande `umount` supprimée, donc cette UFR n'a plus de sens
+utilisateur) ; UFR-CON-100..102 sont des SW reqs liés à UFR-CON-098 ;
+UFR-CON-103..105 sont des SW reqs liés à UFR-CON-070. Ces exigences s'appuient
+sur l'architecture logicielle, pas sur des besoins utilisateur visibles.
+Avis Claude : **ACCEPTÉ** — action SR.md : supprimer UFR-CON-099 (commande
+supprimée), déplacer UFR-CON-100..105 en section 2 SW requirements avec
+rationale "design constraint". Traçabilité TC.md + use_cases_24[E|F].c à
+mettre à jour. Impact : Phase 2 uniquement, aucune modification de code.
+
+**DOC-02 — §1.5 de "2 - SR.md" : exigences dérivées** → **À ARBITRER**
+
+La section §1.5 contient des exigences d'architecture/design (derived
+requirements) sans lien direct avec un UFR. Avis Claude : **ACCEPTÉ** —
+créer une section 2.x "Derived Requirements / Design Constraints" avec
+rationale "internal abstraction" et traça UFR `—`. Impact : documentation
+uniquement.
+
+**P57 — `trace level` incrémental : [all|info|error|todo]** → **À ARBITRER**
+
+Situation actuelle : `error` n'affiche que LOG_ERROR ; `info` affiche
+INFO+TODO+ERROR ; `trace` = identique à `info` si LOG_TRACE désactivés par
+défaut (P26 — ambigu). Proposition incrémentale :
+- `trace level todo` → LOG_TODO uniquement (fonctions stub actives)
+- `trace level error` → LOG_ERROR + LOG_TODO (debug : erreurs + rationale stubs)
+- `trace level info` → LOG_INFO + LOG_ERROR + LOG_TODO (tout sauf appels fonctions)
+- `trace level all` → toutes les traces (remplace `trace level trace`, plus clair)
+
+Avis Claude : **ACCEPTÉ** — sémantique plus claire et incrémentale. `all` est
+plus explicite que `trace` pour "afficher les LOG_TRACE". Coût faible :
+modification de `line_cmd_trace()` et `trace_view_t.eMinLevel` enum. Cible
+naturelle : **UC25-pre** ou regroupé avec un UC console futur.
+
+**P58 — Commande `image` : --in/--out explicites** → **À ARBITRER**
+
+Situation actuelle : `image --msa path/xx.st` est ambigu (xx.st est-il l'entrée
+ou la sortie ?). BUG-02 (corrigé) et BUG-07 (corrigé) en découlent. Proposition :
+- Disque monté par `mount` = source par défaut (via `info` → Disk Mounted).
+- `--in` : supersède la source par défaut (`--in ./my_dir` ou `--in x.st`).
+- `--out` : fichier/répertoire de sortie explicite (`--out ./yopla.msa`).
+- Sans `--out` : nom par défaut `./disk.st`, `./disk.msa`, ou `./disk/`.
+- Exemple complet : `image --in ./mydir --st --out ./yopla.st`.
+- Forme sans option : `image --msa` = crée `./disk.msa` depuis la vue montée.
+- Toute forme `image --msa path/xx.st` sans `--in`/`--out` → warning et refus.
+
+Avis Claude : **ACCEPTÉ — coût moyen**. Refactorisation complète du parseur de
+`line_cmd_image()`. Implique aussi la mise à jour de `help` et des tests UC24E.
+Cible : **UC25-pre** ou UC dédié "image-v2".
+
+**P59 — Menus contextuels clic droit dans vue `dir`** → **À ARBITRER**
+
+TODO UC7 et TODO UC18 mentionnent des menus contextuels pour la vue `dir`
+(clic droit sur fichier/répertoire : Open, Load, Edit, Mount, Copy, Delete...).
+Avis Claude : **ACCEPTÉ DIFFÉRÉ** — coût élevé (nouveau sous-système menu popup
+Win32/X11), cohérent avec P14 (sélection multiple) et les opérations mount.
+Cible : après UC25 quand les opérations principales (load/edit/mount/execute)
+seront toutes stables.
+
+**P60 — Sélection simple et multi-sélection exclusives dans vue `dir`** → **À ARBITRER**
+
+Comportement actuel défectueux : ESPACE sélectionne en vert, CTRL+ESPACE
+commence une multi-sélection en violet sans effacer la sélection verte. Le
+retour à la sélection simple (ESPACE après multi) ne retire pas les violets.
+Proposition : exclusivité stricte — début de multi-sélection annule la
+sélection simple (efface szLastSelected et retire le vert) ; retour à la
+sélection simple par ESPACE sur une ligne sélectionnée ou ESC. Comportement
+analogue à l'explorateur Windows.
+Avis Claude : **ACCEPTÉ** — coût faible, cohérence UX importante. Dans
+`dir_handle_key()` : au début du premier CTRL+ESPACE, effacer
+`szLastSelected` + `gui_invalidate`. Au ESPACE simple quand `iMultiSelCount > 0`,
+vider tout le tableau multi-sélection avant de sélectionner la nouvelle entrée.
+Cible : **UC25-pre** ou regroupé avec les corrections dir.
+
+| Proposition | Décision Tonton Marcel | UC cible |
+|-------------|------------------------|----------|
+| DOC-01 (UFR-CON-099..105 → SW reqs)     | ACCEPTÉ — **IMPLÉMENTÉ Phase 2 UC24G** | ✓ clos |
+| DOC-02 (§1.5 SR.md → derived reqs)      | ACCEPTÉ — **IMPLÉMENTÉ Phase 2 UC24G** | ✓ clos |
+| P57 (trace level all\|info\|error\|todo) | ACCEPTÉ — **IMPLÉMENTÉ UC24G** | ✓ clos |
+| P58 (image --in/--out explicites)        | ACCEPTÉ — **IMPLÉMENTÉ UC24G** | ✓ clos |
+| P59 (menus contextuels dir clic droit)   | DIFFÉRÉ | après UC25 |
+| P60 (sélection simple/multi exclusives)  | ACCEPTÉ — **IMPLÉMENTÉ UC24G** | ✓ clos |
+
+*Toutes les propositions P57/P58/P60 + DOC-01/DOC-02 ont été implémentées et validées dans UC24G. P59 différée. §7 ne contient plus de propositions non arbitrées pour UC24G — UC24G est clos.*
 
 ---
 

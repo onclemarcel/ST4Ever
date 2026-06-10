@@ -162,6 +162,11 @@ static edit_txt_view_t *g_line_ptEditTxtView = NULL;
 static edit_hex_view_t *g_line_ptEditHexView = NULL;
 static mount_view_t    *g_line_ptMountView   = NULL;
 
+/* BUG-09: dir navigation history persisted across dir command sessions */
+static char g_line_aDirNavHist[DIR_NAV_HIST_MAX][ST_MAX_PATH];
+static int  g_line_iDirNavHistHead  = -1;
+static int  g_line_iDirNavHistCount = 0;
+
 /* ------------------------------------------------------------------
  * History ring buffer
  * ------------------------------------------------------------------ */
@@ -1147,13 +1152,16 @@ static st_error_t line_cmd_trace(const parsed_cmd_t *ptParsed,
         if (ptParsed->iArgc < 3)
         {
             line_print_warning(
-                "trace level: expected trace|info|error");
+                "trace level: expected all|info|error|todo");
             return ST_NO_ERROR;
         }
 
         szLevel = ptParsed->aszArgv[2];
 
-        if (strcmp(szLevel, "trace") == 0)
+        /* P57: incremental levels — todo < error < info < all.
+         * "all" replaces the old "trace" keyword (kept as silent alias). */
+        if (strcmp(szLevel, "all") == 0 ||
+            strcmp(szLevel, "trace") == 0)        /* legacy alias */
         {
             eNewLevel = LOG_LEVEL_TRACE;
         }
@@ -1165,24 +1173,39 @@ static st_error_t line_cmd_trace(const parsed_cmd_t *ptParsed,
         {
             eNewLevel = LOG_LEVEL_ERROR;
         }
+        else if (strcmp(szLevel, "todo") == 0)
+        {
+            eNewLevel = LOG_LEVEL_TODO;
+        }
         else
         {
             line_print_warning(
                 "trace level: unknown level '%s'  "
-                "- use: trace|info|error",
+                "- use: all|info|error|todo",
                 szLevel);
             return ST_NO_ERROR;
         }
 
         trace_set_view_level(eNewLevel);
-        line_print_msg("Trace: view level set to '%s'", szLevel);
+        /* Normalise display name: always show canonical name */
+        {
+            const char *szCanon;
+            switch (eNewLevel)
+            {
+                case LOG_LEVEL_TRACE: szCanon = "all";   break;
+                case LOG_LEVEL_INFO:  szCanon = "info";  break;
+                case LOG_LEVEL_ERROR: szCanon = "error"; break;
+                default:              szCanon = "todo";  break;
+            }
+            line_print_msg("Trace: view level set to '%s'", szCanon);
+        }
     }
     else
     {
         line_print_warning(
             "trace: unknown argument '%s'  "
             "- use: trace | trace on | trace off | "
-            "trace clear | trace level trace|info|error",
+            "trace clear | trace level all|info|error|todo",
             szArg);
     }
 
@@ -1265,6 +1288,13 @@ static st_error_t line_cmd_dir(const parsed_cmd_t *ptParsed,
 
     if (g_line_ptDirView != NULL)
     {
+        /* BUG-09: save history before closing so ALT+← works across
+         * successive dir commands. */
+        memcpy(g_line_aDirNavHist, g_line_ptDirView->aszNavHistory,
+               sizeof(g_line_aDirNavHist));
+        g_line_iDirNavHistHead  = g_line_ptDirView->iNavHistHead;
+        g_line_iDirNavHistCount = g_line_ptDirView->iNavHistCount;
+
         eResult = dir_close(&g_line_ptDirView);
         if (eResult != ST_NO_ERROR)
         {
@@ -1279,6 +1309,37 @@ static st_error_t line_cmd_dir(const parsed_cmd_t *ptParsed,
         line_print_error("dir: failed to open view for '%s'",
                          szPath ? szPath : "(cwd)");
         return ST_ERROR;
+    }
+
+    /* BUG-09: restore previous history and append the newly opened path.
+     * dir_open() seeds aszNavHistory[0] with szRoot, head=0, count=1.
+     * We insert [prev_history] before the new root, then add new root at
+     * iNewHead.  If history is full the oldest entry is silently dropped. */
+    if (g_line_iDirNavHistHead >= 0)
+    {
+        int iNewHead;
+        int i;
+        char szNewRoot[ST_MAX_PATH];
+
+        strncpy(szNewRoot, g_line_ptDirView->aszNavHistory[0],
+                ST_MAX_PATH - 1);
+        szNewRoot[ST_MAX_PATH - 1] = '\0';
+
+        iNewHead = g_line_iDirNavHistHead + 1;
+        if (iNewHead >= DIR_NAV_HIST_MAX)
+            iNewHead = DIR_NAV_HIST_MAX - 1;
+
+        for (i = 0; i <= g_line_iDirNavHistHead && i < iNewHead; i++)
+        {
+            strncpy(g_line_ptDirView->aszNavHistory[i],
+                    g_line_aDirNavHist[i], ST_MAX_PATH - 1);
+            g_line_ptDirView->aszNavHistory[i][ST_MAX_PATH - 1] = '\0';
+        }
+        strncpy(g_line_ptDirView->aszNavHistory[iNewHead], szNewRoot,
+                ST_MAX_PATH - 1);
+        g_line_ptDirView->aszNavHistory[iNewHead][ST_MAX_PATH - 1] = '\0';
+        g_line_ptDirView->iNavHistHead  = iNewHead;
+        g_line_ptDirView->iNavHistCount = iNewHead + 1;
     }
 
     line_print_msg("Directory view opened%s%s%s.",
@@ -1909,26 +1970,47 @@ static st_error_t line_cmd_mount(const parsed_cmd_t *ptParsed,
 }
 
 /* ------------------------------------------------------------------
- * image — create or save a .st/.msa disk image
+ * image — create or save a .st/.msa disk image  (P58 --in/--out)
+ *
+ * Source resolution priority:
+ *   1. --in <path>         explicit source
+ *   2. mounted view        if g_line_ptMountView != NULL and no --in
+ *   3. selected file/dir   from console context
+ *   4. cwd                 last fallback (directory→image only)
+ *
+ * Output resolution priority:
+ *   1. --out <path>        explicit output
+ *   2. derived from source (convert: replace extension)
+ *   3. ./disk.EXT or ./disk[N] (auto-numbered)
  * ------------------------------------------------------------------ */
+
+/* Helper: check if szPath extension matches .st or .msa */
+static int line_is_disk_path(const char *szPath)
+{
+    const char *szDot = strrchr(szPath, '.');
+    return (szDot != NULL &&
+            (strcmp(szDot, ".st")  == 0 ||
+             strcmp(szDot, ".ST")  == 0 ||
+             strcmp(szDot, ".msa") == 0 ||
+             strcmp(szDot, ".MSA") == 0));
+}
 
 static st_error_t line_cmd_image(const parsed_cmd_t *ptParsed,
                                   line_context_t     *ptCtx)
 {
-    mount_view_t    *ptTmpView      = NULL;
-    image_st_t      *ptConvImg      = NULL;
-    char             szSrcPath[ST_MAX_PATH];
-    char             szOutPath[ST_MAX_PATH];
+    mount_view_t    *ptTmpView  = NULL;
+    image_st_t      *ptConvImg  = NULL;
+    char             szIn[ST_MAX_PATH];   /* --in source path        */
+    char             szOut[ST_MAX_PATH];  /* --out destination path  */
     char             szCwdBuf[ST_MAX_PATH];
-    char             szConvDst[ST_MAX_PATH];
-    char             szExtractDst[ST_MAX_PATH];
+    char             szAutoDst[ST_MAX_PATH];
     file_stat_t      tStat;
-    mount_save_fmt_t eFmt           = MOUNT_SAVE_ST;
-    st_bool_t        bBootable      = ST_FALSE;
-    st_bool_t        bHavePath      = ST_FALSE;
-    st_bool_t        bSrcIsSt       = ST_FALSE;
-    st_bool_t        bSrcIsMsa      = ST_FALSE;
-    st_bool_t        bExtractDir    = ST_FALSE;
+    mount_save_fmt_t eFmt       = MOUNT_SAVE_ST;
+    st_bool_t        bBootable  = ST_FALSE;
+    st_bool_t        bHaveIn    = ST_FALSE;
+    st_bool_t        bHaveOut   = ST_FALSE;
+    st_bool_t        bExtractDir = ST_FALSE;
+    st_bool_t        bHaveFmt   = ST_FALSE;
     const char      *szExt;
     const char      *szDot;
     size_t           uiCwdLen;
@@ -1939,47 +2021,90 @@ static st_error_t line_cmd_image(const parsed_cmd_t *ptParsed,
 
     LOG_TRACE("argc=%d", ptParsed->iArgc);
 
-    szExtractDst[0] = '\0';
+    szIn[0]  = '\0';
+    szOut[0] = '\0';
 
-    /* Parse arguments (skip argv[0] = command name) */
-    szOutPath[0] = '\0';
+    /* ---- argument parsing ----------------------------------------- */
     for (i = 1; i < ptParsed->iArgc; i++)
     {
         if (strcmp(ptParsed->aszArgv[i], "--msa") == 0)
+        {
             eFmt = MOUNT_SAVE_MSA;
+            bHaveFmt = ST_TRUE;
+        }
         else if (strcmp(ptParsed->aszArgv[i], "--st") == 0)
+        {
             eFmt = MOUNT_SAVE_ST;
-        else if (strcmp(ptParsed->aszArgv[i], "--bootable") == 0)
-            bBootable = ST_TRUE;
+            bHaveFmt = ST_TRUE;
+        }
         else if (strcmp(ptParsed->aszArgv[i], "--dir") == 0)
         {
             bExtractDir = ST_TRUE;
-            /* Optional folder argument after --dir */
-            if (i + 1 < ptParsed->iArgc
-             && ptParsed->aszArgv[i + 1][0] != '-')
+        }
+        else if (strcmp(ptParsed->aszArgv[i], "--bootable") == 0)
+        {
+            bBootable = ST_TRUE;
+        }
+        else if (strcmp(ptParsed->aszArgv[i], "--in") == 0)
+        {
+            if (i + 1 < ptParsed->iArgc)
             {
-                strncpy(szExtractDst, ptParsed->aszArgv[i + 1],
-                        ST_MAX_PATH - 1);
-                szExtractDst[ST_MAX_PATH - 1] = '\0';
-                i++;
+                strncpy(szIn, ptParsed->aszArgv[++i], ST_MAX_PATH - 1);
+                szIn[ST_MAX_PATH - 1] = '\0';
+                bHaveIn = ST_TRUE;
+            }
+            else
+            {
+                line_print_warning("image: --in requires a path argument.");
+                return ST_NO_ERROR;
             }
         }
-        else if (ptParsed->aszArgv[i][0] != '-' && !bHavePath)
+        else if (strcmp(ptParsed->aszArgv[i], "--out") == 0)
         {
-            strncpy(szOutPath, ptParsed->aszArgv[i], ST_MAX_PATH - 1);
-            szOutPath[ST_MAX_PATH - 1] = '\0';
-            bHavePath = ST_TRUE;
+            if (i + 1 < ptParsed->iArgc)
+            {
+                strncpy(szOut, ptParsed->aszArgv[++i], ST_MAX_PATH - 1);
+                szOut[ST_MAX_PATH - 1] = '\0';
+                bHaveOut = ST_TRUE;
+            }
+            else
+            {
+                line_print_warning("image: --out requires a path argument.");
+                return ST_NO_ERROR;
+            }
+        }
+        else if (ptParsed->aszArgv[i][0] != '-')
+        {
+            /* P58: positional argument is ambiguous — require --in/--out */
+            line_print_warning(
+                "image: '%s' is ambiguous. "
+                "Use --in <source> or --out <dest>.",
+                ptParsed->aszArgv[i]);
+            return ST_NO_ERROR;
         }
         else
         {
-            line_print_warning("image: unknown argument '%s'",
+            line_print_warning("image: unknown option '%s'",
                                ptParsed->aszArgv[i]);
         }
     }
 
-    szExt = (eFmt == MOUNT_SAVE_MSA) ? "msa" : "st";
+    /* ---- require at least one format/action flag ------------------- */
+    if (!bHaveFmt && !bExtractDir)
+    {
+        line_print_warning(
+            "image: specify --st, --msa, or --dir.  "
+            "Examples:\n"
+            "  image --st                  save mounted disk as disk.st\n"
+            "  image --msa                 save mounted disk as disk.msa\n"
+            "  image --dir                 extract mounted disk to ./disk/\n"
+            "  image --in x.msa --st       convert x.msa to x.st\n"
+            "  image --in mydir --msa      pack directory into disk.msa\n"
+            "  image --st --out game.st    save mounted disk as game.st");
+        return ST_NO_ERROR;
+    }
 
-    /* Build the cwd-based default output path when none provided */
+    /* ---- cwd buffer (used for default output names) ---------------- */
     strncpy(szCwdBuf, ptCtx->szCwd, ST_MAX_PATH - 1);
     szCwdBuf[ST_MAX_PATH - 1] = '\0';
     uiCwdLen = strlen(szCwdBuf);
@@ -1991,229 +2116,218 @@ static st_error_t line_cmd_image(const parsed_cmd_t *ptParsed,
         szCwdBuf[uiCwdLen + 1] = '\0';
     }
 
-    /* Case 0: --dir extraction — extract image contents to a directory */
+    szExt = (eFmt == MOUNT_SAVE_MSA) ? "msa" : "st";
+
+    /* ---- resolve source -------------------------------------------- */
+    /* Priority: --in > mounted view > selected */
+    if (!bHaveIn)
+    {
+        if (g_line_ptMountView == NULL)
+        {
+            /* No --in and no mounted view: fall back to selected */
+            line_get_selected(ptCtx, szIn, ST_MAX_PATH);
+            if (szIn[0] != '\0')
+                bHaveIn = ST_TRUE;
+        }
+        /* else: mounted view is the implicit source — szIn stays empty,
+         * g_line_ptMountView is used directly below.                   */
+    }
+
+    /* ---- Case: --dir extraction ------------------------------------ */
     if (bExtractDir)
     {
-        /* Determine output directory: provided, or auto-numbered */
-        if (szExtractDst[0] == '\0')
+        /* Determine output directory */
+        if (bHaveOut)
         {
-            snprintf(szExtractDst, sizeof(szExtractDst), "%sdisk",
-                     szCwdBuf);
+            strncpy(szAutoDst, szOut, ST_MAX_PATH - 1);
+            szAutoDst[ST_MAX_PATH - 1] = '\0';
+        }
+        else
+        {
+            snprintf(szAutoDst, sizeof(szAutoDst), "%sdisk", szCwdBuf);
             memset(&tStat, 0, sizeof(tStat));
-            if (file_stat(szExtractDst, &tStat) == ST_NO_ERROR
+            if (file_stat(szAutoDst, &tStat) == ST_NO_ERROR
              && tStat.bExists)
             {
                 for (iExtNum = 2; iExtNum <= 99; iExtNum++)
                 {
-                    snprintf(szExtractDst, sizeof(szExtractDst),
+                    snprintf(szAutoDst, sizeof(szAutoDst),
                              "%sdisk%d", szCwdBuf, iExtNum);
                     memset(&tStat, 0, sizeof(tStat));
-                    if (file_stat(szExtractDst, &tStat) != ST_NO_ERROR
+                    if (file_stat(szAutoDst, &tStat) != ST_NO_ERROR
                      || !tStat.bExists)
                         break;
                 }
             }
         }
 
-        /* Source: currently mounted image */
-        if (g_line_ptMountView != NULL)
+        /* Source: explicitly specified --in file */
+        if (bHaveIn && line_is_disk_path(szIn))
         {
-            eResult = mount_save_image(g_line_ptMountView,
-                                       MOUNT_SAVE_DIR, szExtractDst);
-            if (eResult == ST_NO_ERROR)
-                line_print_msg("Extracted to: %s", szExtractDst);
-            else
-                line_print_error("Extraction failed.");
-            return ST_NO_ERROR;
+            memset(&tStat, 0, sizeof(tStat));
+            if (file_stat(szIn, &tStat) != ST_NO_ERROR ||
+                !tStat.bExists || tStat.bIsDir)
+            {
+                line_print_error("image --dir: source not found: '%s'", szIn);
+                return ST_NO_ERROR;
+            }
+            eResult = mount_view_open(szIn, ptCtx, &ptTmpView);
+            if (eResult != ST_NO_ERROR || ptTmpView == NULL)
+            {
+                line_print_error("image --dir: failed to open disk '%s'",
+                                 szIn);
+                return ST_NO_ERROR;
+            }
+            eResult = mount_save_image(ptTmpView, MOUNT_SAVE_DIR, szAutoDst);
+            mount_view_close(&ptTmpView);
         }
-
-        /* Source: .st or .msa file from selection or explicit path */
-        szSrcPath[0] = '\0';
-        if (bHavePath)
+        else if (!bHaveIn && g_line_ptMountView != NULL)
         {
-            strncpy(szSrcPath, szOutPath, ST_MAX_PATH - 1);
-            szSrcPath[ST_MAX_PATH - 1] = '\0';
+            /* Source: currently mounted image */
+            eResult = mount_save_image(g_line_ptMountView,
+                                       MOUNT_SAVE_DIR, szAutoDst);
         }
         else
         {
-            line_get_selected(ptCtx, szSrcPath, ST_MAX_PATH);
+            line_print_warning(
+                "image --dir: no source. "
+                "Use --in <disk.st|msa> or open a disk with 'mount'.");
+            return ST_NO_ERROR;
         }
 
-        if (szSrcPath[0] != '\0')
-        {
-            szDot     = strrchr(szSrcPath, '.');
-            bSrcIsSt  = (szDot != NULL &&
-                         (strcmp(szDot, ".st")  == 0 ||
-                          strcmp(szDot, ".ST")  == 0));
-            bSrcIsMsa = (szDot != NULL &&
-                         (strcmp(szDot, ".msa") == 0 ||
-                          strcmp(szDot, ".MSA") == 0));
-
-            if ((bSrcIsSt || bSrcIsMsa) &&
-                file_stat(szSrcPath, &tStat) == ST_NO_ERROR &&
-                tStat.bExists && !tStat.bIsDir)
-            {
-                eResult = mount_view_open(szSrcPath, ptCtx, &ptTmpView);
-                if (eResult != ST_NO_ERROR || ptTmpView == NULL)
-                {
-                    line_print_error(
-                        "image: failed to open disk '%s'", szSrcPath);
-                    return ST_NO_ERROR;
-                }
-
-                eResult = mount_save_image(ptTmpView, MOUNT_SAVE_DIR,
-                                           szExtractDst);
-                mount_view_close(&ptTmpView);
-
-                if (eResult == ST_NO_ERROR)
-                    line_print_msg("Extracted to: %s", szExtractDst);
-                else
-                    line_print_error("Extraction failed.");
-                return ST_NO_ERROR;
-            }
-        }
-
-        line_print_warning(
-            "image --dir: no mounted disk and no .st/.msa file "
-            "selected. Use 'dir' to select a disk image first.");
+        if (eResult == ST_NO_ERROR)
+            line_print_msg("Extracted to: %s", szAutoDst);
+        else
+            line_print_error("Extraction failed.");
         return ST_NO_ERROR;
     }
 
-    /* Case 1: mount view already open — save its content */
-    if (g_line_ptMountView != NULL)
+    /* ---- Case: save / convert / pack ------------------------------- */
+    /* Sub-case A: mounted view is the source */
+    if (!bHaveIn && g_line_ptMountView != NULL)
     {
-        if (!bHavePath)
-            snprintf(szOutPath, sizeof(szOutPath), "%.*sdisk.%s",
-                     (int)(sizeof(szOutPath) - 9), szCwdBuf, szExt);
+        if (!bHaveOut)
+            snprintf(szOut, sizeof(szOut), "%.*sdisk.%s",
+                     (int)(sizeof(szOut) - 9), szCwdBuf, szExt);
         if (bBootable)
             mount_make_bootable(g_line_ptMountView->ptImg);
-        eResult = mount_save_image(g_line_ptMountView, eFmt, szOutPath);
+        eResult = mount_save_image(g_line_ptMountView, eFmt, szOut);
         if (eResult == ST_NO_ERROR)
-            line_print_msg("Image saved: %s", szOutPath);
+            line_print_msg("Image saved: %s", szOut);
         else
             line_print_error("Failed to save image.");
+        line_update_console_title(ptCtx);
         return ST_NO_ERROR;
     }
 
-    /* Case 2: file-to-file conversion (.st ↔ .msa) */
-    /* If selected/specified path is an existing .st or .msa file,        */
-    /* treat it as the source and derive the output from it.              */
-    szSrcPath[0] = '\0';
-    if (bHavePath)
+    /* Sub-case B: --in is a disk file → file-to-file conversion */
+    if (bHaveIn && line_is_disk_path(szIn))
     {
-        strncpy(szSrcPath, szOutPath, ST_MAX_PATH - 1);
-        szSrcPath[ST_MAX_PATH - 1] = '\0';
-    }
-    else
-    {
-        line_get_selected(ptCtx, szSrcPath, ST_MAX_PATH);
-    }
-
-    if (szSrcPath[0] != '\0')
-    {
-        szDot     = strrchr(szSrcPath, '.');
-        bSrcIsSt  = (szDot != NULL &&
-                     (strcmp(szDot, ".st")  == 0 ||
-                      strcmp(szDot, ".ST")  == 0));
-        bSrcIsMsa = (szDot != NULL &&
-                     (strcmp(szDot, ".msa") == 0 ||
-                      strcmp(szDot, ".MSA") == 0));
-
-        if ((bSrcIsSt || bSrcIsMsa) &&
-            file_stat(szSrcPath, &tStat) == ST_NO_ERROR &&
-            tStat.bExists && !tStat.bIsDir)
+        memset(&tStat, 0, sizeof(tStat));
+        if (file_stat(szIn, &tStat) != ST_NO_ERROR ||
+            !tStat.bExists || tStat.bIsDir)
         {
-            /* Derive output path: replace extension */
-            if (!bHavePath ||
-                (bHavePath && strcmp(szSrcPath, szOutPath) == 0))
-            {
-                uiBaseLen = (size_t)(szDot - szSrcPath);
-                snprintf(szConvDst, sizeof(szConvDst), "%.*s.%s",
-                         (int)uiBaseLen, szSrcPath, szExt);
-            }
-            else
-            {
-                strncpy(szConvDst, szOutPath, ST_MAX_PATH - 1);
-                szConvDst[ST_MAX_PATH - 1] = '\0';
-            }
-
-            /* Load source */
-            if (bSrcIsSt)
-                eResult = image_st_load(szSrcPath, &ptConvImg);
-            else
-                eResult = image_msa_load(szSrcPath, &ptConvImg);
-
-            if (eResult != ST_NO_ERROR || ptConvImg == NULL)
-            {
-                line_print_error("image: failed to load '%s'", szSrcPath);
-                return ST_NO_ERROR;
-            }
-
-            if (bBootable)
-                mount_make_bootable(ptConvImg);
-
-            /* Save as target format */
-            if (eFmt == MOUNT_SAVE_MSA)
-                eResult = image_msa_save(ptConvImg, szConvDst);
-            else
-                eResult = image_st_save(ptConvImg, szConvDst);
-
-            image_st_close(&ptConvImg);
-
-            if (eResult == ST_NO_ERROR)
-                line_print_msg("Image saved: %s", szConvDst);
-            else
-                line_print_error("Failed to save image.");
-
-            line_update_console_title(ptCtx);
+            line_print_error("image: source not found: '%s'", szIn);
             return ST_NO_ERROR;
         }
-    }
 
-    /* Case 3: create image from a directory (selected or cwd) */
-    szSrcPath[0] = '\0';
-    line_get_selected(ptCtx, szSrcPath, ST_MAX_PATH);
-    if (szSrcPath[0] == '\0')
-    {
-        strncpy(szSrcPath, ptCtx->szCwd, ST_MAX_PATH - 1);
-        szSrcPath[ST_MAX_PATH - 1] = '\0';
-    }
+        /* Default output: replace extension of source */
+        if (!bHaveOut)
+        {
+            szDot = strrchr(szIn, '.');
+            uiBaseLen = (szDot != NULL) ? (size_t)(szDot - szIn)
+                                         : strlen(szIn);
+            snprintf(szOut, sizeof(szOut), "%.*s.%s",
+                     (int)uiBaseLen, szIn, szExt);
+        }
 
-    memset(&tStat, 0, sizeof(tStat));
-    if (file_stat(szSrcPath, &tStat) != ST_NO_ERROR ||
-        !tStat.bExists || !tStat.bIsDir)
-    {
-        line_print_warning(
-            "image: select a directory or .st/.msa file with 'dir', "
-            "or open a disk with 'mount' before using 'image'.");
+        szDot = strrchr(szIn, '.');
+        if (szDot != NULL &&
+            (strcmp(szDot, ".st") == 0 || strcmp(szDot, ".ST") == 0))
+            eResult = image_st_load(szIn, &ptConvImg);
+        else
+            eResult = image_msa_load(szIn, &ptConvImg);
+
+        if (eResult != ST_NO_ERROR || ptConvImg == NULL)
+        {
+            line_print_error("image: failed to load '%s'", szIn);
+            return ST_NO_ERROR;
+        }
+
+        if (bBootable)
+            mount_make_bootable(ptConvImg);
+
+        if (eFmt == MOUNT_SAVE_MSA)
+            eResult = image_msa_save(ptConvImg, szOut);
+        else
+            eResult = image_st_save(ptConvImg, szOut);
+
+        image_st_close(&ptConvImg);
+
+        if (eResult == ST_NO_ERROR)
+            line_print_msg("Image saved: %s", szOut);
+        else
+            line_print_error("Failed to save image.");
+
+        line_update_console_title(ptCtx);
         return ST_NO_ERROR;
     }
 
-    if (!bHavePath)
-        snprintf(szOutPath, sizeof(szOutPath), "%.*sdisk.%s",
-                 (int)(sizeof(szOutPath) - 9), szCwdBuf, szExt);
-
-    /* Silently mount the directory to build the image (no GUI window) */
-    eResult = mount_view_open(szSrcPath, ptCtx, &ptTmpView);
-    if (eResult != ST_NO_ERROR || ptTmpView == NULL)
+    /* Sub-case C: --in is a directory (or fallback to selected/cwd) */
     {
-        line_print_error("image: failed to create disk from '%s'", szSrcPath);
+        char szSrcDir[ST_MAX_PATH];
+
+        if (bHaveIn)
+        {
+            strncpy(szSrcDir, szIn, ST_MAX_PATH - 1);
+            szSrcDir[ST_MAX_PATH - 1] = '\0';
+        }
+        else if (szIn[0] != '\0') /* selected path from context */
+        {
+            strncpy(szSrcDir, szIn, ST_MAX_PATH - 1);
+            szSrcDir[ST_MAX_PATH - 1] = '\0';
+        }
+        else
+        {
+            strncpy(szSrcDir, ptCtx->szCwd, ST_MAX_PATH - 1);
+            szSrcDir[ST_MAX_PATH - 1] = '\0';
+        }
+
+        memset(&tStat, 0, sizeof(tStat));
+        if (file_stat(szSrcDir, &tStat) != ST_NO_ERROR ||
+            !tStat.bExists || !tStat.bIsDir)
+        {
+            line_print_warning(
+                "image: no valid source. "
+                "Use --in <dir|disk> or mount a disk first.");
+            return ST_NO_ERROR;
+        }
+
+        if (!bHaveOut)
+            snprintf(szOut, sizeof(szOut), "%.*sdisk.%s",
+                     (int)(sizeof(szOut) - 9), szCwdBuf, szExt);
+
+        eResult = mount_view_open(szSrcDir, ptCtx, &ptTmpView);
+        if (eResult != ST_NO_ERROR || ptTmpView == NULL)
+        {
+            line_print_error("image: failed to pack '%s'", szSrcDir);
+            return ST_NO_ERROR;
+        }
+
+        if (bBootable)
+            mount_make_bootable(ptTmpView->ptImg);
+
+        eResult = mount_save_image(ptTmpView, eFmt, szOut);
+        mount_view_close(&ptTmpView);
+
+        if (eResult == ST_NO_ERROR)
+            line_print_msg("Image saved: %s", szOut);
+        else
+            line_print_error("Failed to save image.");
+
+        line_update_console_title(ptCtx);
         return ST_NO_ERROR;
     }
-
-    if (bBootable)
-        mount_make_bootable(ptTmpView->ptImg);
-
-    eResult = mount_save_image(ptTmpView, eFmt, szOutPath);
-    mount_view_close(&ptTmpView);
-
-    if (eResult == ST_NO_ERROR)
-        line_print_msg("Image saved: %s", szOutPath);
-    else
-        line_print_error("Failed to save image.");
-
-    line_update_console_title(ptCtx);
-    return ST_NO_ERROR;
 }
 
 /* ------------------------------------------------------------------

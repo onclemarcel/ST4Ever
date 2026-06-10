@@ -3517,3 +3517,73 @@ Source: `use_cases/use_case_24F.c`
 | UFR-CON-103  | REQ-IST-033  | TC-IST-081                    | v UC24F   |
 | UFR-CON-104  | REQ-IST-034  | TC-IST-082..084               | v UC24F   |
 | UFR-CON-105  | REQ-IST-035  | TC-IST-085, 088               | v UC24F   |
+
+---
+
+### 5.90 INTENT Catalog — UC24G
+
+| ID          | INTENT text (use_case_24G.c)                                                          |
+|-------------|--------------------------------------------------------------------------------------|
+| INT-CON-119 | trace level 'all' activates LOG_TRACE display (replaces 'trace')                     |
+| INT-CON-120 | trace level 'todo' shows only LOG_TODO entries                                        |
+| INT-CON-121 | trace level 'error' shows ERROR + TODO entries                                        |
+| INT-CON-122 | unknown trace level keyword produces a warning, level unchanged                       |
+| INT-CON-123 | image --in <disk> --st produces .st output without positional ambiguity               |
+| INT-CON-124 | image positional path (no --in/--out) is rejected with deprecation warning            |
+| INT-CON-125 | image --in missing argument is rejected                                               |
+| INT-CON-126 | dir SPACE clears multi-sel before setting green single selection                      |
+| INT-CON-127 | dir CTRL+SPACE clears green single selection before toggling purple multi-sel         |
+| INT-CON-128 | mount dir-source panel shows Geometry '—' (no bootsector)                            |
+| INT-CON-129 | mount .st panel shows derived Tracks = TS/(SPT*Heads), not raw TS value              |
+| INT-CON-130 | mount dir-source panel shows Skipped count when 8.3 files are dropped                |
+| INT-CON-131 | dir ALT+LEFT history persists across dir command re-invocations                       |
+
+### 5.91 Test Cases — UC24G
+
+| TC ID       | Description                                                                              | Cat  | UFR parent       | REQ parent    | INT ref      | Assert                                                        | Status     |
+|-------------|------------------------------------------------------------------------------------------|------|------------------|---------------|--------------|---------------------------------------------------------------|------------|
+| TC-CON-170  | `trace level all` → `trace_get_view_level() == LOG_LEVEL_TRACE`                          | [N]  | UFR-TRC-012      | REQ-CON-041   | INT-CON-119  | level == LOG_LEVEL_TRACE                                      | PASS UC24G |
+| TC-CON-171  | `trace level todo` → `trace_get_view_level() == LOG_LEVEL_TODO`                          | [N]  | UFR-TRC-012      | REQ-CON-041   | INT-CON-120  | level == LOG_LEVEL_TODO                                       | PASS UC24G |
+| TC-CON-172  | `trace level error` → `trace_get_view_level() == LOG_LEVEL_ERROR`                        | [N]  | UFR-TRC-012      | REQ-CON-041   | INT-CON-121  | level == LOG_LEVEL_ERROR                                      | PASS UC24G |
+| TC-CON-173  | `trace level info` still works (existing level)                                          | [N]  | UFR-TRC-012      | REQ-CON-041   | INT-CON-119  | level == LOG_LEVEL_INFO                                       | PASS UC24G |
+| TC-CON-174  | `trace level bogus` → ST_NO_ERROR, level unchanged, warning printed                      | [R]  | UFR-TRC-012      | REQ-CON-041   | INT-CON-122  | level unchanged; no crash                                     | PASS UC24G |
+| TC-CON-175  | `image --in x.st --st` (explicit --in) → ST_NO_ERROR, no ambiguity                      | [N]  | UFR-CON-106      | REQ-CON-042   | INT-CON-123  | ST_NO_ERROR                                                   | PASS UC24G |
+| TC-CON-176  | `image --msa path.st` (positional only) → deprecation warning, ST_ERROR                  | [R]  | UFR-CON-106      | REQ-CON-042   | INT-CON-124  | deprecation message in output                                 | PASS UC24G |
+| TC-CON-177  | `image --in` (missing argument) → usage warning, ST_NO_ERROR                             | [R]  | UFR-CON-106      | REQ-CON-042   | INT-CON-125  | warning printed, no crash                                     | PASS UC24G |
+| TC-DIR-016  | SPACE after CTRL+SPACE: purple set cleared, green indicator set                          | [N]  | UFR-DIR-015      | REQ-DIR-028   | INT-CON-126  | `iMultiSelCount == 0`; `szLastSelected` non-empty             | PASS UC24G |
+| TC-DIR-017  | CTRL+SPACE after SPACE: green indicator cleared, entry added to purple set               | [N]  | UFR-DIR-015      | REQ-DIR-028   | INT-CON-127  | `szLastSelected[0] == '\0'`; `iMultiSelCount == 1`            | PASS UC24G |
+| TC-MNT-001  | mount MOUNT_SRC_DIR: geometry panel shows `"—"` for H/S/T                               | [N]  | UFR-MNT-005      | REQ-MNT-013   | INT-CON-128  | `eSrc == MOUNT_SRC_DIR`; geometry not drawn from BPB          | PASS UC24G |
+| TC-MNT-002  | mount .st: Tracks = TS/(SPT*Heads), not TS raw (e.g. 1440/9/2 = 80, not 1440)           | [N]  | UFR-MNT-005      | REQ-MNT-013   | INT-CON-129  | `uiTracks == 80` for standard 720 KB image                    | PASS UC24G |
+| TC-MNT-003  | `iNotImported > 0` after dir with long-name files → panel shows Skipped row              | [N]  | UFR-MNT-003      | REQ-MNT-025   | INT-CON-130  | `ptView->iNotImported >= 1`                                   | PASS UC24G |
+| TC-CON-178  | ALT+LEFT history survives between two `dir` invocations (BUG-09)                         | [N]  | UFR-DIR-014      | REQ-DIR-025   | INT-CON-131  | after 2nd dir_open, history head > 0 on ALT+LEFT              | PASS UC24G |
+
+#### Test Summary — UC24G
+
+| Module | [N] | [R] | [S] | Total | Result    |
+|--------|-----|-----|-----|-------|-----------|
+| CON    | 7   | 3   | 0   | 10    | ALL PASS  |
+| DIR    | 2   | 0   | 0   | 2     | ALL PASS  |
+| MNT    | 2   | 0   | 0   | 2     | ALL PASS  |
+| **UC24G** | **11** | **3** | **0** | **14** | **ALL PASS** |
+
+#### REQ -> TC coverage (UC24G)
+
+| REQ          | TC(s)                             | Status    |
+|--------------|-----------------------------------|-----------|
+| REQ-CON-041  | TC-CON-170..174                   | v UC24G   |
+| REQ-CON-042  | TC-CON-175..177                   | v UC24G   |
+| REQ-DIR-028  | TC-DIR-016..017                   | v UC24G   |
+| REQ-MNT-013  | TC-MNT-001..002                   | v UC24G   |
+| REQ-MNT-025  | TC-MNT-003                        | v UC24G   |
+| REQ-DIR-025  | TC-CON-178                        | v UC24G   |
+
+#### UFR traceability (UC24G)
+
+| UFR          | REQ(s)       | TC(s)                         | Status    |
+|--------------|--------------|-------------------------------|-----------|
+| UFR-TRC-012  | REQ-CON-041  | TC-CON-170..174               | v UC24G   |
+| UFR-CON-106  | REQ-CON-042  | TC-CON-175..177               | v UC24G   |
+| UFR-DIR-015  | REQ-DIR-028  | TC-DIR-016..017               | v UC24G   |
+| UFR-MNT-005  | REQ-MNT-013  | TC-MNT-001..002               | v UC24G   |
+| UFR-MNT-003  | REQ-MNT-025  | TC-MNT-003                    | v UC24G   |
+| UFR-DIR-014  | REQ-DIR-025  | TC-CON-178                    | v UC24G   |

@@ -465,20 +465,23 @@ static void mount_render(mount_view_t *ptView)
         st_u16_t  uiTracks = IST_TRACKS;
         st_u16_t  uiRDE    = IST_RDE;
 
-        if (ptView->ptImg != NULL &&
+        if (ptView->eSrc != MOUNT_SRC_DIR &&
+            ptView->ptImg != NULL &&
             image_st_get_disk(ptView->ptImg, &pDisk) == ST_NO_ERROR &&
             pDisk != NULL)
         {
             st_u16_t v;
+            st_u16_t uiTS;  /* BPB @0x13: Total Sectors (not Tracks!) */
             v = (st_u16_t)( (st_u16_t)pDisk[0x18] |
                              ((st_u16_t)pDisk[0x19] << 8) );
             if (v != 0) uiSPT = v;
             v = (st_u16_t)( (st_u16_t)pDisk[0x1A] |
                              ((st_u16_t)pDisk[0x1B] << 8) );
             if (v != 0) uiHeads = v;
-            v = (st_u16_t)( (st_u16_t)pDisk[0x13] |
-                             ((st_u16_t)pDisk[0x14] << 8) );
-            if (v != 0) uiTracks = v;
+            uiTS = (st_u16_t)( (st_u16_t)pDisk[0x13] |
+                                ((st_u16_t)pDisk[0x14] << 8) );
+            if (uiTS != 0 && uiSPT != 0 && uiHeads != 0)
+                uiTracks = (st_u16_t)(uiTS / ((st_u32_t)uiSPT * uiHeads));
             v = (st_u16_t)( (st_u16_t)pDisk[0x11] |
                              ((st_u16_t)pDisk[0x12] << 8) );
             if (v != 0) uiRDE = v;
@@ -502,6 +505,25 @@ static void mount_render(mount_view_t *ptView)
             snprintf(szLine, sizeof(szLine), "  %d / %u  (root)",
                      ptView->iEntryCount, (unsigned)uiRDE);
             PROP_ROW(szLine, &g_mnt_clrValue);
+        }
+        else if (ptView->eSrc == MOUNT_SRC_DIR)
+        {
+            /* BUG-06: local directory mount — no real bootsector */
+            PROP_ROW("Geometry:", &g_mnt_clrLabel);
+            PROP_ROW("  —", &g_mnt_clrValue);
+            PROP_ROW("Bootable:", &g_mnt_clrLabel);
+            PROP_ROW("  —", &g_mnt_clrValue);
+            PROP_ROW("Files:", &g_mnt_clrLabel);
+            snprintf(szLine, sizeof(szLine), "  %d", ptView->iEntryCount);
+            PROP_ROW(szLine, &g_mnt_clrValue);
+            /* BUG-04: warn about files skipped (8.3 name limit / disk full) */
+            if (ptView->iNotImported > 0)
+            {
+                PROP_ROW("Skipped:", &g_mnt_clrLabel);
+                snprintf(szLine, sizeof(szLine), "  %d (8.3 limit)",
+                         ptView->iNotImported);
+                PROP_ROW(szLine, &g_mnt_clrDirty);
+            }
         }
         else
         {
@@ -1234,8 +1256,9 @@ st_error_t mount_view_open(const char     *szPath,
         memset(&tCbCtx, 0, sizeof(tCbCtx));
         tCbCtx.ptView = ptView;
         file_list_dir(szEffPath, ST_FALSE, mount_dir_cb, &tCbCtx);
+        ptView->iNotImported = tCbCtx.iSkipped;
         if (tCbCtx.iSkipped > 0)
-            LOG_INFO("dir mount: %d added, %d skipped",
+            LOG_INFO("dir mount: %d added, %d skipped (8.3 limit or full)",
                      tCbCtx.iAdded, tCbCtx.iSkipped);
         szSrcLabel = "Dir";
     }

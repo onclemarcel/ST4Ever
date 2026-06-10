@@ -2657,3 +2657,100 @@ TEST MATRIX - UC24F:
 
 ---
 
+
+## UC24G — P57/P58/P60 + Corrections BUG-04..09
+
+**Date:** 2026-06-10  
+**Statut:** ✓ VALIDÉ  
+**Version:** 0.24.7
+
+### Périmètre implémenté
+
+**P57 — `trace level all|info|error|todo` incrémental**
+- `trace level all` : affiche LOG_TRACE + INFO + ERROR + TODO (remplace `trace level trace`)
+- `trace level todo` : affiche LOG_TODO uniquement (stubs actifs)
+- `trace level error` : affiche ERROR + TODO
+- `trace level info` : affiche INFO + ERROR + TODO (inchangé)
+- Mot-clé `trace` désormais canoniquement affiché `all` dans les confirmations
+- Mot-clé inconnu → warning lisible avec liste des valeurs valides, niveau inchangé
+
+**P58 — `image --in/--out` explicites**
+- `--in <src>` : source explicite (répertoire ou `.st`/`.msa`)
+- `--out <dest>` : destination explicite (fichier ou dossier)
+- Forme positionnelle `image --msa path.st` → warning de dépréciation + refus
+- `--in` sans argument → warning usage, `ST_NO_ERROR` (non fatal)
+- Aide `image --help` mise à jour
+- `line_is_disk_path()` helper statique identifiant `.st`/`.msa`
+
+**P60 — Sélection simple/multi exclusives dans vue `dir`**
+- CTRL+SPACE efface `szLastSelected` avant d'ajouter à `aszMultiSel[]`
+- SPACE efface `aszMultiSel[]/iMultiSelCount` avant d'écrire `szLastSelected`
+- Les deux états ne coexistent jamais : vert et violet mutuellement exclusifs
+
+**Corrections bugs**
+- BUG-04 : `mount_view_t.iNotImported` — compteur de fichiers ignorés (8.3 ou disque plein) ; affiché en orange dans le panneau propriétés
+- BUG-05 : `tracks = TS / (SPT × Heads)` — BPB @0x13 est le Total Sectors, pas les Tracks
+- BUG-06 : `MOUNT_SRC_DIR` : panneau géométrie affiche `—` (pas de bootsector disponible)
+- BUG-07 : `image --dir xx.st` : `xx.st` est maintenant reconnu comme source (couvert par P58)
+- BUG-08 : ESPACE dans vue dir → `bRedraw = ST_TRUE` immédiat
+- BUG-09 : Historique ALT+← persist entre invocations `dir` via statics `g_line_aDirNavHist[]`
+
+### Infrastructure validée
+
+- `line.c` : REQ-CON-041 (trace level all/todo), REQ-CON-042 (image --in/--out)
+- `dir.c` : REQ-DIR-028 (exclusivité sélections)
+- `mount.c` / `mount.h` : REQ-MNT-013 (géométrie corrigée), REQ-MNT-025 (iNotImported)
+- `common.h` : ST_APP_VERSION = "0.24.7"
+
+### Matrice de tests
+
+```
+TEST MATRIX - UC24G:
+  [N] Nominal    : 11 tests - trace level all/todo/error/info;
+                              image --in explicit accepted;
+                              dir SPACE clears multi-sel;
+                              dir CTRL+SPACE clears single-sel;
+                              mount MOUNT_SRC_DIR geometry — absent;
+                              mount .st tracks = TS/(SPT*Heads);
+                              mount dir-source iNotImported field;
+                              ALT+LEFT history preserved cross-dir
+  [R] Robustness :  3 tests - trace level unknown keyword no crash;
+                               image positional path rejected;
+                               image --in missing arg warning
+  [S] Skipped    :  0 tests
+```
+
+### Contrats comportementaux validés
+
+*Module `line.c` — trace level (UC24G)*
+- `trace_set_view_level(LOG_LEVEL_TRACE)` suivi de `trace_get_view_level()` retourne `LOG_LEVEL_TRACE`
+- `trace_set_view_level(LOG_LEVEL_TODO)` filtre : seules les lignes `LOG_TODO` passent
+- `trace_set_view_level(LOG_LEVEL_ERROR)` filtre : `LOG_ERROR` + `LOG_TODO` passent
+- Le niveau par défaut est `LOG_LEVEL_TRACE` (inchangé depuis UC5)
+
+*Module `line.c` — image --in/--out (UC24G)*
+- `image --in <src>` : `line_is_disk_path()` retourne vrai pour `.st`/`.msa`/`.ST`/`.MSA`
+- `image --msa path.st` sans `--in`/`--out` → deprecation warning, aucun fichier créé
+- `image --in` seul (sans argument) → warning usage, retour non fatal
+
+*Module `dir.c` — sélection exclusive (UC24G)*
+- Après CTRL+SPACE : `szLastSelected[0] == '\0'` ET `iMultiSelCount >= 1`
+- Après SPACE : `iMultiSelCount == 0` ET `szLastSelected[0] != '\0'`
+- Les deux champs ne sont jamais simultanément non-nuls
+
+*Module `mount.c` — géométrie (UC24G)*
+- `MOUNT_SRC_DIR` : la section BPB du panneau droite affiche `—` (guard `eSrc != MOUNT_SRC_DIR`)
+- `MOUNT_SRC_ST` : `uiTracks = uiTS / (uiSPT * uiHeads)` — pour image standard : 1440 / (9×2) = 80
+- `iNotImported > 0` → ligne orange `"Skipped: N (8.3 limit)"` dans le panneau propriétés
+
+*Module `line.c` — historique navigation (UC24G)*
+- `g_line_aDirNavHist[]`, `g_line_iDirNavHistHead`, `g_line_iDirNavHistCount` sont des statics persistants entre `dir_open/dir_close` cycles
+- Lors d'un nouveau `dir_open`, l'historique préservé est restauré dans la nouvelle `dir_view_t`
+
+### Points d'attention pour les UCs suivants
+
+- UC25 (`execute`) : `trace level todo` sera utile pour voir les stubs actifs sans bruit TRACE/INFO
+- UC25 (`execute`) : `image --in` / `--out` ouvre la voie pour des opérations batch scriptées sur des images
+- P59 (menus contextuels dir clic droit) : différé après UC25 ; state des sélections simple/multi est maintenant propre pour alimenter ces menus
+
+---
