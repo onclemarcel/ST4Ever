@@ -2749,8 +2749,150 @@ TEST MATRIX - UC24G:
 
 ### Points d'attention pour les UCs suivants
 
-- UC25 (`execute`) : `trace level todo` sera utile pour voir les stubs actifs sans bruit TRACE/INFO
-- UC25 (`execute`) : `image --in` / `--out` ouvre la voie pour des opérations batch scriptées sur des images
+- UC25A (`execute`) : `trace level todo` sera utile pour voir les stubs actifs sans bruit TRACE/INFO
+- UC25A (`execute`) : `image --in` / `--out` ouvre la voie pour des opérations batch scriptées sur des images
 - P59 (menus contextuels dir clic droit) : différé après UC25 ; state des sélections simple/multi est maintenant propre pour alimenter ces menus
+
+---
+
+## UC25A — Moteur d'exécution pas-à-pas + vues Monitor + CPU
+
+**Périmètre fonctionnel implémenté :**
+
+- `exec.c` / `exec.h` : orchestrateur d'exécution
+  - `exec_state_t` partagée sous mutex : snapshot CPU `tCpuSnap`, `tLastResult`, `eRunState`, `szNextDisasm[DISASM_LINE_MAX]`, breakpoints `auBP[8]`, flags de contrôle `bStepReq/bRunReq/bPauseReq/bStopReq/bQuitReq`, handles de fenêtres `hMonWnd/hCpuWnd`
+  - Thread d'exécution `exec_thread_fn()` : STEP (1 instruction → PAUSED), RUN (EXEC_QUANTUM=200 instructions par tranche), vérification breakpoints après chaque instruction, mise à jour snapshot + `szNextDisasm` sous mutex, `gui_invalidate()` sur toutes les fenêtres ouvertes
+  - Lifecycle : `exec_init/shutdown/open/close/is_open/get_state`
+  - API de contrôle thread-safe : `exec_step/run/pause/stop/quit_request()` + `exec_bp_toggle/clear()`
+
+- `exec_mon.c` / `exec_mon.h` : fenêtre monitor (`GUI_WND_EXEC_MON` 660×420)
+  - Rendu : nom programme + badge état (RUNNING vert / PAUSED jaune / HALTED rouge), PC + `szNextDisasm` (vert), compteurs instructions/cycles, liste breakpoints (cyan, PC-match jaune), hints F-keys (gris)
+  - Clavier : F5=step, F6=run/pause toggle (lit eRunState sous mutex), F7=reset, F8/ESC=quit+close CPU window, B=toggle BP@PC, C=clear BPs
+
+- `exec_cpu.c` / `exec_cpu.h` : vue registres CPU (`GUI_WND_EXEC_CPU` 500×320)
+  - Rendu : D0–D7 (cyan, colonne gauche), A0–A7 (vert, colonne droite), SSP+PC (blanc/jaune), SR hex + flags individuels T/S/I/X/N/Z/V/C
+  - ESC ferme la vue et appelle `exec_quit_request()`
+
+- `line.c` : `line_cmd_execute()` — charge le fichier si arg fourni ou utilise la sélection courante ; vérifie `load_get_state().bLoaded + eType==LOAD_TYPE_PRG` ; appelle `exec_open(szPath, uiLoadAddr)`
+
+- `main.c` : `exec_init(&tMachine)` après `load_init()` ; `exec_shutdown()` dans la séquence d'arrêt ordonnée
+
+**Infrastructure validée :**
+
+- Modèle multi-thread à 3 threads : thread console (main), thread exécution CPU, threads fenêtres GUI (1 par vue)
+- `exec_state_t.ptMutex` protège toutes les données partagées entre le thread CPU et les threads fenêtres
+- La section critique (snapshot + refresh disasm) est minimale : le thread CPU libère le mutex entre chaque quantum pour éviter la famine des vues GUI
+- Fermeture propre : `bQuitReq` → thread CPU sort de sa boucle → `exec_close()` joint le thread → ferme les fenêtres
+- `exec_refresh_disasm()` utilise `disasm_one()` sur `ptMachine->aRam + uiPC` — safe tant que PC est dans les limites RAM
+
+**Tests R14/R15 appliqués :**
+
+```
+TEST MATRIX - UC25A:
+  [N] Nominal    : 13 tests - lifecycle (init/shutdown/is_open/get_state),
+                               exec_open guard, CPU step integration direct
+  [R] Robustness :  9 tests - NULL to exec_init, all request functions when
+                               not open, exec_bp_toggle/clear when not open,
+                               exec_open without prior exec_init
+  [S] Skipped    :  8 tests - exec_open GUI windows, step/run/pause, BP hit,
+                               F7 reset, ESC close (run make manual)
+```
+
+**Contrats comportementaux validés :**
+
+*Module `exec.c` — lifecycle (UC25A)*
+- `exec_init(NULL)` → ST_ERROR ; `exec_init(&tMachine)` → ST_NO_ERROR ; `exec_shutdown()` idempotent
+- `exec_is_open()` retourne ST_FALSE avant `exec_open()` réussi, après `exec_close()`, et après `exec_shutdown()`
+- `exec_get_state()` retourne NULL avant `exec_open()` réussi et après fermeture
+- `exec_open()` sans `gui_init()` préalable retourne ST_ERROR proprement (pas de crash)
+
+*Module `exec.c` — contrôle (UC25A)*
+- Toutes les fonctions de requête (`exec_step/run/pause/stop/quit_request()`) retournent ST_ERROR quand `g_exec_bOpen == ST_FALSE`
+- `exec_bp_toggle(addr)` retourne ST_ERROR si pas de session ouverte
+- `exec_bp_clear()` retourne ST_ERROR si pas de session ouverte
+
+*Module `exec.c` — intégration CPU (UC25A)*
+- `cpu_step(&tCpu, &tMachine, &tResult)` avec `MOVEQ #42,D0` (opcode 0x702A) → `auDn[0] == 42`, `uiPCAfter == base+2`
+- `cpu_step(&tCpu, &tMachine, &tResult)` avec `NOP` (opcode 0x4E71) → PC avance de 2 sans modifier aucun registre
+
+### Points d'attention pour les UCs suivants
+
+- **RÉSOLU UC25B** : `exec_state_t` doit exposer le pointeur `ptMachine` pour que `exec_mem.c` et `exec_asm.c` puissent lire la RAM ST sans passer par exec.c
+- **RÉSOLU UC25B** : les handles `hMemWnd` et `hAsmWnd` doivent être ajoutés à `exec_state_t` et le thread CPU doit appeler `gui_invalidate()` sur ces fenêtres
+- **RÉSOLU UC25B** : `exec_asm.c` doit décoder depuis `uiAsmBase` en avançant de `iWordCount*2` octets par ligne via `disasm_one()` — pas de boucle inverse
+- **RÉSOLU UC25B** : la vue mémoire navigue en unités de 16 bytes/row ; HOME doit snap à la ligne contenant PC (PC & ~0xF)
+- **RÉSOLU UC25B** : les 4 fenêtres ouvertes simultanément (MON/CPU/MEM/ASM) peuvent encombrer l'écran — prévoir des positions de départ différentes ou laisser le gestionnaire de fenêtres les placer
+
+---
+
+## UC25B — Memory dump view + Disassembly view
+
+**Date :** 2026-06-11
+**Statut :** VALIDÉ Phase 1 + Phase 2
+**Fichiers modifiés :** `src/exec_mem.h`, `src/exec_mem.c`, `src/exec_asm.h`, `src/exec_asm.c`, `src/exec.c` (fix g_exec_bOpen), `use_cases/use_case_25B.c`
+
+### Périmètre fonctionnel implémenté
+
+**Module `exec_mem.c`** — vue hex dump de la RAM ST :
+- Rendu 16 bytes/row : adresse `$XXXXXX:`, paires hex groupées par 4 avec double espace, colonne ASCII (`.` pour non-imprimable)
+- PC row auto-snap : quand le PC sort de la zone visible, `uiMemBase` est recalé à `PC & ~0xF`
+- Highlight PC row : fond `{0.18, 0.18, 0.00}` (brun-jaune sombre) + texte jaune vif
+- Navigation : UP/DOWN ±16 bytes, PgUp/PgDn ±page×16, HOME snap PC row
+- Hint bar (20 px) en bas avec séparateur ligne, instruction `PC= $XXXXXX`
+
+**Module `exec_asm.c`** — vue désassembleur synchronisée :
+- `exec_asm_prev_insn()` : heuristique backward sur stream 68000 variable — teste décalages −2, −4, −6, −8, −10 octets depuis la cible, valide si `disasm_one()` s'arrête exactement à la cible ; fallback `target−2`
+- Format ligne : `$XXXXXX XXXX [XXXX [XXXX]]  mnemonic operands` (adresse 7 cars, hex words jusqu'à 3, rembourré à 22 cars avant mnémonique)
+- PC auto-snap : si PC n'est dans aucune ligne visible, `uiAsmBase = uiPC`
+- Highlight PC : fond jaune sombre + texte jaune vif (même palette que exec_mem)
+- Navigation : UP (`exec_asm_prev_insn`), DOWN (avancer via `disasm_one`), PgUp/PgDn (boucle N fois), `F` snap au PC, ESC ferme la fenêtre sans `exec_quit_request`
+
+**Fix `exec.c`** — `g_exec_bOpen = ST_TRUE` placé avant le premier `exec_mon_open()` pour que `exec_get_state()` retourne une valeur non-NULL lors de l'ouverture des vues. Chaque branche d'erreur remet `g_exec_bOpen = ST_FALSE`.
+
+### Infrastructure validée
+
+- Modèle 4 fenêtres simultanées (MON/CPU/MEM/ASM) : `exec_state_t` expose `hMemWnd` et `hAsmWnd`
+- Thread CPU invalide les 4 fenêtres à chaque instruction via `gui_invalidate(hMemWnd)` + `gui_invalidate(hAsmWnd)`
+- `ptMachine` exposé dans `exec_state_t` : les vues mem/asm lisent `aRam[]` directement sous `ptMutex`
+- `exec_get_state()` architecture : bOpen doit être ST_TRUE avant l'ouverture des vues filles — invariant établi et validé
+
+### Test matrix (UC25B)
+
+| Module | [N] | [R] | [S] | Total | Result    |
+|--------|-----|-----|-----|-------|-----------|
+| EXE    | 11  | 4   | 6   | 21    | ALL PASS  |
+
+Tests nominaux (11) : lifecycle open/close des deux modules sans session active, disasm_one integration (MOVEQ #42,D0), format de ligne d'affichage.
+Tests robustesse (4) : NULL pptView sur open et close des deux modules.
+Tests skippés (6) : ouverture fenêtres GUI, rendering PC highlight, navigation HOME/F.
+
+### Contrats comportementaux validés
+
+*Module `exec_mem.c`*
+- `exec_mem_open(NULL)` → ST_ERROR (NULL guard)
+- `exec_mem_open(&ptView)` sans session active → ST_ERROR, `*pptView = NULL`
+- `exec_mem_close(NULL)` → ST_ERROR
+- `exec_mem_close(&NULL)` → ST_NO_ERROR (no-op idempotent)
+
+*Module `exec_asm.c`*
+- `exec_asm_open(NULL)` → ST_ERROR (NULL guard)
+- `exec_asm_open(&ptView)` sans session active → ST_ERROR, `*pptView = NULL`
+- `exec_asm_close(NULL)` → ST_ERROR
+- `exec_asm_close(&NULL)` → ST_NO_ERROR (no-op idempotent)
+
+*Intégration disasm_one*
+- `disasm_one()` sur MOVEQ #42,D0 (0x702A) → ST_NO_ERROR, `iWordCount=1`, `bValid=ST_TRUE`
+- Ligne formatée `exec_asm_build_line` : non-vide, commence par `$`
+
+*Invariant exec.c*
+- `g_exec_bOpen = ST_TRUE` avant le premier `exec_mon_open()` ; toute branche d'erreur remet à ST_FALSE
+- Implication : `exec_get_state()` retourne non-NULL pendant toutes les ouvertures de vues dans `exec_open()`
+
+### Points d'attention pour les UCs suivants
+
+- **UC26** : la vue mémoire ne reflète que `aRam[]` (512 KB) ; l'espace d'adressage ST complet (ROM, registres HW) n'est pas visible — à corriger quand UC26 étendra la memory map
+- **UC26** : `exec_asm` décode en appelant `disasm_one(aRam + offset, ...)` directement ; les adresses ROM ($FC0000+) ou HW déclencheront un décodage de données arbitraires — acceptable pour l'affichage, pas pour l'exécution
+- **UC27** : l'ajout de la vue écran (`GUI_WND_EXEC_SCR`) suivra le même pattern d'ouverture depuis `exec_open()` ; penser à ajouter `hScrWnd` dans `exec_state_t` avant UC27
+- **UC27** : `exec_mon.c` expose les raccourcis `M` (mémoire) et `A` (désassembleur) pour ouvrir ces vues depuis le monitor si elles ont été fermées — non implémenté en UC25B, à compléter en UC27 ou en UC-exec-extras si nécessaire
 
 ---

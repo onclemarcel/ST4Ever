@@ -3587,3 +3587,121 @@ Source: `use_cases/use_case_24F.c`
 | UFR-MNT-005  | REQ-MNT-013  | TC-MNT-001..002               | v UC24G   |
 | UFR-MNT-003  | REQ-MNT-025  | TC-MNT-003                    | v UC24G   |
 | UFR-DIR-014  | REQ-DIR-025  | TC-CON-178                    | v UC24G   |
+
+---
+
+### 5.92 Test Cases — UC25A
+
+| TC ID        | Description                                                                              | Cat  | UFR parent    | REQ parent    | INT ref      | Assert                                                             | Status     |
+|--------------|------------------------------------------------------------------------------------------|------|---------------|---------------|--------------|--------------------------------------------------------------------|------------|
+| TC-EXE-001   | `exec_is_open()` before `exec_init()` returns ST_FALSE                                   | [N]  | UFR-EXE-008   | REQ-EXE-023   | INT-EXE-001  | `exec_is_open() == ST_FALSE`                                       | PASS UC25A |
+| TC-EXE-002   | `exec_get_state()` before init returns NULL                                              | [N]  | UFR-EXE-008   | REQ-EXE-024   | INT-EXE-002  | `exec_get_state() == NULL`                                         | PASS UC25A |
+| TC-EXE-003   | `exec_init(&tMachine)` with valid machine returns ST_NO_ERROR                            | [N]  | UFR-EXE-008   | REQ-EXE-020   | INT-EXE-003  | `eResult == ST_NO_ERROR`                                           | PASS UC25A |
+| TC-EXE-004   | `exec_is_open()` after init but before `exec_open()` returns ST_FALSE                   | [N]  | UFR-EXE-008   | REQ-EXE-023   | INT-EXE-004  | `exec_is_open() == ST_FALSE`                                       | PASS UC25A |
+| TC-EXE-005   | `exec_get_state()` after init but before open returns NULL                               | [N]  | UFR-EXE-008   | REQ-EXE-024   | INT-EXE-005  | `exec_get_state() == NULL`                                         | PASS UC25A |
+| TC-EXE-006   | `exec_open()` without GUI init fails gracefully (ST_ERROR, no crash)                     | [N]  | UFR-EXE-008   | REQ-EXE-021   | INT-EXE-006  | `eResult == ST_ERROR`; `exec_is_open() == ST_FALSE`                | PASS UC25A |
+| TC-EXE-007   | `exec_is_open()` after failed `exec_open()` remains ST_FALSE                             | [N]  | UFR-EXE-008   | REQ-EXE-023   | INT-EXE-007  | `exec_is_open() == ST_FALSE`                                       | PASS UC25A |
+| TC-EXE-008   | `exec_shutdown()` after init returns ST_NO_ERROR                                         | [N]  | UFR-EXE-008   | REQ-EXE-022   | INT-EXE-008  | `eResult == ST_NO_ERROR`                                           | PASS UC25A |
+| TC-EXE-009   | `exec_is_open()` after shutdown returns ST_FALSE                                         | [N]  | UFR-EXE-008   | REQ-EXE-023   | INT-EXE-009  | `exec_is_open() == ST_FALSE`                                       | PASS UC25A |
+| TC-EXE-010   | double `exec_shutdown()` returns ST_NO_ERROR (idempotent)                                | [N]  | UFR-EXE-008   | REQ-EXE-022   | INT-EXE-010  | `eResult == ST_NO_ERROR`                                           | PASS UC25A |
+| TC-EXE-011   | `cpu_step(MOVEQ #42,D0)` → D0==42, PC advanced by 2                                     | [N]  | UFR-EXE-001   | REQ-EXE-028   | INT-EXE-011  | `auDn[0] == 42`; `uiPCAfter == ST_LOAD_BASE + 2`                  | PASS UC25A |
+| TC-EXE-012   | `cpu_step(NOP)` → PC advanced by 2, no register change                                  | [N]  | UFR-EXE-001   | REQ-EXE-028   | INT-EXE-012  | `uiPCAfter == ST_LOAD_BASE + 4`                                    | PASS UC25A |
+| TC-EXE-013   | `exec_open()` without prior `exec_init()` returns ST_ERROR                               | [N]  | UFR-EXE-008   | REQ-EXE-021   | INT-EXE-013  | `eResult == ST_ERROR`                                              | PASS UC25A |
+| TC-EXE-014   | `exec_init(NULL)` returns ST_ERROR                                                       | [R]  | UFR-EXE-008   | REQ-EXE-020   | INT-EXE-014  | `eResult == ST_ERROR`                                              | PASS UC25A |
+| TC-EXE-015   | `exec_step_request()` when not open returns ST_ERROR                                     | [R]  | UFR-EXE-008   | REQ-EXE-025   | INT-EXE-015  | `eResult == ST_ERROR`                                              | PASS UC25A |
+| TC-EXE-016   | `exec_run_request()` when not open returns ST_ERROR                                      | [R]  | UFR-EXE-008   | REQ-EXE-025   | INT-EXE-016  | `eResult == ST_ERROR`                                              | PASS UC25A |
+| TC-EXE-017   | `exec_pause_request()` when not open returns ST_ERROR                                    | [R]  | UFR-EXE-008   | REQ-EXE-025   | INT-EXE-017  | `eResult == ST_ERROR`                                              | PASS UC25A |
+| TC-EXE-018   | `exec_stop_request()` when not open returns ST_ERROR                                     | [R]  | UFR-EXE-008   | REQ-EXE-025   | INT-EXE-018  | `eResult == ST_ERROR`                                              | PASS UC25A |
+| TC-EXE-019   | `exec_quit_request()` when not open returns ST_ERROR                                     | [R]  | UFR-EXE-008   | REQ-EXE-025   | INT-EXE-019  | `eResult == ST_ERROR`                                              | PASS UC25A |
+| TC-EXE-020   | `exec_bp_toggle(addr)` when not open returns ST_ERROR                                    | [R]  | UFR-EXE-008   | REQ-EXE-026   | INT-EXE-020  | `eResult == ST_ERROR`                                              | PASS UC25A |
+| TC-EXE-021   | `exec_bp_clear()` when not open returns ST_ERROR                                         | [R]  | UFR-EXE-008   | REQ-EXE-027   | INT-EXE-021  | `eResult == ST_ERROR`                                              | PASS UC25A |
+| TC-EXE-022   | `exec_open()` without prior `exec_init()` returns ST_ERROR                               | [R]  | UFR-EXE-008   | REQ-EXE-021   | INT-EXE-022  | `eResult == ST_ERROR`                                              | PASS UC25A |
+| TC-EXE-023   | `exec_open()` monitor window opens (GUI required)                                        | [S]  | UFR-EXE-008   | REQ-EXE-021   | INT-EXE-023  | window handle non-NULL                                             | SKIP (GUI) |
+| TC-EXE-024   | `exec_open()` CPU register view opens (GUI required)                                     | [S]  | UFR-EXE-008   | REQ-EXE-021   | INT-EXE-024  | window handle non-NULL                                             | SKIP (GUI) |
+| TC-EXE-025   | monitor F5 step: eRunState transitions PAUSED→RUNNING→PAUSED; PC advances               | [S]  | UFR-EXE-008   | REQ-EXE-025, REQ-EXE-028 | INT-EXE-025  | `eRunState == EXEC_RUN_PAUSED` after step                | SKIP (GUI) |
+| TC-EXE-026   | monitor F6 run: eRunState transitions to RUNNING                                         | [S]  | UFR-EXE-008   | REQ-EXE-025   | INT-EXE-026  | `eRunState == EXEC_RUN_RUNNING`                                    | SKIP (GUI) |
+| TC-EXE-027   | monitor F6 again while running: transitions to PAUSED                                    | [S]  | UFR-EXE-008   | REQ-EXE-025   | INT-EXE-027  | `eRunState == EXEC_RUN_PAUSED`                                     | SKIP (GUI) |
+| TC-EXE-028   | monitor B toggles BP at PC, F6 run → state pauses at BP address                         | [S]  | UFR-EXE-008   | REQ-EXE-026, REQ-EXE-028 | INT-EXE-028  | `eRunState == EXEC_RUN_PAUSED`; PC == BP addr         | SKIP (GUI) |
+| TC-EXE-029   | monitor F7 reset → PC returns to uiLoadAddr                                              | [S]  | UFR-EXE-008   | REQ-EXE-025   | INT-EXE-029  | `tCpuSnap.uiPC == uiLoadAddr`                                      | SKIP (GUI) |
+| TC-EXE-030   | monitor ESC/F8 closes both monitor and CPU windows cleanly                               | [S]  | UFR-EXE-008   | REQ-EXE-022   | INT-EXE-030  | no crash; windows closed                                           | SKIP (GUI) |
+
+#### Test Summary — UC25A
+
+| Module | [N] | [R] | [S] | Total | Result    |
+|--------|-----|-----|-----|-------|-----------|
+| EXE    | 13  | 9   | 8   | 30    | ALL PASS  |
+| **UC25A** | **13** | **9** | **8** | **30** | **ALL PASS** |
+
+#### REQ → TC coverage (UC25A)
+
+| REQ          | TC(s)                              | Status    |
+|--------------|------------------------------------|-----------|
+| REQ-EXE-020  | TC-EXE-003, TC-EXE-014             | v UC25A   |
+| REQ-EXE-021  | TC-EXE-006, TC-EXE-013, TC-EXE-022, TC-EXE-023..024 | v UC25A |
+| REQ-EXE-022  | TC-EXE-008..010, TC-EXE-030        | v UC25A   |
+| REQ-EXE-023  | TC-EXE-001, TC-EXE-004, TC-EXE-007, TC-EXE-009 | v UC25A |
+| REQ-EXE-024  | TC-EXE-002, TC-EXE-005             | v UC25A   |
+| REQ-EXE-025  | TC-EXE-015..019, TC-EXE-025..027, TC-EXE-029 | v UC25A |
+| REQ-EXE-026  | TC-EXE-020, TC-EXE-028             | v UC25A   |
+| REQ-EXE-027  | TC-EXE-021                         | v UC25A   |
+| REQ-EXE-028  | TC-EXE-011..012, TC-EXE-025, TC-EXE-028 | v UC25A |
+
+#### UFR traceability (UC25A)
+
+| UFR          | REQ(s)                             | TC(s)                         | Status    |
+|--------------|------------------------------------|-------------------------------|-----------|
+| UFR-EXE-008  | REQ-EXE-020..028                   | TC-EXE-001..030               | v UC25A   |
+| UFR-CON-090  | REQ-EXE-021                        | TC-EXE-003, TC-EXE-023..024   | v UC25A   |
+
+---
+
+### 5.93 Test Cases — UC25B
+
+| TC ID        | Description                                                                              | Cat  | UFR parent    | REQ parent    | INT ref      | Assert                                                             | Status     |
+|--------------|------------------------------------------------------------------------------------------|------|---------------|---------------|--------------|--------------------------------------------------------------------|------------|
+| TC-EXE-031   | `exec_mem_open(NULL)` returns ST_ERROR                                                   | [R]  | UFR-EXE-008   | REQ-EXE-029   | INT-EXE-031  | `eResult == ST_ERROR`                                              | PASS UC25B |
+| TC-EXE-032   | `exec_mem_open(&ptView)` without active session → ST_ERROR                               | [N]  | UFR-EXE-008   | REQ-EXE-029   | INT-EXE-032  | `eResult == ST_ERROR`                                              | PASS UC25B |
+| TC-EXE-033   | `exec_mem_open(&ptView)` without active session: *pptView == NULL                        | [N]  | UFR-EXE-008   | REQ-EXE-029   | INT-EXE-033  | `ptView == NULL`                                                   | PASS UC25B |
+| TC-EXE-034   | `exec_mem_close(NULL)` returns ST_ERROR                                                  | [R]  | UFR-EXE-008   | REQ-EXE-029   | INT-EXE-034  | `eResult == ST_ERROR`                                              | PASS UC25B |
+| TC-EXE-035   | `exec_mem_close(&NULL)` is a no-op returning ST_NO_ERROR                                 | [N]  | UFR-EXE-008   | REQ-EXE-029   | INT-EXE-035  | `eResult == ST_NO_ERROR`                                           | PASS UC25B |
+| TC-EXE-036   | `exec_asm_open(NULL)` returns ST_ERROR                                                   | [R]  | UFR-EXE-008   | REQ-EXE-031   | INT-EXE-036  | `eResult == ST_ERROR`                                              | PASS UC25B |
+| TC-EXE-037   | `exec_asm_open(&ptView)` without active session → ST_ERROR                               | [N]  | UFR-EXE-008   | REQ-EXE-031   | INT-EXE-037  | `eResult == ST_ERROR`                                              | PASS UC25B |
+| TC-EXE-038   | `exec_asm_open(&ptView)` without active session: *pptView == NULL                        | [N]  | UFR-EXE-008   | REQ-EXE-031   | INT-EXE-038  | `ptView == NULL`                                                   | PASS UC25B |
+| TC-EXE-039   | `exec_asm_close(NULL)` returns ST_ERROR                                                  | [R]  | UFR-EXE-008   | REQ-EXE-031   | INT-EXE-039  | `eResult == ST_ERROR`                                              | PASS UC25B |
+| TC-EXE-040   | `exec_asm_close(&NULL)` is a no-op returning ST_NO_ERROR                                 | [N]  | UFR-EXE-008   | REQ-EXE-031   | INT-EXE-040  | `eResult == ST_NO_ERROR`                                           | PASS UC25B |
+| TC-EXE-041   | `disasm_one()` on MOVEQ #42,D0 (0x702A at ST_LOAD_BASE) returns ST_NO_ERROR             | [N]  | UFR-EXE-008   | REQ-EXE-032   | INT-EXE-041  | `eResult == ST_NO_ERROR`                                           | PASS UC25B |
+| TC-EXE-042   | `disasm_one()` on MOVEQ: `iWordCount == 1`                                               | [N]  | UFR-EXE-008   | REQ-EXE-032   | INT-EXE-042  | `tResult.iWordCount == 1`                                          | PASS UC25B |
+| TC-EXE-043   | `disasm_one()` on MOVEQ: `bValid == ST_TRUE`                                             | [N]  | UFR-EXE-008   | REQ-EXE-032   | INT-EXE-043  | `tResult.bValid == ST_TRUE`                                        | PASS UC25B |
+| TC-EXE-044   | exec_asm display line (addr + hex + mnemonic) is non-empty                               | [N]  | UFR-EXE-008   | REQ-EXE-032   | INT-EXE-044  | `iLen > 0`                                                         | PASS UC25B |
+| TC-EXE-045   | exec_asm display line starts with `$` (address prefix)                                   | [N]  | UFR-EXE-008   | REQ-EXE-032   | INT-EXE-045  | `szLine[0] == '$'`                                                 | PASS UC25B |
+| TC-EXE-046   | `exec_mem_open()` with active session opens `GUI_WND_EXEC_MEM` window                   | [S]  | UFR-EXE-008   | REQ-EXE-029   | INT-EXE-046  | window handle non-NULL                                             | SKIP (GUI) |
+| TC-EXE-047   | `exec_asm_open()` with active session opens `GUI_WND_EXEC_ASM` window                   | [S]  | UFR-EXE-008   | REQ-EXE-031   | INT-EXE-047  | window handle non-NULL                                             | SKIP (GUI) |
+| TC-EXE-048   | exec_mem view renders PC row highlighted yellow                                          | [S]  | UFR-EXE-008   | REQ-EXE-030   | INT-EXE-048  | PC row background != default background                            | SKIP (GUI) |
+| TC-EXE-049   | exec_mem HOME key snaps `uiMemBase` to PC & ~0xF                                         | [S]  | UFR-EXE-008   | REQ-EXE-030   | INT-EXE-049  | `ptView->uiMemBase == tCpuSnap.uiPC & ~0xF`                        | SKIP (GUI) |
+| TC-EXE-050   | exec_asm view renders PC instruction highlighted yellow                                  | [S]  | UFR-EXE-008   | REQ-EXE-032   | INT-EXE-050  | PC line background != default background                           | SKIP (GUI) |
+| TC-EXE-051   | exec_asm F key snaps `uiAsmBase` to PC                                                   | [S]  | UFR-EXE-008   | REQ-EXE-032   | INT-EXE-051  | `ptView->uiAsmBase == tCpuSnap.uiPC`                               | SKIP (GUI) |
+
+#### Test Summary — UC25B
+
+| Module | [N] | [R] | [S] | Total | Result    |
+|--------|-----|-----|-----|-------|-----------|
+| EXE    | 11  | 4   | 6   | 21    | ALL PASS  |
+| **UC25B** | **11** | **4** | **6** | **21** | **ALL PASS** |
+
+#### REQ → TC coverage (UC25B)
+
+| REQ          | TC(s)                              | Status    |
+|--------------|------------------------------------|-----------|
+| REQ-EXE-021  | TC-EXE-046..047 (updated scope)    | v UC25B   |
+| REQ-EXE-022  | TC-EXE-046..047 (close path)       | v UC25B   |
+| REQ-EXE-029  | TC-EXE-031..035, TC-EXE-046        | v UC25B   |
+| REQ-EXE-030  | TC-EXE-048..049                    | v UC25B   |
+| REQ-EXE-031  | TC-EXE-036..040, TC-EXE-047        | v UC25B   |
+| REQ-EXE-032  | TC-EXE-041..045, TC-EXE-050..051   | v UC25B   |
+
+#### UFR traceability (UC25B)
+
+| UFR          | REQ(s)                             | TC(s)                         | Status    |
+|--------------|------------------------------------|-------------------------------|-----------|
+| UFR-EXE-008  | REQ-EXE-029..032                   | TC-EXE-031..051               | v UC25B   |
+

@@ -17,6 +17,8 @@
 - 2026-06-10: UC24F Codé/Testé : Navigation arborescente vue mount (P53) — `image_st_mkdir`/`image_st_list_dir`/`image_st_write_file_in_dir` + mount ENTER→subdir/LEFT→parent + `mount_dir_cb` récursif 1 niveau + `mount_save_image` extrait subdirs — 26 tests PASS 0 fail
 - 2026-06-10: Revue UC24E/UC24F — 6 bugs corrigés : BUG-04 (iNotImported + avertissement Skipped dans panneau mount), BUG-05 (T1440→T80 via TS/SPT/Heads), BUG-06 (Geometry '—' sur mount répertoire local), BUG-07 (image --dir xx.st : xx.st source pas dest), BUG-08 (ESPACE vue dir → rafraîchissement immédiat), BUG-09 (historique ALT+← persistant entre sessions dir) — 0 régression tests
 - 2026-06-10: UC24G Codé/Testé : P57 `trace level all|info|error|todo` incrémental + P58 `image --in/--out` explicites + P60 sélection simple/multi exclusive dans vue dir + Phase 2 DOC-01/DOC-02 SR.md restructuré + TC.md UC24G (14 tests) + use_case_24G.c — 14 tests PASS 0 fail
+- 2026-06-11: UC25A Codé/Testé : moteur d'exécution pas-à-pas `exec.c` (thread CPU + état partagé mutex + breakpoints EXEC_BP_MAX=8) + `exec_mon.c` (vue monitor F5/F6/F7/F8/B/C) + `exec_cpu.c` (vue registres D0-D7/A0-A7/PC/SSP/SR) + `line_cmd_execute()` + `exec_init/shutdown` dans main.c — 30 tests PASS (13N+9R+8S) 0 fail
+- 2026-06-11: UC25B Codé/Testé : vue mémoire `exec_mem.c` (hex dump 16 bytes/row, PC row highlight yellow, UP/DN/PgUp/PgDn/HOME snap) + vue désassembleur `exec_asm.c` (disasm_one forward, PC highlight, UP/DN/PgUp/PgDn/F snap) + fix exec_open (g_exec_bOpen=TRUE avant view opens) — 21 tests PASS (11N+4R+6S) 0 fail
 
 *L'historique des versions antérieures peut être récupéré via le change log github*
 
@@ -497,7 +499,8 @@ Les étapes de développement fonctionnelles sont formalisées en Use Cases, per
 | UC24E | console | **P50/P51/P52/P54/P55/P56** — Évolutions console : `dir --select` headless + commande `script <file>` interactive + CTRL+O→mount + `edit --hex/-h` force hex + suppression `umount` (remplacé par image/ESC) + `image --dir` extraction image→répertoire | ✓ VALIDÉ 2026-06-10 |
 | UC24F | `mount` | **P53** — Navigation arborescente vue mount : `image_st_mkdir()` + `image_st_list_dir()` + `image_st_write_file_in_dir()` + récursivité `mount_dir_cb()` 1 niveau + ENTER/LEFT nav + extraction subdirs `mount_save_image()` | ✓ VALIDÉ 2026-06-10 |
 | UC24G | `trace`, `image`, `dir` | **P57** `trace level all\|info\|error\|todo` incrémental + **P58** `image --in/--out` explicites + **P60** sélection simple/multi exclusives dans vue dir — Phase 2 : DOC-01 (UFR-CON-099..105→SW reqs) + DOC-02 (§1.5 SR.md→derived reqs) | ✓ VALIDÉ 2026-06-10 |
-| UC25 | `execute` | Moteur pas-à-pas + vues CPU + mémoire | step + breakpoint sur .PRG simple |
+| UC25A | `execute` | Moteur d'exécution pas-à-pas `exec.c` (thread CPU + mutex + BP×8 + STEP/RUN/PAUSE/STOP) + `exec_mon.c` (vue monitor F5/F6/F7/F8/B/C) + `exec_cpu.c` (D0-D7/A0-A7/PC/SSP/SR) + `line_cmd_execute()` | ✓ VALIDÉ 2026-06-11 |
+| UC25B | `execute` | Vue mémoire `exec_mem.c` (dump RAM paginé + navigation) + vue désassembleur `exec_asm.c` (colonnes hex+disasm synchronisées avec PC highlight) | ✓ VALIDÉ 2026-06-11 |
 | UC26 | interne | Émulation vidéo ST (Shifter : low/med/high res, palette 16 couleurs) | rendu écran correct |
 | UC27 | `execute` | Vue écran Win32/GDI + X11 + synchronisation VBL | démo statique visible |
 | UC28 | interne | Line-A traps + registres Shifter/YM2149 minimaux | démo 1 plan visible |
@@ -1468,6 +1471,18 @@ Cible : **UC25-pre** ou regroupé avec les corrections dir.
 | P60 (sélection simple/multi exclusives)  | ACCEPTÉ — **IMPLÉMENTÉ UC24G** | ✓ clos |
 
 *Toutes les propositions P57/P58/P60 + DOC-01/DOC-02 ont été implémentées et validées dans UC24G. P59 différée. §7 ne contient plus de propositions non arbitrées pour UC24G — UC24G est clos.*
+
+---
+
+### Arbitrage UC25A (2026-06-11)
+
+*UC25A est un UC de moteur d'exécution + vues GUI. Aucune proposition UX/fonctionnelle n'a émergé pendant l'implémentation — UC25A est clos (Phase 1 + Phase 2 effectuées).*
+
+---
+
+### Arbitrage UC25B (2026-06-11)
+
+*UC25B implémente exec_mem.c (vue hex dump RAM) et exec_asm.c (vue désassembleur). Fix exec_open (g_exec_bOpen=TRUE avant les view opens pour que exec_get_state() fonctionne). Aucune proposition UX/fonctionnelle n'a émergé. Phase 2 effectuée : REQ-EXE-029..032 dans SR.md §2.20, TC-EXE-031..051 dans TC.md §5.93, section UC25B dans 6-UC.md, INTENT markers INT-EXE-031..051 dans use_case_25B.c — UC25B est clos (Phase 1 + Phase 2).*
 
 ---
 

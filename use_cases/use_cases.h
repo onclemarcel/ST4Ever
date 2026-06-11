@@ -41,6 +41,7 @@
 #include "../src/exec_screen.h"
 #include "../src/sector_analyze.h"
 #include "../src/image_annot.h"
+#include "../src/load.h"
 
 /* ------------------------------------------------------------------
  * Test helper macros

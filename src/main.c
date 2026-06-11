@@ -21,6 +21,7 @@
 #include "gui.h"
 #include "ST.h"
 #include "load.h"
+#include "exec.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -168,6 +169,14 @@ int main(int argc, char *argv[])
         goto shutdown_st;
     }
 
+    eResult = exec_init(&tMachine);
+    if (eResult != ST_NO_ERROR)
+    {
+        LOG_ERROR("exec_init() failed");
+        iExitCode = 1;
+        goto shutdown_load;
+    }
+
     /* ---- 6. Console init & run ----------------------------------- */
     eResult = line_init(&tLineCtx);
     if (eResult != ST_NO_ERROR)
@@ -199,6 +208,12 @@ int main(int argc, char *argv[])
     }
 
     /* ---- 7. Ordered shutdown ------------------------------------- */
+    eResult = exec_shutdown();
+    if (eResult != ST_NO_ERROR)
+    {
+        LOG_ERROR("exec_shutdown() failed");
+    }
+
 shutdown_load:
     eResult = load_shutdown();
     if (eResult != ST_NO_ERROR)

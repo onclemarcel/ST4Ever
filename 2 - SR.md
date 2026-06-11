@@ -62,7 +62,7 @@ through one or more test cases in Section 5.
 | UFR-CON-083 | The OS window/terminal title bar shall be updated automatically after each command to reflect the current cwd, selection, and trace state. | UC5 |
 | UFR-CON-084 | On Tab with multiple completion candidates, the longest common prefix shall be inserted into the input buffer before cycling ghost text candidates.| UC5 |
 | UFR-CON-085 | ANSI colour output shall be auto-enabled or auto-disabled based on `isatty(stdout)` at startup; `colors on/off` shall remain available to override. | UC5 |
-| UFR-CON-090 | The `execute <file>` command (`x` \| `execute` \| `CTRL+X`) shall open the full execution engine with all linked views.                     | TODO UC25   | UC25 |
+| UFR-CON-090 | The `execute <file>` command (`x` \| `execute` \| `CTRL+X`) shall open the full execution engine with all linked views.                     | ✓ UC25A | UC25A |
 | UFR-CON-092 | `st2msa [--dir p] [--all] [-r]` shall convert `.st` disk image(s) to `.msa` format; `--all` processes all `.st` files in a directory; `-r` recurses into subdirectories. | UC20A |
 | UFR-CON-093 | `msa2st [--dir p] [--all] [-r]` shall convert `.msa` disk image(s) to `.st` format; `--all` processes all `.msa` files in a directory; `-r` recurses into subdirectories. | UC20A |
 | UFR-CON-094 | `dir --select <path>` shall set the selected file/directory headlessly (without opening the GUI dir view); the path is validated via `file_stat()`; invalid paths shall print an error and leave the selection unchanged. | UC24E |
@@ -212,7 +212,7 @@ through one or more test cases in Section 5.
 | UFR-EXE-005  | The -(A7) and (A7)+ addressing modes with byte size shall adjust A7 by 2 (not 1) to maintain word alignment on the supervisor stack. | ✓ UC21       | UC21  |
 | UFR-EXE-006  | The CPU emulator shall implement ADD/SUB/CMP/AND/OR/EOR/shifts with correct SR flags (N, Z, V, C, X).                                | ✓ UC22       | UC22  |
 | UFR-EXE-007  | The CPU emulator shall implement BRA/Bcc/JSR/RTS/TRAP + exception vector dispatch.                                                   | ✓ UC23       | UC23  |
-| UFR-EXE-008  | The execution monitor shall provide step, run, stop, and breakpoint controls with a register/memory display view.                     | TODO UC25    | UC25  |
+| UFR-EXE-008  | The execution monitor shall provide step, run, stop, and breakpoint controls with a register/memory display view.                     | ✓ UC25A (monitor+CPU) / UC25B (mem+asm) | UC25A |
 | UFR-EXE-009  | The ST machine memory map shall dispatch byte/word/long reads and writes to the correct hardware region (RAM, ROM, Shifter, YM2149, MFP, ACIA) without crashing; HW register state shall be maintained coherently across read and write operations. | ✓ UC24 | UC24  |
 | UFR-EXE-010  | The application shall classify any 512-byte sector from an Atari ST disk image by static analysis of its content, returning a ranked list of probable sector types (bootsector, FAT12, BSS, code, packer data, etc.) with confidence scores, without executing the sector content. | ✓ UC24A | UC24A |
 
@@ -809,6 +809,52 @@ requirement that will expose it (`UFR-EXE-*`, planned UC21–27).
 | `image_annot_get_sector()` | REQ-ANNOT-003, REQ-HEX-026 | `image_annot.c` |
 | `image_annot_save()` | REQ-ANNOT-004, REQ-HEX-027 | `image_annot.c` |
 | `image_annot_load()` | REQ-ANNOT-004, REQ-HEX-027 | `image_annot.c` |
+
+---
+
+### 2.20 Execution Engine — `exec.h` / `exec_mon.h` / `exec_cpu.h` / `exec_mem.h` / `exec_asm.h`
+
+> Design ref: CLAUDE.md §6 (UC25A, UC25B); depends on `cpu.h`, `ST.h`, `disassemble.h`, `gui.h`.
+> Parent UFR: UFR-EXE-008, UFR-CON-090.
+
+| ID            | Software Requirement                                                                                                                                                                    | Parent UFR   | Status    | UC     |
+|---------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------|-----------|--------|
+| REQ-EXE-020   | `exec_init(ptMachine)` shall store the machine pointer in module state and set the inited flag; it shall return ST_ERROR if ptMachine is NULL. Impl: `exec_init()` | UFR-EXE-008 | ✓ UC25A | UC25A |
+| REQ-EXE-021   | `exec_open(szProg, uiLoadAddr)` shall create the session mutex, call `cpu_init()` + override PC=uiLoadAddr and SSP=ST_LOAD_BASE−2, open the monitor, CPU-register, memory-dump and disassembly windows, and start the execution thread in PAUSED state; it shall return ST_ERROR if the engine is not initialised or any GUI window fails to open. Impl: `exec_open()` | UFR-EXE-008 | ✓ UC25B | UC25A..B |
+| REQ-EXE-022   | `exec_close()` shall signal the exec thread via bQuitReq under ptMutex, join the thread, close all four execution-view windows, and destroy the mutex; it shall be safe to call when no session is open. Impl: `exec_close()` | UFR-EXE-008 | ✓ UC25B | UC25A..B |
+| REQ-EXE-023   | `exec_is_open()` shall return ST_TRUE only during the interval between a successful `exec_open()` and its matching `exec_close()`; it shall return ST_FALSE before init, after shutdown, and after a failed `exec_open()`. Impl: `exec_is_open()` | UFR-EXE-008 | ✓ UC25A | UC25A |
+| REQ-EXE-024   | `exec_get_state()` shall return the `exec_state_t*` pointer when a session is open; it shall return NULL otherwise. Callers must hold ptMutex before accessing any field. Impl: `exec_get_state()` | UFR-EXE-008 | ✓ UC25A | UC25A |
+| REQ-EXE-025   | All request functions (`exec_step_request`, `exec_run_request`, `exec_pause_request`, `exec_stop_request`, `exec_quit_request`) shall return ST_ERROR when no session is open; when open, they shall set the corresponding flag under ptMutex. Impl: `exec_step/run/pause/stop/quit_request()` | UFR-EXE-008 | ✓ UC25A | UC25A |
+| REQ-EXE-026   | `exec_bp_toggle(uiAddr)` shall remove uiAddr if it is already in the breakpoint list; otherwise add it if EXEC_BP_MAX is not exceeded; it shall return ST_ERROR when no session is open or the list is full on add. Impl: `exec_bp_toggle()` | UFR-EXE-008 | ✓ UC25A | UC25A |
+| REQ-EXE-027   | `exec_bp_clear()` shall set iBPCount to 0 under ptMutex; it shall return ST_ERROR when no session is open. Impl: `exec_bp_clear()` | UFR-EXE-008 | ✓ UC25A | UC25A |
+| REQ-EXE-028   | The CPU execution thread shall execute up to EXEC_QUANTUM=200 instructions per RUN-mode slice; exactly one instruction in STEP mode; after each instruction it shall check all breakpoints and transition to PAUSED if a match is found; it shall update tCpuSnap and szNextDisasm under ptMutex and call gui_invalidate() on all open execution-view windows. Impl: `exec_thread_fn()` | UFR-EXE-008 | ✓ UC25A | UC25A |
+| REQ-EXE-029   | `exec_mem_open(pptView)` shall return ST_ERROR if pptView is NULL or no session is active (`exec_get_state()` returns NULL); on success it shall allocate an `exec_mem_view_t`, initialise `uiMemBase` to PC & ~0xF, and open a `GUI_WND_EXEC_MEM` window. `exec_mem_close(pptView)` shall return ST_ERROR if pptView is NULL; it shall return ST_NO_ERROR (no-op) if *pptView is already NULL. Impl: `exec_mem_open()`, `exec_mem_close()` | UFR-EXE-008 | ✓ UC25B | UC25B |
+| REQ-EXE-030   | The memory-dump view shall render 16 bytes per row as hex pairs and printable ASCII; the row whose address equals (PC & ~0xF) shall be highlighted yellow; when PC moves outside the visible region the view shall auto-snap `uiMemBase` to (PC & ~0xF); UP/DOWN shall scroll by 16 bytes, PgUp/PgDn by one page, HOME shall snap to the PC row. Impl: `exec_mem_render()` | UFR-EXE-008 | ✓ UC25B | UC25B |
+| REQ-EXE-031   | `exec_asm_open(pptView)` shall return ST_ERROR if pptView is NULL or no session is active; on success it shall allocate an `exec_asm_view_t`, initialise `uiAsmBase` to the current PC, and open a `GUI_WND_EXEC_ASM` window. `exec_asm_close(pptView)` shall return ST_ERROR if pptView is NULL; it shall return ST_NO_ERROR (no-op) if *pptView is already NULL. Impl: `exec_asm_open()`, `exec_asm_close()` | UFR-EXE-008 | ✓ UC25B | UC25B |
+| REQ-EXE-032   | The disassembly view shall decode instructions forward from `uiAsmBase` via `disasm_one()`; each line shall display address, raw opcode word(s) and the mnemonic string; the line matching PC shall be highlighted yellow; when PC is not visible the view shall auto-snap `uiAsmBase` to PC; UP moves backward one instruction using `exec_asm_prev_insn()`, DOWN advances one instruction; PgUp/PgDn scroll by one page; key 'F' snaps to PC. Impl: `exec_asm_render()`, `exec_asm_prev_insn()` | UFR-EXE-008 | ✓ UC25B | UC25B |
+
+**Function table — `exec.h`:**
+
+| Function | REQ | Impl. |
+|---|---|---|
+| `exec_init()` | REQ-EXE-020 | `exec.c` |
+| `exec_shutdown()` | REQ-EXE-022 | `exec.c` |
+| `exec_open()` | REQ-EXE-021 | `exec.c` |
+| `exec_close()` | REQ-EXE-022 | `exec.c` |
+| `exec_is_open()` | REQ-EXE-023 | `exec.c` |
+| `exec_get_state()` | REQ-EXE-024 | `exec.c` |
+| `exec_step_request()` | REQ-EXE-025 | `exec.c` |
+| `exec_run_request()` | REQ-EXE-025 | `exec.c` |
+| `exec_pause_request()` | REQ-EXE-025 | `exec.c` |
+| `exec_stop_request()` | REQ-EXE-025 | `exec.c` |
+| `exec_quit_request()` | REQ-EXE-025 | `exec.c` |
+| `exec_bp_toggle()` | REQ-EXE-026 | `exec.c` |
+| `exec_bp_clear()` | REQ-EXE-027 | `exec.c` |
+| `exec_thread_fn()` (internal) | REQ-EXE-028 | `exec.c` |
+| `exec_mon_open()` / `exec_mon_close()` | REQ-EXE-021, REQ-EXE-022 | `exec_mon.c` |
+| `exec_cpu_open()` / `exec_cpu_close()` | REQ-EXE-021, REQ-EXE-022 | `exec_cpu.c` |
+| `exec_mem_open()` / `exec_mem_close()` | REQ-EXE-029, REQ-EXE-030 | `exec_mem.c` |
+| `exec_asm_open()` / `exec_asm_close()` | REQ-EXE-031, REQ-EXE-032 | `exec_asm.c` |
 
 ---
 

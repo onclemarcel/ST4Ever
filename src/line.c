@@ -38,6 +38,7 @@
 #include "image_msa.h"
 #include "file.h"
 #include "trace.h"
+#include "exec.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -1857,6 +1858,85 @@ static st_error_t line_cmd_history(const parsed_cmd_t *ptParsed,
     return ST_NO_ERROR;
 }
 
+static st_error_t line_cmd_execute(const parsed_cmd_t *ptParsed,
+                                    line_context_t     *ptCtx)
+{
+    const load_state_t *ptLoad;
+    char                szSelected[ST_MAX_PATH];
+    st_error_t          eResult;
+
+    LOG_TRACE("ptParsed=%p ptCtx=%p",
+              (void *)ptParsed, (void *)ptCtx);
+
+    if (ptParsed == NULL || ptCtx == NULL)
+    {
+        LOG_ERROR("NULL parameter");
+        return ST_ERROR;
+    }
+
+    /* If a session is already open, close it first */
+    if (exec_is_open())
+    {
+        exec_close();
+    }
+
+    /* Determine the target: explicit arg > selected > loaded */
+    if (ptParsed->iArgc >= 2)
+    {
+        /* Explicit file argument: load it first */
+        eResult = load_file(ptParsed->aszArgv[1]);
+        if (eResult != ST_NO_ERROR)
+        {
+            line_print_error("execute: cannot load '%s'",
+                             ptParsed->aszArgv[1]);
+            return ST_NO_ERROR;
+        }
+    }
+    else
+    {
+        /* No argument: check current selection */
+        szSelected[0] = '\0';
+        line_get_selected(ptCtx, szSelected, sizeof(szSelected));
+        if (szSelected[0] != '\0')
+        {
+            eResult = load_file(szSelected);
+            if (eResult != ST_NO_ERROR)
+            {
+                line_print_error("execute: cannot load '%s'",
+                                 szSelected);
+                return ST_NO_ERROR;
+            }
+        }
+    }
+
+    /* Check that a PRG is now loaded */
+    ptLoad = load_get_state();
+    if (!ptLoad->bLoaded)
+    {
+        line_print_error(
+            "execute: no program loaded — use 'load <file>' first");
+        return ST_NO_ERROR;
+    }
+    if (ptLoad->eType != LOAD_TYPE_PRG)
+    {
+        line_print_error(
+            "execute: loaded file is not an Atari ST PRG");
+        return ST_NO_ERROR;
+    }
+
+    /* Open the execution session */
+    eResult = exec_open(ptLoad->szPath, ptLoad->uiLoadAddr);
+    if (eResult != ST_NO_ERROR)
+    {
+        line_print_error("execute: failed to open execution session");
+        return ST_NO_ERROR;
+    }
+
+    line_print_msg("execute: session opened — use monitor window "
+                   "[F5=Step F6=Run F7=Reset ESC=Quit]");
+    return ST_NO_ERROR;
+}
+
 static st_error_t line_cmd_stub(const parsed_cmd_t *ptParsed,
                                  line_context_t     *ptCtx)
 {
@@ -2686,7 +2766,7 @@ static const cmd_handler_fn g_line_aHandlers[CMD_COUNT] =
     /* CMD_MOUNT      */ line_cmd_mount,
     /* CMD_WHERE      */ line_cmd_where,
     /* CMD_TRACE      */ line_cmd_trace,
-    /* CMD_EXECUTE    */ line_cmd_stub,
+    /* CMD_EXECUTE    */ line_cmd_execute,
     /* CMD_COLORS     */ line_cmd_colors,
     /* CMD_INFO       */ line_cmd_info,
     /* CMD_HISTORY    */ line_cmd_history,
@@ -3667,6 +3747,12 @@ st_error_t line_shutdown(line_context_t *ptCtx)
     {
         mount_view_close(&g_line_ptMountView);
         g_line_ptMountView = NULL;
+    }
+
+    /* Close any open execution session */
+    if (exec_is_open())
+    {
+        exec_close();
     }
 
     /* Save history */
