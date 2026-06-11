@@ -216,6 +216,7 @@ through one or more test cases in Section 5.
 | UFR-EXE-008  | The execution monitor shall provide step, run, stop, and breakpoint controls with a register/memory display view.                     | ✓ UC25A (monitor+CPU) / UC25B (mem+asm) | UC25A |
 | UFR-EXE-009  | The ST machine memory map shall dispatch byte/word/long reads and writes to the correct hardware region (RAM, ROM, Shifter, YM2149, MFP, ACIA) without crashing; HW register state shall be maintained coherently across read and write operations. | ✓ UC24 | UC24  |
 | UFR-EXE-010  | The application shall classify any 512-byte sector from an Atari ST disk image by static analysis of its content, returning a ranked list of probable sector types (bootsector, FAT12, BSS, code, packer data, etc.) with confidence scores, without executing the sector content. | ✓ UC24A | UC24A |
+| UFR-EXE-011  | The execution engine shall decode the Atari ST Shifter video frame buffer (at the CPU-visible screen base address) into a flat RGB32 pixel array, supporting all three hardware resolutions: low (320×200, 16 colours, 4 bitplanes), medium (640×200, 4 colours, 2 bitplanes) and high (640×400, 2 colours, 1 bitplane); the ST 3-bit palette entries shall be scaled to 8-bit per channel. | ✓ UC26 | UC26 |
 
 ### 1.11 Design Constraints — Internal API (DOC-01)
 
@@ -860,6 +861,31 @@ requirement that will expose it (`UFR-EXE-*`, planned UC21–27).
 | `exec_cpu_open()` / `exec_cpu_close()` | REQ-EXE-021, REQ-EXE-022 | `exec_cpu.c` |
 | `exec_mem_open()` / `exec_mem_close()` | REQ-EXE-029, REQ-EXE-030 | `exec_mem.c` |
 | `exec_asm_open()` / `exec_asm_close()` | REQ-EXE-031, REQ-EXE-032 | `exec_asm.c` |
+
+---
+
+### 2.21 Shifter Video Rendering Engine — `shifter.h`
+
+> Design ref: CLAUDE.md §6 (UC26); depends on `ST.h` (st_machine_t, ST_RES_*, auPalette[]).
+> Parent UFR: UFR-EXE-011.
+
+| ID            | Software Requirement                                                                                                                                                                                                                                            | Parent UFR   | Status   | UC    |
+|---------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------|----------|-------|
+| REQ-VID-001   | `shifter_palette_to_rgb(uiColor)` shall decode a 16-bit ST colour word (bits [10:8]=R, [6:4]=G, [2:0]=B, 3 bits each) and return a 32-bit value 0x00RRGGBB; each 3-bit channel `n` shall be scaled to 8 bits by `(n * 255) / 7`. Impl: `shifter_palette_to_rgb()` | UFR-EXE-011 | ✓ UC26 | UC26 |
+| REQ-VID-002   | `shifter_screen_size(uiRes, piWidth, piHeight)` shall set *piWidth/*piHeight to 320/200 for ST_RES_LOW, 640/200 for ST_RES_MED, 640/400 for ST_RES_HIGH, and 0/0 for any unknown value. Impl: `shifter_screen_size()` | UFR-EXE-011 | ✓ UC26 | UC26 |
+| REQ-VID-003   | `shifter_render(ptMachine, auPixels, uiPixelCount, piWidth, piHeight)` shall decode the frame buffer at `ptMachine->aRam[uiScreenBase]` (32,000 bytes) into a flat row-major RGB32 pixel array using `auPalette[]` and `uiResolution`; bitplane interleaving: for each 16-pixel group, pixel p uses bit (15−p) of each plane word (MSB first); low res uses 4 planes (8 bytes/group, 20 groups/row), med res 2 planes (4 bytes/group, 40 groups/row), high res 1 plane (2 bytes/group, 40 groups/row). Impl: `shifter_render()`, `render_low()`, `render_med()`, `render_high()` | UFR-EXE-011 | ✓ UC26 | UC26 |
+| REQ-VID-004   | `shifter_render()` shall return ST_ERROR if any of ptMachine, auPixels, piWidth, piHeight is NULL; if uiPixelCount < width*height; if uiResolution is unknown (width==0); or if uiScreenBase + 32000 > ST_RAM_SIZE. On success it shall set *piWidth/*piHeight and return ST_NO_ERROR. Impl: `shifter_render()` | UFR-EXE-011 | ✓ UC26 | UC26 |
+
+**Function table — `shifter.h`:**
+
+| Function | REQ | Impl. |
+|---|---|---|
+| `shifter_palette_to_rgb()` | REQ-VID-001 | `shifter.c` |
+| `shifter_screen_size()` | REQ-VID-002 | `shifter.c` |
+| `shifter_render()` | REQ-VID-003, REQ-VID-004 | `shifter.c` |
+| `render_low()` (internal) | REQ-VID-003 | `shifter.c` |
+| `render_med()` (internal) | REQ-VID-003 | `shifter.c` |
+| `render_high()` (internal) | REQ-VID-003 | `shifter.c` |
 
 ---
 

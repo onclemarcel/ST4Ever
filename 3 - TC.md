@@ -3718,3 +3718,95 @@ Source: `use_cases/use_case_24F.c`
 |--------------|------------------------------------|-------------------------------|-----------|
 | UFR-EXE-008  | REQ-EXE-029..032                   | TC-EXE-031..051               | v UC25B   |
 
+---
+
+### 5.94 Test Cases — UC26
+
+> Module under test: `src/shifter.h` / `src/shifter.c`
+> Source file: `use_cases/use_case_26.c`
+> Parent UFR: UFR-EXE-011 → REQ-VID-001..004
+
+#### TC-VID — Palette conversion (REQ-VID-001)
+
+| TC ID       | Description                                                                   | Type | UFR          | REQ         | INT          | Expected result                                   | Status     |
+|-------------|-------------------------------------------------------------------------------|------|--------------|-------------|--------------|---------------------------------------------------|------------|
+| TC-VID-001  | `shifter_palette_to_rgb(0x0000)` → black                                     | [N]  | UFR-EXE-011  | REQ-VID-001 | INT-VID-001  | `== 0x00000000`                                   | PASS UC26  |
+| TC-VID-002  | `shifter_palette_to_rgb(0x0777)` → white                                     | [N]  | UFR-EXE-011  | REQ-VID-001 | INT-VID-002  | `== 0x00FFFFFF`                                   | PASS UC26  |
+| TC-VID-003  | `shifter_palette_to_rgb(0x0700)` → R=255, G=0, B=0                          | [N]  | UFR-EXE-011  | REQ-VID-001 | INT-VID-003  | R byte=0xFF, G byte=0x00, B byte=0x00             | PASS UC26  |
+| TC-VID-004  | `shifter_palette_to_rgb(0x0070)` → R=0, G=255, B=0                          | [N]  | UFR-EXE-011  | REQ-VID-001 | INT-VID-004  | R byte=0x00, G byte=0xFF, B byte=0x00             | PASS UC26  |
+| TC-VID-005  | `shifter_palette_to_rgb(0x0007)` → R=0, G=0, B=255                          | [N]  | UFR-EXE-011  | REQ-VID-001 | INT-VID-005  | R byte=0x00, G byte=0x00, B byte=0xFF             | PASS UC26  |
+| TC-VID-006  | `shifter_palette_to_rgb(0x0111)` → channel 1 maps to (1*255)/7 = 36         | [N]  | UFR-EXE-011  | REQ-VID-001 | INT-VID-006  | R byte == 36                                       | PASS UC26  |
+
+#### TC-VID — Screen size queries (REQ-VID-002)
+
+| TC ID       | Description                                                                   | Type | UFR          | REQ         | INT          | Expected result                                   | Status     |
+|-------------|-------------------------------------------------------------------------------|------|--------------|-------------|--------------|---------------------------------------------------|------------|
+| TC-VID-007  | `shifter_screen_size(ST_RES_LOW)` → 320×200                                  | [N]  | UFR-EXE-011  | REQ-VID-002 | INT-VID-007  | `iW==320 && iH==200`                              | PASS UC26  |
+| TC-VID-008  | `shifter_screen_size(ST_RES_MED)` → 640×200                                  | [N]  | UFR-EXE-011  | REQ-VID-002 | INT-VID-008  | `iW==640 && iH==200`                              | PASS UC26  |
+| TC-VID-009  | `shifter_screen_size(ST_RES_HIGH)` → 640×400                                 | [N]  | UFR-EXE-011  | REQ-VID-002 | INT-VID-009  | `iW==640 && iH==400`                              | PASS UC26  |
+| TC-VID-010  | `shifter_screen_size(0xFF)` → 0×0                                            | [N]  | UFR-EXE-011  | REQ-VID-002 | INT-VID-010  | `iW==0 && iH==0`                                  | PASS UC26  |
+
+#### TC-VID — Low resolution render (REQ-VID-003)
+
+| TC ID       | Description                                                                   | Type | UFR          | REQ         | INT          | Expected result                                   | Status     |
+|-------------|-------------------------------------------------------------------------------|------|--------------|-------------|--------------|---------------------------------------------------|------------|
+| TC-VID-011  | Low res render returns ST_NO_ERROR                                            | [N]  | UFR-EXE-011  | REQ-VID-003 | INT-VID-011  | `eRet == ST_NO_ERROR`                             | PASS UC26  |
+| TC-VID-012  | Low res: plane0=0xFFFF → pixels 0..15 = palette[1] (white)                  | [N]  | UFR-EXE-011  | REQ-VID-003 | INT-VID-012  | `auPixels[0] == 0x00FFFFFF`                       | PASS UC26  |
+| TC-VID-013  | Low res: plane0=0xFFFF → pixel 15 = white                                    | [N]  | UFR-EXE-011  | REQ-VID-003 | INT-VID-013  | `auPixels[15] == 0x00FFFFFF`                      | PASS UC26  |
+| TC-VID-014  | Low res: next group (all planes=0) → pixel 16 = palette[0] (black)           | [N]  | UFR-EXE-011  | REQ-VID-003 | INT-VID-014  | `auPixels[16] == 0x00000000`                      | PASS UC26  |
+| TC-VID-015  | Low res render sets width=320                                                 | [N]  | UFR-EXE-011  | REQ-VID-003 | INT-VID-015  | `iW == 320`                                       | PASS UC26  |
+| TC-VID-016  | Low res render sets height=200                                                | [N]  | UFR-EXE-011  | REQ-VID-003 | INT-VID-016  | `iH == 200`                                       | PASS UC26  |
+| TC-VID-017  | Low res: plane1=0xFFFF → color index 2 → palette[2]                         | [N]  | UFR-EXE-011  | REQ-VID-003 | INT-VID-017  | `auPixels[0] == shifter_palette_to_rgb(0x0700)`   | PASS UC26  |
+| TC-VID-018  | Low res: all-zero frame buffer → all 64,000 pixels = palette[0]              | [N]  | UFR-EXE-011  | REQ-VID-003 | INT-VID-018  | `auPixels[0] == 0 && auPixels[63999] == 0`        | PASS UC26  |
+
+#### TC-VID — Medium resolution render (REQ-VID-003)
+
+| TC ID       | Description                                                                   | Type | UFR          | REQ         | INT          | Expected result                                   | Status     |
+|-------------|-------------------------------------------------------------------------------|------|--------------|-------------|--------------|---------------------------------------------------|------------|
+| TC-VID-019  | Med res render returns ST_NO_ERROR                                            | [N]  | UFR-EXE-011  | REQ-VID-003 | INT-VID-019  | `eRet == ST_NO_ERROR`                             | PASS UC26  |
+| TC-VID-020  | Med res: plane0=0xFFFF, plane1=0 → pixel 0 = palette[1]                     | [N]  | UFR-EXE-011  | REQ-VID-003 | INT-VID-020  | `auPixels[0] == shifter_palette_to_rgb(0x0700)`   | PASS UC26  |
+| TC-VID-021  | Med res render sets width=640, height=200                                     | [N]  | UFR-EXE-011  | REQ-VID-003 | INT-VID-021  | `iW==640 && iH==200`                              | PASS UC26  |
+
+#### TC-VID — High resolution render (REQ-VID-003)
+
+| TC ID       | Description                                                                   | Type | UFR          | REQ         | INT          | Expected result                                   | Status     |
+|-------------|-------------------------------------------------------------------------------|------|--------------|-------------|--------------|---------------------------------------------------|------------|
+| TC-VID-022  | High res render returns ST_NO_ERROR                                           | [N]  | UFR-EXE-011  | REQ-VID-003 | INT-VID-022  | `eRet == ST_NO_ERROR`                             | PASS UC26  |
+| TC-VID-023  | High res: byte[0]=0x80 → pixel 0 = palette[1] (white, bit=1)                | [N]  | UFR-EXE-011  | REQ-VID-003 | INT-VID-023  | `auPixels[0] == 0x00FFFFFF`                       | PASS UC26  |
+| TC-VID-024  | High res: byte[0]=0x80 → pixel 1 = palette[0] (black, bit=0)                | [N]  | UFR-EXE-011  | REQ-VID-003 | INT-VID-024  | `auPixels[1] == 0x00000000`                       | PASS UC26  |
+| TC-VID-025  | High res: byte[1]=0x00 → pixel 8 = black                                     | [N]  | UFR-EXE-011  | REQ-VID-003 | INT-VID-025  | `auPixels[8] == 0x00000000`                       | PASS UC26  |
+| TC-VID-026  | High res render sets width=640, height=400                                    | [N]  | UFR-EXE-011  | REQ-VID-003 | INT-VID-026  | `iW==640 && iH==400`                              | PASS UC26  |
+
+#### TC-VID — Robustness (REQ-VID-004)
+
+| TC ID       | Description                                                                   | Type | UFR          | REQ         | INT          | Expected result                                   | Status     |
+|-------------|-------------------------------------------------------------------------------|------|--------------|-------------|--------------|---------------------------------------------------|------------|
+| TC-VID-027  | `shifter_render(NULL, ...)` returns ST_ERROR                                  | [R]  | UFR-EXE-011  | REQ-VID-004 | INT-VID-027  | `eRet == ST_ERROR`                                | PASS UC26  |
+| TC-VID-028  | `shifter_render(..., NULL, ...)` (NULL pixels) returns ST_ERROR               | [R]  | UFR-EXE-011  | REQ-VID-004 | INT-VID-028  | `eRet == ST_ERROR`                                | PASS UC26  |
+| TC-VID-029  | `shifter_render(..., NULL, ...)` (NULL piWidth) returns ST_ERROR              | [R]  | UFR-EXE-011  | REQ-VID-004 | INT-VID-029  | `eRet == ST_ERROR`                                | PASS UC26  |
+| TC-VID-030  | `shifter_render(..., NULL)` (NULL piHeight) returns ST_ERROR                  | [R]  | UFR-EXE-011  | REQ-VID-004 | INT-VID-030  | `eRet == ST_ERROR`                                | PASS UC26  |
+| TC-VID-031  | `shifter_render()` with uiPixelCount=1 (too small) returns ST_ERROR           | [R]  | UFR-EXE-011  | REQ-VID-004 | INT-VID-031  | `eRet == ST_ERROR`                                | PASS UC26  |
+| TC-VID-032  | `shifter_render()` with uiScreenBase=0x0F0000 (> ST_RAM_SIZE) returns ST_ERROR| [R]  | UFR-EXE-011  | REQ-VID-004 | INT-VID-032  | `eRet == ST_ERROR`                                | PASS UC26  |
+| TC-VID-033  | `shifter_render()` with uiResolution=0xFF (unknown) returns ST_ERROR          | [R]  | UFR-EXE-011  | REQ-VID-004 | INT-VID-033  | `eRet == ST_ERROR`                                | PASS UC26  |
+
+#### Test Summary — UC26
+
+| Module | [N] | [R] | [S] | Total | Result    |
+|--------|-----|-----|-----|-------|-----------|
+| VID    | 26  | 7   | 0   | 33    | ALL PASS  |
+
+#### REQ → TC coverage (UC26)
+
+| REQ         | TC(s)                    | Status    |
+|-------------|--------------------------|-----------|
+| REQ-VID-001 | TC-VID-001..006          | v UC26    |
+| REQ-VID-002 | TC-VID-007..010          | v UC26    |
+| REQ-VID-003 | TC-VID-011..026          | v UC26    |
+| REQ-VID-004 | TC-VID-027..033          | v UC26    |
+
+#### UFR traceability (UC26)
+
+| UFR          | REQ(s)                   | TC(s)                    | Status    |
+|--------------|--------------------------|--------------------------|-----------|
+| UFR-EXE-011  | REQ-VID-001..004         | TC-VID-001..033          | v UC26    |
+

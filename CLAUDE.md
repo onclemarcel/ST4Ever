@@ -20,6 +20,7 @@
 - 2026-06-11: UC25A Codé/Testé : moteur d'exécution pas-à-pas `exec.c` (thread CPU + état partagé mutex + breakpoints EXEC_BP_MAX=8) + `exec_mon.c` (vue monitor F5/F6/F7/F8/B/C) + `exec_cpu.c` (vue registres D0-D7/A0-A7/PC/SSP/SR) + `line_cmd_execute()` + `exec_init/shutdown` dans main.c — 30 tests PASS (13N+9R+8S) 0 fail
 - 2026-06-11: UC25B Codé/Testé : vue mémoire `exec_mem.c` (hex dump 16 bytes/row, PC row highlight yellow, UP/DN/PgUp/PgDn/HOME snap) + vue désassembleur `exec_asm.c` (disasm_one forward, PC highlight, UP/DN/PgUp/PgDn/F snap) + fix exec_open (g_exec_bOpen=TRUE avant view opens) — 21 tests PASS (11N+4R+6S) 0 fail
 - 2026-06-11: BUG-10 + edit backup — BUG-10 : correction LF-only (`bEndOfBuf` avant `*p='\0'` dans `etxt_load`) + `edit backup [on|off]` + `edit_txt_set/get_backup()` + `szBackupPath` + sauvegarde `_YYYYMMDD_HHMMSS.bak` à l'ouverture, suppression/conservation à la fermeture — use_case_08.c : 36→43 tests (20N+11R+12S) Phase 2 : UFR-EDT-007, REQ-EDT-014..017, TC-EDT-037..043
+- 2026-06-11: UC26 Codé/Testé : moteur rendu Shifter — `shifter.h/c` + `shifter_render()` décodage bitplanes→RGB32 (low/med/high res, 4/2/1 plans, palette 16 couleurs ST 3-bit→8-bit) — 33 tests PASS (26N+7R) 0 fail
 
 *L'historique des versions antérieures peut être récupéré via le change log github*
 
@@ -502,7 +503,7 @@ Les étapes de développement fonctionnelles sont formalisées en Use Cases, per
 | UC24G | `trace`, `image`, `dir` | **P57** `trace level all\|info\|error\|todo` incrémental + **P58** `image --in/--out` explicites + **P60** sélection simple/multi exclusives dans vue dir — Phase 2 : DOC-01 (UFR-CON-099..105→SW reqs) + DOC-02 (§1.5 SR.md→derived reqs) | ✓ VALIDÉ 2026-06-10 |
 | UC25A | `execute` | Moteur d'exécution pas-à-pas `exec.c` (thread CPU + mutex + BP×8 + STEP/RUN/PAUSE/STOP) + `exec_mon.c` (vue monitor F5/F6/F7/F8/B/C) + `exec_cpu.c` (D0-D7/A0-A7/PC/SSP/SR) + `line_cmd_execute()` | ✓ VALIDÉ 2026-06-11 |
 | UC25B | `execute` | Vue mémoire `exec_mem.c` (dump RAM paginé + navigation) + vue désassembleur `exec_asm.c` (colonnes hex+disasm synchronisées avec PC highlight) | ✓ VALIDÉ 2026-06-11 |
-| UC26 | interne | Émulation vidéo ST (Shifter : low/med/high res, palette 16 couleurs) | rendu écran correct |
+| UC26 | interne | Shifter : moteur rendu bitplanes→RGB32 (low/med/high res, palette 16 couleurs, `shifter_render()`) | ✓ VALIDÉ 2026-06-11 |
 | UC27 | `execute` | Vue écran Win32/GDI + X11 + synchronisation VBL | démo statique visible |
 | UC28 | interne | Line-A traps + registres Shifter/YM2149 minimaux | démo 1 plan visible |
 | UC29 | interne | XBIOS/GEMDOS minimaux (palette, écran base, VBL wait) | démo dynamique |
@@ -1484,6 +1485,12 @@ Cible : **UC25-pre** ou regroupé avec les corrections dir.
 ### Arbitrage UC25B (2026-06-11)
 
 *UC25B implémente exec_mem.c (vue hex dump RAM) et exec_asm.c (vue désassembleur). Fix exec_open (g_exec_bOpen=TRUE avant les view opens pour que exec_get_state() fonctionne). Aucune proposition UX/fonctionnelle n'a émergé. Phase 2 effectuée : REQ-EXE-029..032 dans SR.md §2.20, TC-EXE-031..051 dans TC.md §5.93, section UC25B dans 6-UC.md, INTENT markers INT-EXE-031..051 dans use_case_25B.c — UC25B est clos (Phase 1 + Phase 2).*
+
+---
+
+### Arbitrage UC26 (2026-06-11)
+
+*UC26 est un UC purement interne (moteur de rendu Shifter). Le module `shifter.h/c` fournit `shifter_render()`, `shifter_palette_to_rgb()` et `shifter_screen_size()` — consommé par exec_screen en UC27. Aucune proposition UX/fonctionnelle n'a émergé — UC26 est clos.*
 
 ---
 

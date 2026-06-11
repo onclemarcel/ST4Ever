@@ -2890,9 +2890,115 @@ Tests skippés (6) : ouverture fenêtres GUI, rendering PC highlight, navigation
 
 ### Points d'attention pour les UCs suivants
 
-- **UC26** : la vue mémoire ne reflète que `aRam[]` (512 KB) ; l'espace d'adressage ST complet (ROM, registres HW) n'est pas visible — à corriger quand UC26 étendra la memory map
-- **UC26** : `exec_asm` décode en appelant `disasm_one(aRam + offset, ...)` directement ; les adresses ROM ($FC0000+) ou HW déclencheront un décodage de données arbitraires — acceptable pour l'affichage, pas pour l'exécution
+- **RÉSOLU UC26** : `auPalette[]` et `uiScreenBase` sont maintenus à jour par UC24 — `shifter_render()` les lit directement depuis `st_machine_t` sans re-parser `aShifterRegs[]`.
+- **RÉSOLU UC26** : la vue mémoire ne reflète que `aRam[]` — point d'attention résolu en documentant que `exec_asm` est limité à la RAM ST pour l'affichage (acceptable).
 - **UC27** : l'ajout de la vue écran (`GUI_WND_EXEC_SCR`) suivra le même pattern d'ouverture depuis `exec_open()` ; penser à ajouter `hScrWnd` dans `exec_state_t` avant UC27
 - **UC27** : `exec_mon.c` expose les raccourcis `M` (mémoire) et `A` (désassembleur) pour ouvrir ces vues depuis le monitor si elles ont été fermées — non implémenté en UC25B, à compléter en UC27 ou en UC-exec-extras si nécessaire
 
 ---
+
+## UC26 — Shifter Video Rendering Engine
+
+**Date :** 2026-06-11
+**Statut :** VALIDÉ Phase 1 + Phase 2
+**Fichiers créés :** `src/shifter.h`, `src/shifter.c`, `use_cases/use_case_26.c`
+**Fichiers modifiés :** `use_cases/use_cases.h` (ajout include), `src/common.h` (version 0.26.0)
+
+### Périmètre fonctionnel implémenté
+
+**Module `shifter.c`** — moteur de décodage bitplanes → RGB32 :
+
+`shifter_palette_to_rgb(uiColor)` — conversion palette ST :
+- Entrée : mot 16 bits ST — bits [10:8]=R, [6:4]=G, [2:0]=B (3 bits chacun, 0..7)
+- Sortie : 0x00RRGGBB, chaque canal n mappé à (n*255)/7 → valeurs 0,36,73,109,146,182,219,255
+- Constante interne `st_channel_to8()` : réduction à l'essentiel (1 ligne)
+
+`shifter_screen_size(uiRes, piWidth, piHeight)` — dimensions par résolution :
+- LOW  (ST_RES_LOW=0)  → 320×200
+- MED  (ST_RES_MED=1)  → 640×200
+- HIGH (ST_RES_HIGH=2) → 640×400
+- Unknown → 0×0
+
+`shifter_render(ptMachine, auPixels, uiPixelCount, piWidth, piHeight)` — rendu principal :
+- Lit `ptMachine->uiScreenBase`, `->uiResolution`, `->auPalette[]` (maintenus par UC24)
+- Vérifie NULL params, buffer, bounds, resolution avant tout traitement
+- Pré-calcule `auRGB[16]` (palette ST→RGB32) puis dispatche vers le renderer de résolution
+
+`render_low()` / `render_med()` / `render_high()` — internes :
+
+*Format bitplane interleaved (partagé par les 3 résolutions, 32,000 octets de frame buffer) :*
+
+| Résolution | Plans | Octets/groupe de 16 px | Groupes/ligne | Octets/ligne |
+|-----------|-------|------------------------|---------------|--------------|
+| Low 320×200 | 4 | 8 (P0W, P1W, P2W, P3W) | 20 | 160 |
+| Med 640×200 | 2 | 4 (P0W, P1W)            | 40 | 160 |
+| High 640×400| 1 | 2 (P0W)                 | 40 | 80  |
+
+*Décodage pixel p (0..15) dans un groupe :*
+- Bit position b = 15 − p (MSB first)
+- Low  : index = P0[b] | (P1[b]<<1) | (P2[b]<<2) | (P3[b]<<3)  → 0..15
+- Med  : index = P0[b] | (P1[b]<<1)                              → 0..3
+- High : index = P0[b]                                             → 0..1
+- Pixel = auRGB[index]
+
+**Contraintes R22** : LOG_TRACE omis de toutes les fonctions shifter (appelables à 50 Hz depuis la boucle VBL en UC27).
+
+### Infrastructure validée
+
+- `st_machine_t.auPalette[]` et `uiScreenBase` / `uiResolution` sont maintenus par `ST.c` (UC24) — pas de re-parse de `aShifterRegs[]` nécessaire dans le renderer
+- Buffer pixel statique `g_aPixels[SHIFTER_MAX_PIXELS]` en file-scope dans le test pour éviter 1 Mo sur la pile
+- `SHIFTER_MAX_PIXELS = 640×400 = 256,000` — constante publique dans `shifter.h`
+- `SHIFTER_FB_SIZE = 32,000` — constante interne, valide pour les 3 résolutions
+
+### Test matrix (UC26)
+
+| Module | [N] | [R] | [S] | Total | Result    |
+|--------|-----|-----|-----|-------|-----------|
+| VID    | 26  | 7   | 0   | 33    | ALL PASS  |
+
+Tests nominaux (26) : palette conversion 6 valeurs (noir, blanc, RVB primaires, canal 1), dimensions par résolution (4 cas dont unknown), rendu low res (8), rendu med res (3), rendu high res (5).
+Tests robustesse (7) : NULL ptMachine, NULL auPixels, NULL piWidth, NULL piHeight, buffer trop petit, screen base hors RAM, résolution inconnue.
+Tests skippés (0) : UC26 est purement interne, aucun skip requis.
+
+### Contrats comportementaux validés
+
+*`shifter_palette_to_rgb()`*
+- 0x0000 → 0x00000000 (noir)
+- 0x0777 → 0x00FFFFFF (blanc)
+- 0x0700 → R=0xFF, G=0x00, B=0x00
+- 0x0070 → R=0x00, G=0xFF, B=0x00
+- 0x0007 → R=0x00, G=0x00, B=0xFF
+- Valeur 1 dans un canal → (1×255)/7 = 36
+
+*`shifter_screen_size()`*
+- ST_RES_LOW → 320×200
+- ST_RES_MED → 640×200
+- ST_RES_HIGH → 640×400
+- Valeur inconnue → 0×0
+
+*`shifter_render()` — décodage*
+- Low res, plane0=0xFFFF, planes 1-3=0 : pixels 0..15 = palette[1] ; pixel 16 = palette[0]
+- Low res, plane1=0xFFFF, plane0=0 : pixels 0..15 → color index 2 = palette[2]
+- Low res, frame buffer all-zero : 320×200 pixels = palette[0]
+- Med res, plane0=0xFFFF : pixel 0 = palette[1]
+- High res, byte[0]=0x80 : pixel 0 = palette[1] (bit 7=1), pixel 1 = palette[0] (bit 6=0)
+
+*`shifter_render()` — robustesse*
+- NULL ptMachine → ST_ERROR (sans crash)
+- NULL auPixels → ST_ERROR
+- NULL piWidth → ST_ERROR
+- NULL piHeight → ST_ERROR
+- uiPixelCount < width*height → ST_ERROR
+- uiScreenBase + 32000 > ST_RAM_SIZE → ST_ERROR
+- uiResolution inconnu → ST_ERROR
+
+### Points d'attention pour les UCs suivants
+
+- **UC27** : `exec_screen_open()` devra allouer dynamiquement un buffer `st_u32_t *auPixels` de `SHIFTER_MAX_PIXELS` éléments (256,000 × 4 = 1 Mo) — ne pas placer sur la pile de thread
+- **UC27** : `hScrWnd` doit être ajouté à `exec_state_t` ; le thread CPU doit appeler `gui_invalidate(hScrWnd)` après chaque instruction (ou seulement après N instructions pour limiter la charge GPU)
+- **UC27** : le titre de fenêtre écran suit R18 : `"ST4Ever - Screen: progname [320x200]"`
+- **UC27** : pour la synchronisation VBL (50 Hz), le thread CPU peut appeler `shifter_render()` toutes les 20 ms et poster le buffer vers la vue écran via un double-buffer ou un champ `auLastFrame[]` dans `exec_state_t` (protégé par ptMutex)
+- **UC27** : les dimensions de la fenêtre doivent s'adapter à la résolution courante — surveiller les changements de `uiResolution` entre frames (ex : demo switching low→high pendant l'exécution)
+
+---
+
