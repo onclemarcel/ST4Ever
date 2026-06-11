@@ -19,6 +19,7 @@
 - 2026-06-10: UC24G Codé/Testé : P57 `trace level all|info|error|todo` incrémental + P58 `image --in/--out` explicites + P60 sélection simple/multi exclusive dans vue dir + Phase 2 DOC-01/DOC-02 SR.md restructuré + TC.md UC24G (14 tests) + use_case_24G.c — 14 tests PASS 0 fail
 - 2026-06-11: UC25A Codé/Testé : moteur d'exécution pas-à-pas `exec.c` (thread CPU + état partagé mutex + breakpoints EXEC_BP_MAX=8) + `exec_mon.c` (vue monitor F5/F6/F7/F8/B/C) + `exec_cpu.c` (vue registres D0-D7/A0-A7/PC/SSP/SR) + `line_cmd_execute()` + `exec_init/shutdown` dans main.c — 30 tests PASS (13N+9R+8S) 0 fail
 - 2026-06-11: UC25B Codé/Testé : vue mémoire `exec_mem.c` (hex dump 16 bytes/row, PC row highlight yellow, UP/DN/PgUp/PgDn/HOME snap) + vue désassembleur `exec_asm.c` (disasm_one forward, PC highlight, UP/DN/PgUp/PgDn/F snap) + fix exec_open (g_exec_bOpen=TRUE avant view opens) — 21 tests PASS (11N+4R+6S) 0 fail
+- 2026-06-11: BUG-10 + edit backup — BUG-10 : correction LF-only (`bEndOfBuf` avant `*p='\0'` dans `etxt_load`) + `edit backup [on|off]` + `edit_txt_set/get_backup()` + `szBackupPath` + sauvegarde `_YYYYMMDD_HHMMSS.bak` à l'ouverture, suppression/conservation à la fermeture — use_case_08.c : 36→43 tests (20N+11R+12S) Phase 2 : UFR-EDT-007, REQ-EDT-014..017, TC-EDT-037..043
 
 *L'historique des versions antérieures peut être récupéré via le change log github*
 
@@ -471,7 +472,7 @@ Les étapes de développement fonctionnelles sont formalisées en Use Cases, per
 | UC5-bis | prefs | Module `prefs.c` : lecture/écriture `%APPDATA%\ST4Ever\prefs.ini` ; mémorisation position/taille fenêtres par type (P7) — **différé après UC10** : les types de vues (edit hex, edit txt, disassembly) doivent être stables avant de persister leurs positions | save/restore position fenêtre dir/edit |
 | UC6 | plateforme | Abstraction fichiers : open/read/write/stat/mkdir, listing répertoire | ✓ VALIDÉ 2026-06-01 |
 | UC7 | `load` | Chargement fichier texte/binaire, détection type, buffer mémoire ; indicateur visuel sélection active dans vue `dir` (P11 : couleur secondaire sur ligne sélectionnée, ≠ highlight navigation) | ✓ VALIDÉ 2026-06-01 |
-| UC8 | `edit` texte | Vue éditeur texte D2D : scroll, numéros de ligne, sélection, clipboard, sauvegarde ; `GUI_MOD_*` + `uiMods` dans `gui_event_t` ; API clipboard `gui_clipboard_set/get_text` | ✓ VALIDÉ 2026-06-02 |
+| UC8 | `edit` texte | Vue éditeur texte D2D : scroll, numéros de ligne, sélection, clipboard, sauvegarde ; `GUI_MOD_*` + `uiMods` dans `gui_event_t` ; API clipboard `gui_clipboard_set/get_text` ; BUG-10 LF-only fix (`bEndOfBuf`) ; `edit backup [on\|off]` + `_YYYYMMDD_HHMMSS.bak` (UFR-EDT-007) | ✓ VALIDÉ 2026-06-02 + bak 2026-06-11 |
 | UC9 | `edit` hex | Vue hex+ASCII D2D : adresses, 16 bytes/row, zones HEX/ASCII (TAB), édition nibble+byte, clic souris, CTRL+S save | ✓ VALIDÉ 2026-06-02 |
 | UC10 | `edit` | Vue intégrée hex+ASCII+désasm en colonnes synchronisées | ✓ VALIDÉ 2026-06-02 |
 | UC11 | interne | Désassembleur 68000 : MOVE/MOVEQ/LEA/CLR/EXG/SWAP/PEA | ✓ VALIDÉ 2026-06-03 |

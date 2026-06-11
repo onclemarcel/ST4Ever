@@ -8,17 +8,19 @@
  *   use_cases/UC08/empty.txt   — zero-byte file
  *
  * TEST MATRIX - UC08:
- *   [N] Nominal    : 17 tests - display helpers (8), clipboard
+ *   [N] Nominal    : 20 tests - display helpers (8), clipboard
  *                               round-trip (1), GUI_MOD flags (5),
- *                               constants (3)
+ *                               constants (3), backup settings (3)
  *   [R] Robustness : 11 tests - lifecycle NULL guards (8),
  *                               clipboard NULL guards (3)
- *   [S] Skipped    :  8 tests - GUI rendering/editing (make manual)
- *   Total          : 36
+ *   [S] Skipped    : 12 tests - GUI rendering/editing (make manual),
+ *                               LF load + backup lifecycle (make manual)
+ *   Total          : 43
  *
  * Traceability:
  *   INT-EDT-001..007 → TC-EDT-001..028 → REQ-EDT-001..013 → UFR-EDT-001..006
  *   INT-EDT-007      → TC-EDT-021..025 → REQ-GUI-020..025 → UFR-GUI-007
+ *   INT-EDT-008..009 → TC-EDT-037..043 → REQ-EDT-014..017 → UFR-EDT-007
  */
 
 #include "use_cases.h"
@@ -30,6 +32,7 @@ int g_uc_fails = 0;
 
 #define UC08_TXT_PATH   "use_cases/UC08/hello.txt"
 #define UC08_EMPTY_PATH "use_cases/UC08/empty.txt"
+#define UC08_LF_PATH    "use_cases/UC08/unix_lf.txt"
 
 /* ------------------------------------------------------------------
  * Display-column helpers — same contract as the internal ones in
@@ -292,14 +295,41 @@ int main(void)
             EDIT_TXT_CLIP_MAX >= 1024);
 
     /* ================================================================
-     * BLOCK 6 — Manual tests (GUI rendering and editing)
+     * BLOCK 6 — Backup settings (headless)
      * ================================================================ */
 
-    printf("\n--- Block 6: visual / interactive tests ---\n");
-    /* INTENT[INT-EDT-002..003 → TC-EDT-029..036 → REQ-EDT-003..004,
-     *         REQ-EDT-007..011 → UFR-EDT-001..006]:
+    printf("\n--- Block 6: backup settings ---\n");
+
+    /* INTENT[INT-EDT-008 → TC-EDT-037..039 → REQ-EDT-015,REQ-EDT-017
+     *        → UFR-EDT-007]:
+     * edit_txt_get_backup() returns ST_TRUE by default; set_backup()
+     * updates the global flag and the change persists. */
+
+    /* INTENT[INT-EDT-008 → TC-EDT-037]: default is enabled */
+    UC_TEST("[N] edit_txt_get_backup() default == ST_TRUE",
+            edit_txt_get_backup() == ST_TRUE);
+
+    /* INTENT[INT-EDT-008 → TC-EDT-038]: disable backup */
+    edit_txt_set_backup(ST_FALSE);
+    UC_TEST("[N] edit_txt_set_backup(ST_FALSE) → get returns ST_FALSE",
+            edit_txt_get_backup() == ST_FALSE);
+
+    /* INTENT[INT-EDT-008 → TC-EDT-039]: re-enable backup (restore default) */
+    edit_txt_set_backup(ST_TRUE);
+    UC_TEST("[N] edit_txt_set_backup(ST_TRUE) → get returns ST_TRUE",
+            edit_txt_get_backup() == ST_TRUE);
+
+    /* ================================================================
+     * BLOCK 7 — Manual tests (GUI rendering, LF fix, backup lifecycle)
+     * ================================================================ */
+
+    printf("\n--- Block 7: visual / interactive tests ---\n");
+    /* INTENT[INT-EDT-002..003, INT-EDT-009 → TC-EDT-029..036,
+     *        TC-EDT-040..043 → REQ-EDT-003..004, REQ-EDT-007..011,
+     *        REQ-EDT-014..016 → UFR-EDT-001..006, UFR-EDT-007]:
      * Full open/render/edit/save cycle validated manually; headless
-     * tests cover only the portable logic (file load, helpers, API). */
+     * tests cover only the portable logic (file load, helpers, API).
+     * LF fix and backup lifecycle require a running GUI window. */
 
     TEST_MANUAL("[S] edit window opens for hello.txt with 4 lines",
                 "Did the editor window open showing 4 lines?");
@@ -317,6 +347,18 @@ int main(void)
                 "After typing then CTRL+S, does [*] disappear?");
     TEST_MANUAL("[S] ESC closes editor window",
                 "Does ESC close the editor window?");
+    TEST_MANUAL(
+        "[S] LF-only file (unix_lf.txt) opens with 3 lines visible",
+        "Run 'edit use_cases/UC08/unix_lf.txt'. Does it show 3 lines?");
+    TEST_MANUAL(
+        "[S] backup .bak file created at open",
+        "Is a *_YYYYMMDD_HHMMSS.bak file present in the same dir?");
+    TEST_MANUAL(
+        "[S] backup removed if file unchanged at close",
+        "Close without editing. Is the .bak file gone?");
+    TEST_MANUAL(
+        "[S] backup kept if file was modified at close",
+        "Type a char, CTRL+S, then close. Is the .bak still there?");
 
     /* ================================================================
      * Results

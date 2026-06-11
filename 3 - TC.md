@@ -1355,6 +1355,8 @@ Source: `use_cases/use_case_08.c`
 | INT-EDT-005 | Public constants must match documented values (TAB_WIDTH=4, MAX_LINE_LEN, CLIP_MAX, UNDO_LEVELS)     |
 | INT-EDT-006 | gui_clipboard_set/get_text must reject NULL/zero params; set+get round-trip preserves text on Windows |
 | INT-EDT-007 | GUI_MOD_CTRL/SHIFT/ALT must be distinct non-overlapping bitmasks; CTRL+letter forwarded via WM_CHAR  |
+| INT-EDT-008 | edit_txt_set/get_backup control the global flag; default is ST_TRUE; changes are visible immediately  |
+| INT-EDT-009 | LF-only files load with all lines intact; backup created at open, removed if unchanged, kept if modified |
 
 ### 5.31 Test Cases — UC8 (text editor)
 
@@ -1398,12 +1400,19 @@ Source: `use_cases/use_case_08.c`
 | TC-EDT-034  | CTRL+A selects all text (full blue, visual)                         | [S]  | UFR-EDT-002  | REQ-EDT-005             | INT-EDT-003 | entire content highlighted                                    | SKIP     |
 | TC-EDT-035  | CTRL+S saves; title [*] disappears (visual)                         | [S]  | UFR-EDT-005  | REQ-EDT-011             | INT-EDT-002 | title no longer shows [*] after save                          | SKIP     |
 | TC-EDT-036  | ESC closes editor window (visual)                                   | [S]  | UFR-EDT-001  | REQ-EDT-001             | INT-EDT-002 | window closed; console regains focus                          | SKIP     |
+| TC-EDT-037  | `edit_txt_get_backup()` default == ST_TRUE                          | [N]  | UFR-EDT-007  | REQ-EDT-017             | INT-EDT-008 | ST_TRUE                                                       | PASS UC8-bak |
+| TC-EDT-038  | `edit_txt_set_backup(ST_FALSE)` → `get_backup()` == ST_FALSE        | [N]  | UFR-EDT-007  | REQ-EDT-017             | INT-EDT-008 | ST_FALSE                                                      | PASS UC8-bak |
+| TC-EDT-039  | `edit_txt_set_backup(ST_TRUE)` → `get_backup()` == ST_TRUE          | [N]  | UFR-EDT-007  | REQ-EDT-017             | INT-EDT-008 | ST_TRUE                                                       | PASS UC8-bak |
+| TC-EDT-040  | LF-only file (`unix_lf.txt`) opens with 3 lines visible (manual)    | [S]  | UFR-EDT-001  | REQ-EDT-014             | INT-EDT-009 | 3 lines shown, each with distinct content                     | SKIP     |
+| TC-EDT-041  | Backup `.bak` file created at `edit_txt_open()` (manual)            | [S]  | UFR-EDT-007  | REQ-EDT-015             | INT-EDT-009 | `*_YYYYMMDD_HHMMSS.bak` present in same dir after open       | SKIP     |
+| TC-EDT-042  | Backup deleted at close if file unchanged (manual)                  | [S]  | UFR-EDT-007  | REQ-EDT-016             | INT-EDT-009 | `.bak` gone after close without modification                  | SKIP     |
+| TC-EDT-043  | Backup kept at close if file was modified (manual)                  | [S]  | UFR-EDT-007  | REQ-EDT-016             | INT-EDT-009 | `.bak` retained after CTRL+S + close                         | SKIP     |
 
 #### Test Summary — UC8
 
 | Module | [N] | [R] | [S] | Total | Result    |
 |--------|-----|-----|-----|-------|-----------|
-| EDT    | 17  | 11  | 8   | 36    | ALL PASS  |
+| EDT    | 20  | 11  | 12  | 43    | ALL PASS  |
 
 #### REQ → TC coverage (UC8)
 
@@ -1422,6 +1431,10 @@ Source: `use_cases/use_case_08.c`
 | REQ-EDT-011  | TC-EDT-035 (manual)                             | ✓ UC8 (manual) |
 | REQ-EDT-012  | TC-EDT-017..020, TC-EDT-028                     | ✓ UC8    |
 | REQ-EDT-013  | TC-EDT-021..025                                 | ✓ UC8    |
+| REQ-EDT-014  | TC-EDT-040 (manual)                             | ✓ UC8-bak |
+| REQ-EDT-015  | TC-EDT-041 (manual)                             | ✓ UC8-bak |
+| REQ-EDT-016  | TC-EDT-042..043 (manual)                        | ✓ UC8-bak |
+| REQ-EDT-017  | TC-EDT-037..039                                 | ✓ UC8-bak |
 | REQ-GUI-022  | TC-EDT-021..025                                 | ✓ UC8    |
 | REQ-GUI-023  | (WM_KEYDOWN — validated via make run)           | ✓ UC8    |
 | REQ-GUI-024  | (WM_CHAR CTRL — validated via make run)         | ✓ UC8    |
