@@ -42,6 +42,7 @@
 #include "gui.h"
 #include "renderer.h"
 #include "line.h"
+#include <time.h>
 
 /* ------------------------------------------------------------------
  * Limits
@@ -96,6 +97,8 @@ typedef struct edit_txt_view_s
 
     st_bool_t       bDirty;              /* Unsaved changes              */
 
+    char            szBackupPath[ST_MAX_PATH]; /* Backup file path, or ""  */
+
     edit_undo_entry_t aUndo[EDIT_TXT_UNDO_LEVELS]; /* Undo ring         */
     int               iUndoHead;         /* Next write slot (ring)       */
     int               iUndoCount;        /* Valid entries in ring        */
@@ -134,6 +137,26 @@ typedef struct edit_txt_view_s
 st_error_t edit_txt_open(const char       *szPath,
                           line_context_t   *ptLineCtx,
                           edit_txt_view_t **pptView);
+
+/*
+ * edit_txt_set_backup() - Enable or disable automatic backup on open.
+ *
+ * When enabled (default), opening a file creates a timestamped copy
+ * "<path>_YYYYMMDD_HHMMSS.bak".  On close, the backup is removed if
+ * the file is unchanged, or kept if the file was modified.
+ *
+ * Parameters:
+ *   bEnabled [in] : ST_TRUE to enable, ST_FALSE to disable.
+ */
+void edit_txt_set_backup(st_bool_t bEnabled);
+
+/*
+ * edit_txt_get_backup() - Return current backup-on-open setting.
+ *
+ * Returns:
+ *   ST_TRUE if backup is enabled, ST_FALSE otherwise.
+ */
+st_bool_t edit_txt_get_backup(void);
 
 /*
  * edit_txt_close() - Close the editor window and release resources.

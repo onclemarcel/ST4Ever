@@ -1539,6 +1539,36 @@ static st_error_t line_cmd_edit(const parsed_cmd_t *ptParsed,
         return ST_ERROR;
     }
 
+    /* edit backup [on|off] — toggle backup-on-open setting */
+    if (ptParsed->iArgc >= 2
+     && strcmp(ptParsed->aszArgv[1], "backup") == 0)
+    {
+        st_bool_t bVal;
+
+        if (ptParsed->iArgc >= 3)
+        {
+            if (strcmp(ptParsed->aszArgv[2], "on") == 0)
+                bVal = ST_TRUE;
+            else if (strcmp(ptParsed->aszArgv[2], "off") == 0)
+                bVal = ST_FALSE;
+            else
+            {
+                line_print_warning(
+                    "edit backup: expected 'on' or 'off'.");
+                return ST_NO_ERROR;
+            }
+        }
+        else
+        {
+            bVal = edit_txt_get_backup() ? ST_FALSE : ST_TRUE;
+        }
+        edit_txt_set_backup(bVal);
+        line_print_msg(bVal
+            ? "edit backup: on (timestamped .bak on open)."
+            : "edit backup: off.");
+        return ST_NO_ERROR;
+    }
+
     bForceHex = ST_FALSE;
     szPath[0] = '\0';
     for (i = 1; i < ptParsed->iArgc; i++)

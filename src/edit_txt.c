@@ -20,6 +20,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <time.h>
+#include <errno.h>
 
 /* ------------------------------------------------------------------
  * Internal constants
@@ -43,10 +45,19 @@ static const renderer_color_t g_clrSel      = { 0.20f, 0.35f, 0.70f, 1.0f };
 static const renderer_color_t g_clrCursor   = { 0.75f, 0.85f, 1.00f, 1.0f };
 
 /* ------------------------------------------------------------------
+ * Module-level state
+ * ------------------------------------------------------------------ */
+
+static st_bool_t g_etxt_bBackupEnabled = ST_TRUE;
+
+/* ------------------------------------------------------------------
  * Forward declarations of all static helpers
  * ------------------------------------------------------------------ */
 
 static void     etxt_free_lines(edit_txt_view_t *ptV);
+static void     etxt_create_backup(edit_txt_view_t *ptV,
+                                    const char      *szSrcPath);
+static void     etxt_finalize_backup(edit_txt_view_t *ptV);
 static void     etxt_undo_push(edit_txt_view_t *ptV);
 static void     etxt_undo_pop(edit_txt_view_t *ptV);
 static void     etxt_undo_free_all(edit_txt_view_t *ptV);
@@ -261,6 +272,9 @@ static st_error_t etxt_load(edit_txt_view_t *ptV, const char *szPath)
     }
     uiBufSz = (size_t)tStat.uiSize;
 
+    /* Create timestamped backup before touching the file */
+    etxt_create_backup(ptV, szPath);
+
     /* Allocate initial line array */
     ptV->aszLines   = (char **)malloc(LINE_ALLOC_INIT * sizeof(char *));
     ptV->iLineAlloc = LINE_ALLOC_INIT;
@@ -304,14 +318,24 @@ static st_error_t etxt_load(edit_txt_view_t *ptV, const char *szPath)
     szBuf[uiRead] = '\0';
     file_close(&ptFile);
 
-    /* Split by newlines into aszLines */
+    /* Split by newlines into aszLines.
+     *
+     * BUG FIX: for LF-only files (no \r before \n), the else branch
+     * sets *p = '\0' to null-terminate the line for strlen().  Then
+     * the original "if (*p == '\0') break" would fire immediately,
+     * leaving only the first line.  We save the original character
+     * (bEndOfBuf) before any modification to distinguish a real end-
+     * of-buffer '\0' from a '\n' that was replaced in-place.
+     */
     pLine = szBuf;
     for (p = szBuf; ; p++)
     {
         if (*p == '\n' || *p == '\0')
         {
-            int iLen;
-            /* Strip trailing \r */
+            int       iLen;
+            st_bool_t bEndOfBuf = (*p == '\0');
+
+            /* Strip trailing \r, or null-terminate at \n */
             if (p > pLine && *(p - 1) == '\r')
                 *(p - 1) = '\0';
             else
@@ -331,7 +355,7 @@ static st_error_t etxt_load(edit_txt_view_t *ptV, const char *szPath)
             memcpy(szDup, pLine, (size_t)iLen + 1);
             ptV->aszLines[ptV->iLineCount++] = szDup;
 
-            if (*p == '\0') break;
+            if (bEndOfBuf) break;
             pLine = p + 1;
         }
     }
@@ -401,6 +425,122 @@ static st_error_t etxt_save(edit_txt_view_t *ptV)
 done:
     file_close(&ptFile);
     return eRet;
+}
+
+/* ------------------------------------------------------------------
+ * Backup helpers
+ * ------------------------------------------------------------------ */
+
+/* Create a timestamped copy of szSrcPath before editing begins.
+ * Stores the backup path in ptV->szBackupPath, or "" on failure/skip.
+ * Uses raw fopen/fread to avoid dependency on file_t lifecycle. */
+static void etxt_create_backup(edit_txt_view_t *ptV,
+                                const char      *szSrcPath)
+{
+    time_t      tNow;
+    struct tm  *ptTm;
+    char        szTimestamp[32];
+    FILE       *pSrc;
+    FILE       *pDst;
+    char        aBuf[4096];
+    size_t      uiGot;
+
+    ptV->szBackupPath[0] = '\0';
+    if (!g_etxt_bBackupEnabled)   return;
+    if (szSrcPath == NULL)        return;
+
+    tNow = time(NULL);
+    ptTm = localtime(&tNow);
+    if (ptTm == NULL)
+    {
+        fprintf(stderr, "edit backup: localtime failed\n");
+        return;
+    }
+    strftime(szTimestamp, sizeof(szTimestamp), "%Y%m%d_%H%M%S", ptTm);
+
+    /* "<original_path>_YYYYMMDD_HHMMSS.bak" */
+    snprintf(ptV->szBackupPath, sizeof(ptV->szBackupPath),
+             "%s_%s.bak", szSrcPath, szTimestamp);
+
+    pSrc = fopen(szSrcPath, "rb");
+    if (pSrc == NULL)
+    {
+        /* New (not yet saved) file — no backup needed */
+        ptV->szBackupPath[0] = '\0';
+        return;
+    }
+
+    pDst = fopen(ptV->szBackupPath, "wb");
+    if (pDst == NULL)
+    {
+        LOG_ERROR("backup: cannot create '%s': %s",
+                  ptV->szBackupPath, strerror(errno));
+        fclose(pSrc);
+        ptV->szBackupPath[0] = '\0';
+        return;
+    }
+
+    while ((uiGot = fread(aBuf, 1, sizeof(aBuf), pSrc)) > 0)
+        fwrite(aBuf, 1, uiGot, pDst);
+
+    fclose(pSrc);
+    fclose(pDst);
+    LOG_INFO("backup created: '%s'", ptV->szBackupPath);
+}
+
+/* Compare current on-disk file with backup and delete backup if
+ * they are byte-for-byte identical (meaning nothing was persisted). */
+static void etxt_finalize_backup(edit_txt_view_t *ptV)
+{
+    FILE   *pFile;
+    FILE   *pBak;
+    char    aBufFile[4096];
+    char    aBufBak[4096];
+    size_t  uiGotF;
+    size_t  uiGotB;
+    int     bSame;
+
+    if (ptV->szBackupPath[0] == '\0') return;
+
+    pFile = fopen(ptV->szPath,       "rb");
+    pBak  = fopen(ptV->szBackupPath, "rb");
+
+    if (pFile == NULL || pBak == NULL)
+    {
+        /* Cannot compare — keep backup for safety */
+        if (pFile) fclose(pFile);
+        if (pBak)  fclose(pBak);
+        return;
+    }
+
+    bSame = 1;
+    for (;;)
+    {
+        uiGotF = fread(aBufFile, 1, sizeof(aBufFile), pFile);
+        uiGotB = fread(aBufBak,  1, sizeof(aBufBak),  pBak);
+        if (uiGotF != uiGotB
+         || (uiGotF > 0 && memcmp(aBufFile, aBufBak, uiGotF) != 0))
+        {
+            bSame = 0;
+            break;
+        }
+        if (uiGotF == 0) break;   /* simultaneous EOF */
+    }
+    fclose(pFile);
+    fclose(pBak);
+
+    if (bSame)
+    {
+        remove(ptV->szBackupPath);
+        LOG_INFO("backup removed (file unchanged): '%s'",
+                 ptV->szBackupPath);
+    }
+    else
+    {
+        LOG_INFO("backup kept (file was modified): '%s'",
+                 ptV->szBackupPath);
+    }
+    ptV->szBackupPath[0] = '\0';
 }
 
 /* ------------------------------------------------------------------
@@ -1510,6 +1650,7 @@ static void etxt_event_callback(gui_window_t  hWnd,
         break;
 
     case GUI_EVT_CLOSE:
+        etxt_finalize_backup(ptV);
         if (ptV->hRenderer != NULL)
         {
             renderer_destroy(&ptV->hRenderer);
@@ -1612,4 +1753,15 @@ st_error_t edit_txt_close(edit_txt_view_t **pptView)
 
     LOG_INFO("edit_txt view closed");
     return ST_NO_ERROR;
+}
+
+void edit_txt_set_backup(st_bool_t bEnabled)
+{
+    g_etxt_bBackupEnabled = bEnabled;
+    LOG_INFO("edit backup: %s", bEnabled ? "on" : "off");
+}
+
+st_bool_t edit_txt_get_backup(void)
+{
+    return g_etxt_bBackupEnabled;
 }
