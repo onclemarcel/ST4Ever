@@ -86,6 +86,7 @@ typedef struct exec_state_s
     gui_window_t hCpuWnd;
     gui_window_t hMemWnd;   /* memory dump view (UC25B)              */
     gui_window_t hAsmWnd;   /* disassembly view (UC25B)              */
+    gui_window_t hScrWnd;   /* screen emulation view (UC27)          */
 
     /* ST machine (read-only after exec_open; no mutex needed) */
     st_machine_t *ptMachine;

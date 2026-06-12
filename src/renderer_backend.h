@@ -206,6 +206,28 @@ st_error_t renderer_platform_draw_text(
                                      renderer_font_id_t      eFontId,
                                      renderer_align_t        eAlign);
 
-/* renderer_draw_bitmap → stub (UC26 screen emulator) */
+/*
+ * renderer_platform_draw_bitmap() - Blit a raw pixel buffer to the window.
+ *
+ * Pixel layout: BGRA, 4 bytes per pixel, row-major.  Alpha byte is ignored
+ * (D2D1_ALPHA_MODE_IGNORE on Windows) — fully opaque rendering.
+ * shifter_render() outputs 0x00RRGGBB which in little-endian memory is
+ * bytes [B, G, R, 0x00]: correct BGRA layout for this function.
+ *
+ * Parameters:
+ *   ptCtx   [in] : Renderer handle.
+ *   pPixels [in] : Pixel data (4 bytes per pixel, iSrcW * iSrcH * 4 bytes).
+ *   iSrcW   [in] : Source bitmap width in pixels.
+ *   iSrcH   [in] : Source bitmap height in pixels.
+ *   ptDest  [in] : Destination rectangle (image scaled to fit).
+ *
+ * Returns: ST_NO_ERROR on success, ST_ERROR on NULL or platform failure.
+ */
+st_error_t renderer_platform_draw_bitmap(
+                                     struct renderer_s      *ptCtx,
+                                     const st_u8_t         *pPixels,
+                                     int                    iSrcW,
+                                     int                    iSrcH,
+                                     const renderer_rect_t *ptDest);
 
 #endif /* RENDERER_BACKEND_H */

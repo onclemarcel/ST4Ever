@@ -3810,3 +3810,53 @@ Source: `use_cases/use_case_24F.c`
 |--------------|--------------------------|--------------------------|-----------|
 | UFR-EXE-011  | REQ-VID-001..004         | TC-VID-001..033          | v UC26    |
 
+
+---
+
+### §5.95 Test Cases — UC27 : Screen emulation view
+
+| TC ID       | Description                                                                                     | Type | UFR          | REQ         | INT          | Expected result                                             | Status     |
+|-------------|--------------------------------------------------------------------------------------------------|------|--------------|-------------|--------------|-------------------------------------------------------------|------------|
+| TC-SCR-001  | `EXEC_SCR_WND_W == 640`                                                                         | [N]  | UFR-EXE-012  | REQ-SCR-001 | INT-SCR-001  | constant equals 640                                         | PASS UC27  |
+| TC-SCR-002  | `EXEC_SCR_WND_H == 400`                                                                         | [N]  | UFR-EXE-012  | REQ-SCR-001 | INT-SCR-002  | constant equals 400                                         | PASS UC27  |
+| TC-SCR-003  | `SHIFTER_MAX_PIXELS >= 640*400`                                                                 | [N]  | UFR-EXE-012  | REQ-SCR-001 | INT-SCR-003  | pixel buffer covers largest frame                           | PASS UC27  |
+| TC-SCR-004  | Low-res 320×200 fits in 640×400 window                                                          | [N]  | UFR-EXE-012  | REQ-SCR-001 | INT-SCR-004  | `EXEC_SCR_WND_W>=320 && EXEC_SCR_WND_H>=200`               | PASS UC27  |
+| TC-SCR-005  | Med-res 640×200 fits in 640×400 window                                                          | [N]  | UFR-EXE-012  | REQ-SCR-001 | INT-SCR-005  | `EXEC_SCR_WND_W>=640 && EXEC_SCR_WND_H>=200`               | PASS UC27  |
+| TC-SCR-006  | High-res 640×400 exactly matches window                                                         | [N]  | UFR-EXE-012  | REQ-SCR-001 | INT-SCR-006  | `EXEC_SCR_WND_W==640 && EXEC_SCR_WND_H==400`               | PASS UC27  |
+| TC-SCR-007  | `exec_screen_open()` without active session returns ST_ERROR, sets *pptView=NULL               | [N]  | UFR-EXE-012  | REQ-SCR-001 | INT-SCR-007  | `eResult==ST_ERROR && ptView==NULL`                         | PASS UC27  |
+| TC-SCR-008  | `exec_screen_open(NULL)` returns ST_ERROR                                                       | [R]  | UFR-EXE-012  | REQ-SCR-001 | INT-SCR-008  | `eResult==ST_ERROR`                                         | PASS UC27  |
+| TC-SCR-009  | `exec_screen_close(NULL)` returns ST_ERROR                                                      | [R]  | UFR-EXE-012  | REQ-SCR-001 | INT-SCR-009  | `eResult==ST_ERROR`                                         | PASS UC27  |
+| TC-SCR-010  | `renderer_draw_bitmap(NULL, buf, 1, 1, &rect)` returns ST_ERROR                                | [R]  | UFR-EXE-012  | REQ-RND-008 | INT-SCR-010  | `eResult==ST_ERROR`                                         | PASS UC27  |
+| TC-SCR-011  | `renderer_draw_bitmap(NULL, NULL, 1, 1, &rect)` returns ST_ERROR                               | [R]  | UFR-EXE-012  | REQ-RND-008 | INT-SCR-011  | `eResult==ST_ERROR`                                         | PASS UC27  |
+| TC-SCR-012  | `exec_open()` opens five windows including screen view [S]                                      | [S]  | UFR-EXE-012  | REQ-SCR-001 | INT-SCR-012  | screen window visible (make manual)                         | SKIP       |
+| TC-SCR-013  | PAINT event renders Shifter frame via D2D DrawBitmap [S]                                        | [S]  | UFR-EXE-012  | REQ-SCR-002 | INT-SCR-013  | coloured pixels appear in window (make manual)              | SKIP       |
+| TC-SCR-014  | Low-res 320×200 stretched 2x in 640×400 window [S]                                             | [S]  | UFR-EXE-012  | REQ-SCR-002 | INT-SCR-014  | image fills window, pixels doubled (make manual)            | SKIP       |
+| TC-SCR-015  | High-res 640×400 rendered 1:1 [S]                                                              | [S]  | UFR-EXE-012  | REQ-SCR-002 | INT-SCR-015  | image fills window exactly (make manual)                    | SKIP       |
+| TC-SCR-016  | Aspect-ratio preserved with black bars on resize [S]                                            | [S]  | UFR-EXE-012  | REQ-SCR-002 | INT-SCR-016  | black bars visible on non-4:2 resize (make manual)          | SKIP       |
+| TC-SCR-017  | Resolution info overlay visible in corner [S]                                                   | [S]  | UFR-EXE-012  | REQ-SCR-003 | INT-SCR-017  | "320x200" or "640x400" text visible (make manual)           | SKIP       |
+| TC-SCR-018  | ESC key closes screen view window [S]                                                           | [S]  | UFR-EXE-012  | REQ-SCR-003 | INT-SCR-018  | window closes on ESC (make manual)                          | SKIP       |
+| TC-SCR-019  | RESIZE event updates iWndWidth/iWndHeight [S]                                                   | [S]  | UFR-EXE-012  | REQ-SCR-003 | INT-SCR-019  | renderer_resize() called, view fields updated (make manual) | SKIP       |
+| TC-SCR-020  | `exec_close()` closes screen view cleanly [S]                                                   | [S]  | UFR-EXE-012  | REQ-SCR-001 | INT-SCR-020  | window closes, no crash (make manual)                       | SKIP       |
+| TC-SCR-021  | Palette black (0x0000) renders black pixels [S]                                                 | [S]  | UFR-EXE-012  | REQ-SCR-002 | INT-SCR-021  | all pixels black in window (make manual)                    | SKIP       |
+
+#### Test Summary — UC27
+
+| Module | [N] | [R] | [S] | Total | Result    |
+|--------|-----|-----|-----|-------|-----------|
+| SCR    |  7  |  4  | 10  |  21   | ALL PASS  |
+
+#### REQ → TC coverage (UC27)
+
+| REQ         | TC(s)                        | Status    |
+|-------------|------------------------------|-----------|
+| REQ-SCR-001 | TC-SCR-001..009, TC-SCR-012, TC-SCR-020 | v UC27 |
+| REQ-SCR-002 | TC-SCR-013..016, TC-SCR-021  | v UC27    |
+| REQ-SCR-003 | TC-SCR-017..019              | v UC27    |
+| REQ-RND-008 | TC-SCR-010..011              | v UC27    |
+| REQ-RND-009 | TC-SCR-013 (manual)          | v UC27    |
+
+#### UFR traceability (UC27)
+
+| UFR          | REQ(s)                            | TC(s)             | Status    |
+|--------------|-----------------------------------|-------------------|-----------|
+| UFR-EXE-012  | REQ-SCR-001..003, REQ-RND-008..009 | TC-SCR-001..021  | v UC27    |

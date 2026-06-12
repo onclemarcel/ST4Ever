@@ -13,6 +13,7 @@
 #include "exec_cpu.h"
 #include "exec_mem.h"
 #include "exec_asm.h"
+#include "exec_screen.h"
 #include "load.h"
 #include "trace.h"
 
@@ -232,6 +233,10 @@ static void exec_thread_fn(void *pArg)
         {
             gui_invalidate(ptState->hAsmWnd);
         }
+        if (ptState->hScrWnd != NULL)
+        {
+            gui_invalidate(ptState->hScrWnd);
+        }
     }
 }
 
@@ -272,11 +277,12 @@ st_error_t exec_shutdown(void)
 
 st_error_t exec_open(const char *szProgName, st_u32_t uiLoadAddr)
 {
-    exec_mon_view_t *ptMonView;
-    exec_cpu_view_t *ptCpuView;
-    exec_mem_view_t *ptMemView;
-    exec_asm_view_t *ptAsmView;
-    st_error_t       eResult;
+    exec_mon_view_t    *ptMonView;
+    exec_cpu_view_t    *ptCpuView;
+    exec_mem_view_t    *ptMemView;
+    exec_asm_view_t    *ptAsmView;
+    exec_screen_view_t *ptScrView;
+    st_error_t          eResult;
 
     LOG_TRACE("szProgName=%s uiLoadAddr=$%06X",
               szProgName ? szProgName : "(null)", uiLoadAddr);
@@ -384,6 +390,22 @@ st_error_t exec_open(const char *szProgName, st_u32_t uiLoadAddr)
     }
     g_exec_tState.hAsmWnd = ptAsmView->hWnd;
 
+    /* Open screen emulation view */
+    ptScrView = NULL;
+    eResult = exec_screen_open(&ptScrView);
+    if (eResult != ST_NO_ERROR || ptScrView == NULL)
+    {
+        LOG_ERROR("exec_screen_open failed");
+        g_exec_bOpen = ST_FALSE;
+        exec_asm_close(&ptAsmView);
+        exec_mem_close(&ptMemView);
+        exec_cpu_close(&ptCpuView);
+        exec_mon_close(&ptMonView);
+        platform_mutex_destroy(&g_exec_tState.ptMutex);
+        return ST_ERROR;
+    }
+    g_exec_tState.hScrWnd = ptScrView->hWnd;
+
     /* Start execution thread */
     eResult = platform_thread_create(&g_exec_ptThread,
                                      exec_thread_fn,
@@ -392,6 +414,7 @@ st_error_t exec_open(const char *szProgName, st_u32_t uiLoadAddr)
     {
         LOG_ERROR("platform_thread_create failed");
         g_exec_bOpen = ST_FALSE;
+        exec_screen_close(&ptScrView);
         exec_asm_close(&ptAsmView);
         exec_mem_close(&ptMemView);
         exec_cpu_close(&ptCpuView);
@@ -412,6 +435,7 @@ st_error_t exec_close(void)
     gui_window_t hCpuWnd;
     gui_window_t hMemWnd;
     gui_window_t hAsmWnd;
+    gui_window_t hScrWnd;
 
     LOG_TRACE("bOpen=%d", g_exec_bOpen);
 
@@ -427,10 +451,12 @@ st_error_t exec_close(void)
     hCpuWnd = g_exec_tState.hCpuWnd;
     hMemWnd = g_exec_tState.hMemWnd;
     hAsmWnd = g_exec_tState.hAsmWnd;
+    hScrWnd = g_exec_tState.hScrWnd;
     g_exec_tState.hMonWnd  = NULL;
     g_exec_tState.hCpuWnd  = NULL;
     g_exec_tState.hMemWnd  = NULL;
     g_exec_tState.hAsmWnd  = NULL;
+    g_exec_tState.hScrWnd  = NULL;
     platform_mutex_unlock(g_exec_tState.ptMutex);
 
     /* Join execution thread */
@@ -456,6 +482,10 @@ st_error_t exec_close(void)
     if (hAsmWnd != NULL)
     {
         gui_close_window(hAsmWnd);
+    }
+    if (hScrWnd != NULL)
+    {
+        gui_close_window(hScrWnd);
     }
 
     /* Release mutex */

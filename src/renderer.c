@@ -182,13 +182,15 @@ st_error_t renderer_draw_bitmap(renderer_t            hCtx,
                                   int                   iSrcH,
                                   const renderer_rect_t *ptDest)
 {
-    ST_UNUSED(hCtx);
-    ST_UNUSED(pPixels);
-    ST_UNUSED(iSrcW);
-    ST_UNUSED(iSrcH);
-    ST_UNUSED(ptDest);
-    LOG_TODO("renderer_draw_bitmap: Atari ST screen blit (UC26)");
-    return ST_NO_ERROR;
+    if (hCtx == NULL || pPixels == NULL || ptDest == NULL
+    ||  iSrcW <= 0 || iSrcH <= 0)
+    {
+        LOG_ERROR("NULL parameter or zero dimension");
+        return ST_ERROR;
+    }
+    return renderer_platform_draw_bitmap(
+               (struct renderer_s *)hCtx,
+               pPixels, iSrcW, iSrcH, ptDest);
 }
 
 st_error_t renderer_destroy(renderer_t *phCtx)

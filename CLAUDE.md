@@ -21,6 +21,7 @@
 - 2026-06-11: UC25B Codé/Testé : vue mémoire `exec_mem.c` (hex dump 16 bytes/row, PC row highlight yellow, UP/DN/PgUp/PgDn/HOME snap) + vue désassembleur `exec_asm.c` (disasm_one forward, PC highlight, UP/DN/PgUp/PgDn/F snap) + fix exec_open (g_exec_bOpen=TRUE avant view opens) — 21 tests PASS (11N+4R+6S) 0 fail
 - 2026-06-11: BUG-10 + edit backup — BUG-10 : correction LF-only (`bEndOfBuf` avant `*p='\0'` dans `etxt_load`) + `edit backup [on|off]` + `edit_txt_set/get_backup()` + `szBackupPath` + sauvegarde `_YYYYMMDD_HHMMSS.bak` à l'ouverture, suppression/conservation à la fermeture — use_case_08.c : 36→43 tests (20N+11R+12S) Phase 2 : UFR-EDT-007, REQ-EDT-014..017, TC-EDT-037..043
 - 2026-06-11: UC26 Codé/Testé : moteur rendu Shifter — `shifter.h/c` + `shifter_render()` décodage bitplanes→RGB32 (low/med/high res, 4/2/1 plans, palette 16 couleurs ST 3-bit→8-bit) — 33 tests PASS (26N+7R) 0 fail
+- 2026-06-11: UC27 Codé/Testé : vue écran D2D — `exec_screen.h/c` + `renderer_platform_draw_bitmap()` D2D (BGRA+ALPHA_IGNORE, nearest-neighbour) + `exec_screen_open/close` intégrés dans `exec_open/close` + `hScrWnd` dans `exec_state_t` + invalidation dans exec thread — 21 tests PASS (7N+4R+10S) 0 fail
 
 *L'historique des versions antérieures peut être récupéré via le change log github*
 
@@ -504,7 +505,7 @@ Les étapes de développement fonctionnelles sont formalisées en Use Cases, per
 | UC25A | `execute` | Moteur d'exécution pas-à-pas `exec.c` (thread CPU + mutex + BP×8 + STEP/RUN/PAUSE/STOP) + `exec_mon.c` (vue monitor F5/F6/F7/F8/B/C) + `exec_cpu.c` (D0-D7/A0-A7/PC/SSP/SR) + `line_cmd_execute()` | ✓ VALIDÉ 2026-06-11 |
 | UC25B | `execute` | Vue mémoire `exec_mem.c` (dump RAM paginé + navigation) + vue désassembleur `exec_asm.c` (colonnes hex+disasm synchronisées avec PC highlight) | ✓ VALIDÉ 2026-06-11 |
 | UC26 | interne | Shifter : moteur rendu bitplanes→RGB32 (low/med/high res, palette 16 couleurs, `shifter_render()`) | ✓ VALIDÉ 2026-06-11 |
-| UC27 | `execute` | Vue écran Win32/GDI + X11 + synchronisation VBL | démo statique visible |
+| UC27 | `execute` | Vue écran D2D `exec_screen.c` (640×400) + `renderer_platform_draw_bitmap()` BGRA nearest-neighbour + aspect-ratio scale + `hScrWnd` dans exec_state_t | ✓ VALIDÉ 2026-06-11 |
 | UC28 | interne | Line-A traps + registres Shifter/YM2149 minimaux | démo 1 plan visible |
 | UC29 | interne | XBIOS/GEMDOS minimaux (palette, écran base, VBL wait) | démo dynamique |
 | UC30 | interne | Assembleur DEVPAC3 : directives + instructions de base | .S → .PRG re-exécutable |
@@ -1491,6 +1492,18 @@ Cible : **UC25-pre** ou regroupé avec les corrections dir.
 ### Arbitrage UC26 (2026-06-11)
 
 *UC26 est un UC purement interne (moteur de rendu Shifter). Le module `shifter.h/c` fournit `shifter_render()`, `shifter_palette_to_rgb()` et `shifter_screen_size()` — consommé par exec_screen en UC27. Aucune proposition UX/fonctionnelle n'a émergé — UC26 est clos.*
+
+---
+
+### Arbitrage UC27 (2026-06-11)
+
+*UC27 implémente la vue écran D2D et `renderer_platform_draw_bitmap()`. Décisions techniques notables :*
+- *Format pixel : `shifter_render()` sort `0x00RRGGBB` — en mémoire little-endian bytes [B,G,R,0x00]. D2D avec `DXGI_FORMAT_B8G8R8A8_UNORM` + `D2D1_ALPHA_MODE_IGNORE` interprète exactement [B,G,R,ignoré] → couleurs correctes sans conversion.*
+- *Interpolation : `D2D1_BITMAP_INTERPOLATION_MODE_NEAREST_NEIGHBOR` préserve l'aspect pixel art ST (pas de flou).*
+- *Scale : aspect-ratio preserving avec black bars (letterbox/pillarbox) lors du resize.*
+- *Bitmap créé et détruit chaque PAINT : acceptable pour un émulateur éducatif (D2D coalesce les WM_PAINT).*
+
+*Aucune proposition UX/fonctionnelle n'a émergé — UC27 est clos.*
 
 ---
 

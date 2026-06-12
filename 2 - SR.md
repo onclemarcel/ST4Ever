@@ -217,6 +217,7 @@ through one or more test cases in Section 5.
 | UFR-EXE-009  | The ST machine memory map shall dispatch byte/word/long reads and writes to the correct hardware region (RAM, ROM, Shifter, YM2149, MFP, ACIA) without crashing; HW register state shall be maintained coherently across read and write operations. | ✓ UC24 | UC24  |
 | UFR-EXE-010  | The application shall classify any 512-byte sector from an Atari ST disk image by static analysis of its content, returning a ranked list of probable sector types (bootsector, FAT12, BSS, code, packer data, etc.) with confidence scores, without executing the sector content. | ✓ UC24A | UC24A |
 | UFR-EXE-011  | The execution engine shall decode the Atari ST Shifter video frame buffer (at the CPU-visible screen base address) into a flat RGB32 pixel array, supporting all three hardware resolutions: low (320×200, 16 colours, 4 bitplanes), medium (640×200, 4 colours, 2 bitplanes) and high (640×400, 2 colours, 1 bitplane); the ST 3-bit palette entries shall be scaled to 8-bit per channel. | ✓ UC26 | UC26 |
+| UFR-EXE-012  | The execution engine shall display the decoded Atari ST video output in a live D2D window (640×400) during program execution, updated after each instruction quantum; the image shall be scaled to the window size with aspect-ratio preservation and nearest-neighbour interpolation. | ✓ UC27 | UC27 |
 
 ### 1.11 Design Constraints — Internal API (DOC-01)
 
@@ -826,14 +827,14 @@ requirement that will expose it (`UFR-EXE-*`, planned UC21–27).
 | ID            | Software Requirement                                                                                                                                                                    | Parent UFR   | Status    | UC     |
 |---------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------|-----------|--------|
 | REQ-EXE-020   | `exec_init(ptMachine)` shall store the machine pointer in module state and set the inited flag; it shall return ST_ERROR if ptMachine is NULL. Impl: `exec_init()` | UFR-EXE-008 | ✓ UC25A | UC25A |
-| REQ-EXE-021   | `exec_open(szProg, uiLoadAddr)` shall create the session mutex, call `cpu_init()` + override PC=uiLoadAddr and SSP=ST_LOAD_BASE−2, open the monitor, CPU-register, memory-dump and disassembly windows, and start the execution thread in PAUSED state; it shall return ST_ERROR if the engine is not initialised or any GUI window fails to open. Impl: `exec_open()` | UFR-EXE-008 | ✓ UC25B | UC25A..B |
-| REQ-EXE-022   | `exec_close()` shall signal the exec thread via bQuitReq under ptMutex, join the thread, close all four execution-view windows, and destroy the mutex; it shall be safe to call when no session is open. Impl: `exec_close()` | UFR-EXE-008 | ✓ UC25B | UC25A..B |
+| REQ-EXE-021   | `exec_open(szProg, uiLoadAddr)` shall create the session mutex, call `cpu_init()` + override PC=uiLoadAddr and SSP=ST_LOAD_BASE−2, open the monitor, CPU-register, memory-dump, disassembly and screen windows (in that order), and start the execution thread in PAUSED state; it shall return ST_ERROR if the engine is not initialised or any GUI window fails to open. Impl: `exec_open()` | UFR-EXE-008, UFR-EXE-012 | ✓ UC27 | UC25A..UC27 |
+| REQ-EXE-022   | `exec_close()` shall signal the exec thread via bQuitReq under ptMutex, join the thread, close all five execution-view windows (monitor, CPU, memory, disassembly, screen), and destroy the mutex; it shall be safe to call when no session is open. Impl: `exec_close()` | UFR-EXE-008, UFR-EXE-012 | ✓ UC27 | UC25A..UC27 |
 | REQ-EXE-023   | `exec_is_open()` shall return ST_TRUE only during the interval between a successful `exec_open()` and its matching `exec_close()`; it shall return ST_FALSE before init, after shutdown, and after a failed `exec_open()`. Impl: `exec_is_open()` | UFR-EXE-008 | ✓ UC25A | UC25A |
 | REQ-EXE-024   | `exec_get_state()` shall return the `exec_state_t*` pointer when a session is open; it shall return NULL otherwise. Callers must hold ptMutex before accessing any field. Impl: `exec_get_state()` | UFR-EXE-008 | ✓ UC25A | UC25A |
 | REQ-EXE-025   | All request functions (`exec_step_request`, `exec_run_request`, `exec_pause_request`, `exec_stop_request`, `exec_quit_request`) shall return ST_ERROR when no session is open; when open, they shall set the corresponding flag under ptMutex. Impl: `exec_step/run/pause/stop/quit_request()` | UFR-EXE-008 | ✓ UC25A | UC25A |
 | REQ-EXE-026   | `exec_bp_toggle(uiAddr)` shall remove uiAddr if it is already in the breakpoint list; otherwise add it if EXEC_BP_MAX is not exceeded; it shall return ST_ERROR when no session is open or the list is full on add. Impl: `exec_bp_toggle()` | UFR-EXE-008 | ✓ UC25A | UC25A |
 | REQ-EXE-027   | `exec_bp_clear()` shall set iBPCount to 0 under ptMutex; it shall return ST_ERROR when no session is open. Impl: `exec_bp_clear()` | UFR-EXE-008 | ✓ UC25A | UC25A |
-| REQ-EXE-028   | The CPU execution thread shall execute up to EXEC_QUANTUM=200 instructions per RUN-mode slice; exactly one instruction in STEP mode; after each instruction it shall check all breakpoints and transition to PAUSED if a match is found; it shall update tCpuSnap and szNextDisasm under ptMutex and call gui_invalidate() on all open execution-view windows. Impl: `exec_thread_fn()` | UFR-EXE-008 | ✓ UC25A | UC25A |
+| REQ-EXE-028   | The CPU execution thread shall execute up to EXEC_QUANTUM=200 instructions per RUN-mode slice; exactly one instruction in STEP mode; after each instruction it shall check all breakpoints and transition to PAUSED if a match is found; it shall update tCpuSnap and szNextDisasm under ptMutex and call gui_invalidate() on all open execution-view windows (monitor, CPU, memory, disassembly, screen). Impl: `exec_thread_fn()` | UFR-EXE-008, UFR-EXE-012 | ✓ UC27 | UC25A, UC27 |
 | REQ-EXE-029   | `exec_mem_open(pptView)` shall return ST_ERROR if pptView is NULL or no session is active (`exec_get_state()` returns NULL); on success it shall allocate an `exec_mem_view_t`, initialise `uiMemBase` to PC & ~0xF, and open a `GUI_WND_EXEC_MEM` window. `exec_mem_close(pptView)` shall return ST_ERROR if pptView is NULL; it shall return ST_NO_ERROR (no-op) if *pptView is already NULL. Impl: `exec_mem_open()`, `exec_mem_close()` | UFR-EXE-008 | ✓ UC25B | UC25B |
 | REQ-EXE-030   | The memory-dump view shall render 16 bytes per row as hex pairs and printable ASCII; the row whose address equals (PC & ~0xF) shall be highlighted yellow; when PC moves outside the visible region the view shall auto-snap `uiMemBase` to (PC & ~0xF); UP/DOWN shall scroll by 16 bytes, PgUp/PgDn by one page, HOME shall snap to the PC row. Impl: `exec_mem_render()` | UFR-EXE-008 | ✓ UC25B | UC25B |
 | REQ-EXE-031   | `exec_asm_open(pptView)` shall return ST_ERROR if pptView is NULL or no session is active; on success it shall allocate an `exec_asm_view_t`, initialise `uiAsmBase` to the current PC, and open a `GUI_WND_EXEC_ASM` window. `exec_asm_close(pptView)` shall return ST_ERROR if pptView is NULL; it shall return ST_NO_ERROR (no-op) if *pptView is already NULL. Impl: `exec_asm_open()`, `exec_asm_close()` | UFR-EXE-008 | ✓ UC25B | UC25B |
@@ -886,6 +887,31 @@ requirement that will expose it (`UFR-EXE-*`, planned UC21–27).
 | `render_low()` (internal) | REQ-VID-003 | `shifter.c` |
 | `render_med()` (internal) | REQ-VID-003 | `shifter.c` |
 | `render_high()` (internal) | REQ-VID-003 | `shifter.c` |
+
+---
+
+### 2.22 Screen Emulation View — `exec_screen.h` / `renderer.h`
+
+> Parent UFR: UFR-EXE-012.
+
+| REQ ID        | Requirement                                                                                                                                              | Parent UFR    | Status   | UC    |
+|---------------|----------------------------------------------------------------------------------------------------------------------------------------------------------|---------------|----------|-------|
+| REQ-SCR-001   | `exec_screen_open(pptView)` shall return ST_ERROR if pptView is NULL or `exec_get_state()` returns NULL (no active session); on success it shall allocate an `exec_screen_view_t` (heap, ~1 MB for `auPixels[SHIFTER_MAX_PIXELS]`), open a `GUI_WND_EXEC_SCR` window of size 640×400 and store the window handle in `*pptView->hWnd`. `exec_screen_close(pptView)` shall return ST_ERROR if pptView is NULL; if *pptView is NULL it shall return ST_NO_ERROR (no-op). Impl: `exec_screen_open()`, `exec_screen_close()` | UFR-EXE-012 | ✓ UC27 | UC27 |
+| REQ-SCR-002   | `exec_screen_render()` shall call `shifter_render(ptState->ptMachine, auPixels, SHIFTER_MAX_PIXELS, &iSrcW, &iSrcH)` without holding the mutex (same benign-race contract as exec_mem reads `aRam[]`); on success it shall blit the pixel buffer via `renderer_draw_bitmap()` scaled to the window dimensions with aspect-ratio preservation (black borders) and nearest-neighbour interpolation; when `shifter_render()` fails or returns zero dimensions it shall display a centred "IDLE" or "HALTED" text. Impl: `exec_screen_render()` | UFR-EXE-012 | ✓ UC27 | UC27 |
+| REQ-SCR-003   | The screen view event handler shall: on `GUI_EVT_PAINT`, create the renderer on first call and invoke `exec_screen_render()`; on `GUI_EVT_RESIZE`, call `renderer_resize()`; on `GUI_EVT_KEY_DOWN` with ESC (char=27), call `gui_request_close()`; on `GUI_EVT_CLOSE`, call `renderer_destroy()`. Impl: `exec_screen_event_cb()` | UFR-EXE-012 | ✓ UC27 | UC27 |
+| REQ-RND-008   | `renderer_draw_bitmap(hCtx, pPixels, iSrcW, iSrcH, ptDest)` shall return ST_ERROR if hCtx, pPixels or ptDest is NULL, or if iSrcW≤0 or iSrcH≤0; otherwise it shall forward to `renderer_platform_draw_bitmap()`. Impl: `renderer_draw_bitmap()` | UFR-EXE-012 | ✓ UC27 | UC27 |
+| REQ-RND-009   | `renderer_platform_draw_bitmap()` on Windows shall create an `ID2D1Bitmap` with `DXGI_FORMAT_B8G8R8A8_UNORM` + `D2D1_ALPHA_MODE_IGNORE` (shifter output `0x00RRGGBB` maps to bytes [B,G,R,0x00] — correct BGRA layout; alpha 0x00 is ignored so pixels render fully opaque); draw it via `DrawBitmap` with `D2D1_BITMAP_INTERPOLATION_MODE_NEAREST_NEIGHBOR`; release the bitmap after drawing; return ST_ERROR on `CreateBitmap` failure. Impl: `renderer_platform_draw_bitmap()` in `win/win_D2D.c` | UFR-EXE-012 | ✓ UC27 | UC27 |
+
+**Function table — `exec_screen.h` / `renderer.h` (UC27 additions):**
+
+| Function | REQ | Impl. |
+|---|---|---|
+| `exec_screen_open()` | REQ-SCR-001 | `exec_screen.c` |
+| `exec_screen_close()` | REQ-SCR-001 | `exec_screen.c` |
+| `exec_screen_render()` (internal) | REQ-SCR-002 | `exec_screen.c` |
+| `exec_screen_event_cb()` (internal) | REQ-SCR-003 | `exec_screen.c` |
+| `renderer_draw_bitmap()` | REQ-RND-008 | `renderer.c` |
+| `renderer_platform_draw_bitmap()` | REQ-RND-009 | `win/win_D2D.c` |
 
 ---
 

@@ -641,4 +641,71 @@ st_error_t renderer_platform_draw_text(
     return ST_NO_ERROR;
 }
 
+st_error_t renderer_platform_draw_bitmap(
+                                      struct renderer_s      *ptCtx,
+                                      const st_u8_t         *pPixels,
+                                      int                    iSrcW,
+                                      int                    iSrcH,
+                                      const renderer_rect_t *ptDest)
+{
+    win_d2d_ctx_t          *ptD2D;
+    ID2D1Bitmap            *pBmp;
+    D2D1_BITMAP_PROPERTIES  tBmpProps;
+    D2D1_SIZE_U             tBmpSize;
+    D2D1_RECT_F             tDestR;
+    HRESULT                 hr;
+
+    if (ptCtx == NULL || pPixels == NULL || ptDest == NULL
+    ||  iSrcW <= 0 || iSrcH <= 0)
+    {
+        LOG_ERROR("NULL parameter or zero dimension");
+        return ST_ERROR;
+    }
+
+    ptD2D = (win_d2d_ctx_t *)ptCtx->pPlatform;
+    if (ptD2D == NULL || ptD2D->pRT == NULL)
+    {
+        LOG_ERROR("renderer not initialised");
+        return ST_ERROR;
+    }
+
+    /* BGRA8 + ALPHA_IGNORE: shifter output 0x00RRGGBB maps to bytes
+     * [B,G,R,0x00] in memory — correct BGRA layout; alpha 0x00 is ignored
+     * so all pixels render as fully opaque. */
+    memset(&tBmpProps, 0, sizeof(tBmpProps));
+    tBmpProps.pixelFormat.format    = DXGI_FORMAT_B8G8R8A8_UNORM;
+    tBmpProps.pixelFormat.alphaMode = D2D1_ALPHA_MODE_IGNORE;
+    tBmpProps.dpiX                  = 0.0f;
+    tBmpProps.dpiY                  = 0.0f;
+
+    tBmpSize.width  = (UINT32)iSrcW;
+    tBmpSize.height = (UINT32)iSrcH;
+
+    hr = ID2D1RenderTarget_CreateBitmap(
+             (ID2D1RenderTarget *)ptD2D->pRT,
+             tBmpSize,
+             pPixels,
+             (UINT32)(iSrcW * 4),
+             &tBmpProps,
+             &pBmp);
+    if (FAILED(hr))
+    {
+        LOG_ERROR("CreateBitmap failed: hr=0x%08lX", (unsigned long)hr);
+        return ST_ERROR;
+    }
+
+    tDestR = win_d2d_make_rect(ptDest);
+    /* Nearest-neighbour: preserves sharp pixel art look of ST screen */
+    ID2D1RenderTarget_DrawBitmap(
+        (ID2D1RenderTarget *)ptD2D->pRT,
+        pBmp,
+        &tDestR,
+        1.0f,
+        D2D1_BITMAP_INTERPOLATION_MODE_NEAREST_NEIGHBOR,
+        NULL);
+
+    ID2D1Bitmap_Release(pBmp);
+    return ST_NO_ERROR;
+}
+
 #endif /* ST_PLATFORM_WINDOWS */

@@ -3002,3 +3002,67 @@ Tests skippés (0) : UC26 est purement interne, aucun skip requis.
 
 ---
 
+
+## §6.27 UC27 — Screen emulation view (exec_screen.c)
+
+**Périmètre fonctionnel implémenté :**
+- `src/exec_screen.h` / `src/exec_screen.c` — vue D2D d'émulation écran Atari ST
+  - `exec_screen_open(pptView)` — heap-allocation (~1 Mo `auPixels[]`), `gui_open_window(GUI_WND_EXEC_SCR)`, validation session active
+  - `exec_screen_close(pptView)` — `gui_close_window`, `free(ptView)`, no-op sur NULL
+  - `exec_screen_render()` — `shifter_render()` sans mutex (torn frame acceptable), scale proportionnelle avec bords noirs, overlay résolution bas-droite, texte IDLE/HALTED si pas de frame
+  - `exec_screen_event_cb()` — PAINT (lazy `renderer_create`), RESIZE (`renderer_resize`), KEY_DOWN ESC=27 (`gui_request_close`), CLOSE (`renderer_destroy`)
+- `src/exec.h` — ajout `gui_window_t hScrWnd` dans `exec_state_t` (5e fenêtre d'exécution)
+- `src/exec.c` — `exec_screen_open()` comme 5e vue dans `exec_open()` ; `gui_invalidate(hScrWnd)` dans le thread CPU ; `gui_close_window(hScrWnd)` dans `exec_close()`
+- `src/renderer.h` / `src/renderer.c` — `renderer_draw_bitmap(hCtx, pPixels, iSrcW, iSrcH, ptDest)` implémentée (stub remplacé)
+- `src/renderer_backend.h` / `win/win_D2D.c` — `renderer_platform_draw_bitmap()` : `DXGI_FORMAT_B8G8R8A8_UNORM + D2D1_ALPHA_MODE_IGNORE`, `D2D1_BITMAP_INTERPOLATION_MODE_NEAREST_NEIGHBOR`
+
+**Infrastructure et outillage validés :**
+- **Format pixel compatible sans conversion** : `shifter_render()` produit `0x00RRGGBB` ; en little-endian les octets sont [B,G,R,0x00]. D2D avec `DXGI_FORMAT_B8G8R8A8_UNORM + D2D1_ALPHA_MODE_IGNORE` lit exactement [B,G,R,ignoré] — couleurs correctes sans passe de conversion. Alpha 0x00 est traité comme opaque par D2D_ALPHA_MODE_IGNORE.
+- **Heap allocation obligatoire** : `SHIFTER_MAX_PIXELS = 256,000` × 4 octets ≈ 1 Mo — trop grand pour la pile ; `exec_screen_view_t` allouée via `calloc()`.
+- **Création de bitmap D2D à chaque PAINT** : pattern éducatif : `ID2D1RenderTarget_CreateBitmap` + `DrawBitmap` + `Release` par cycle. D2D coalesce les WM_PAINT, donc le débit reste borné par le taux de refresh D2D.
+- **R18 compliance** : titre `"ST4Ever - Screen: progname [640x400]"` mis à jour dans le handler PAINT.
+- **R22 compliance** : aucun `LOG_TRACE` dans les fonctions appelées à chaque repaint.
+- **Fenêtre 640×400** : couvre toutes les résolutions ST — low 320×200 à 2x, med 640×200 à 1x/2x, high 640×400 à 1x.
+
+**Tests R14/R15 appliqués :**
+- `use_cases/use_case_27.c` : TEST MATRIX **7N + 4R + 10S = 21 tests**, tous PASS
+  - [N] Constantes `EXEC_SCR_WND_W==640`, `EXEC_SCR_WND_H==400`, `SHIFTER_MAX_PIXELS>=640*400` ; toutes les résolutions ST tiennent dans la fenêtre
+  - [N] `exec_screen_open()` sans session active → `ST_ERROR` + `*pptView=NULL` ; `exec_screen_close()` sur NULL → `ST_NO_ERROR`
+  - [R] `exec_screen_open(NULL)`, `exec_screen_close(NULL)` → `ST_ERROR` ; `renderer_draw_bitmap(NULL, ...)`, `renderer_draw_bitmap(NULL, NULL, ...)` → `ST_ERROR`
+  - [S] 10 tests nécessitant un affichage D2D : `exec_open()` 5 fenêtres, blit bitmap, scale 2x low-res, 1:1 high-res, bords noirs sur resize, overlay résolution, ESC, RESIZE, `exec_close()`, palette noir
+
+### Contrats comportementaux validés
+
+*`exec_screen_open()`*
+- Sans session active (`exec_get_state() == NULL`) → `ST_ERROR`, `*pptView = NULL`
+- NULL `pptView` → `ST_ERROR`
+- Succès → heap-alloue `exec_screen_view_t` (~1 Mo), ouvre `GUI_WND_EXEC_SCR`, retourne `ST_NO_ERROR`
+
+*`exec_screen_close()`*
+- NULL `pptView` → `ST_ERROR`
+- `*pptView == NULL` → `ST_NO_ERROR` (no-op)
+- Succès → `gui_close_window`, `free(ptView)`, `*pptView = NULL`
+
+*`exec_screen_render()`*
+- Appelle `shifter_render()` sans mutex — torn frame acceptable (même contrat que `exec_mem`)
+- Si frame valide : scale proportionnelle (aspect-ratio préservé), bords noirs, interpolation nearest-neighbor
+- Si frame invalide (machine non initialisée) : texte "IDLE" ou "HALTED" centré en gris
+- Overlay résolution `"WxH"` bas-droite en gris
+
+*`renderer_draw_bitmap()`*
+- NULL `hCtx`, NULL `pPixels`, NULL `ptDest`, ou dimensions ≤ 0 → `ST_ERROR`
+- Délègue à `renderer_platform_draw_bitmap()` (D2D sur Windows)
+
+*`renderer_platform_draw_bitmap()` (Windows)*
+- Crée `ID2D1Bitmap` depuis `pPixels` avec format `DXGI_FORMAT_B8G8R8A8_UNORM + D2D1_ALPHA_MODE_IGNORE`
+- `DrawBitmap` avec `D2D1_BITMAP_INTERPOLATION_MODE_NEAREST_NEIGHBOR` dans le rectangle `ptDest`
+- Release bitmap après draw (pattern éducatif — pas de cache)
+
+### Points d'attention pour les UCs suivants
+
+- **UC28** : `exec_screen_open()` est déjà appelé dans `exec_open()` — `hScrWnd` invalidé à chaque instruction CPU. La fréquence d'invalidation peut être réduite (toutes les N instructions ou à chaque VBL simulée) si la charge GPU devient trop élevée
+- **UC28** : pour les démos qui modifient la résolution à chaud (SHIFTER_RES), `exec_screen_render()` relit `uiResolution` depuis `ptMachine` à chaque frame — aucune adaptation nécessaire
+- **UC28** : Line-A (`0xA000–0xA0FF`) écrira dans la RAM ATARI ST via `st_write_*` — `shifter_render()` lira automatiquement les nouvelles valeurs via `ptMachine->aRam[]` sans modification de `exec_screen.c`
+- **UC28** : si une démo lit les registres Shifter en entrée (`0xFF8200–0xFF827F`), `st_read_*` retourne déjà les valeurs du dispatcher UC24 — cohérent avec la vue écran
+
+---
