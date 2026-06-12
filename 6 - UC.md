@@ -3205,3 +3205,89 @@ Tests skippés (0) : UC26 est purement interne, aucun skip requis.
 - **UC30+** : si l'assembleur DEVPAC3 génère des TRAP #2 (BIOS) ou d'autres TRAP #n, ils tombent dans `cpu_raise_exception()` qui poussera un frame sans handler installé → CPU_STATE_HALTED ; à traiter selon les besoins de la démo cible
 
 ---
+
+## §6.30A UC30A — Assembleur DEVPAC3 : infrastructure deux passes (`as.h/c`)
+
+**Périmètre fonctionnel implémenté :**
+- `src/as.h` / `src/as.c` — nouveau module (~670 lignes) :
+  - **Moteur deux passes** : Passe 1 construit la table de symboles + calcule la taille de chaque section sans émettre d'octets (`uiPC` et `auPCPerSec[3]` trackent les PCs par section) ; Passe 2 émet le binaire dans des buffers dynamiques.
+  - **Lexer ligne** (`as_lex_line`) : tokenise chaque ligne source en `as_tok_t` {label, mnemonic, size_suffix, operands}. Labels : token à colonne 0 non reconnu comme directive. Commentaires : `;` en ligne ou `*` seul en colonne 0.
+  - **Table de symboles** : tableau linéaire `as_sym_t[AS_MAX_SYMBOLS=4096]`, `as_sym_find/define`. Symboles EQU : `iSection=AS_SEC_NONE=-1` (absolus). Forward references tolérées en passe 1 — `as_eval()` retourne `ST_FALSE` si symbole non encore défini (pas une erreur).
+  - **Directives implémentées** : `SECTION TEXT/DATA/BSS`, `DC.B/W/L`, `DS.B/W/L`, `EVEN`, `EQU`, `SET`, `END`.
+  - **Émission big-endian** : `as_emit_b/be16/be32()` — pass-aware (passe 1 incrémente uiPC, passe 2 écrit dans le buffer de la section courante). BSS : jamais d'émission, seulement incrément de `uiBssSzP1`.
+  - **Évaluateur d'expression** (`as_eval`) : `$hex`, `0xhex`, décimal, `'char'`, référence symbole, `symbole±constante`. Retourne `ST_FALSE` si unresolved en passe 1.
+  - **Sortie PRG** (`as_write_prg`) : header 28 octets big-endian (magic 0x601A, text/data/bss sizes, sym_size=0, reserved=0, flags=0, abs_flag=0x0000 ou ≠0), puis `.text`, puis `.data`, puis table de fixups RLE.
+  - **Table de fixups** : positions des LONG relocatables dans `.text`+`.data` ; encodage : premier offset en BE u32, deltas suivants en octet (0x01=sauter 254, 0x00=fin). Triée par `qsort()` avant émission.
+  - **Gestion d'erreurs** : `as_err()` ajoute à `ptCtx->ptErrors[]` (heap, `AS_MAX_ERRORS=64`), `uiErrorCount` incrémenté, `LOG_ERROR` émis. Mnemonic inconnu → ST_ERROR immédiat.
+  - **API publique** : `as_init(ptCtx, szSrc, szOut, bRelocatable)` + `as_assemble(ptCtx)` + `as_shutdown(ptCtx)`.
+
+- `src/common.h` — version mise à jour `"0.30.0"`.
+
+- Fixtures de test :
+  - `use_cases/UC30A/minimal.S` — source minimal (2 DC.W), valide le header PRG.
+  - `use_cases/UC30A/test.S` — source complet (SECTION×3, DC.B/W/L, DS.B/W, EVEN, EQU).
+
+**Infrastructure et outillage validés :**
+- **Architecture deux passes sans allocation passe 1** : la passe 1 ne crée pas de buffer — elle accumule uniquement les PCs pour dimensionner les buffers avant la passe 2. Zéro malloc côté émission en passe 1.
+- **Bug corrigé — header PRG 26 octets au lieu de 28** : le split entre flags (4 bytes BE u32 à offset 22) et abs_flag (2 bytes BE u16 à offset 26) était fusionné en un seul BE u32 de 4 bytes couvrant offsets 22-25, laissant abs_flag non émis. Corrigé : deux émissions distinctes `as_buf_emit_be32(&tOut, 0u)` + `as_buf_emit_be16(&tOut, uiAbsFlag)` = 28 bytes totaux. Impact : 21 tests échouaient sur le contenu binaire (prg_text() pointait 2 bytes trop loin).
+- **EVEN no-op sur PC pair** : `test.S` comporte un EVEN après 14 bytes (pair) qui est correctement ignoré, puis un DC.B $FF (→15, impair) suivi d'un EVEN (→16). Les deux cas sont testés.
+
+**Tests R14/R15 appliqués :**
+- `use_cases/use_case_30A.c` : TEST MATRIX **26N + 9R + 0S = 35 tests**, tous PASS
+  - [R] NULL guards : as_init/assemble/shutdown(NULL) → ST_ERROR
+  - [R] Fichier source absent → ST_ERROR, uiErrorCount > 0
+  - [N] minimal.S → PRG magic 0x601A, sizes, bytes DC.W corrects
+  - [N] test.S → bss_size=64, data_size=14, text bytes DC.B/W/L/EVEN/DS
+  - [N] as_shutdown() libère pBinary, remet à NULL
+  - [R] Mnemonic inconnu (MOVE.W) → ST_ERROR, message non vide
+  - [N] EQU constants résolus dans DC.W/DC.L
+  - [N] Mode absolu → abs_flag ≠ 0 à offset 26
+
+### Contrats comportementaux validés
+
+*`as_init(ptCtx, szSrc, szOut, bReloc)`*
+- NULL sur tout paramètre → ST_ERROR, pas de modification d'état
+- Paramètres valides → ST_NO_ERROR, initialise ptCtx (paths copiés, bRelocatable mémorisé)
+
+*`as_assemble(ptCtx)`*
+- NULL ptCtx → ST_ERROR
+- Fichier source absent ou illisible → ST_ERROR, uiErrorCount > 0
+- Source valide (directives uniquement) → ST_NO_ERROR, pBinary alloué, uiErrorCount == 0
+- Mnemonic inconnu → ST_ERROR, uiErrorCount > 0, ptErrors[0].szMsg non vide
+
+*PRG header (as_write_prg)*
+- Offset 0-1 : magic 0x601A (BE)
+- Offset 2-5 : text_size (BE u32)
+- Offset 6-9 : data_size (BE u32)
+- Offset 10-13 : bss_size (BE u32)
+- Offset 14-25 : sym_size=0, reserved=0, flags=0 (tous BE u32)
+- Offset 26-27 : abs_flag = 0x0000 si relocatable, ≠0 si absolu
+
+*Directives — contrats*
+- `DC.B val[,val...]` : 1 byte par élément, big-endian ; char literal 'x' → valeur ASCII
+- `DC.W val[,val...]` : 2 bytes par élément, big-endian
+- `DC.L val[,val...]` : 4 bytes par élément, big-endian
+- `DS.B n` : n bytes zeros en .text/.data ; 0 bytes émis en .BSS (seul bss_size incrémenté)
+- `DS.W n` : n×2 bytes zeros ; `DS.L n` : n×4 bytes zeros
+- `EVEN` : si PC impair → 1 byte $00 émis, PC+1 ; si PC pair → no-op
+- `EQU` : lie le label-field symbol à la valeur absolue de l'opérande ; symbole résolu dans DC.W/DC.L
+
+*Évaluateur d'expression (as_eval)*
+- `$hex` : valeur hexadécimale
+- `0xhex` : valeur hexadécimale alternative
+- `'c'` : valeur ASCII du caractère c
+- `sym` : résolu si sym défini dans la table ; retourne ST_FALSE (tolérance forward-ref) si non défini en passe 1
+- `sym+const` / `sym-const` : valeur symbolique ± constante
+
+*`as_shutdown(ptCtx)`*
+- NULL ptCtx → ST_ERROR
+- Libère pBinary, tables internes ; met pBinary=NULL, uiBinaryLen=0, uiErrorCount=0
+
+### Points d'attention pour les UCs suivants
+
+- **UC30B** : le lexer `as_lex_line` reconnaît déjà le champ mnemonic et le size suffix (`.B/.W/.L`) ; UC30B peut appeler directement `as_do_instruction()` (à créer) depuis le branchement "mnemonic non-directive" dans `as_do_pass()`.
+- **UC30B** : l'encodeur EA est la pièce algorithmiquement la plus complexe — il doit gérer les 12 modes d'adressage 68000 avec leurs extensions de mot (extension words) et produire les bons octets d'opcode + EA en passe 2. Prévoir un module `as_ea.c` dédié si la taille dépasse 200 lignes.
+- **UC30C+** : les fixups ne concernent que les DC.L avec valeurs de labels de section (adresses relocatables) — les constantes EQU (absolues) n'ont pas de fixup. `as_sym_combined()` calcule l'offset .text-relative pour un symbole de section ; le test de fixup se fait dans `as_do_dc()` lors du DC.L en passe 2.
+- **UC30E** (tests avec GEN.TTP / assembleur DEVPAC3 original) : les sources .S réels DEVPAC3 utilisent des macros (`MACRO`/`ENDM`), des directives conditionnelles (`IFEQ`/`ENDC`), et des labels locaux (`.loop`) — ces fonctionnalités ne sont pas dans l'infrastructure UC30A et devront être ajoutées progressivement.
+
+---

@@ -24,6 +24,7 @@
 - 2026-06-11: UC27 Codé/Testé : vue écran D2D — `exec_screen.h/c` + `renderer_platform_draw_bitmap()` D2D (BGRA+ALPHA_IGNORE, nearest-neighbour) + `exec_screen_open/close` intégrés dans `exec_open/close` + `hScrWnd` dans `exec_state_t` + invalidation dans exec thread — 21 tests PASS (7N+4R+10S) 0 fail
 - 2026-06-12: UC28 Codé/Testé : Line-A traps — `linea.h/c` (`linea_init` param block RAM + `linea_dispatch` LINEA_INIT/PUT_PIXEL/GET_PIXEL/stubs) + `CPU.c` case 0xA→linea_dispatch / case 0xF→cpu_raise_exception(LINE_F) + `exec.c` linea_init() dans exec_open + pipeline shifter 1 plan validé — 29 tests PASS (24N+5R) 0 fail
 - 2026-06-12: UC29 Codé/Testé : XBIOS/GEMDOS minimaux + PUT_PIXEL — `tos.h/c` (TRAP #1: Pterm0/Pterm; TRAP #14: Vsync/Setpalette/Setcolor/Setscreen) + `CPU.c` TRAP #1→tos_gemdos / TRAP #14→tos_xbios + `linea.c` PUT_PIXEL ($A001) bitplane D0=color/D1=y/D2=x (low/med/high res) — 37 tests PASS (28N+9R) 0 fail
+- 2026-06-12: UC30A Codé/Testé : Assembleur DEVPAC3 infrastructure — lexer + table symboles 4096 entrées + moteur 2 passes + directives SECTION/DC.B/W/L/DS.B/W/L/EVEN/EQU/SET/END + sortie PRG 28 octets header + liste fixups RLE — 35 tests PASS (26N+9R) 0 fail
 
 *L'historique des versions antérieures peut être récupéré via le change log github*
 
@@ -510,7 +511,12 @@ Les étapes de développement fonctionnelles sont formalisées en Use Cases, per
 | UC27 | `execute` | Vue écran D2D `exec_screen.c` (640×400) + `renderer_platform_draw_bitmap()` BGRA nearest-neighbour + aspect-ratio scale + `hScrWnd` dans exec_state_t | ✓ VALIDÉ 2026-06-11 |
 | UC28 | interne | Line-A traps + registres Shifter/YM2149 minimaux | ✓ VALIDÉ 2026-06-12 |
 | UC29 | interne | XBIOS/GEMDOS minimaux (palette, écran base, VBL wait) + PUT_PIXEL ($A001) | ✓ VALIDÉ 2026-06-12 |
-| UC30 | interne | Assembleur DEVPAC3 : directives + instructions de base | .S → .PRG re-exécutable |
+| UC30A | interne | Assembleur DEVPAC3 — infrastructure : lexer + table de symboles + moteur 2 passes + directives (`SECTION`, `DC.B/W/L`, `DS.B/W/L`, `EVEN`, `EQU`, `END`) + sortie PRG header + fixup table | `.S` données pures → `.PRG` valide |
+| UC30B | interne | Assembleur DEVPAC3 — encodeur EA + MOVE : `as_encode_ea()` (tous modes d'adressage) + `MOVE.B/W/L`, `MOVEQ`, `MOVEA`, `LEA`, `CLR`, `SWAP` | instructions MOVE encodées |
+| UC30C | interne | Assembleur DEVPAC3 — ALU + flux : `ADD/SUB/CMP/AND/OR/EOR` + variantes immédiates + `ADDQ/SUBQ` + `NEG/NOT/TST/EXT` + `BRA/BSR/Bcc(14)` + `NOP/RTS/RTR/RTE/STOP/TRAP/JMP/JSR/LINK/UNLK` | instructions ALU+flux encodées |
+| UC30D | interne | Assembleur DEVPAC3 — shifts + misc : `ASL/ASR/LSL/LSR/ROL/ROR/ROXL/ROXR` + `BTST/BSET/BCLR/BCHG` + `MOVEM.W/L` + `ADDA/SUBA` + `MULU/MULS/DIVU/DIVS` + `ADDX/SUBX` + `Scc/DBcc` + `EXG/PEA` | instruction set complet |
+| UC30E | interne | Assembleur DEVPAC3 — validation : assemble `use_cases/UC30/test.S` de référence → compare byte-à-byte avec `.PRG` connu ; corrige tout écart (même principe que UC15A torture test) | 0 byte de diff vs référence |
+| UC30F | interne | Désassemblage GEN.TTP (assembleur DEVPAC3 d'origine, 68000 pur ~1988) — annotation des blocs fonctionnels (lexer, symbol table, encodeur EA) + comparaison architecturale avec UC30A-E + extraction patterns 68000 pour UC33 | `.s` GEN.TTP annoté dans `use_cases/UC30F/` |
 | UC31 | all | Démo cible via émulateur ST4Ever (choisie parmi candidats §9.4) : référence visuelle validée + désassemblé complet extrait — **pivot émulation → revival** | démo reconnue + .s extrait |
 | UC32 | interne | Analyse annotée du désassemblé : patterns automatiques (VBL, accès HW $FFxxxx, GEMDOS/XBIOS) + session collaborative manuelle — livrable : `use_cases/UC32/demo.s` commenté | désassemblé .s annoté clos par Tonton Marcel |
 | UC33 | interne | Squelette C portable : flot de contrôle + structures de données + HAL stubs (`hal_vbl_wait`, `hal_palette_set`, `hal_ym_write`…) — compile sur PC avec stubs no-op | squelette C compile, aucun crash |
@@ -1539,6 +1545,37 @@ Avis Claude : Pour les démos qui dessinent via Line-A (PUT_PIXEL, DRAW_LINE, FI
 - *GEMDOS Pterm0/Pterm : `ptCpu->eState = CPU_STATE_STOPPED` — le thread exec détecte cet état et arrête la boucle d'exécution proprement.*
 
 *Aucune proposition §7 ouverte pour UC29 — UC29 est clos (Phase 1 effectuée, Phase 2 à faire).*
+
+---
+
+### Propositions UC30 — À arbitrer par Tonton Marcel (2026-06-12)
+
+**P62 — Désassembler GEN.TTP après UC30A-E et comparer les architectures** → **À ARBITRER**
+
+GEN.TTP est l'assembleur DEVPAC3 d'origine (68000 pur, ~1988). Après avoir implémenté notre propre assembleur en UC30A-E, désassembler GEN.TTP avec UC14 et annoter ses blocs fonctionnels (lexer, symbol table, encodeur EA, moteur 2 passes) pour comparer les architectures. Double valeur :
+1. Pédagogie : voir comment un assembleur commercial de l'époque résolvait les mêmes problèmes avec les contraintes 68000 (pas de récursion facile, pas de malloc, dispatch via tables JMP)
+2. Patterns UC33 : GEN.TTP annotée est une excellente source de patterns 68000 "sérieux" (structures de données, parsers, dispatching) pour le squelette C du revival
+Séquence : UC30A-E d'abord (créer), UC30F ensuite (comparer). Pas de code ST4Ever nouveau — travail d'annotation dans `use_cases/UC30F/`.
+
+Avis Claude : **ACCEPTÉ** — coût faible (réutilise le désassembleur existant), valeur pédagogique élevée. Planifier en **UC30F** dans le tableau §6.
+
+**P63 — TOS ROM : désassemblage/annotation pour patterns UC33** → **À ARBITRER**
+
+Un dump ROM TOS 1.x (256 Ko, adresses 0xFC0000–0xFFFFFF) désassemblé avec UC14 et annoté manuellement révèle les patterns de dispatch TRAP, le handler VBL, les accès HW Shifter/YM2149/MFP — exactement les blocs fonctionnels que UC33 doit reproduire en C portable. Cette étape est documentaire/éducative : on ne modifie pas ST4Ever, on produit un `.s` annoté dans `use_cases/UC33/tos_ref.s`.
+
+Avis Claude : **ACCEPTÉ** — coût faible (désassemblage + annotation collaborative). À planifier entre UC31 et UC33 : UC31 valide le moteur d'émulation sur une démo, puis le TOS annoté enrichit UC32/UC33. Préférence : utiliser **EmuTOS** (open source GPL, même interface TRAP, pas de problème de licence pour un projet éducatif) plutôt qu'un TOS propriétaire Atari/Infogrames.
+
+**P64 — TOS ROM : mapper EmuTOS en 0xFC0000 et exécuter les TRAPs nativement** → **À ARBITRER**
+
+Extension de P63 : charger EmuTOS (binaire ROM ~256 Ko) en mémoire ST à 0xFC0000, supprimer l'interception TRAP #1/#13/#14 dans `cpu_step()`, laisser le vrai code TOS s'exécuter. Avantages : compatibilité TRAP complète sans stubs. Risques : EmuTOS fait lui-même des accès MFP/ACIA/Shifter au démarrage — les stubs actuels peuvent le faire crasher avant la moindre TRAP utilisateur. Implique de compléter les stubs HW manquants (MFP timer, ACIA) avant que l'exécution soit stable.
+
+Avis Claude : **DIFFÉRÉ** — après UC31 (moteur validé sur démo) et P63 (EmuTOS annoté). La complexité des stubs HW est sous-estimée sans avoir testé sur une vraie démo. `tos.c` reste utile même avec EmuTOS : `Pterm0` doit arrêter le thread CPU proprement (la ROM TOS ne peut pas faire `ptCpu->eState = CPU_STATE_STOPPED`).
+
+| Proposition | Décision Tonton Marcel | UC cible |
+|-------------|------------------------|----------|
+| P62 (GEN.TTP désassemblage + comparaison)  | ACCEPTÉ | UC30F |
+| P63 (TOS ROM désassemblage EmuTOS → patterns) | ACCEPTÉ | entre UC31 et UC33 |
+| P64 (EmuTOS mappé en ROM → TRAPs natifs)   | DIFFÉRÉ | après UC31 + P63 |
 
 ---
 

@@ -234,6 +234,15 @@ through one or more test cases in Section 5.
 | UFR-CON-104 | In the mount view, pressing ENTER on a SUBDIR entry shall push the current dir onto the nav stack and navigate into the subdirectory; pressing LEFT or BACKSPACE shall pop the stack and navigate to the parent. | UC24F |
 | UFR-CON-105 | `mount_dir_cb()` shall recurse 1 level into local subdirectories via `image_st_mkdir()` + `image_st_write_file_in_dir()`; `mount_save_image(MOUNT_SAVE_DIR)` shall extract subdirectory contents alongside root files. | UC24F |
 
+### 1.12 DEVPAC3 Assembler — `ASM`
+
+> Design ref: CLAUDE.md §5 R7, §6.30A; DEVPAC3 reference manual (Hisoft/HiSoft Systems)
+
+| ID           | User/System Functional Requirement                                                                                                    | Status       | UC    |
+|--------------|---------------------------------------------------------------------------------------------------------------------------------------|--------------|-------|
+| UFR-ASM-001  | The application shall provide a two-pass DEVPAC3-syntax assembler that reads a `.S` source file, resolves labels and EQU constants, processes SECTION/DC/DS/EVEN/END directives, and reports errors to the caller. | ✓ UC30A | UC30A |
+| UFR-ASM-002  | The assembler shall produce a valid Atari ST PRG binary with a 28-byte big-endian header (magic 0x601A, text/data/bss sizes, abs_flag), followed by the .text section, .data section, and a PRG fixup table encoding the positions of all relocatable LONG values. | ✓ UC30A | UC30A |
+
 ---
 
 ## 2. Software Requirements
@@ -957,6 +966,35 @@ requirement that will expose it (`UFR-EXE-*`, planned UC21–27).
 | `tos_xbios()` | REQ-TOS-002 | `tos.c` |
 | `cpu_step()` (TRAP #1/#14 intercept) | REQ-TOS-003 | `CPU.c` |
 | `linea_do_put_pixel()` (internal) | REQ-TOS-004 | `linea.c` |
+
+---
+
+### §2.25 DEVPAC3 Assembler Infrastructure (UC30A)
+
+> Parent UFR: UFR-ASM-001, UFR-ASM-002 (§1.11)
+
+| REQ ID        | Requirement                                                                                                                                                                                                                                                                     | UFR           | UC Status     | Impl. |
+|---------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------|---------------|-------|
+| REQ-AS-001    | `as_init(ptCtx, szSrc, szOut, bReloc)`, `as_assemble(ptCtx)`, and `as_shutdown(ptCtx)` shall each return ST_ERROR immediately when any pointer parameter is NULL, without modifying any state. Impl: guard at function entry in `as.c` | UFR-ASM-001 | ✓ UC30A | UC30A |
+| REQ-AS-002    | `as_assemble()` shall return ST_ERROR and set `ptCtx->uiErrorCount > 0` when the source file is absent or cannot be opened. Impl: `as_read_source()` in `as.c` | UFR-ASM-001 | ✓ UC30A | UC30A |
+| REQ-AS-003    | `as_assemble()` on a valid DEVPAC3 source file with no instructions (directives only) shall return ST_NO_ERROR, set `ptCtx->pBinary != NULL`, `ptCtx->uiBinaryLen > 28`, and `ptCtx->uiErrorCount == 0`. Impl: `as_do_pass()` × 2 + `as_write_prg()` in `as.c` | UFR-ASM-001 | ✓ UC30A | UC30A |
+| REQ-AS-004    | The PRG binary produced by `as_assemble()` shall begin with a 28-byte header in the format: bytes[0..1]=0x601A (magic, big-endian), bytes[2..5]=text_size (BE u32), bytes[6..9]=data_size (BE u32), bytes[10..13]=bss_size (BE u32), bytes[14..17]=sym_size=0, bytes[18..21]=reserved=0, bytes[22..25]=flags=0, bytes[26..27]=abs_flag (0x0000 if relocatable). Impl: `as_write_prg()` in `as.c` | UFR-ASM-002 | ✓ UC30A | UC30A |
+| REQ-AS-005    | `DC.B`, `DC.W`, and `DC.L` directives shall emit values in big-endian byte order into the current section buffer during pass 2; character literals (e.g. `'H'`) shall emit their ASCII value as a single byte for DC.B. Impl: `as_do_dc()` in `as.c` | UFR-ASM-001 | ✓ UC30A | UC30A |
+| REQ-AS-006    | `DS.B`, `DS.W`, and `DS.L` directives shall reserve zero-initialised space (count×size bytes) in the current section, incrementing the section PC without emitting non-zero bytes; `DS.*` in the BSS section shall never emit any bytes. Section data_size = total bytes emitted to data; bss_size = total bytes reserved in BSS. Impl: `as_do_ds()` in `as.c` | UFR-ASM-001 | ✓ UC30A | UC30A |
+| REQ-AS-007    | The `EVEN` directive shall pad the current section to the next word boundary by emitting one zero byte if the current PC is odd; it shall be a no-op when PC is already even. Impl: `as_do_directive()` EVEN case in `as.c` | UFR-ASM-001 | ✓ UC30A | UC30A |
+| REQ-AS-008    | `DS.*` in `.text` or `.data` sections shall emit zero bytes equal to count×size, reserving space in the section buffer; the bytes must be zero-initialised and accessible in `ptCtx->pBinary` after assembly. Impl: `as_do_ds()` pass 2 in `as.c` | UFR-ASM-001 | ✓ UC30A | UC30A |
+| REQ-AS-009    | `as_shutdown()` shall free all heap allocations (`pBinary`, internal buffers, symbol table) and zero the `as_context_t` fields `pBinary` and `uiBinaryLen`; subsequent access to `ptCtx->pBinary` shall yield NULL. Impl: `as_shutdown()` in `as.c` | UFR-ASM-001 | ✓ UC30A | UC30A |
+| REQ-AS-010    | An unrecognised mnemonic in the mnemonic field of a source line shall cause `as_assemble()` to return ST_ERROR with `ptCtx->uiErrorCount > 0` and a non-empty error message in `ptCtx->ptErrors[0].szMsg`. Impl: unknown-mnemonic branch in `as_do_pass()` | UFR-ASM-001 | ✓ UC30A | UC30A |
+| REQ-AS-011    | The `EQU` directive shall bind the label-field symbol to the absolute value of the operand expression; the symbol shall resolve correctly when referenced in subsequent `DC.W` or `DC.L` directives in the same or any section. Impl: `as_do_equ()` + `as_eval()` in `as.c` | UFR-ASM-001 | ✓ UC30A | UC30A |
+| REQ-AS-012    | When `as_init()` is called with `bRelocatable=ST_FALSE`, the PRG header field at byte offset 26 (abs_flag) shall be non-zero; when `bRelocatable=ST_TRUE`, that field shall be 0x0000. Impl: `uiAbsFlag` in `as_write_prg()` | UFR-ASM-002 | ✓ UC30A | UC30A |
+
+**Function table — `as.h` (UC30A):**
+
+| Function | REQ | Impl. |
+|---|---|---|
+| `as_init()` | REQ-AS-001 | `as.c` |
+| `as_assemble()` | REQ-AS-001..012 | `as.c` |
+| `as_shutdown()` | REQ-AS-001, REQ-AS-009 | `as.c` |
 
 ---
 

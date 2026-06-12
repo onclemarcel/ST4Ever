@@ -4007,3 +4007,106 @@ Source: `use_cases/use_case_24F.c`
 | UFR          | REQ(s)              | TC(s)                              | Status    |
 |--------------|---------------------|------------------------------------|-----------|
 | UFR-EXE-014  | REQ-TOS-001..004    | TC-TOS-001..037                    | v UC29    |
+
+---
+
+## §5.97 UC30A — DEVPAC3 Assembler Infrastructure
+
+> Covers: `src/as.h` / `src/as.c` — two-pass assembler, PRG output, directives
+
+### TC-AS — NULL parameter guards
+
+| TC ID       | Description                                                                                              | Type | UFR          | REQ         | INT          | Expected                            | Status     |
+|-------------|----------------------------------------------------------------------------------------------------------|------|--------------|-------------|--------------|-------------------------------------|------------|
+| TC-AS-001   | `as_init(NULL, "x.S", "x.prg", ST_TRUE)` returns ST_ERROR                                              | [R]  | UFR-ASM-001  | REQ-AS-001  | INT-AS-001   | ST_ERROR                            | PASS UC30A |
+| TC-AS-002   | `as_init(&tCtx, NULL, "x.prg", ST_TRUE)` returns ST_ERROR                                              | [R]  | UFR-ASM-001  | REQ-AS-001  | INT-AS-001   | ST_ERROR                            | PASS UC30A |
+| TC-AS-003   | `as_init(&tCtx, "x.S", NULL, ST_TRUE)` returns ST_ERROR                                                | [R]  | UFR-ASM-001  | REQ-AS-001  | INT-AS-001   | ST_ERROR                            | PASS UC30A |
+| TC-AS-004   | `as_assemble(NULL)` returns ST_ERROR                                                                    | [R]  | UFR-ASM-001  | REQ-AS-001  | INT-AS-002   | ST_ERROR                            | PASS UC30A |
+| TC-AS-005   | `as_shutdown(NULL)` returns ST_ERROR                                                                    | [R]  | UFR-ASM-001  | REQ-AS-001  | INT-AS-003   | ST_ERROR                            | PASS UC30A |
+
+### TC-AS — Missing source file
+
+| TC ID       | Description                                                                                              | Type | UFR          | REQ         | INT          | Expected                            | Status     |
+|-------------|----------------------------------------------------------------------------------------------------------|------|--------------|-------------|--------------|-------------------------------------|------------|
+| TC-AS-006   | `as_init` with valid params on non-existent file succeeds (init is lazy)                                | [R]  | UFR-ASM-001  | REQ-AS-002  | INT-AS-004   | ST_NO_ERROR                         | PASS UC30A |
+| TC-AS-007   | `as_assemble` on non-existent source returns ST_ERROR                                                   | [R]  | UFR-ASM-001  | REQ-AS-002  | INT-AS-004   | ST_ERROR                            | PASS UC30A |
+| TC-AS-008   | After missing-source error, `uiErrorCount > 0`                                                          | [R]  | UFR-ASM-001  | REQ-AS-002  | INT-AS-004   | uiErrorCount > 0                    | PASS UC30A |
+
+### TC-AS — Minimal assembly (DC.W only)
+
+| TC ID       | Description                                                                                              | Type | UFR          | REQ         | INT          | Expected                            | Status     |
+|-------------|----------------------------------------------------------------------------------------------------------|------|--------------|-------------|--------------|-------------------------------------|------------|
+| TC-AS-009   | `as_init` on `minimal.S` succeeds                                                                       | [N]  | UFR-ASM-001  | REQ-AS-003  | INT-AS-005   | ST_NO_ERROR                         | PASS UC30A |
+| TC-AS-010   | `as_assemble` on `minimal.S` returns ST_NO_ERROR                                                        | [N]  | UFR-ASM-001  | REQ-AS-003  | INT-AS-005   | ST_NO_ERROR                         | PASS UC30A |
+| TC-AS-011   | After assembly, `pBinary != NULL`                                                                       | [N]  | UFR-ASM-002  | REQ-AS-003  | INT-AS-005   | pBinary != NULL                     | PASS UC30A |
+| TC-AS-012   | After assembly, `uiBinaryLen > 28`                                                                      | [N]  | UFR-ASM-002  | REQ-AS-003  | INT-AS-005   | uiBinaryLen > 28                    | PASS UC30A |
+| TC-AS-013   | After assembly of valid source, `uiErrorCount == 0`                                                     | [N]  | UFR-ASM-001  | REQ-AS-003  | INT-AS-005   | uiErrorCount == 0                   | PASS UC30A |
+| TC-AS-014   | PRG header bytes [0..1] = 0x601A (big-endian magic)                                                    | [N]  | UFR-ASM-002  | REQ-AS-004  | INT-AS-006   | pBinary[0]=0x60, pBinary[1]=0x1A    | PASS UC30A |
+| TC-AS-015   | PRG header: text_size == 4 (two DC.W in minimal.S)                                                     | [N]  | UFR-ASM-002  | REQ-AS-004  | INT-AS-007   | BE u32 at offset 2 == 4             | PASS UC30A |
+| TC-AS-016   | PRG header: data_size == 0 (no DATA section in minimal.S)                                               | [N]  | UFR-ASM-002  | REQ-AS-004  | INT-AS-007   | BE u32 at offset 6 == 0             | PASS UC30A |
+| TC-AS-017   | PRG header: bss_size == 0 (no BSS section in minimal.S)                                                 | [N]  | UFR-ASM-002  | REQ-AS-004  | INT-AS-007   | BE u32 at offset 10 == 0            | PASS UC30A |
+| TC-AS-018   | DC.W $4E71: text[0]=0x4E, text[1]=0x71 (big-endian)                                                   | [N]  | UFR-ASM-001  | REQ-AS-005  | INT-AS-008   | pBinary[28]=0x4E, pBinary[29]=0x71  | PASS UC30A |
+| TC-AS-019   | DC.W $4E75: text[2]=0x4E, text[3]=0x75 (big-endian)                                                   | [N]  | UFR-ASM-001  | REQ-AS-005  | INT-AS-009   | pBinary[30]=0x4E, pBinary[31]=0x75  | PASS UC30A |
+
+### TC-AS — Full directive set (test.S)
+
+| TC ID       | Description                                                                                              | Type | UFR          | REQ         | INT          | Expected                            | Status     |
+|-------------|----------------------------------------------------------------------------------------------------------|------|--------------|-------------|--------------|-------------------------------------|------------|
+| TC-AS-020   | Assembly of test.S succeeds (ST_NO_ERROR)                                                               | [N]  | UFR-ASM-001  | REQ-AS-003  | INT-AS-010   | ST_NO_ERROR                         | PASS UC30A |
+| TC-AS-021   | bss_size == 64 (DS.B 64 in BSS section)                                                                 | [N]  | UFR-ASM-002  | REQ-AS-006  | INT-AS-010   | BE u32 at offset 10 == 64           | PASS UC30A |
+| TC-AS-022   | data_size == 14 (3 DC.W + 1 DC.L + DS.B 4)                                                             | [N]  | UFR-ASM-002  | REQ-AS-006  | INT-AS-011   | BE u32 at offset 6 == 14            | PASS UC30A |
+| TC-AS-023   | text[0]=0x60, text[1]=0x1A (EQU MAGIC=$601A resolved in DC.W)                                          | [N]  | UFR-ASM-001  | REQ-AS-005  | INT-AS-012   | pText[0]=0x60, pText[1]=0x1A        | PASS UC30A |
+| TC-AS-024   | text[4..7] = $DEADBEEF (DC.L big-endian)                                                                | [N]  | UFR-ASM-001  | REQ-AS-005  | INT-AS-013   | pText[4..7] = DE AD BE EF           | PASS UC30A |
+| TC-AS-025   | text[8..11] = 'H','e','l','l' (DC.B char literals)                                                     | [N]  | UFR-ASM-001  | REQ-AS-005  | INT-AS-014   | pText[8..11] = 0x48 65 6C 6C        | PASS UC30A |
+| TC-AS-026   | text[14]=0xFF (pre-EVEN byte), text[15]=0x00 (EVEN pad)                                                 | [N]  | UFR-ASM-001  | REQ-AS-007  | INT-AS-015   | pText[14]=0xFF, pText[15]=0x00      | PASS UC30A |
+| TC-AS-027   | text[16..31] = all 0x00 (DS.W 8 = COUNT equ 8, zero-fills)                                             | [N]  | UFR-ASM-001  | REQ-AS-008  | INT-AS-016   | pText[16..31] all zero              | PASS UC30A |
+| TC-AS-028   | data[0..1] = $1234 (first DC.W in DATA section)                                                         | [N]  | UFR-ASM-001  | REQ-AS-006  | INT-AS-017   | pData[0]=0x12, pData[1]=0x34        | PASS UC30A |
+| TC-AS-029   | data[2..3] = $5678, data[4..5] = $9ABC (next two DC.W)                                                 | [N]  | UFR-ASM-001  | REQ-AS-006  | INT-AS-017   | pData[2..5] = 56 78 9A BC           | PASS UC30A |
+| TC-AS-030   | data[10..13] = all 0x00 (DS.B 4 in DATA section)                                                        | [N]  | UFR-ASM-001  | REQ-AS-006  | INT-AS-018   | pData[10..13] all zero              | PASS UC30A |
+
+### TC-AS — Lifecycle and error paths
+
+| TC ID       | Description                                                                                              | Type | UFR          | REQ         | INT          | Expected                            | Status     |
+|-------------|----------------------------------------------------------------------------------------------------------|------|--------------|-------------|--------------|-------------------------------------|------------|
+| TC-AS-031   | Before `as_shutdown()`, `pBinary != NULL` after successful assembly                                     | [N]  | UFR-ASM-001  | REQ-AS-009  | INT-AS-019   | pBinary != NULL                     | PASS UC30A |
+| TC-AS-032   | `as_shutdown()` returns ST_NO_ERROR                                                                     | [N]  | UFR-ASM-001  | REQ-AS-009  | INT-AS-019   | ST_NO_ERROR                         | PASS UC30A |
+| TC-AS-033   | After `as_shutdown()`, `pBinary == NULL`                                                                | [N]  | UFR-ASM-001  | REQ-AS-009  | INT-AS-019   | pBinary == NULL                     | PASS UC30A |
+| TC-AS-034   | After `as_shutdown()`, `uiBinaryLen == 0`                                                               | [N]  | UFR-ASM-001  | REQ-AS-009  | INT-AS-019   | uiBinaryLen == 0                    | PASS UC30A |
+| TC-AS-035   | Source with `MOVE.W D0,D1` (unknown mnemonic): `as_assemble()` → ST_ERROR                              | [R]  | UFR-ASM-001  | REQ-AS-010  | INT-AS-020   | ST_ERROR                            | PASS UC30A |
+| TC-AS-036   | After unknown-mnemonic error: `uiErrorCount > 0`                                                        | [R]  | UFR-ASM-001  | REQ-AS-010  | INT-AS-020   | uiErrorCount > 0                    | PASS UC30A |
+| TC-AS-037   | After unknown-mnemonic error: `ptErrors[0].szMsg[0] != '\0'`                                           | [R]  | UFR-ASM-001  | REQ-AS-010  | INT-AS-020   | non-empty error message             | PASS UC30A |
+| TC-AS-038   | EQU constants: `DC.W SIZE` ($0010) emits 0x00,0x10 in DATA                                             | [N]  | UFR-ASM-001  | REQ-AS-011  | INT-AS-021   | pData[0]=0x00, pData[1]=0x10        | PASS UC30A |
+| TC-AS-039   | EQU constants: `DC.L BASE` (256=$100) emits 0x00,0x00,0x01,0x00                                        | [N]  | UFR-ASM-001  | REQ-AS-011  | INT-AS-021   | pData[2..5] = 00 00 01 00           | PASS UC30A |
+| TC-AS-040   | data_size == 6 after EQU test (1 word + 1 long)                                                         | [N]  | UFR-ASM-002  | REQ-AS-011  | INT-AS-021   | BE u32 at offset 6 == 6             | PASS UC30A |
+| TC-AS-041   | Absolute mode (`bRelocatable=ST_FALSE`): assembly succeeds                                              | [N]  | UFR-ASM-002  | REQ-AS-012  | INT-AS-022   | ST_NO_ERROR                         | PASS UC30A |
+| TC-AS-042   | Absolute mode: PRG header byte offset 26 (abs_flag) != 0                                                | [N]  | UFR-ASM-002  | REQ-AS-012  | INT-AS-022   | prg_u16(pBinary, 26) != 0           | PASS UC30A |
+
+#### Test Summary — UC30A
+
+| Module | [N] | [R] | [S] | Total | Result    |
+|--------|-----|-----|-----|-------|-----------|
+| AS     | 26  |  9  |  0  |  35   | ALL PASS  |
+
+#### REQ to TC coverage (UC30A)
+
+| REQ         | TC(s)                              | Status    |
+|-------------|------------------------------------|-----------|
+| REQ-AS-001  | TC-AS-001..005                     | v UC30A   |
+| REQ-AS-002  | TC-AS-006..008                     | v UC30A   |
+| REQ-AS-003  | TC-AS-009..013, TC-AS-020          | v UC30A   |
+| REQ-AS-004  | TC-AS-014..017                     | v UC30A   |
+| REQ-AS-005  | TC-AS-018..019, TC-AS-023..025     | v UC30A   |
+| REQ-AS-006  | TC-AS-021..022, TC-AS-028..030     | v UC30A   |
+| REQ-AS-007  | TC-AS-026                          | v UC30A   |
+| REQ-AS-008  | TC-AS-027                          | v UC30A   |
+| REQ-AS-009  | TC-AS-031..034                     | v UC30A   |
+| REQ-AS-010  | TC-AS-035..037                     | v UC30A   |
+| REQ-AS-011  | TC-AS-038..040                     | v UC30A   |
+| REQ-AS-012  | TC-AS-041..042                     | v UC30A   |
+
+#### UFR traceability (UC30A)
+
+| UFR          | REQ(s)              | TC(s)                              | Status    |
+|--------------|---------------------|------------------------------------|-----------|
+| UFR-ASM-001  | REQ-AS-001..011     | TC-AS-001..042                     | v UC30A   |
+| UFR-ASM-002  | REQ-AS-003..004, REQ-AS-012 | TC-AS-011..017, TC-AS-021..022, TC-AS-041..042 | v UC30A |
