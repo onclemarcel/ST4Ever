@@ -6,6 +6,7 @@
  *
  * UC25A: step/run/pause/stop/breakpoint, exec_mon, exec_cpu windows.
  * UC25B: memory dump view (exec_mem) + disassembly view (exec_asm).
+ * UC28: linea_init() called at exec_open to prepare Line-A block.
  */
 
 #include "exec.h"
@@ -14,6 +15,7 @@
 #include "exec_mem.h"
 #include "exec_asm.h"
 #include "exec_screen.h"
+#include "linea.h"
 #include "load.h"
 #include "trace.h"
 
@@ -322,6 +324,9 @@ st_error_t exec_open(const char *szProgName, st_u32_t uiLoadAddr)
     g_exec_tCpu.uiPC   = uiLoadAddr;
     g_exec_tCpu.uiSSP  = ST_LOAD_BASE - 2u;
     g_exec_tCpu.auAn[7] = g_exec_tCpu.uiSSP;
+
+    /* Prepare Line-A parameter block in RAM (non-fatal if fails) */
+    linea_init(g_exec_ptMachine);
 
     /* Copy initial state to snapshot */
     memcpy(&g_exec_tState.tCpuSnap, &g_exec_tCpu, sizeof(cpu68k_t));

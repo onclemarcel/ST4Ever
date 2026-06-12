@@ -218,6 +218,8 @@ through one or more test cases in Section 5.
 | UFR-EXE-010  | The application shall classify any 512-byte sector from an Atari ST disk image by static analysis of its content, returning a ranked list of probable sector types (bootsector, FAT12, BSS, code, packer data, etc.) with confidence scores, without executing the sector content. | ✓ UC24A | UC24A |
 | UFR-EXE-011  | The execution engine shall decode the Atari ST Shifter video frame buffer (at the CPU-visible screen base address) into a flat RGB32 pixel array, supporting all three hardware resolutions: low (320×200, 16 colours, 4 bitplanes), medium (640×200, 4 colours, 2 bitplanes) and high (640×400, 2 colours, 1 bitplane); the ST 3-bit palette entries shall be scaled to 8-bit per channel. | ✓ UC26 | UC26 |
 | UFR-EXE-012  | The execution engine shall display the decoded Atari ST video output in a live D2D window (640×400) during program execution, updated after each instruction quantum; the image shall be scaled to the window size with aspect-ratio preservation and nearest-neighbour interpolation. | ✓ UC27 | UC27 |
+| UFR-EXE-013  | The CPU emulator shall intercept Line-A opcodes ($Axxx) and dispatch them to an in-emulator Line-A handler without requiring a TOS ROM; LINEA_INIT ($A000) shall initialise a parameter block in ST RAM and return its address in register A0; other Line-A functions shall be stubbed as no-ops; Line-F opcodes ($Fxxx) shall raise the CPU_VEC_LINE_F exception. | ✓ UC28 | UC28 |
+| UFR-EXE-014  | The CPU emulator shall intercept TRAP #1 (GEMDOS) and TRAP #14 (XBIOS) at emulator level without a TOS ROM: GEMDOS Pterm0 (fn=0) and Pterm (fn=76) shall set CPU state to CPU_STATE_STOPPED; XBIOS Vsync (fn=37) shall return immediately; XBIOS Setpalette (fn=5) shall update all 16 palette entries via the HW dispatcher; XBIOS Setcolor (fn=7) shall update one palette entry; XBIOS Setscreen (fn=3) shall update the physical screen base and/or resolution (−1 = leave unchanged); Line-A PUT_PIXEL ($A001) shall write a pixel into the bitplane frame buffer using D0=color, D1=y, D2=x. | ✓ UC29 | UC29 |
 
 ### 1.11 Design Constraints — Internal API (DOC-01)
 
@@ -912,6 +914,49 @@ requirement that will expose it (`UFR-EXE-*`, planned UC21–27).
 | `exec_screen_event_cb()` (internal) | REQ-SCR-003 | `exec_screen.c` |
 | `renderer_draw_bitmap()` | REQ-RND-008 | `renderer.c` |
 | `renderer_platform_draw_bitmap()` | REQ-RND-009 | `win/win_D2D.c` |
+
+---
+
+### §2.23 Line-A Trap Dispatcher (UC28)
+
+> Parent UFR: UFR-EXE-013 (§1.10)
+
+| REQ ID        | Requirement                                                                                                                                                                                                                                                                     | UFR           | UC Status     | Impl. |
+|---------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------|---------------|-------|
+| REQ-LNA-001   | `linea_init(ptMachine)` shall zero the `LINEA_BLOCK_SIZE` byte region at `[LINEA_PARAM_ADDR - LINEA_PARAM_NEG_SIZE .. LINEA_PARAM_ADDR + 31]` in ST RAM, then write the Line-A parameter block fields derived from `ptMachine->uiResolution` and `ptMachine->uiScreenBase`; it shall return ST_ERROR if `ptMachine` is NULL or the block area exceeds ST_RAM_SIZE. Impl: `linea_init()` | UFR-EXE-013 | ✓ UC28 | UC28 |
+| REQ-LNA-002   | The negative-offset fields in the Line-A parameter block shall be set as follows for each resolution: low-res (ST_RES_LOW): V_PLANES=4, V_LIN_WR=160, V_CEL_HT=8, V_CEL_MX=39, V_CEL_MY=24, V_CEL_WR=1280; med-res (ST_RES_MED): V_PLANES=2, V_LIN_WR=160, V_CEL_MX=79, V_CEL_MY=24; high-res (ST_RES_HIGH): V_PLANES=1, V_LIN_WR=80, V_CEL_MX=79, V_CEL_MY=49; V_BAS_AD (long) shall always equal `ptMachine->uiScreenBase`. All values written big-endian into `ptMachine->aRam[]`. Impl: `linea_init()` | UFR-EXE-013 | ✓ UC28 | UC28 |
+| REQ-LNA-003   | `linea_dispatch(ptCpu, ptMachine, uiOpcode)` shall return ST_ERROR if `ptCpu` or `ptMachine` is NULL; otherwise it shall extract the function number from `uiOpcode & 0x00FF` and dispatch: $00 (LINEA_INIT) calls `linea_init()` and sets `ptCpu->auAn[0] = LINEA_PARAM_ADDR`; $01 (PUT_PIXEL) calls `linea_do_put_pixel()` (UC29); $02 (GET_PIXEL) is stubbed (sets D0=0); all other function numbers are stubbed with LOG_TODO; all stubs return ST_NO_ERROR. Impl: `linea_dispatch()` | UFR-EXE-013 | ✓ UC29 | UC28/29 |
+| REQ-LNA-004   | `cpu_step()` shall dispatch opcodes with top nibble 0xA to `linea_dispatch()` (not LOG_TODO); opcodes with top nibble 0xF shall call `cpu_raise_exception(ptCpu, ptMachine, CPU_VEC_LINE_F)`. Both paths return ST_NO_ERROR on success. Impl: dispatch switch in `cpu_step()` | UFR-EXE-013 | ✓ UC28 | UC28 |
+
+**Function table — `linea.h` (UC28):**
+
+| Function | REQ | Impl. |
+|---|---|---|
+| `linea_init()` | REQ-LNA-001, REQ-LNA-002 | `linea.c` |
+| `linea_dispatch()` | REQ-LNA-003 | `linea.c` |
+| `cpu_step()` (case 0xA/0xF update) | REQ-LNA-004 | `CPU.c` |
+
+---
+
+### §2.24 TOS Minimal Dispatcher (UC29)
+
+> Parent UFR: UFR-EXE-014 (§1.10)
+
+| REQ ID        | Requirement                                                                                                                                                                                                                                                                     | UFR           | UC Status     | Impl. |
+|---------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------|---------------|-------|
+| REQ-TOS-001   | `tos_gemdos(ptCpu, ptMachine)` shall return ST_ERROR if either pointer is NULL; otherwise it shall read the GEMDOS function number from the user stack (`st_read_word(ptMachine, ptCpu->auAn[7], &uiFn)`), and dispatch: fn=0 (Pterm0) and fn=76 (Pterm) shall set `ptCpu->eState = CPU_STATE_STOPPED` and `ptCpu->auDn[0] = exit_code`; all other function numbers shall emit LOG_TODO and set D0=0. All paths return ST_NO_ERROR on success. Impl: `tos_gemdos()` | UFR-EXE-014 | ✓ UC29 | UC29 |
+| REQ-TOS-002   | `tos_xbios(ptCpu, ptMachine)` shall return ST_ERROR if either pointer is NULL; otherwise it shall read the XBIOS function number from SP and dispatch: fn=37 (Vsync) is a no-op; fn=5 (Setpalette) reads a long palette pointer from SP+2 and copies 16 ST colour words to `0xFF8240–0xFF825E` via `st_write_word()`; fn=7 (Setcolor) reads word index from SP+2 and word colour from SP+4 and writes to `0xFF8240 + idx*2` (index 0..15, OOB → LOG_ERROR, no write); fn=3 (Setscreen) reads long physbase from SP+2 and word rez from SP+10; if physbase ≠ 0xFFFFFFFF updates screen base bytes at `0xFF8201/0xFF8203/0xFF820D`; if rez ≠ 0xFFFF writes rez byte to `0xFF8260`. All paths set D0=0 and return ST_NO_ERROR. Impl: `tos_xbios()` | UFR-EXE-014 | ✓ UC29 | UC29 |
+| REQ-TOS-003   | `cpu_step()` shall intercept TRAP #1 before `cpu_raise_exception()` and route to `tos_gemdos()`; similarly TRAP #14 shall route to `tos_xbios()`. All other TRAP #n continue to `cpu_raise_exception()`. Impl: TRAP dispatch block in `cpu_step()` | UFR-EXE-014 | ✓ UC29 | UC29 |
+| REQ-TOS-004   | `linea_dispatch()` $A001 (PUT_PIXEL) shall write one pixel to the bitplane frame buffer in ST RAM using register convention D0.w=color index (0–15), D1.w=y, D2.w=x; for each bitplane plane p (0..planes-1), the bit at column x in the interleaved plane word shall be set if (color>>p)&1, cleared otherwise; out-of-bounds coordinates (x<0, x≥width, y<0, y≥height) shall be silently ignored (no RAM write, ST_NO_ERROR). Impl: `linea_do_put_pixel()` in `linea.c` | UFR-EXE-014 | ✓ UC29 | UC29 |
+
+**Function table — `tos.h` (UC29):**
+
+| Function | REQ | Impl. |
+|---|---|---|
+| `tos_gemdos()` | REQ-TOS-001 | `tos.c` |
+| `tos_xbios()` | REQ-TOS-002 | `tos.c` |
+| `cpu_step()` (TRAP #1/#14 intercept) | REQ-TOS-003 | `CPU.c` |
+| `linea_do_put_pixel()` (internal) | REQ-TOS-004 | `linea.c` |
 
 ---
 

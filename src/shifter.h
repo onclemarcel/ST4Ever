@@ -88,7 +88,7 @@ st_u32_t shifter_palette_to_rgb(st_u16_t uiColor);
  *   piHeight     [out] : Receives actual screen height in pixels.
  *
  * Returns:
- *   ST_NO_ERROR  Frame decoded successfully; *piWidth/*piHeight set.
+ *   ST_NO_ERROR  Frame decoded OK; *piWidth and *piHeight set.
  *   ST_ERROR     NULL parameter, unknown resolution, buffer too small,
  *                or frame buffer extends beyond ST RAM bounds.
  */

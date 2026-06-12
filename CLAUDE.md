@@ -22,6 +22,8 @@
 - 2026-06-11: BUG-10 + edit backup — BUG-10 : correction LF-only (`bEndOfBuf` avant `*p='\0'` dans `etxt_load`) + `edit backup [on|off]` + `edit_txt_set/get_backup()` + `szBackupPath` + sauvegarde `_YYYYMMDD_HHMMSS.bak` à l'ouverture, suppression/conservation à la fermeture — use_case_08.c : 36→43 tests (20N+11R+12S) Phase 2 : UFR-EDT-007, REQ-EDT-014..017, TC-EDT-037..043
 - 2026-06-11: UC26 Codé/Testé : moteur rendu Shifter — `shifter.h/c` + `shifter_render()` décodage bitplanes→RGB32 (low/med/high res, 4/2/1 plans, palette 16 couleurs ST 3-bit→8-bit) — 33 tests PASS (26N+7R) 0 fail
 - 2026-06-11: UC27 Codé/Testé : vue écran D2D — `exec_screen.h/c` + `renderer_platform_draw_bitmap()` D2D (BGRA+ALPHA_IGNORE, nearest-neighbour) + `exec_screen_open/close` intégrés dans `exec_open/close` + `hScrWnd` dans `exec_state_t` + invalidation dans exec thread — 21 tests PASS (7N+4R+10S) 0 fail
+- 2026-06-12: UC28 Codé/Testé : Line-A traps — `linea.h/c` (`linea_init` param block RAM + `linea_dispatch` LINEA_INIT/PUT_PIXEL/GET_PIXEL/stubs) + `CPU.c` case 0xA→linea_dispatch / case 0xF→cpu_raise_exception(LINE_F) + `exec.c` linea_init() dans exec_open + pipeline shifter 1 plan validé — 29 tests PASS (24N+5R) 0 fail
+- 2026-06-12: UC29 Codé/Testé : XBIOS/GEMDOS minimaux + PUT_PIXEL — `tos.h/c` (TRAP #1: Pterm0/Pterm; TRAP #14: Vsync/Setpalette/Setcolor/Setscreen) + `CPU.c` TRAP #1→tos_gemdos / TRAP #14→tos_xbios + `linea.c` PUT_PIXEL ($A001) bitplane D0=color/D1=y/D2=x (low/med/high res) — 37 tests PASS (28N+9R) 0 fail
 
 *L'historique des versions antérieures peut être récupéré via le change log github*
 
@@ -506,8 +508,8 @@ Les étapes de développement fonctionnelles sont formalisées en Use Cases, per
 | UC25B | `execute` | Vue mémoire `exec_mem.c` (dump RAM paginé + navigation) + vue désassembleur `exec_asm.c` (colonnes hex+disasm synchronisées avec PC highlight) | ✓ VALIDÉ 2026-06-11 |
 | UC26 | interne | Shifter : moteur rendu bitplanes→RGB32 (low/med/high res, palette 16 couleurs, `shifter_render()`) | ✓ VALIDÉ 2026-06-11 |
 | UC27 | `execute` | Vue écran D2D `exec_screen.c` (640×400) + `renderer_platform_draw_bitmap()` BGRA nearest-neighbour + aspect-ratio scale + `hScrWnd` dans exec_state_t | ✓ VALIDÉ 2026-06-11 |
-| UC28 | interne | Line-A traps + registres Shifter/YM2149 minimaux | démo 1 plan visible |
-| UC29 | interne | XBIOS/GEMDOS minimaux (palette, écran base, VBL wait) | démo dynamique |
+| UC28 | interne | Line-A traps + registres Shifter/YM2149 minimaux | ✓ VALIDÉ 2026-06-12 |
+| UC29 | interne | XBIOS/GEMDOS minimaux (palette, écran base, VBL wait) + PUT_PIXEL ($A001) | ✓ VALIDÉ 2026-06-12 |
 | UC30 | interne | Assembleur DEVPAC3 : directives + instructions de base | .S → .PRG re-exécutable |
 | UC31 | all | Démo cible via émulateur ST4Ever (choisie parmi candidats §9.4) : référence visuelle validée + désassemblé complet extrait — **pivot émulation → revival** | démo reconnue + .s extrait |
 | UC32 | interne | Analyse annotée du désassemblé : patterns automatiques (VBL, accès HW $FFxxxx, GEMDOS/XBIOS) + session collaborative manuelle — livrable : `use_cases/UC32/demo.s` commenté | désassemblé .s annoté clos par Tonton Marcel |
@@ -1504,6 +1506,39 @@ Cible : **UC25-pre** ou regroupé avec les corrections dir.
 - *Bitmap créé et détruit chaque PAINT : acceptable pour un émulateur éducatif (D2D coalesce les WM_PAINT).*
 
 *Aucune proposition UX/fonctionnelle n'a émergé — UC27 est clos.*
+
+---
+
+### Arbitrage UC28 (2026-06-12)
+
+*UC28 implémente le dispatcher Line-A. Décisions techniques notables :*
+- *Interception directe dans cpu_step (case 0xA → linea_dispatch) plutôt que via mécanisme d'exception RAM : évite d'écrire du code 68000 machine en C, donne le même résultat visible pour les démos, sans TOS ROM.*
+- *case 0xF (Line-F) : cpu_raise_exception(CPU_VEC_LINE_F) — les démos n'utilisent pas Line-F ; l'exception cause un HALT si aucun vecteur installé, ce qui est le comportement correct sur ST sans TOS.*
+- *LINEA_PARAM_ADDR = 0x0900 : au-dessus de la table des vecteurs ($0000-$03FF) et de la zone système basse, en-dessous de la zone de chargement des PRGs (ST_LOAD_BASE). Aucun conflit avec le code utilisateur.*
+- *linea_init() appelé dans exec_open() après cpu_init() pour que la résolution et l'adresse écran soient celles du PRG en cours de chargement — le bloc reflète l'état réel de la machine avant la première instruction.*
+
+**P61 — `linea dispatch` : implémentation PUT_PIXEL / DRAW_LINE pour démos simples** → **À ARBITRER**
+
+Avis Claude : Pour les démos qui dessinent via Line-A (PUT_PIXEL, DRAW_LINE, FILL_RECT), les stubs actuels sont des no-ops. L'implémentation complète de ces fonctions nécessite de connaître les variables Line-A (V_BAS_AD, V_PLANES, coordonnées dans les registres D0-D7) et d'écrire dans la RAM ATARI ST. Coût moyen par fonction (~50 lignes chacune). À arbitrer selon les besoins de la démo cible UC31 — si la démo utilise Line-A pour dessiner, implémenter dans UC29 ; sinon différer à UC31.
+
+| Proposition | Décision | UC cible |
+|-------------|----------|----------|
+| P61 (PUT_PIXEL/DRAW_LINE Line-A) | ACCEPTÉ — **IMPLÉMENTÉ UC29** (PUT_PIXEL) | ✓ clos |
+
+*UC28 est clos (Phase 1 + Phase 2 effectuées, P61 arbitrée et intégrée dans UC29).*
+
+---
+
+### Arbitrage UC29 (2026-06-12)
+
+*UC29 implémente XBIOS/GEMDOS minimaux + Line-A PUT_PIXEL. Décisions techniques notables :*
+- *Convention registres pour PUT_PIXEL : D0.w=color, D1.w=y, D2.w=x (documentée dans Atari ST Internals). Pas de déréférencement de pointeurs PTSIN/INTIN — simplifie l'implémentation et évite la gestion de deux zones mémoire supplémentaires dans le bloc Line-A.*
+- *Bitplane write : pour chaque plan p, lecture du mot courant en RAM (big-endian), set/clear du bit correspondant à la position x, écriture. Supporte les 3 résolutions (low/med/high). Les coordonnées hors-limites sont silencieusement ignorées (clamp).*
+- *XBIOS Setpalette route via `st_write_word(0xFF8240 + i*2)` → dispatcher HW dans ST.c → `ptMachine->auPalette[]` mis à jour. Cohérent avec le reste du pipeline (shifter_render lit auPalette[]).*
+- *XBIOS Setscreen : physbase=-1 (0xFFFFFFFF) et rez=-1 (0xFFFF) sont les sentinelles "laisser inchangé" standard TOS.*
+- *GEMDOS Pterm0/Pterm : `ptCpu->eState = CPU_STATE_STOPPED` — le thread exec détecte cet état et arrête la boucle d'exécution proprement.*
+
+*Aucune proposition §7 ouverte pour UC29 — UC29 est clos (Phase 1 effectuée, Phase 2 à faire).*
 
 ---
 

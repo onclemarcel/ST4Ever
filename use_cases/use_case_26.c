@@ -29,7 +29,7 @@
  * to a flat row-major RGB32 array.  Low res: 4 planes interleaved per
  * 16-pixel group; plane0 bit = LSB of colour index.  Med res: 2 planes.
  * High res: 1 plane, bit=1 -> palette[1], bit=0 -> palette[0].
- * Returns ST_NO_ERROR and sets *piWidth/*piHeight on success. */
+ * Returns ST_NO_ERROR and sets piWidth and piHeight on success. */
 
 /* INTENT[INT-VID-020..023 -> TC-VID-020..023 -> REQ-VID-003,REQ-VID-004]:
  * shifter_render() returns ST_ERROR for NULL ptMachine, NULL auPixels,

@@ -7,8 +7,12 @@
  *        ADDX/SUBX + MULU/MULS/DIVU/DIVS
  * UC23: BRA/BSR/Bcc + NOP/STOP/RTE/RTS/RTR/TRAP/LINK/UNLK/JSR/JMP +
  *        Scc/DBcc + cpu_raise_exception (exception frame stacking)
+ * UC28: case 0xA -> linea_dispatch(); case 0xF -> cpu_raise_exception(LINE_F)
+ * UC29: TRAP #1 -> tos_gemdos(); TRAP #14 -> tos_xbios()
  */
 #include "CPU.h"
+#include "linea.h"
+#include "tos.h"
 #include "trace.h"
 #include <string.h>
 
@@ -2058,6 +2062,10 @@ static st_error_t cpu_exec_misc4e(cpu68k_t     *ptCpu,
     if ((uiOpc & 0xFFF0u) == 0x4E40u)
     {
         iN = uiOpc & 0xFu;
+        if (iN == 1)
+            return tos_gemdos(ptCpu, ptMachine);
+        if (iN == 14)
+            return tos_xbios(ptCpu, ptMachine);
         return cpu_raise_exception(ptCpu, ptMachine, CPU_VEC_TRAP(iN));
     }
 
@@ -2487,13 +2495,23 @@ st_error_t cpu_step(cpu68k_t          *ptCpu,
         eR = cpu_exec_groupD(ptCpu, ptMachine, uiOpcode);
         break;
 
+    case 0xA: /* Line-A traps ($Axxx) */
+        eR = linea_dispatch(ptCpu, ptMachine, uiOpcode);
+        break;
+
     case 0xE: /* Shifts / Rotations */
         eR = cpu_exec_groupE(ptCpu, ptMachine, uiOpcode);
         break;
 
+    case 0xF: /* Line-F ($Fxxx) — raises exception, not yet handled */
+        LOG_TODO("cpu_step: Line-F opcode 0x%04X at PC=0x%06X (UC29+)",
+                 (unsigned)uiOpcode, uiPCBefore);
+        eR = cpu_raise_exception(ptCpu, ptMachine, CPU_VEC_LINE_F);
+        break;
+
     default:
         LOG_TODO("cpu_step: unimplemented opcode 0x%04X "
-                 "at PC=0x%06X (UC24+)",
+                 "at PC=0x%06X",
                  (unsigned)uiOpcode, uiPCBefore);
         eR = ST_NO_ERROR;
         break;

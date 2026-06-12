@@ -3860,3 +3860,150 @@ Source: `use_cases/use_case_24F.c`
 | UFR          | REQ(s)                            | TC(s)             | Status    |
 |--------------|-----------------------------------|-------------------|-----------|
 | UFR-EXE-012  | REQ-SCR-001..003, REQ-RND-008..009 | TC-SCR-001..021  | v UC27    |
+
+---
+
+### §5.96 Test Cases — UC28 : Line-A trap dispatcher
+
+| TC ID       | Description                                                                                      | Type | UFR          | REQ         | INT          | Expected result                                             | Status     |
+|-------------|--------------------------------------------------------------------------------------------------|------|--------------|-------------|--------------|-------------------------------------------------------------|------------|
+| TC-LNA-001  | `LINEA_PARAM_ADDR < ST_RAM_SIZE`                                                                | [N]  | UFR-EXE-013  | REQ-LNA-001 | INT-LNA-001  | constant in valid RAM range                                 | PASS UC28  |
+| TC-LNA-002  | `LINEA_PARAM_ADDR > LINEA_PARAM_NEG_SIZE` (no underflow)                                       | [N]  | UFR-EXE-013  | REQ-LNA-001 | INT-LNA-002  | negative-offset area stays in bounds                        | PASS UC28  |
+| TC-LNA-003  | `LINEA_PARAM_ADDR + 32 < ST_RAM_SIZE` (positive area in RAM)                                   | [N]  | UFR-EXE-013  | REQ-LNA-001 | INT-LNA-003  | block fits entirely in RAM                                  | PASS UC28  |
+| TC-LNA-004  | `linea_init()` low-res returns ST_NO_ERROR                                                      | [N]  | UFR-EXE-013  | REQ-LNA-001 | INT-LNA-004  | ST_NO_ERROR                                                 | PASS UC28  |
+| TC-LNA-005  | Low-res block: V_PLANES = 4                                                                     | [N]  | UFR-EXE-013  | REQ-LNA-002 | INT-LNA-005  | word at LINEA_PARAM_ADDR-10 == 4                            | PASS UC28  |
+| TC-LNA-006  | Low-res block: V_LIN_WR = 160                                                                   | [N]  | UFR-EXE-013  | REQ-LNA-002 | INT-LNA-006  | word at LINEA_PARAM_ADDR-12 == 160                          | PASS UC28  |
+| TC-LNA-007  | Low-res block: V_BAS_AD = uiScreenBase                                                          | [N]  | UFR-EXE-013  | REQ-LNA-002 | INT-LNA-007  | long at LINEA_PARAM_ADDR-20 == 0x4000                       | PASS UC28  |
+| TC-LNA-008  | `linea_init()` high-res returns ST_NO_ERROR                                                     | [N]  | UFR-EXE-013  | REQ-LNA-001 | INT-LNA-008  | ST_NO_ERROR                                                 | PASS UC28  |
+| TC-LNA-009  | High-res block: V_PLANES = 1                                                                    | [N]  | UFR-EXE-013  | REQ-LNA-002 | INT-LNA-009  | word at LINEA_PARAM_ADDR-10 == 1                            | PASS UC28  |
+| TC-LNA-010  | High-res block: V_LIN_WR = 80                                                                   | [N]  | UFR-EXE-013  | REQ-LNA-002 | INT-LNA-010  | word at LINEA_PARAM_ADDR-12 == 80                           | PASS UC28  |
+| TC-LNA-011  | `linea_dispatch($A000)` returns ST_NO_ERROR                                                     | [N]  | UFR-EXE-013  | REQ-LNA-003 | INT-LNA-011  | ST_NO_ERROR                                                 | PASS UC28  |
+| TC-LNA-012  | `linea_dispatch($A000)` sets A0 = LINEA_PARAM_ADDR                                             | [N]  | UFR-EXE-013  | REQ-LNA-003 | INT-LNA-012  | ptCpu->auAn[0] == LINEA_PARAM_ADDR                          | PASS UC28  |
+| TC-LNA-013  | `linea_dispatch($A000)` refreshes V_BAS_AD with uiScreenBase                                   | [N]  | UFR-EXE-013  | REQ-LNA-003 | INT-LNA-013  | long at LINEA_PARAM_ADDR-20 == new uiScreenBase             | PASS UC28  |
+| TC-LNA-014  | `linea_dispatch($A001)` PUT_PIXEL stub returns ST_NO_ERROR                                     | [N]  | UFR-EXE-013  | REQ-LNA-003 | INT-LNA-014  | ST_NO_ERROR                                                 | PASS UC28  |
+| TC-LNA-015  | `linea_dispatch($A002)` GET_PIXEL stub returns ST_NO_ERROR                                     | [N]  | UFR-EXE-013  | REQ-LNA-003 | INT-LNA-015  | ST_NO_ERROR                                                 | PASS UC28  |
+| TC-LNA-016  | `linea_dispatch($A002)` GET_PIXEL sets D0 = 0                                                  | [N]  | UFR-EXE-013  | REQ-LNA-003 | INT-LNA-016  | ptCpu->auDn[0] == 0                                         | PASS UC28  |
+| TC-LNA-017  | `linea_dispatch($A0FF)` unknown fn returns ST_NO_ERROR                                         | [N]  | UFR-EXE-013  | REQ-LNA-003 | INT-LNA-017  | ST_NO_ERROR (stub)                                          | PASS UC28  |
+| TC-LNA-018  | `cpu_step()` with $A000 opcode returns ST_NO_ERROR                                             | [N]  | UFR-EXE-013  | REQ-LNA-004 | INT-LNA-018  | ST_NO_ERROR                                                 | PASS UC28  |
+| TC-LNA-019  | `cpu_step()` with $A000 sets A0 = LINEA_PARAM_ADDR                                            | [N]  | UFR-EXE-013  | REQ-LNA-004 | INT-LNA-019  | ptCpu->auAn[0] == LINEA_PARAM_ADDR                          | PASS UC28  |
+| TC-LNA-020  | `cpu_step()` with $A000 advances PC by 2                                                       | [N]  | UFR-EXE-013  | REQ-LNA-004 | INT-LNA-020  | ptCpu->uiPC == EXEC_BASE + 2                                | PASS UC28  |
+| TC-LNA-021  | `shifter_render()` on high-res all-0xFF plane 0 returns ST_NO_ERROR                            | [N]  | UFR-EXE-013  | REQ-LNA-001 | INT-LNA-021  | ST_NO_ERROR                                                 | PASS UC28  |
+| TC-LNA-022  | `shifter_render()` on high-res pattern: width = 640                                            | [N]  | UFR-EXE-013  | REQ-LNA-001 | INT-LNA-022  | iWidth == 640                                               | PASS UC28  |
+| TC-LNA-023  | `shifter_render()` on high-res pattern: height = 400                                           | [N]  | UFR-EXE-013  | REQ-LNA-001 | INT-LNA-023  | iHeight == 400                                              | PASS UC28  |
+| TC-LNA-024  | First pixel R=0xFF (palette[1]=0x0777, plane bit=1)                                            | [N]  | UFR-EXE-013  | REQ-LNA-001 | INT-LNA-024  | (auPixels[0] >> 16) & 0xFF == 0xFF                          | PASS UC28  |
+| TC-LNA-025  | Pixel at row 1 R=0x00 (plane byte=0x00, palette[0]=0x0000)                                    | [N]  | UFR-EXE-013  | REQ-LNA-001 | INT-LNA-025  | (auPixels[640] >> 16) & 0xFF == 0x00                        | PASS UC28  |
+| TC-LNA-R01  | `linea_init(NULL)` returns ST_ERROR                                                             | [R]  | UFR-EXE-013  | REQ-LNA-001 | INT-LNA-R01  | ST_ERROR                                                    | PASS UC28  |
+| TC-LNA-R02  | `linea_dispatch(NULL, ptMachine, $A000)` returns ST_ERROR                                      | [R]  | UFR-EXE-013  | REQ-LNA-003 | INT-LNA-R02  | ST_ERROR                                                    | PASS UC28  |
+| TC-LNA-R03  | `linea_dispatch(ptCpu, NULL, $A000)` returns ST_ERROR                                          | [R]  | UFR-EXE-013  | REQ-LNA-003 | INT-LNA-R03  | ST_ERROR                                                    | PASS UC28  |
+| TC-LNA-R04  | `linea_dispatch(NULL, NULL, $A000)` returns ST_ERROR                                           | [R]  | UFR-EXE-013  | REQ-LNA-003 | INT-LNA-R04  | ST_ERROR                                                    | PASS UC28  |
+| TC-LNA-R05  | `cpu_step($A000, NULL ptResult)` returns ST_NO_ERROR                                           | [R]  | UFR-EXE-013  | REQ-LNA-004 | INT-LNA-R05  | ST_NO_ERROR                                                 | PASS UC28  |
+
+#### Test Summary — UC28
+
+| Module | [N] | [R] | [S] | Total | Result    |
+|--------|-----|-----|-----|-------|-----------|
+| LNA    | 25  |  5  |  0  |  30   | ALL PASS  |
+
+#### REQ to TC coverage (UC28)
+
+| REQ         | TC(s)                                                      | Status    |
+|-------------|------------------------------------------------------------|-----------|
+| REQ-LNA-001 | TC-LNA-001..004, TC-LNA-008, TC-LNA-021..025, TC-LNA-R01  | v UC28    |
+| REQ-LNA-002 | TC-LNA-005..007, TC-LNA-009..010                           | v UC28    |
+| REQ-LNA-003 | TC-LNA-011..017, TC-LNA-R02..R04                           | v UC28    |
+| REQ-LNA-004 | TC-LNA-018..020, TC-LNA-R05                                | v UC28    |
+
+#### UFR traceability (UC28)
+
+| UFR          | REQ(s)            | TC(s)                              | Status    |
+|--------------|-------------------|------------------------------------|-----------|
+| UFR-EXE-013  | REQ-LNA-001..004  | TC-LNA-001..025, TC-LNA-R01..R05   | v UC28    |
+
+---
+
+### §5.97 UC29 — TOS Minimal Dispatcher + PUT_PIXEL
+
+> Source: `use_cases/use_case_29.c` | UFR: UFR-EXE-014 | REQ: REQ-TOS-001..004
+
+#### TC-TOS — GEMDOS (TRAP #1)
+
+| TC ID       | Description                                                                                     | Type | UFR          | REQ         | INT          | Expected                                                    | Status     |
+|-------------|-------------------------------------------------------------------------------------------------|------|--------------|-------------|--------------|-------------------------------------------------------------|------------|
+| TC-TOS-001  | `tos_gemdos()` fn=0 (Pterm0) returns ST_NO_ERROR                                              | [N]  | UFR-EXE-014  | REQ-TOS-001 | INT-TOS-001  | ST_NO_ERROR                                                 | PASS UC29  |
+| TC-TOS-002  | `tos_gemdos()` fn=0 sets `ptCpu->eState = CPU_STATE_STOPPED`                                  | [N]  | UFR-EXE-014  | REQ-TOS-001 | INT-TOS-002  | eState == CPU_STATE_STOPPED                                 | PASS UC29  |
+| TC-TOS-003  | `tos_gemdos()` fn=0 sets D0=0                                                                  | [N]  | UFR-EXE-014  | REQ-TOS-001 | INT-TOS-003  | auDn[0] == 0                                                | PASS UC29  |
+| TC-TOS-004  | `tos_gemdos()` fn=76 (Pterm retcode=42) returns ST_NO_ERROR                                   | [N]  | UFR-EXE-014  | REQ-TOS-001 | INT-TOS-004  | ST_NO_ERROR                                                 | PASS UC29  |
+| TC-TOS-005  | `tos_gemdos()` fn=76 sets CPU_STATE_STOPPED                                                    | [N]  | UFR-EXE-014  | REQ-TOS-001 | INT-TOS-005  | eState == CPU_STATE_STOPPED                                 | PASS UC29  |
+| TC-TOS-006  | `tos_gemdos()` fn=99 (unknown) returns ST_NO_ERROR                                             | [N]  | UFR-EXE-014  | REQ-TOS-001 | INT-TOS-006  | ST_NO_ERROR                                                 | PASS UC29  |
+| TC-TOS-007  | `tos_gemdos()` fn=99 leaves CPU in RUNNING state                                               | [N]  | UFR-EXE-014  | REQ-TOS-001 | INT-TOS-007  | eState == CPU_STATE_RUNNING                                 | PASS UC29  |
+
+#### TC-TOS — XBIOS (TRAP #14)
+
+| TC ID       | Description                                                                                     | Type | UFR          | REQ         | INT          | Expected                                                    | Status     |
+|-------------|-------------------------------------------------------------------------------------------------|------|--------------|-------------|--------------|-------------------------------------------------------------|------------|
+| TC-TOS-008  | `tos_xbios()` fn=37 (Vsync) returns ST_NO_ERROR                                               | [N]  | UFR-EXE-014  | REQ-TOS-002 | INT-TOS-008  | ST_NO_ERROR                                                 | PASS UC29  |
+| TC-TOS-009  | `tos_xbios()` fn=37 leaves CPU in RUNNING state                                                | [N]  | UFR-EXE-014  | REQ-TOS-002 | INT-TOS-009  | eState == CPU_STATE_RUNNING                                 | PASS UC29  |
+| TC-TOS-010  | `tos_xbios()` fn=7 (Setcolor idx=3 val=0x0700) returns ST_NO_ERROR                           | [N]  | UFR-EXE-014  | REQ-TOS-002 | INT-TOS-010  | ST_NO_ERROR                                                 | PASS UC29  |
+| TC-TOS-011  | `tos_xbios()` fn=7 Setcolor updates `ptMachine->auPalette[3]` = 0x0700                       | [N]  | UFR-EXE-014  | REQ-TOS-002 | INT-TOS-011  | auPalette[3] == 0x0700                                      | PASS UC29  |
+| TC-TOS-012  | `tos_xbios()` fn=5 (Setpalette) returns ST_NO_ERROR                                           | [N]  | UFR-EXE-014  | REQ-TOS-002 | INT-TOS-012  | ST_NO_ERROR                                                 | PASS UC29  |
+| TC-TOS-013  | `tos_xbios()` fn=5 Setpalette updates palette[0]=0x0000                                       | [N]  | UFR-EXE-014  | REQ-TOS-002 | INT-TOS-013  | auPalette[0] == 0x0000                                      | PASS UC29  |
+| TC-TOS-014  | `tos_xbios()` fn=5 Setpalette updates palette[5]=0x0500                                       | [N]  | UFR-EXE-014  | REQ-TOS-002 | INT-TOS-014  | auPalette[5] == 0x0500                                      | PASS UC29  |
+| TC-TOS-015  | `tos_xbios()` fn=5 Setpalette updates palette[15]=0x0F00                                      | [N]  | UFR-EXE-014  | REQ-TOS-002 | INT-TOS-015  | auPalette[15] == 0x0F00                                     | PASS UC29  |
+| TC-TOS-016  | `tos_xbios()` fn=3 Setscreen(physbase=0x50000, rez=1) returns ST_NO_ERROR                    | [N]  | UFR-EXE-014  | REQ-TOS-002 | INT-TOS-016  | ST_NO_ERROR                                                 | PASS UC29  |
+| TC-TOS-017  | `tos_xbios()` fn=3 Setscreen updates screen base to 0x50000                                   | [N]  | UFR-EXE-014  | REQ-TOS-002 | INT-TOS-017  | uiScreenBase == 0x50000                                     | PASS UC29  |
+| TC-TOS-018  | `tos_xbios()` fn=3 Setscreen updates resolution to 1 (med)                                    | [N]  | UFR-EXE-014  | REQ-TOS-002 | INT-TOS-018  | uiResolution == 1                                           | PASS UC29  |
+| TC-TOS-019  | `tos_xbios()` fn=3 Setscreen physbase=-1 leaves screen base unchanged                         | [N]  | UFR-EXE-014  | REQ-TOS-002 | INT-TOS-019  | uiScreenBase == 0x30000 (unchanged)                         | PASS UC29  |
+| TC-TOS-020  | `tos_xbios()` fn=3 Setscreen rez=-1 leaves resolution unchanged                               | [N]  | UFR-EXE-014  | REQ-TOS-002 | INT-TOS-020  | uiResolution == ST_RES_MED (unchanged)                      | PASS UC29  |
+
+#### TC-TOS — cpu_step TRAP dispatch
+
+| TC ID       | Description                                                                                     | Type | UFR          | REQ         | INT          | Expected                                                    | Status     |
+|-------------|-------------------------------------------------------------------------------------------------|------|--------------|-------------|--------------|-------------------------------------------------------------|------------|
+| TC-TOS-021  | `cpu_step()` opcode 0x4E41 (TRAP #1, fn=0) routes to `tos_gemdos()` — CPU_STATE_STOPPED      | [N]  | UFR-EXE-014  | REQ-TOS-003 | INT-TOS-021  | eState == CPU_STATE_STOPPED                                 | PASS UC29  |
+| TC-TOS-022  | `cpu_step()` opcode 0x4E4E (TRAP #14, fn=37) routes to `tos_xbios()` — CPU_STATE_RUNNING     | [N]  | UFR-EXE-014  | REQ-TOS-003 | INT-TOS-022  | eState == CPU_STATE_RUNNING                                 | PASS UC29  |
+
+#### TC-TOS — PUT_PIXEL bitplane write
+
+| TC ID       | Description                                                                                     | Type | UFR          | REQ         | INT          | Expected                                                    | Status     |
+|-------------|-------------------------------------------------------------------------------------------------|------|--------------|-------------|--------------|-------------------------------------------------------------|------------|
+| TC-TOS-023  | PUT_PIXEL low-res (0,0) color=1: plane0 word at base = 0x8000 (bit 15 set)                   | [N]  | UFR-EXE-014  | REQ-TOS-004 | INT-TOS-023  | aRam[base] word == 0x8000                                   | PASS UC29  |
+| TC-TOS-024  | PUT_PIXEL low-res (0,0) color=1: plane1 word at base+2 = 0x0000                              | [N]  | UFR-EXE-014  | REQ-TOS-004 | INT-TOS-024  | aRam[base+2] word == 0x0000                                 | PASS UC29  |
+| TC-TOS-025  | PUT_PIXEL low-res (1,0) color=3: plane0 has bit 14 set (x=1 → bit_pos=14)                    | [N]  | UFR-EXE-014  | REQ-TOS-004 | INT-TOS-025  | aRam[base] word & 0x4000 != 0                               | PASS UC29  |
+| TC-TOS-026  | PUT_PIXEL low-res (1,0) color=3: plane1 has bit 14 set                                        | [N]  | UFR-EXE-014  | REQ-TOS-004 | INT-TOS-026  | aRam[base+2] word & 0x4000 != 0                             | PASS UC29  |
+| TC-TOS-027  | PUT_PIXEL high-res (16,0) color=1: word at base+2 = 0x8000 (word_group=1, bit=15)            | [N]  | UFR-EXE-014  | REQ-TOS-004 | INT-TOS-027  | aRam[base+2] word == 0x8000                                 | PASS UC29  |
+| TC-TOS-028  | PUT_PIXEL high-res (16,0) color=0: clears bit → word at base+2 = 0x0000                      | [N]  | UFR-EXE-014  | REQ-TOS-004 | INT-TOS-028  | aRam[base+2] word == 0x0000                                 | PASS UC29  |
+| TC-TOS-029  | PUT_PIXEL x=320 (>= low-res width) returns ST_NO_ERROR without writing                        | [R]  | UFR-EXE-014  | REQ-TOS-004 | INT-TOS-029  | ST_NO_ERROR                                                 | PASS UC29  |
+| TC-TOS-030  | PUT_PIXEL x=0xFFFF (word -1, negative) returns ST_NO_ERROR without writing                   | [R]  | UFR-EXE-014  | REQ-TOS-004 | INT-TOS-030  | ST_NO_ERROR                                                 | PASS UC29  |
+| TC-TOS-031  | PUT_PIXEL clamped: bitplane at base unchanged after two OOB writes                            | [R]  | UFR-EXE-014  | REQ-TOS-004 | INT-TOS-031  | aRam[base] word == 0x0000                                   | PASS UC29  |
+
+#### TC-TOS — NULL parameter guards
+
+| TC ID       | Description                                                                                     | Type | UFR          | REQ         | INT          | Expected                                                    | Status     |
+|-------------|-------------------------------------------------------------------------------------------------|------|--------------|-------------|--------------|-------------------------------------------------------------|------------|
+| TC-TOS-032  | `tos_gemdos(NULL, ptMachine)` returns ST_ERROR                                                 | [R]  | UFR-EXE-014  | REQ-TOS-001 | INT-TOS-032  | ST_ERROR                                                    | PASS UC29  |
+| TC-TOS-033  | `tos_gemdos(ptCpu, NULL)` returns ST_ERROR                                                     | [R]  | UFR-EXE-014  | REQ-TOS-001 | INT-TOS-033  | ST_ERROR                                                    | PASS UC29  |
+| TC-TOS-034  | `tos_xbios(NULL, ptMachine)` returns ST_ERROR                                                  | [R]  | UFR-EXE-014  | REQ-TOS-002 | INT-TOS-034  | ST_ERROR                                                    | PASS UC29  |
+| TC-TOS-035  | `tos_xbios(ptCpu, NULL)` returns ST_ERROR                                                      | [R]  | UFR-EXE-014  | REQ-TOS-002 | INT-TOS-035  | ST_ERROR                                                    | PASS UC29  |
+| TC-TOS-036  | `tos_xbios()` fn=7 Setcolor index=16 (OOB) returns ST_NO_ERROR                               | [R]  | UFR-EXE-014  | REQ-TOS-002 | INT-TOS-036  | ST_NO_ERROR                                                 | PASS UC29  |
+| TC-TOS-037  | `tos_xbios()` fn=7 Setcolor OOB leaves palette[0] unchanged                                   | [R]  | UFR-EXE-014  | REQ-TOS-002 | INT-TOS-037  | auPalette[0] == 0                                           | PASS UC29  |
+
+#### Test Summary — UC29
+
+| Module | [N] | [R] | [S] | Total | Result    |
+|--------|-----|-----|-----|-------|-----------|
+| TOS    | 28  |  9  |  0  |  37   | ALL PASS  |
+
+#### REQ to TC coverage (UC29)
+
+| REQ         | TC(s)                                                          | Status    |
+|-------------|----------------------------------------------------------------|-----------|
+| REQ-TOS-001 | TC-TOS-001..007, TC-TOS-032..033                               | v UC29    |
+| REQ-TOS-002 | TC-TOS-008..020, TC-TOS-034..037                               | v UC29    |
+| REQ-TOS-003 | TC-TOS-021..022                                                | v UC29    |
+| REQ-TOS-004 | TC-TOS-023..031                                                | v UC29    |
+
+#### UFR traceability (UC29)
+
+| UFR          | REQ(s)              | TC(s)                              | Status    |
+|--------------|---------------------|------------------------------------|-----------|
+| UFR-EXE-014  | REQ-TOS-001..004    | TC-TOS-001..037                    | v UC29    |

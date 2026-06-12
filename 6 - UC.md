@@ -3066,3 +3066,142 @@ Tests skippés (0) : UC26 est purement interne, aucun skip requis.
 - **UC28** : si une démo lit les registres Shifter en entrée (`0xFF8200–0xFF827F`), `st_read_*` retourne déjà les valeurs du dispatcher UC24 — cohérent avec la vue écran
 
 ---
+
+## §6.28 UC28 — Line-A trap dispatcher (linea.h/c)
+
+**Périmètre fonctionnel implémenté :**
+- `src/linea.h` / `src/linea.c` — nouveau module :
+  - `linea_init(ptMachine)` — initialise le bloc paramètre Line-A en RAM à `LINEA_PARAM_ADDR=0x0900` (au-dessus des vecteurs d'exception, en-dessous de la zone de chargement) avec les champs négatifs V_PLANES, V_LIN_WR, V_CEL_HT, V_CEL_MX, V_CEL_MY, V_CEL_WR, V_BAS_AD selon la résolution courante ; retourne ST_ERROR si ptMachine est NULL ou si le bloc déborde de la RAM
+  - `linea_dispatch(ptCpu, ptMachine, uiOpcode)` — extrait le numéro de fonction (bits[7:0]), dispatch : $00 LINEA_INIT → appel `linea_init()` + A0=LINEA_PARAM_ADDR ; $01 PUT_PIXEL → stub LOG_TODO ; $02 GET_PIXEL → stub, D0=0 ; autres → stub LOG_TODO ; retourne ST_ERROR sur NULL
+- `src/CPU.c` — dispatch mis à jour :
+  - `case 0xA:` → `linea_dispatch()` (remplace le LOG_TODO générique)
+  - `case 0xF:` → `cpu_raise_exception(CPU_VEC_LINE_F)` + LOG_TODO (UC29+)
+- `src/exec.c` — `linea_init()` appelé dans `exec_open()` après `cpu_init()` : le bloc paramètre reflète la résolution et l'adresse écran au moment du démarrage de l'exécution
+
+**Infrastructure et outillage validés :**
+- **Interception emulator-level vs exception RAM** : UC28 intercepte les opcodes $Axxx directement dans cpu_step (pas via le mécanisme d'exception 68000). Cette approche éducative évite d'écrire du code 68000 machine en C (handler en RAM) et donne des résultats identiques pour les programmes qui utilisent Line-A pour initialiser les paramètres graphiques ou dessiner des pixels.
+- **Bloc paramètre aux offsets négatifs** : la convention TOS place les champs utiles en négatif de A0 (ex. `V_PLANES` à `A0-10`). L'implémentation écrit dans `aRam[LINEA_PARAM_ADDR - offset]` en big-endian, conforme à la spec Atari ST Internals §5.
+- **LINEA_PARAM_ADDR = 0x0900** : choisi au-dessus des 1 Ko de vecteurs d'exception ($0000-$03FF), en-dessous de la zone de chargement standard des PRGs (typiquement $0C000 ou ST_LOAD_BASE). Aucun conflit avec le code utilisateur pour les démos standard.
+- **Pipeline UC26→UC27→UC28 validé** : `linea_init()` + écriture directe bitplane dans RAM + `shifter_render()` + `renderer_draw_bitmap()` — chaîne complète testée en headless pour 1 plan visible (high-res, plane 0 = 0xFF sur scanline 0, pixel[0] R=0xFF, pixel[640] R=0x00).
+
+**Tests R14/R15 appliqués :**
+- `use_cases/use_case_28.c` : TEST MATRIX **25N + 5R + 0S = 30 tests**, tous PASS
+  - [N] Constantes de blocs (LINEA_PARAM_ADDR, LINEA_PARAM_NEG_SIZE) dans les limites RAM
+  - [N] `linea_init()` low-res : V_PLANES=4, V_LIN_WR=160, V_BAS_AD correct
+  - [N] `linea_init()` high-res : V_PLANES=1, V_LIN_WR=80
+  - [N] `linea_dispatch($A000)` : A0=LINEA_PARAM_ADDR, V_BAS_AD rafraîchi
+  - [N] `linea_dispatch($A001/$A002/$A0FF)` : stubs retournent ST_NO_ERROR, GET_PIXEL D0=0
+  - [N] `cpu_step($A000)` : ST_NO_ERROR, A0 mis à jour, PC avancé de 2
+  - [N] Pipeline 1 plan : `shifter_render()` high-res avec plane 0 = 0xFF → pixels corrects
+  - [R] `linea_init(NULL)`, `linea_dispatch(NULL,...)` → ST_ERROR sans crash
+
+### Contrats comportementaux validés
+
+*`linea_init()`*
+- NULL ptMachine → ST_ERROR
+- Bloc en RAM à `[LINEA_PARAM_ADDR - LINEA_PARAM_NEG_SIZE .. LINEA_PARAM_ADDR + 31]` — zéro avant écriture
+- Low-res : V_PLANES=4, V_LIN_WR=160, V_CEL_MX=39, V_CEL_MY=24, V_CEL_HT=8, V_CEL_WR=1280
+- Med-res : V_PLANES=2, V_LIN_WR=160, V_CEL_MX=79, V_CEL_MY=24
+- High-res : V_PLANES=1, V_LIN_WR=80, V_CEL_MX=79, V_CEL_MY=49
+- V_BAS_AD (long big-endian) = ptMachine->uiScreenBase pour toutes les résolutions
+
+*`linea_dispatch()`*
+- NULL ptCpu ou ptMachine → ST_ERROR
+- $A000 LINEA_INIT : appelle linea_init(), ptCpu->auAn[0] = LINEA_PARAM_ADDR → ST_NO_ERROR
+- $A001 PUT_PIXEL : LOG_TODO, ST_NO_ERROR (no-op)
+- $A002 GET_PIXEL : LOG_TODO, ptCpu->auDn[0] = 0, ST_NO_ERROR
+- $A003 DRAW_LINE, $A004 FILLED_RECT, autres : LOG_TODO, ST_NO_ERROR
+
+*`cpu_step()` — groupes 0xA et 0xF*
+- Opcode $Axxx → `linea_dispatch()` — plus de LOG_TODO pour le groupe 0xA
+- Opcode $Fxxx → `cpu_raise_exception(CPU_VEC_LINE_F)` + LOG_TODO — UC29+ pour handler complet
+
+*Pipeline 1 plan visible (headless)*
+- `machine_setup(ST_RES_HIGH, 0x10000)` + fill aRam[0x10000..0x1004F]=0xFF + palette[0]=0x0000 / palette[1]=0x0777
+- `shifter_render()` → auPixels[0] = 0x00FFFFFF (blanc) ; auPixels[640] = 0x00000000 (noir)
+
+### Points d'attention pour les UCs suivants
+
+- **RÉSOLU UC29** : Vsync() → stub no-op, Pterm0/Pterm → CPU_STATE_STOPPED, Setpalette/Setcolor/Setscreen → HW dispatcher, PUT_PIXEL → bitplane write avec registres D0/D1/D2
+- **RÉSOLU UC29** : les deux chemins palette (XBIOS Setpalette et écriture directe $FF8240) donnent le même résultat visible — tous deux passent par `st_write_word()` → `shifter_write_byte()` → `ptMachine->auPalette[]`
+- **UC31** : `linea_init()` doit être appelé à nouveau si la résolution change pendant l'exécution (démo qui bascule entre low et high res) — à faire dans le thread CPU quand `uiResolution` change, ou laisser la démo appeler `$A000` elle-même
+
+---
+
+## §6.29 UC29 — XBIOS/GEMDOS minimal + Line-A PUT_PIXEL (tos.h/c)
+
+**Périmètre fonctionnel implémenté :**
+- `src/tos.h` / `src/tos.c` — nouveau module :
+  - `tos_gemdos(ptCpu, ptMachine)` — TRAP #1 handler : lit le numéro de fonction à SP, dispatch Pterm0(0)/Pterm(76) → `ptCpu->eState = CPU_STATE_STOPPED` ; Cconws stub ; autres → LOG_TODO + ST_NO_ERROR ; ST_ERROR sur NULL
+  - `tos_xbios(ptCpu, ptMachine)` — TRAP #14 handler : Vsync(37) no-op ; Setpalette(5) lit palptr (long à SP+2), copie 16 mots via `st_write_word(0xFF8240+i*2)` ; Setcolor(7) lit idx/color (mots à SP+2/SP+4) ; Setscreen(3) lit physbase (long SP+2), rez (mot SP+10), sentinelles -1 = laisser inchangé ; ST_ERROR sur NULL
+- `src/CPU.c` — TRAP dispatch mis à jour :
+  - TRAP #1 → `tos_gemdos()` (avant `cpu_raise_exception`)
+  - TRAP #14 → `tos_xbios()` (avant `cpu_raise_exception`)
+  - Autres TRAP #n restent sur `cpu_raise_exception()`
+- `src/linea.c` — `linea_do_put_pixel()` implémenté (plus de stub LOG_TODO) :
+  - Convention registres : D0.w=color, D1.w=y, D2.w=x
+  - Pour chaque plan p (0..planes-1) : calcul bit_pos = 15-(x%16), addr = base + y*linWr + (x/16)*planes*2 + p*2, lecture/écriture big-endian du mot bitplane ; (color>>p)&1 set/clear le bit
+  - Clamp silencieux sur coordonnées hors-limites (x<0, x≥width, y<0, y≥height)
+  - Supporte les 3 résolutions : low (4 plans, 8 bytes/groupe), med (2 plans, 4 bytes/groupe), high (1 plan, 2 bytes/groupe)
+
+**Infrastructure et outillage validés :**
+- **Interception TRAP avant exception frame** : `tos_gemdos()` et `tos_xbios()` sont appelés avant que `cpu_raise_exception()` ne pousse le frame 68000 sur la pile superviseur. Cela signifie que SP (auAn[7]) pointe encore directement sur le numéro de fonction, et les paramètres sont lisibles à SP+2, SP+4, etc. — conforme à la convention d'appel ATARI ST.
+- **Setpalette via HW dispatcher** : l'appel `st_write_word(0xFF8240 + i*2)` dans `tos_xbios()` passe par `shifter_write_byte()` dans ST.c, qui met à jour `ptMachine->auPalette[]` octet par octet. Les deux chemins de mise à jour palette (XBIOS et écriture directe registre) convergent vers la même structure — `shifter_render()` voit toujours l'état correct.
+- **Sentinelle -1 pour Setscreen** : `physbase=0xFFFFFFFF` (long) et `rez=0xFFFF` (word) sont les valeurs TOS standard pour "ne pas modifier". Testées explicitement (TC-TOS-019/020).
+- **PUT_PIXEL registres vs PTSIN/INTIN** : la convention D0/D1/D2 est plus simple et plus commune dans les démos ST que le déréférencement de pointeurs PTSIN/INTIN (qui nécessite de connaître l'emplacement de ces tableaux en RAM). Elle donne des résultats identiques pour les démos qui utilisent PUT_PIXEL directement.
+
+**Tests R14/R15 appliqués :**
+- `use_cases/use_case_29.c` : TEST MATRIX **28N + 9R + 0S = 37 tests**, tous PASS
+  - [N] GEMDOS Pterm0 : eState = CPU_STATE_STOPPED, D0=0
+  - [N] GEMDOS Pterm : eState = CPU_STATE_STOPPED (retcode lu)
+  - [N] GEMDOS unknown fn : ST_NO_ERROR, eState inchangé
+  - [N] XBIOS Vsync : ST_NO_ERROR, CPU RUNNING
+  - [N] XBIOS Setcolor : palette[3] = 0x0700
+  - [N] XBIOS Setpalette : palette[0/5/15] mis à jour via palptr RAM
+  - [N] XBIOS Setscreen physbase+rez : uiScreenBase et uiResolution mis à jour
+  - [N] XBIOS Setscreen sentinelles -1 : valeurs inchangées
+  - [N] cpu_step TRAP #1 → tos_gemdos : CPU_STATE_STOPPED observable
+  - [N] cpu_step TRAP #14 → tos_xbios : CPU_STATE_RUNNING (Vsync)
+  - [N] PUT_PIXEL low-res (0,0) color=1 : plane0 bit 15 = 0x8000
+  - [N] PUT_PIXEL low-res (1,0) color=3 : plane0+plane1 bit 14 set
+  - [N] PUT_PIXEL high-res (16,0) : word_group=1 bit 15 = 0x8000 ; color=0 clear
+  - [R] PUT_PIXEL clamp (x=320, x=-1) : ST_NO_ERROR sans écriture RAM
+  - [R] NULL guards : tos_gemdos/tos_xbios(NULL, ...) → ST_ERROR
+  - [R] Setcolor index=16 (OOB) : ST_NO_ERROR, palette inchangée
+
+### Contrats comportementaux validés
+
+*`tos_gemdos()`*
+- NULL ptCpu ou ptMachine → ST_ERROR
+- fn=0 (Pterm0) → ptCpu->eState = CPU_STATE_STOPPED, D0=0, ST_NO_ERROR
+- fn=76 (Pterm) → ptCpu->eState = CPU_STATE_STOPPED, D0=retcode, ST_NO_ERROR
+- fn inconnu → LOG_TODO, D0=0, ST_NO_ERROR, eState inchangé
+
+*`tos_xbios()`*
+- NULL ptCpu ou ptMachine → ST_ERROR
+- fn=37 (Vsync) → D0=0, ST_NO_ERROR (no-op)
+- fn=5 (Setpalette) → 16 entrées ptMachine->auPalette[] mises à jour via st_write_word($FF8240+i*2)
+- fn=7 (Setcolor) idx∈[0..15] → ptMachine->auPalette[idx] mis à jour, ancien retourné dans D0 ; idx≥16 → LOG_ERROR, ST_NO_ERROR, palette inchangée
+- fn=3 (Setscreen) physbase≠-1 → uiScreenBase mis à jour ; rez≠-1 → uiResolution mis à jour ; sentinelle -1 = valeur inchangée
+
+*`linea_dispatch()` $A001 PUT_PIXEL*
+- D0.w=color, D1.w=y, D2.w=x (convention registres)
+- x ou y hors-limites (signe ou overflow) → clamp silencieux, ST_NO_ERROR, aucune écriture RAM
+- Low-res (4 plans) : mot_addr = base + y*160 + (x/16)*8 + p*2, bit = 15-(x%16)
+- Med-res (2 plans) : mot_addr = base + y*160 + (x/16)*4 + p*2
+- High-res (1 plan) : mot_addr = base + y*80 + (x/16)*2
+- Couleur 0 efface le bit, couleur ≠ 0 le met selon (color>>p)&1
+
+*`cpu_step()` — TRAP dispatch UC29*
+- Opcode 0x4E41 (TRAP #1) → `tos_gemdos(ptCpu, ptMachine)` — pas de cpu_raise_exception
+- Opcode 0x4E4E (TRAP #14) → `tos_xbios(ptCpu, ptMachine)` — pas de cpu_raise_exception
+- Autres TRAP #n → `cpu_raise_exception(ptCpu, ptMachine, CPU_VEC_TRAP(n))` inchangé
+
+### Points d'attention pour les UCs suivants
+
+- **UC31** : `linea_init()` doit être rappelé si la résolution change pendant l'exécution — laisser la démo appeler `$A000` elle-même (convention TOS), ou forcer l'appel dans le thread CPU quand `uiResolution` change via Setscreen
+- **UC31** : les démos qui appellent XBIOS Vsync() en boucle seront limitées par le rythme du thread exec (pas de vraie attente VBL) — le no-op suffit pour les démos sans timing VBL critique ; un délai soft (20 ms) peut être ajouté si nécessaire
+- **UC31** : GEMDOS Cconws() (fn=9) est stubbed LOG_TODO — les démos qui affichent du texte via GEMDOS verront un LOG_TODO mais ne crasheront pas ; si la démo cible utilise Cconws, implémenter l'affichage dans la trace console
+- **UC30+** : si l'assembleur DEVPAC3 génère des TRAP #2 (BIOS) ou d'autres TRAP #n, ils tombent dans `cpu_raise_exception()` qui poussera un frame sans handler installé → CPU_STATE_HALTED ; à traiter selon les besoins de la démo cible
+
+---
