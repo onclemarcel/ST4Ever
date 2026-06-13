@@ -309,21 +309,22 @@ static void test_unknown_mnemonic(void)
 
     printf("\n[UC30A] Unknown mnemonic -> error\n");
 
-    /* Write a source with a 68000 instruction */
+    /* Write a source with a truly unknown mnemonic (not yet implemented) */
     fp = fopen(szSrc, "w");
     if (fp != NULL)
     {
         fprintf(fp, "        SECTION TEXT\n");
-        fprintf(fp, "        MOVE.W  D0,D1\n");
+        fprintf(fp, "        FOOBAR.W  D0,D1\n");
         fprintf(fp, "        END\n");
         fclose(fp);
     }
 
     /* INTENT[INT-AS-020 -> TC-AS-020 -> REQ-AS-010]:
-     * An unknown mnemonic (MOVE — UC30B+) returns ST_ERROR with
-     * a non-empty error message */
+     * An unknown mnemonic returns ST_ERROR with a non-empty error message.
+     * ADAPTED: UC30B - MOVE is now implemented; use FOOBAR as unknown. */
     TEST_ASSERT("[R] as_init OK",
         as_init(&tCtx, szSrc, szOut, ST_TRUE) == ST_NO_ERROR);
+    /* ADAPTED: UC30B - MOVE was NYI stub; now uses FOOBAR which is truly unknown */
     TEST_ASSERT("[R] as_assemble -> ST_ERROR (instruction NYI)",
         as_assemble(&tCtx) == ST_ERROR);
     TEST_ASSERT("[R] error count > 0",

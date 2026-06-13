@@ -329,8 +329,16 @@ static void disasm_moveq(const st_u8_t *pBuf,
     ptR->iWordCount = 1;
     ptR->bValid     = ST_TRUE;
     snprintf(ptR->szMnemonic, sizeof(ptR->szMnemonic), "MOVEQ");
-    snprintf(ptR->szOperands, sizeof(ptR->szOperands),
-             "#$%02X,%s", (unsigned)(uiOpc & 0xFF), g_aszDn[iDn]);
+    /* Use signed decimal for negative immediates: MOVEQ always sign-extends
+     * the byte to 32 bits, so #$FF → 0xFFFFFFFF.  Outputting #-1 instead
+     * of #$FF makes the intent unambiguous and avoids DEVPAC3 sign-extend
+     * warnings on ATARI ST.  Positive values keep hex notation. */
+    if ((st_i8_t)(uiOpc & 0xFF) < 0)
+        snprintf(ptR->szOperands, sizeof(ptR->szOperands),
+                 "#%d,%s", (int)(st_i8_t)(uiOpc & 0xFF), g_aszDn[iDn]);
+    else
+        snprintf(ptR->szOperands, sizeof(ptR->szOperands),
+                 "#$%02X,%s", (unsigned)(uiOpc & 0xFF), g_aszDn[iDn]);
     disasm_fmt_line(ptR);
 }
 

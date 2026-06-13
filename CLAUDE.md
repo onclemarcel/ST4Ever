@@ -25,6 +25,7 @@
 - 2026-06-12: UC28 Codé/Testé : Line-A traps — `linea.h/c` (`linea_init` param block RAM + `linea_dispatch` LINEA_INIT/PUT_PIXEL/GET_PIXEL/stubs) + `CPU.c` case 0xA→linea_dispatch / case 0xF→cpu_raise_exception(LINE_F) + `exec.c` linea_init() dans exec_open + pipeline shifter 1 plan validé — 29 tests PASS (24N+5R) 0 fail
 - 2026-06-12: UC29 Codé/Testé : XBIOS/GEMDOS minimaux + PUT_PIXEL — `tos.h/c` (TRAP #1: Pterm0/Pterm; TRAP #14: Vsync/Setpalette/Setcolor/Setscreen) + `CPU.c` TRAP #1→tos_gemdos / TRAP #14→tos_xbios + `linea.c` PUT_PIXEL ($A001) bitplane D0=color/D1=y/D2=x (low/med/high res) — 37 tests PASS (28N+9R) 0 fail
 - 2026-06-12: UC30A Codé/Testé : Assembleur DEVPAC3 infrastructure — lexer + table symboles 4096 entrées + moteur 2 passes + directives SECTION/DC.B/W/L/DS.B/W/L/EVEN/EQU/SET/END + sortie PRG 28 octets header + liste fixups RLE — 35 tests PASS (26N+9R) 0 fail
+- 2026-06-13: UC30B Codé/Testé/Documenté : Assembleur DEVPAC3 — encodeur EA (12 modes) + MOVE.B/W/L/MOVEA/MOVEQ/LEA/CLR/SWAP byte-exact vs DEVPAC3 réel + fix CRLF + MOVEQ signé (#-1) + round-trip disasm↔assemble fermé — 44 tests PASS (38N+6R) 0 fail — Phase 2 : UFR-ASM-003/004, REQ-AS-013..020, TC-AS-101..112, §6.30B UC.md
 
 *L'historique des versions antérieures peut être récupéré via le change log github*
 
@@ -512,7 +513,7 @@ Les étapes de développement fonctionnelles sont formalisées en Use Cases, per
 | UC28 | interne | Line-A traps + registres Shifter/YM2149 minimaux | ✓ VALIDÉ 2026-06-12 |
 | UC29 | interne | XBIOS/GEMDOS minimaux (palette, écran base, VBL wait) + PUT_PIXEL ($A001) | ✓ VALIDÉ 2026-06-12 |
 | UC30A | interne | Assembleur DEVPAC3 — infrastructure : lexer + table de symboles + moteur 2 passes + directives (`SECTION`, `DC.B/W/L`, `DS.B/W/L`, `EVEN`, `EQU`, `END`) + sortie PRG header + fixup table | `.S` données pures → `.PRG` valide |
-| UC30B | interne | Assembleur DEVPAC3 — encodeur EA + MOVE : `as_encode_ea()` (tous modes d'adressage) + `MOVE.B/W/L`, `MOVEQ`, `MOVEA`, `LEA`, `CLR`, `SWAP` | instructions MOVE encodées |
+| UC30B | interne | Assembleur DEVPAC3 — encodeur EA (12 modes) + MOVE.B/W/L/MOVEA/MOVEQ/LEA/CLR/SWAP byte-exact DEVPAC3 + CRLF fix + MOVEQ signé + round-trip fermé | ✓ VALIDÉ 2026-06-13 |
 | UC30C | interne | Assembleur DEVPAC3 — ALU + flux : `ADD/SUB/CMP/AND/OR/EOR` + variantes immédiates + `ADDQ/SUBQ` + `NEG/NOT/TST/EXT` + `BRA/BSR/Bcc(14)` + `NOP/RTS/RTR/RTE/STOP/TRAP/JMP/JSR/LINK/UNLK` | instructions ALU+flux encodées |
 | UC30D | interne | Assembleur DEVPAC3 — shifts + misc : `ASL/ASR/LSL/LSR/ROL/ROR/ROXL/ROXR` + `BTST/BSET/BCLR/BCHG` + `MOVEM.W/L` + `ADDA/SUBA` + `MULU/MULS/DIVU/DIVS` + `ADDX/SUBX` + `Scc/DBcc` + `EXG/PEA` | instruction set complet |
 | UC30E | interne | Assembleur DEVPAC3 — validation : assemble `use_cases/UC30/test.S` de référence → compare byte-à-byte avec `.PRG` connu ; corrige tout écart (même principe que UC15A torture test) | 0 byte de diff vs référence |

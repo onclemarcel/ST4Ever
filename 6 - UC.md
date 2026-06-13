@@ -3285,9 +3285,70 @@ Tests skippés (0) : UC26 est purement interne, aucun skip requis.
 
 ### Points d'attention pour les UCs suivants
 
-- **UC30B** : le lexer `as_lex_line` reconnaît déjà le champ mnemonic et le size suffix (`.B/.W/.L`) ; UC30B peut appeler directement `as_do_instruction()` (à créer) depuis le branchement "mnemonic non-directive" dans `as_do_pass()`.
-- **UC30B** : l'encodeur EA est la pièce algorithmiquement la plus complexe — il doit gérer les 12 modes d'adressage 68000 avec leurs extensions de mot (extension words) et produire les bons octets d'opcode + EA en passe 2. Prévoir un module `as_ea.c` dédié si la taille dépasse 200 lignes.
+- **UC30B — RÉSOLU UC30B** : `as_do_instruction()` implémentée ; encodeur EA géré dans `as.c` sans module séparé (< 200 lignes). ~~le lexer `as_lex_line` reconnaît déjà le champ mnemonic et le size suffix (`.B/.W/.L`) ; UC30B peut appeler directement `as_do_instruction()` (à créer) depuis le branchement "mnemonic non-directive" dans `as_do_pass()`.~~
+- **UC30B — RÉSOLU UC30B** : encodeur EA intégré dans `as.c` (< 200 lignes). ~~l'encodeur EA est la pièce algorithmiquement la plus complexe — il doit gérer les 12 modes d'adressage 68000 avec leurs extensions de mot (extension words) et produire les bons octets d'opcode + EA en passe 2. Prévoir un module `as_ea.c` dédié si la taille dépasse 200 lignes.~~
 - **UC30C+** : les fixups ne concernent que les DC.L avec valeurs de labels de section (adresses relocatables) — les constantes EQU (absolues) n'ont pas de fixup. `as_sym_combined()` calcule l'offset .text-relative pour un symbole de section ; le test de fixup se fait dans `as_do_dc()` lors du DC.L en passe 2.
 - **UC30E** (tests avec GEN.TTP / assembleur DEVPAC3 original) : les sources .S réels DEVPAC3 utilisent des macros (`MACRO`/`ENDM`), des directives conditionnelles (`IFEQ`/`ENDC`), et des labels locaux (`.loop`) — ces fonctionnalités ne sont pas dans l'infrastructure UC30A et devront être ajoutées progressivement.
+- **CRLF — RÉSOLU UC30B** : le lexer strip `\r` avant traitement ; sources LF et CRLF produisent des binaires identiques. La convention d'output `.S` pour ATARI ST est CRLF (`fopen("wb")` + `\r\n` explicites dans `disasm_write_s()`).
+- **MOVEQ négatif — RÉSOLU UC30B** : `disasm_moveq()` émet `#-1` (décimal signé) pour les immédiats ≥ 0x80, évitant le warning DEVPAC3 "sign extended operand". Validated round-trip.
+
+---
+
+## §6.30B UC30B — Assembleur DEVPAC3 : encodeur EA + MOVE/MOVEQ/LEA/CLR/SWAP
+
+### Périmètre implémenté
+
+- **Effective Address (EA) parser** — `as_parse_ea()` : 12 modes 68000 (Dn, An, (An), (An)+, -(An), d16(An), d8(An,Xn), ABS.W, ABS.L, PC_DISP, PC_IDX, IMM) avec taille-awareness pour les extension words.
+- **EA emitter** — `as_ea_emit()` : émet l'opcode EA (mode×8|reg en 6 bits) + extension words BE selon la taille en passe 2.
+- **MOVE.B/W/L** — `as_encode_move()` : opcode 0x1000/0x2000/0x3000, src EA en bits 5-0, dst EA inversé (dst_mode<<6 | dst_reg<<9).
+- **MOVEA.W/L** — même encodeur : dest An mode 001, base 0x3040 (W) ou 0x2040 (L).
+- **MOVEQ** — `as_encode_moveq()` : opcode 0x7000 | (Dn<<9) | imm8 ; An destination rejeté (ST_ERROR).
+- **LEA** — `as_encode_lea()` : opcode 0x41C0 | (An<<9) | src_ea ; Dn destination rejeté (ST_ERROR).
+- **CLR.B/W/L** — `as_encode_clr()` : opcode 0x4200 | size×0x40 | ea.
+- **SWAP** — `as_encode_swap()` : opcode 0x4840 | Dn.
+- **CRLF fix** : strip `\r` dans `as_do_pass()` avant tokenisation — sources LF et CRLF produisent des binaires identiques.
+- **MOVEQ négatif** : `disasm_moveq()` émet décimal signé (`#-1`) pour les immédiats avec bit 7 set, éliminant le warning DEVPAC3.
+- **Round-trip validé** : `disasm_write_s()` (helper test) produit un `.S` CRLF depuis les bytes `.text` ; ce `.S` reassemblé donne un `.text` identique bit-à-bit.
+
+**Fichiers modifiés** : `src/as.c` (encodeur EA + instructions), `src/disassemble.c` (`disasm_moveq()` signé), `src/common.h` (version 0.30.1), `use_cases/use_case_30B.c`, `use_cases/use_case_30A.c` (ADAPTED: `test_unknown_mnemonic`).
+
+**Fixtures** : `use_cases/UC30B/test30b.S` (23 instructions LF), `use_cases/UC30B/TEST30B.PRG` (réel ATARI ST, 90 octets), `use_cases/UC30B/test30b_rt.S` (CRLF round-trip, validé DEVPAC3).
+
+### Infrastructure validée
+
+| Composant                | Contrat établi                                                              |
+|--------------------------|-----------------------------------------------------------------------------|
+| `as_parse_ea()`          | Tous les 12 modes d'adressage 68000 reconnus ; autre → ST_ERROR             |
+| `as_ea_emit()`           | Extension words correctement émis (ABS.W=1 mot, ABS.L=2 mots, IMM=size-dépendant) |
+| `as_encode_move()`       | Size bits 13-12 ; dst EA inversé ; src EA bits 5-0 ; production byte-exact DEVPAC3 |
+| `as_encode_moveq()`      | An destination → ST_ERROR ; imm signé 8-bit dans opcode low byte            |
+| `as_encode_lea()`        | Dn destination → ST_ERROR ; src EA dans bits 5-0 ; An dst dans bits 11-9   |
+| `as_do_pass()` CRLF      | `\r` strippé avant token → LF et CRLF sources produisent des binaires identiques |
+| `disasm_moveq()` signé   | Immédiat ≥ 0x80 → décimal signé (`#-1`) ; aucun warning DEVPAC3 ATARI ST   |
+| Round-trip boucle        | `.S` → PRG → `disasm_range()` → CRLF `.S` → PRG : `.text` identique bit-à-bit |
+
+### Matrice de tests
+
+| Catégorie                        | [N] | [R] | [S] | Total |
+|----------------------------------|-----|-----|-----|-------|
+| Robustesse (NULL, EA invalides)  |  0  |  6  |  0  |  6    |
+| Encodage instructions byte-exact | 38  |  0  |  0  | 38    |
+| **Total UC30B**                  | **38** | **6** | **0** | **44** |
+
+### Contrats comportementaux validés
+
+1. **EA parser coverage** — `as_parse_ea()` reconnaît les 12 modes sans faux positif ; tout token non-conforme retourne ST_ERROR sans modification de l'état de l'assembleur.
+2. **Destination contrainte MOVEQ/LEA** — `MOVEQ #x,An` et `LEA ea,Dn` causent ST_ERROR avec `uiErrorCount > 0`; le message d'erreur n'est pas vide.
+3. **MOVE destination EA reversed** — la position dst EA (bits 11-9 = dst_reg, bits 8-6 = dst_mode) est l'inverse de la convention src EA (bits 5-0 = mode×8|reg) ; produit le même opcode que DEVPAC3 ATARI ST réel.
+4. **CRLF transparence** — tout `\r` présent en fin de ligne est silencieusement supprimé avant tokenisation ; le binaire produit est bit-identique à celui d'une source LF.
+5. **MOVEQ signé** — `disasm_one()` sur un opcode `7Exxx` avec `xxx & 0x80` émet `#-N` (décimal signé) ; ce token est accepté par `as_eval()` via `strtol` ; le round-trip est fermé.
+6. **Round-trip fermé** — assemble → `disasm_range()` → CRLF `.S` → réassemble : `memcmp(textA, textB, len) == 0`. Valide la cohérence bidirectionnelle assembleur ↔ désassembleur.
+
+### Points d'attention pour les UCs suivants
+
+- **UC30C** — ALU (`ADD/SUB/CMP/AND/OR/EOR` + variantes immédiates + `ADDQ/SUBQ/NEG/NOT/TST/EXT`) et flux (`BRA/BSR/Bcc(14)` + `NOP/RTS/RTR/RTE/STOP/TRAP/JMP/JSR/LINK/UNLK`) : l'infrastructure `as_parse_ea()` et `as_ea_emit()` est prête — UC30C ajoute uniquement de nouveaux encodeurs spécialisés dans `as_do_instruction()`.
+- **Fixups (UC30C+)** : `DC.L label_of_section` doit générer une entrée dans la fixup table. L'infrastructure de fixup RLE est posée dans `as_write_prg()` (UC30A) mais n'est pas exercée par UC30B (pas de DC.L avec label relocatable dans `test30b.S`).
+- **Negative decimal in assembler** : `as_eval()` supporte déjà `strtol` pour les décimaux négatifs (UC30B) — important pour `MOVEQ #-1,D7` depuis le `.S` round-trip. Tout futur encodeur d'immédiat doit gérer la forme `#-N`.
+- **DEVPAC3 ATARI ST size qualifier** : les formes `.W` et `.L` sur les EA absolues sont obligatoires dans DEVPAC3. `as_parse_ea()` les reconnaît. Pour les valeurs sans `.W`/`.L` explicite, l'auto-détection choisit ABS.W si la valeur tient en signed 16-bit, sinon ABS.L — cohérent avec le désassembleur (RÉSOLU UC30B).
 
 ---

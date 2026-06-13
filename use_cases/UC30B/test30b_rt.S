@@ -1,0 +1,27 @@
+	SECTION TEXT
+
+	MOVEQ    #$00,D0
+	MOVEQ    #$2A,D3
+	MOVEQ    #$FF,D7
+	MOVE.W   D0,D1
+	MOVE.W   D7,D6
+	MOVE.W   A2,D1
+	MOVE.L   D2,D3
+	MOVE.L   A1,D3
+	MOVE.B   D4,D5
+	MOVE.W   #$1234,D0
+	MOVE.W   (A0),D1
+	MOVE.W   D2,(A1)+
+	MOVE.W   D0,$1000.W
+	MOVE.W   $2000.W,D1
+	MOVEA.W  D0,A1
+	MOVEA.L  D0,A2
+	CLR.W    D0
+	CLR.L    D1
+	CLR.B    D2
+	SWAP     D0
+	SWAP     D3
+	LEA      $1234.W,A0
+	LEA      $12345678,A1
+
+	END

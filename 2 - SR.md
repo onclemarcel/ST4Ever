@@ -242,6 +242,8 @@ through one or more test cases in Section 5.
 |--------------|---------------------------------------------------------------------------------------------------------------------------------------|--------------|-------|
 | UFR-ASM-001  | The application shall provide a two-pass DEVPAC3-syntax assembler that reads a `.S` source file, resolves labels and EQU constants, processes SECTION/DC/DS/EVEN/END directives, and reports errors to the caller. | ✓ UC30A | UC30A |
 | UFR-ASM-002  | The assembler shall produce a valid Atari ST PRG binary with a 28-byte big-endian header (magic 0x601A, text/data/bss sizes, abs_flag), followed by the .text section, .data section, and a PRG fixup table encoding the positions of all relocatable LONG values. | ✓ UC30A | UC30A |
+| UFR-ASM-003  | The assembler shall accept source files with either LF or CRLF line endings and produce bit-identical binary output regardless of the line-ending style present in the source file. | ✓ UC30B | UC30B |
+| UFR-ASM-004  | The assembler shall encode the 68000 instruction subset MOVE/MOVEA/MOVEQ/LEA/CLR/SWAP using all applicable Effective Address modes; the produced binary shall be byte-identical to the output of the real DEVPAC3 assembler on an ATARI ST, as validated by the round-trip disassemble→reassemble test. | ✓ UC30B | UC30B |
 
 ---
 
@@ -995,6 +997,35 @@ requirement that will expose it (`UFR-EXE-*`, planned UC21–27).
 | `as_init()` | REQ-AS-001 | `as.c` |
 | `as_assemble()` | REQ-AS-001..012 | `as.c` |
 | `as_shutdown()` | REQ-AS-001, REQ-AS-009 | `as.c` |
+
+---
+
+### §2.26 DEVPAC3 Assembler — EA Encoder + MOVE family (UC30B)
+
+> Parent UFR: UFR-ASM-003, UFR-ASM-004 (§1.12)
+
+| REQ ID        | Requirement                                                                                                                                                                                                                                                                     | UFR           | UC Status     | Impl. |
+|---------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------|---------------|-------|
+| REQ-AS-013    | `as_parse_ea()` shall recognise all 12 68000 addressing modes: Dn (mode 0), An (mode 1), (An) (mode 2), (An)+ (mode 3), -(An) (mode 4), d16(An) (mode 5), d8(An,Xn) (mode 6), ABS.W (mode 7 sub-reg 0), ABS.L (mode 7/1), PC_DISP (7/2), PC_IDX (7/3), IMM (7/4). Any other input shall cause the function to report ST_ERROR. Impl: `as_parse_ea()` in `as.c` | UFR-ASM-004 | ✓ UC30B | UC30B |
+| REQ-AS-014    | `as_encode_moveq()` shall restrict the destination to Dn registers (mode 0); an An or memory destination shall cause `as_assemble()` to return ST_ERROR with `uiErrorCount > 0`. Impl: `as_encode_moveq()` in `as.c` | UFR-ASM-004 | ✓ UC30B | UC30B |
+| REQ-AS-015    | `as_encode_lea()` shall restrict the destination to An registers (mode 1); any Dn or memory destination shall cause ST_ERROR. Impl: `as_encode_lea()` in `as.c` | UFR-ASM-004 | ✓ UC30B | UC30B |
+| REQ-AS-016    | The MOVE.B/W/L encoder shall produce a 16-bit opcode with size in bits 13-12 (B=0x01, L=0x02, W=0x03), source EA in bits 5-0 (`mode<<3\|reg`), and destination EA in reversed order (bits 8-6 = dst_mode, bits 11-9 = dst_reg). All src/dst EA modes except An as destination (illegal for MOVE.B/W) shall be supported. Impl: `as_encode_move()` in `as.c` | UFR-ASM-004 | ✓ UC30B | UC30B |
+| REQ-AS-017    | The MOVEA.W/L encoder shall place the destination An register in bits 11-9 (mode 001 implicit); size W→0x3040 base, L→0x2040 base. Impl: `as_encode_move()` in `as.c` | UFR-ASM-004 | ✓ UC30B | UC30B |
+| REQ-AS-018    | The assembler shall strip any trailing `\r` from source lines during both passes, so that CRLF sources (`\r\n`) produce bit-identical binary output to LF sources (`\n`). Impl: CR strip in `as_do_pass()` line extraction in `as.c` | UFR-ASM-003 | ✓ UC30B | UC30B |
+| REQ-AS-019    | The assembled `.text` section shall survive a disassemble→reassemble round-trip: applying `disasm_range()` to the `.text` bytes, writing the resulting DEVPAC3 mnemonics and operands to a CRLF `.S` file, and reassembling that file shall produce a `.text` section byte-identical to the original. Impl: `disasm_range()` in `disassemble.c` + `as_assemble()` in `as.c` | UFR-ASM-004 | ✓ UC30B | UC30B |
+| REQ-AS-020    | MOVEQ with an immediate byte value whose bit 7 is set (0x80–0xFF) shall encode the value as its 8-bit two's-complement literal. `disasm_one()` applied to such an opcode shall output the immediate as signed decimal (e.g. `#-1`) rather than unsigned hex (`#$FF`), avoiding DEVPAC3 sign-extension warnings on ATARI ST. Impl: `disasm_moveq()` in `disassemble.c` | UFR-ASM-004 | ✓ UC30B | UC30B |
+
+**Function table — `as.h` (UC30B additions):**
+
+| Function | REQ | Impl. |
+|---|---|---|
+| `as_parse_ea()` (internal) | REQ-AS-013 | `as.c` |
+| `as_encode_move()` (internal) | REQ-AS-016, REQ-AS-017 | `as.c` |
+| `as_encode_moveq()` (internal) | REQ-AS-014 | `as.c` |
+| `as_encode_lea()` (internal) | REQ-AS-015 | `as.c` |
+| `as_encode_clr()` (internal) | REQ-AS-013 | `as.c` |
+| `as_encode_swap()` (internal) | REQ-AS-013 | `as.c` |
+| `disasm_moveq()` (internal) | REQ-AS-020 | `disassemble.c` |
 
 ---
 

@@ -167,6 +167,47 @@ fclose:
 		rts
 
 ; ----------------------------
+; SCREEN RELATED FUNCTION
+; ----------------------------
+; void set_medium_resolution() 
+;
+; Desc: Access HW register to switch to medium resolution
+; In:   void
+; Out:  void
+;
+set_medium_resolution:
+
+	clr.l   -(sp)			; Arg1: Set to zero to access supervisor mode
+	move.w  #$20,-(sp)      ; Opcode: GEMDOS #32: super
+    trap    #1				; gemdos(0x20, 0)
+    addq.l  #6,sp           ; Stack clean-up  (l + w = 6)
+
+    move.l  d0,old_ssp      ; save user sp on stack
+
+    move.w  sr,-(sp)        ; save SR (current interruption status)
+	move.w  #$2700,sr       ; update the SR to stop interruptions
+	
+	move.w  #1,-(sp)
+    move.l  #-1,-(sp)
+    move.l  #-1,-(sp)
+    move.w  #5,-(sp)
+    trap    #14
+    add.l   #12,sp
+	
+	move.w  #$0777,$FF8240
+    move.w  #$0000,$FF8242
+    move.w  #$0000,$FF8244
+    move.w  #$0000,$FF8246
+	
+    move.w  (sp)+,sr		; Restore SR (enable interruptions)
+
+    move.l  old_ssp,-(sp)   ; Arg1: Restore old USP
+    move.w  #$20,-(sp)		; Opcode: GEMDOS #32: super
+    trap    #1              ; gemdos(0x20, usp)
+    addq.l  #6,sp           ; Stack clean-up  (l + w = 6)
+	rts
+	
+; ----------------------------
 ; INIT & MAIN FUNCTIONS
 ; ----------------------------
 ; _init()
@@ -202,7 +243,9 @@ _init:
 ; Out:  'ret' provided to Pterm() function
 ;
 main:
-        ; clear the screen using VT-52 emulator
+        bsr set_medium_resolution
+
+		; clear the screen using VT-52 emulator
 		lea esc_clear,A3	; char* s = esc_clear;	/* VT-52 emulator: ESC-E */
         bsr printf 			; printf(s);
         lea intro,A3		; char* s = intro;		/* Welcome message */
@@ -371,8 +414,14 @@ file_found:
 abort:
 		dc.b "Aborting...", 10, 13, 0
 		even
+
+old_ssp:
+		dc.l 0
+		even
 		
         section bss
 
 basepage: 
 		ds.l 1
+		even
+		

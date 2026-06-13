@@ -4110,3 +4110,62 @@ Source: `use_cases/use_case_24F.c`
 |--------------|---------------------|------------------------------------|-----------|
 | UFR-ASM-001  | REQ-AS-001..011     | TC-AS-001..042                     | v UC30A   |
 | UFR-ASM-002  | REQ-AS-003..004, REQ-AS-012 | TC-AS-011..017, TC-AS-021..022, TC-AS-041..042 | v UC30A |
+
+---
+
+## §5.98 UC30B — DEVPAC3 EA Encoder + MOVE/MOVEQ/LEA/CLR/SWAP
+
+> Source: `use_cases/use_case_30B.c` — run from project root via `make tests`
+>
+> Parent UFRs: UFR-ASM-003, UFR-ASM-004 (§1.12 SR.md)
+> REQs covered: REQ-AS-013..020 (§2.26 SR.md)
+
+### TC-AS — Robustness: invalid EA / NULL (UC30B)
+
+| TC ID       | Description                                                                                           | Type | UFR          | REQ          | INT          | Expected result                     | Status     |
+|-------------|-------------------------------------------------------------------------------------------------------|------|--------------|--------------|--------------|-------------------------------------|------------|
+| TC-AS-101   | `as_assemble(NULL)` → ST_ERROR (public API guard)                                                    | [R]  | UFR-ASM-001  | REQ-AS-001   | INT-AS-030   | ST_ERROR, no crash                  | PASS UC30B |
+| TC-AS-102   | Source with `FOOBAR.W D0,D1` → ST_ERROR, uiErrorCount > 0                                           | [R]  | UFR-ASM-001  | REQ-AS-010   | INT-AS-031   | ST_ERROR                            | PASS UC30B |
+| TC-AS-103   | `MOVEQ #1,A0` → ST_ERROR (An destination rejected)                                                   | [R]  | UFR-ASM-004  | REQ-AS-014   | INT-AS-032   | ST_ERROR                            | PASS UC30B |
+| TC-AS-104   | `LEA $1000.W,D0` → ST_ERROR (Dn destination rejected)                                                | [R]  | UFR-ASM-004  | REQ-AS-015   | INT-AS-033   | ST_ERROR                            | PASS UC30B |
+| TC-AS-105   | Double `as_init()` / `as_shutdown()` cycle is safe                                                    | [R]  | UFR-ASM-001  | REQ-AS-001   | INT-AS-034   | ST_NO_ERROR both calls, no crash    | PASS UC30B |
+
+### TC-AS — Nominal: instruction encoding fixture (UC30B)
+
+| TC ID       | Description                                                                                           | Type | UFR          | REQ                                        | INT                    | Expected result                     | Status     |
+|-------------|-------------------------------------------------------------------------------------------------------|------|--------------|---------------------------------------------|------------------------|-------------------------------------|------------|
+| TC-AS-106   | `test30b.S` (23 instructions) assembles with ST_NO_ERROR and pBinary != NULL                         | [N]  | UFR-ASM-004  | REQ-AS-003                                  | INT-AS-035             | ST_NO_ERROR, pBinary non-NULL       | PASS UC30B |
+| TC-AS-107   | text_size == 58 (sum of all 23 instructions)                                                          | [N]  | UFR-ASM-002  | REQ-AS-004                                  | INT-AS-036             | text_size = 58                      | PASS UC30B |
+| TC-AS-108   | MOVEQ byte encodings: `MOVEQ #0,D0`→0x7000; `MOVEQ #42,D3`→0x762A; `MOVEQ #-1,D7`→0x7EFF          | [N]  | UFR-ASM-004  | REQ-AS-013, REQ-AS-014, REQ-AS-020         | INT-AS-037             | byte-exact at offsets 0–5           | PASS UC30B |
+| TC-AS-109   | MOVE.B/W/L + MOVEA.W/L (13 variants, offsets 6–37) and CLR.B/W/L + SWAP D0/D3 + LEA $1234.W,A0 + LEA $12345678.L,A1 (offsets 38–57) — all byte-exact | [N] | UFR-ASM-004 | REQ-AS-013, REQ-AS-015, REQ-AS-016, REQ-AS-017 | INT-AS-038, INT-AS-039 | byte-exact vs. expected encoding table | PASS UC30B |
+| TC-AS-110   | `.text` byte-identical to real DEVPAC3-assembled `TEST30B.PRG` from ATARI ST (skip if file absent)   | [N]  | UFR-ASM-004  | REQ-AS-003                                  | INT-AS-040             | memcmp == 0 over 58 bytes           | PASS UC30B |
+| TC-AS-111   | CRLF copy of `test30b.S` produces bit-identical binary to the LF original                            | [N]  | UFR-ASM-003  | REQ-AS-018                                  | INT-AS-041             | pBinary identical, uiBinaryLen same | PASS UC30B |
+| TC-AS-112   | Round-trip: assemble → `disasm_range()` → CRLF `.S` → reassemble → `.text` identical to original    | [N]  | UFR-ASM-004  | REQ-AS-019                                  | INT-AS-042             | text sizes equal, memcmp == 0       | PASS UC30B |
+
+#### Test Summary — UC30B
+
+| Module | [N] | [R] | [S] | Total | Result    |
+|--------|-----|-----|-----|-------|-----------|
+| AS     | 38  |  6  |  0  |  44   | ALL PASS  |
+
+*Note: when `TEST30B.PRG` is absent from `use_cases/UC30B/`, the 3 assertions in TC-AS-110 print `[SKIP]` without incrementing the failure counter.*
+
+#### REQ to TC coverage (UC30B)
+
+| REQ          | TC(s)                              | Status    |
+|--------------|------------------------------------|-----------|
+| REQ-AS-013   | TC-AS-108, TC-AS-109               | v UC30B   |
+| REQ-AS-014   | TC-AS-103, TC-AS-108               | v UC30B   |
+| REQ-AS-015   | TC-AS-104, TC-AS-109               | v UC30B   |
+| REQ-AS-016   | TC-AS-109                          | v UC30B   |
+| REQ-AS-017   | TC-AS-109                          | v UC30B   |
+| REQ-AS-018   | TC-AS-111                          | v UC30B   |
+| REQ-AS-019   | TC-AS-112                          | v UC30B   |
+| REQ-AS-020   | TC-AS-108, TC-AS-112               | v UC30B   |
+
+#### UFR traceability (UC30B)
+
+| UFR          | REQ(s)                                  | TC(s)                                     | Status    |
+|--------------|-----------------------------------------|-------------------------------------------|-----------|
+| UFR-ASM-003  | REQ-AS-018                              | TC-AS-111                                 | v UC30B   |
+| UFR-ASM-004  | REQ-AS-013..017, REQ-AS-019..020        | TC-AS-103..104, TC-AS-106..112            | v UC30B   |
