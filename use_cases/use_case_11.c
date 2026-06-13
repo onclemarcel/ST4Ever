@@ -176,7 +176,8 @@ int main(void)
 
     /* MOVEQ #$FF,D7 = 0x7EFF
      * 0111_111_0_1111_1111: D7=bits11-9=111, bit8=0, data=$FF */
-    UC11_CHECK_1W("MOVEQ #$FF,D7", 0x7E, 0xFF, "MOVEQ", "#$FF,D7");
+    /* ADAPTED: UC30B - sign-extends 0xFF to #-1 (signed dec for negatives) */
+    UC11_CHECK_1W("MOVEQ #$FF,D7", 0x7E, 0xFF, "MOVEQ", "#-1,D7");
 
     /* MOVEQ #0,D3 = 0x7600 */
     UC11_CHECK_1W("MOVEQ #0,D3",   0x76, 0x00, "MOVEQ", "#$00,D3");

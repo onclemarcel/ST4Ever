@@ -2,7 +2,7 @@
 
 	MOVEQ    #$00,D0
 	MOVEQ    #$2A,D3
-	MOVEQ    #$FF,D7
+	MOVEQ    #-1,D7
 	MOVE.W   D0,D1
 	MOVE.W   D7,D6
 	MOVE.W   A2,D1
