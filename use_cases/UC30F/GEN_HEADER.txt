@@ -1,0 +1,27 @@
+=== GEN.TTP PRG Header Decoded ===
+
+File path    : tools/ST/GEN.TTP
+File size    : 69768 bytes
+
+--- PRG Header (28 bytes) ---
+[0x00] magic   : 0x601A (BRA.S over header OK)
+[0x02] .text   : 69370 bytes (0x00010EFA)
+[0x06] .data   : 0 bytes
+[0x0A] .bss    : 0 bytes
+[0x0E] symtab  : 0 bytes (stripped - no DRI symbols)
+[0x16] flags   : 0x0000
+[0x18] absflag : 0x0007 (ABSOLUTE)
+
+--- Memory layout ---
+Header        : offset 0x00000000  size 28 bytes
+.text         : offset 0x0000001C  size 69370 bytes
+.data         : offset 0x00010F16  size 0 bytes
+Reloc table   : offset 0x00010F16  size 370 bytes
+
+--- Entry structure (.text[0x0000..0x001F]) ---
+.text[0x0000] : 0x601C  BRA.S #$1C  -> .text[0x001E]
+.text[0x0002] : 0x9529  dc.w (checksum/version?)
+.text[0x0004] : 0x7B008696  dc.l (version data)
+.text[0x0008] : "Gen(C) HiSoft 1985-93\0"  copyright
+.text[0x001E] : 0x4EB9  JSR abs.L (entry point)
+.text[0x0020] : 0x0000B8BE  JSR target = sub_0000B8BE [fixup #0]
