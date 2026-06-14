@@ -27,6 +27,7 @@
 - 2026-06-12: UC30A Codé/Testé : Assembleur DEVPAC3 infrastructure — lexer + table symboles 4096 entrées + moteur 2 passes + directives SECTION/DC.B/W/L/DS.B/W/L/EVEN/EQU/SET/END + sortie PRG 28 octets header + liste fixups RLE — 35 tests PASS (26N+9R) 0 fail
 - 2026-06-13: UC30B Codé/Testé/Documenté : Assembleur DEVPAC3 — encodeur EA (12 modes) + MOVE.B/W/L/MOVEA/MOVEQ/LEA/CLR/SWAP byte-exact vs DEVPAC3 réel + fix CRLF + MOVEQ signé (#-1) + round-trip disasm↔assemble fermé — 44 tests PASS (38N+6R) 0 fail — Phase 2 : UFR-ASM-003/004, REQ-AS-013..020, TC-AS-101..112, §6.30B UC.md
 - 2026-06-13: UC30C Codé/Testé : Assembleur DEVPAC3 — ADD/SUB/CMP/AND/OR/EOR + variantes immédiates ADDI/SUBI/CMPI/ANDI/ORI/EORI + ADDQ/SUBQ + NEG/NOT/TST/EXT + NOP/RTS/RTR/RTE/STOP/TRAP/JMP/JSR/LINK/UNLK + BRA/BSR/Bcc(14 cond) long form — 51 tests PASS (45N+6R) 0 fail — ADAPTED: UC11 MOVEQ #$FF→#-1 (UC30B sign-extend)
+- 2026-06-14: Rev_Eng_Guide.md v1.1 — audit hooks ST4Ever réels (12 phases × 3 niveaux : existant/manquant/commande console) + propositions UC32A/B/C déposées en §7 — pivot vers la phase "Revival Engine"
 
 *L'historique des versions antérieures peut être récupéré via le change log github*
 
@@ -520,7 +521,10 @@ Les étapes de développement fonctionnelles sont formalisées en Use Cases, per
 | UC30E | interne | Assembleur DEVPAC3 — validation : assemble `use_cases/UC30/test.S` de référence → compare byte-à-byte avec `.PRG` connu ; corrige tout écart (même principe que UC15A torture test) | 0 byte de diff vs référence |
 | UC30F | interne | Désassemblage GEN.TTP (assembleur DEVPAC3 d'origine, 68000 pur ~1988) — annotation des blocs fonctionnels (lexer, symbol table, encodeur EA) + comparaison architecturale avec UC30A-E + extraction patterns 68000 pour UC33 | `.s` GEN.TTP annoté dans `use_cases/UC30F/` |
 | UC31 | all | Démo cible via émulateur ST4Ever (choisie parmi candidats §9.4) : référence visuelle validée + désassemblé complet extrait — **pivot émulation → revival** | démo reconnue + .s extrait |
-| UC32 | interne | Analyse annotée du désassemblé : patterns automatiques (VBL, accès HW $FFxxxx, GEMDOS/XBIOS) + session collaborative manuelle — livrable : `use_cases/UC32/demo.s` commenté | désassemblé .s annoté clos par Tonton Marcel |
+| UC32A | `analyze` | Moteur d'analyse statique PRG — modules `src/prg.h/c` (header exposé, symtab DRI, reloc bitmap, segmap byte/byte) + `src/prg_analyze.h/c` (runtime detector GFA/PureC/ASM, prologue scanner, trap scanner statique GEMDOS/XBIOS, compiler identifier) + `src/boot_analyze.h/c` (boot sector parser + disasm wrapper) + commande console `analyze <file.prg>` | rapport `analyze` : type/compiler/fonctions/TRAPs sur démo cible |
+| UC32B | `analyze --cfg` | CFG statique — `src/prg_cfg.h/c` : basic blocks, arcs BSR/BRA/DBcc/JMP, résolution jump tables SELECT/CASE, détection handlers VBL/HBL installés ($0070) | VBL handler identifié + install vector confirmé sur démo cible |
+| UC32C | `annotate` | Annotation sémantique + patterns — `src/prg_annotate.h/c` : listing annotator (labels symtab/TRAP/auto), pattern detector probabiliste (sinus/VBL/blitter/copper-bar/scrolltext) + commande `annotate <file.prg>` → .s commenté dans `use_cases/UC32/` | .s annoté avec patterns ≥ 80% confiance, versionné |
+| UC32 | interne | Session collaborative manuelle sur la démo cible (UC31) en exploitant les outils UC32A/B/C : validation et enrichissement humain des annotations automatiques — livrable final : `use_cases/UC32/demo.s` relu et validé par Tonton Marcel | désassemblé .s annoté clos par Tonton Marcel |
 | UC33 | interne | Squelette C portable : flot de contrôle + structures de données + HAL stubs (`hal_vbl_wait`, `hal_palette_set`, `hal_ym_write`…) — compile sur PC avec stubs no-op | squelette C compile, aucun crash |
 | UC34 | interne | Toolchain cross `arm-none-eabi-gcc` + harness test PC (backend `pi0_pc/` dans Makefile ST4Ever) | démo C tourne sur PC via harness D2D/X11 |
 | UC35 | interne | Pi Zero bare metal OS minimal : vecteurs ARM, stack, BSS, UART debug, timer 50 Hz, framebuffer GPU mailbox BCM2835 | écran couleur uni synchronisé VBL sur Pi Zero réel |
@@ -1578,6 +1582,71 @@ Avis Claude : **DIFFÉRÉ** — après UC31 (moteur validé sur démo) et P63 (E
 | P62 (GEN.TTP désassemblage + comparaison)  | ACCEPTÉ | UC30F |
 | P63 (TOS ROM désassemblage EmuTOS → patterns) | ACCEPTÉ | entre UC31 et UC33 |
 | P64 (EmuTOS mappé en ROM → TRAPs natifs)   | DIFFÉRÉ | après UC31 + P63 |
+
+---
+
+### Arbitrage Rev_Eng_Guide.md v1.1 (2026-06-14) — Propositions UC32A/B/C
+
+*Suite à l'audit des hooks ST4Ever réels dans Rev_Eng_Guide.md, 12 phases × 3
+niveaux documentées (existant/manquant/commandes console). Écart principal : toute
+l'analyse **statique** (sans exécuter le binaire) est absente — phases 3/5/7/9/A et
+dimension statique des phases 6 et 8.*
+
+**P65 — UC32A : Moteur d'analyse statique PRG** → **À ARBITRER**
+
+Trois nouveaux modules distincts, commande `analyze <file.prg>` :
+- `src/prg.h/c` : header PRG exposé (`prg_hdr_t` avec `uiSymSize`/`uiFlags`/
+  `uiAbsFlag` manquants dans `load_state_t`), symtab DRI (`prg_symtab_t`),
+  reloc bitmap (`prg_reloc_set_t` consultable par le désassembleur), segmap
+  byte-par-byte (`prg_segmap_t` : CODE/DATA/JUMP_TABLE/STRING).
+- `src/prg_analyze.h/c` : runtime detector (GFA/PureC/ASM via heuristiques
+  Mshrink/A4-global/LINK density), prologue scanner (`prg_scan_prologues()`),
+  scanner TRAP statique (`prg_scan_trap_calls()` avec table GEMDOS/XBIOS →
+  noms symboliques), compiler identifier (`prg_identify_compiler()`), function
+  table complète (`prg_build_functable()` avec nommage auto sub_XXXX/leaf_XXXX).
+- `src/boot_analyze.h/c` : `boot_parse_sector()` + `boot_disassemble()` —
+  wrapper public sur la logique actuellement enfouie dans `image_st.c`/`mount.c`.
+
+Avis Claude : **ACCEPTÉ** — foundation indispensable pour UC32B/C et UC32
+collaboratif. Réutilise massivement l'existant (`disasm_range()`, `sector_features_extract()`).
+Coût estimé : ~1150 lignes (400 `prg.c` + 600 `prg_analyze.c` + 150 `boot_analyze.c`).
+Cible : **UC32A** (tableau §6 mis à jour).
+
+**P66 — UC32B : CFG statique + détection interruptions** → **À ARBITRER**
+
+Module `src/prg_cfg.h/c` : basic blocks par forward-scan depuis chaque fonction
+détectée en UC32A, arcs BSR/BRA/Bcc/DBcc/RTS, résolution des jump tables
+SELECT/CASE GFA (`prg_resolve_jump_table()` → marque les DC.W comme non-code dans
+`prg_segmap_t`), détection des handlers VBL/HBL installés (MOVE.L #addr,$70.W
+et Setexc XBIOS). Commande `analyze --cfg <file.prg>`.
+
+Avis Claude : **ACCEPTÉ** — coût élevé mais séparable de UC32A. Les back-edges
+DBcc permettent de détecter FOR/REPEAT/WHILE compilés GFA. La résolution des
+jump tables est critique pour ne pas désassembler les DC.W comme des opcodes.
+Cible : **UC32B** (tableau §6 mis à jour).
+
+**P67 — UC32C : Annotation sémantique + patterns probabilistes** → **À ARBITRER**
+
+Module `src/prg_annotate.h/c` :
+- `prg_annotate_listing()` : enrichit `disasm_result_t[]` avec labels symtab DRI,
+  noms TRAP symboliques (Fopen/Vsync/...), noms de fonctions auto-générés.
+- `prg_detect_patterns()` : réutilise `sector_features_t` (fSinusProfile,
+  fVblInstall, fTimingLoops, fHwImmediate) + validation CFG (entrée sans BSR entrant
+  + RTE = VBL handler) → patterns avec scores de confiance.
+  Commande `annotate <file.prg>` → .s commenté versionné dans `use_cases/UC32/`.
+
+Avis Claude : **ACCEPTÉ** — c'est exactement le système de scoring UC32 décrit au
+§8 de CLAUDE.md, traduit en fonctions ST4Ever. Les patterns (sinus, copper-bar,
+blitter loop, scrolltext, palette) ont leurs indicateurs déjà présents dans
+`sector_features_t`. Cible : **UC32C** (tableau §6 mis à jour).
+
+| Proposition | Avis Claude | UC cible |
+|-------------|-------------|----------|
+| P65 (UC32A — analyse statique PRG) | ACCEPTÉ | UC32A |
+| P66 (UC32B — CFG statique + IRQ handlers) | ACCEPTÉ | UC32B |
+| P67 (UC32C — annotation + patterns) | ACCEPTÉ | UC32C |
+
+*Séquence cible : UC30D/E/F → UC31 → UC32A → UC32B → UC32C → UC32 (session manuelle) → UC33+*
 
 ---
 
