@@ -3350,5 +3350,105 @@ Tests skippés (0) : UC26 est purement interne, aucun skip requis.
 - **Fixups (UC30C+)** : `DC.L label_of_section` doit générer une entrée dans la fixup table. L'infrastructure de fixup RLE est posée dans `as_write_prg()` (UC30A) mais n'est pas exercée par UC30B (pas de DC.L avec label relocatable dans `test30b.S`).
 - **Negative decimal in assembler** : `as_eval()` supporte déjà `strtol` pour les décimaux négatifs (UC30B) — important pour `MOVEQ #-1,D7` depuis le `.S` round-trip. Tout futur encodeur d'immédiat doit gérer la forme `#-N`.
 - **DEVPAC3 ATARI ST size qualifier** : les formes `.W` et `.L` sur les EA absolues sont obligatoires dans DEVPAC3. `as_parse_ea()` les reconnaît. Pour les valeurs sans `.W`/`.L` explicite, l'auto-détection choisit ABS.W si la valeur tient en signed 16-bit, sinon ABS.L — cohérent avec le désassembleur (RÉSOLU UC30B).
+- **UC30C — RÉSOLU UC30D** : ALU + flux encodeurs ajoutés ; BRA/BSR/Bcc(14) en forme longue (disp 16-bit) validés.
+- **UC30D — RÉSOLU UC30D** : instruction set de base 68000 complet. Voir §6.30D.
+
+---
+
+## §6.30C UC30C — Assembleur DEVPAC3 : ALU + flux
+
+### Périmètre implémenté
+
+- **ALU binaire** — `as_encode_alu()` : `ADD/SUB/CMP/AND/OR/EOR` (directions Dn↔EA, tailles B/W/L).
+- **Immédiates ALU** — `as_encode_imm_alu()` : `ADDI/SUBI/CMPI/ANDI/ORI/EORI` + extension word immédiat B/W/L.
+- **Quick** — `as_encode_quick()` : `ADDQ/SUBQ` ; count 1-8 dans bits 11-9 (8 encodé 0).
+- **Unaires** — `as_encode_unary()` : `NEG/NOT/TST` ; `as_encode_ext()` : `EXT.W/EXT.L`.
+- **Simples** — `NOP/RTS/RTR/RTE` (opwords fixes) + `STOP #N` + `TRAP #N`.
+- **Flux** — `as_encode_jmp_jsr()` : `JMP/JSR` ; `as_encode_link()` : `LINK An,#-N` ; `as_encode_unlk()`.
+- **Branches** — `as_encode_branch()` : `BRA/BSR/Bcc(14)` en forme longue (opword + disp 16-bit). Passe 1 avance PC+4 ; passe 2 résout le symbole et calcule le déplacement.
+- **Version** : `ST_APP_VERSION "0.30.2"`.
+
+**Fichiers modifiés** : `src/as.c` (nouveaux encodeurs dans `as_do_instruction()`), `src/common.h` (version), `use_cases/use_case_30C.c`, `use_cases/UC30C/test30c.S`, `use_cases/UC30C/test30c_bcc.S`.
+
+### Matrice de tests
+
+| Catégorie                           | [N] | [R] | [S] | Total |
+|-------------------------------------|-----|-----|-----|-------|
+| ALU binaire + immédiates + quick    | 27  |  0  |  0  | 27    |
+| Unaires + simples + flux + branches | 18  |  0  |  0  | 18    |
+| Robustesse (opérandes invalides)    |  0  |  6  |  0  |  6    |
+| **Total UC30C**                     | **45** | **6** | **0** | **51** |
+
+### Contrats comportementaux validés
+
+1. **EOR direction forcée** — `EOR Dn,EA` uniquement (bit 8=0 pour EA→Dn invalide) ; `EOR An,D1` → ST_ERROR.
+2. **ADDQ count=0 → count=8** — count encodé 0 dans bits 11-9 représente 8 en valeur ; `ADDQ #8,D0` produit opword bits 11-9=000.
+3. **CMPI.L #big,D0** — immédiat 32-bit → deux extension words 16-bit big-endian.
+4. **BRA/BSR/Bcc long** — opword byte1=0x00 (forme longue) + extension word disp16 ; passe 2 calcule `label - (PC+2)` après résolution symbole.
+5. **Bcc backward** — déplacement négatif : `BNE bwd_tgt` (bwd_tgt < instruction address) → disp16 = 0xFFFC valide (−4).
+
+### Points d'attention pour les UCs suivants
+
+- **UC30D — RÉSOLU UC30D** : shifts/bit-ops/MOVEM/ADDA-SUBA/MUL-DIV/ADDX-SUBX/Scc/DBcc/EXG/PEA.
+- **Fixups encore non testés** : `DC.L label_section` non exercé en UC30C (test30c.S ne contient pas de DC.L avec symbole de section). À valider en UC30E avec un programme utilisant les deux sections.
+
+---
+
+## §6.30D UC30D — Assembleur DEVPAC3 : shifts / bit-ops / MOVEM / ADDA-SUBA / MUL-DIV / ADDX-SUBX / Scc / DBcc / EXG / PEA
+
+### Périmètre implémenté
+
+- **Shifts** — `as_encode_shift(iTT, iDir)` : `ASL/ASR` (TT=0), `LSL/LSR` (TT=1), `ROXL/ROXR` (TT=2), `ROL/ROR` (TT=3). Opword : `1110 CCC D SS I TT RRR`. Modes : count immédiat `#1-8` (I=0) ou registre `Dn` (I=1). Tailles B/W/L. Destination obligatoirement Dn ; count 0 ou > 8 → ST_ERROR.
+- **Bit operations** — `as_encode_bitop(iTT)` : `BTST` (TT=0), `BCHG` (TT=1), `BCLR` (TT=2), `BSET` (TT=3). Dynamique (Dn) : `0000 nnn 1 TT MMMRRR` ; statique (#imm) : `0000 100 1 TT MMMRRR` + extension word 0x00nn. Bit# > 31 pour Dn → ST_ERROR.
+- **MOVEM** — `as_encode_movem()` : parsing du registre-list (`D0-D7/A0-A6`) via `as_parse_reglist()` ; masque 16 bits normal pour load `(An)+`, masque inversé (bit-reverse 16-bit) pour store `-(An)` via `as_reverse_regmask()` ; direction détectée par présence du reglist en src ou dst.
+- **ADDA/SUBA** — `as_encode_adda_suba()` : `ADDA.W` (ooo=3) et `ADDA.L` (ooo=7) ; destination obligatoirement An → ST_ERROR sinon.
+- **MUL/DIV** — `as_encode_mul_div()` : `MULU/DIVU` (ooo=011=0x00C0) et `MULS/DIVS` (ooo=111=0x01C0) ; source word EA, destination Dn ; taille fixée W.
+- **ADDX/SUBX** — `as_encode_addx_subx()` : deux formes uniquement — `Dn,Dn` (M=0) et `-(An),-(An)` (M=1) ; mélange Dn/-(An) → ST_ERROR.
+- **Scc** — `as_encode_scc()` : `0101 cccc 11 MMMRRR` ; table `g_as_aScc[]` : ST=0x00, SF=0x01, SHI=0x02 ... SLE=0x0F.
+- **DBcc** — `as_encode_dbcc()` : `0101 cccc 11 001 rrr` + disp16 ; DBRA=DBF=0x01 ; passe 1 : PC+=4 ; passe 2 : `label - (PC+2)`.
+- **EXG** — `as_encode_exg()` : trois modes — Dx/Dy (iMode=0x08), Ax/Ay (iMode=0x09), Dx/Ay (iMode=0x11) ; `EXG An,Dn` auto-swappé vers `EXG Dn,An`.
+- **PEA** — `as_encode_pea()` : `0100 100 001 MMMRRR` ; EA control uniquement (rejet Dn/An/-(An)/(An)+/#imm).
+- **Version** : `ST_APP_VERSION "0.30.4"`.
+
+**Fichiers modifiés** : `src/as.c` (~700 lignes ajoutées), `src/common.h` (version 0.30.4), `use_cases/use_case_30D.c`, `use_cases/UC30D/test30d.S`.
+
+### Infrastructure validée
+
+| Composant                 | Contrat établi                                                                  |
+|---------------------------|---------------------------------------------------------------------------------|
+| `as_encode_shift()`       | CCC=0 (→8) pour #8 ; I=0 imm / I=1 reg ; Dn dest obligatoire ; count 0/9 → err |
+| `as_encode_bitop()`       | Dynamique vs statique auto-détecté sur type src EA ; bit#>31 Dn → err           |
+| `as_parse_reglist()`      | `D0-D7/A0-A6` → bitmask 16-bit ; registre inconnu → mask=0 → err en MOVEM      |
+| `as_reverse_regmask()`    | Bit-reverse 16-bit : D0=bit0→bit15, A7=bit15→bit0 ; requis pour -(An) store    |
+| `as_encode_adda_suba()`   | ooo=3 pour .W, ooo=7 pour .L ; An dest obligatoire ; Dn dest → err              |
+| `as_encode_mul_div()`     | Taille forcée W ; dest Dn obligatoire ; unsigned=0x00C0 / signed=0x01C0         |
+| `as_encode_addx_subx()`   | Dn,Dn (M=0) ou -(An),-(An) (M=1) ; mélange → err                               |
+| `as_encode_scc()`         | cccc lookup dans `g_as_aScc[]` ; EA mode 000 pour Dn                            |
+| `as_encode_dbcc()`        | Passe 1 PC+=4 ; passe 2 disp16=`label-(PC+2)` ; DBRA=DBF code 0x01             |
+| `as_encode_exg()`         | EXG An,Dn auto-swappé vers canonical Dn/An (mode 0x11)                         |
+| `as_encode_pea()`         | EA control uniquement ; #imm/Dn/An/post/pre → err                              |
+
+### Matrice de tests
+
+| Catégorie                              | [N] | [R] | [S] | Total |
+|----------------------------------------|-----|-----|-----|-------|
+| Fixture test30d.S (84 bytes, 35 instr) | 44  |  0  |  0  | 44    |
+| Robustesse (invalides)                 |  0  |  8  |  0  |  8    |
+| **Total UC30D**                        | **44** | **8** | **0** | **52** |
+
+### Contrats comportementaux validés
+
+1. **Shift count 8 encodé 0** — `ASL.W #8,D0` produit `CCC=000` dans bits 11-9 ; CCC=000 interprété comme 8 par le CPU 68000.
+2. **MOVEM masque inversé -(An)** — `MOVEM.L D0-D1/A0-A1,-(SP)` : masque normal 0x0303 → inversé bit-à-bit 16 positions → 0xC0C0 ; `MOVEM.L (SP)+,...` : masque normal 0x0303 inchangé.
+3. **ADDA.L vs ADDA.W** — `ADDA.L D2,A3` = 0xD7C2 (ooo=7) ; `ADDA.W D0,A1` = 0xD2C0 (ooo=3) ; à ne pas confondre avec ADD.L qui a un encodage différent.
+4. **DBcc auto-backward** — DBRA D0,label où label = adresse de l'opword lui-même → disp = −2 = 0xFFFE (boucle infinie d'une instruction).
+5. **EXG An,Dn canonique** — `EXG A0,D0` est représenté comme `EXG D0,A0` (mode 0x11) ; l'encodeur swap silencieusement pour produire la forme canonique.
+6. **PEA rejet #imm** — `PEA #42` → ST_ERROR (`#imm` n'est pas un EA de type "contrôle").
+
+### Points d'attention pour les UCs suivants
+
+- **UC30E (validation round-trip vs DEVPAC3 réel)** : avec l'instruction set de base complet, UC30E assemble `use_cases/UC30/test.S` de référence et compare byte-à-byte avec le `.PRG` produit par DEVPAC3 sur ATARI ST réel. Tout écart indique une différence d'encodage à corriger.
+- **Macros et conditionnels non implémentés** : les sources DEVPAC3 réels utilisent `MACRO`/`ENDM`, `IFEQ`/`ENDC`, labels locaux `.loop` — ces directives ne sont pas dans l'infrastructure UC30A-D et seront ajoutées en UC30E si la fixture de test les requiert.
+- **MOVEM.W non testé** : seul MOVEM.L est dans test30d.S ; la variante `.W` utilise le même encodeur (`as_encode_movem()`) avec taille W dans `as_ea_emit()` — à inclure dans UC30E si la fixture de référence l'utilise.
 
 ---

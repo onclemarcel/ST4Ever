@@ -4265,3 +4265,94 @@ Source: `use_cases/use_case_30C.c`, fixtures `use_cases/UC30C/test30c.S` (112 by
 | UFR          | REQ(s)                           | TC(s)                                       | Status    |
 |--------------|----------------------------------|---------------------------------------------|-----------|
 | UFR-ASM-005  | REQ-AS-021..028                  | TC-AS-113..158                              | v UC30C   |
+
+---
+
+### §5.94 UC30D — DEVPAC3 Instruction Set Completion
+
+> Source: `use_cases/use_case_30D.c` | Fixture: `use_cases/UC30D/test30d.S` (84 bytes)
+
+#### Test cases — UC30D
+
+| TC           | Description                                                                                              | Type | UFR          | REQ                    | INT          | Expected                                          | Status     |
+|--------------|----------------------------------------------------------------------------------------------------------|------|--------------|------------------------|--------------|---------------------------------------------------|------------|
+| TC-AS-159    | `test30d.S` assembles without errors                                                                     | [N]  | UFR-ASM-006  | REQ-AS-029..037        | INT-AS-089   | `as_assemble()` returns ST_NO_ERROR               | PASS UC30D |
+| TC-AS-160    | `.text` section is exactly 84 bytes (`uiBinaryLen == 28 + 84`)                                          | [N]  | UFR-ASM-006  | REQ-AS-029..037        | INT-AS-090   | `uiBinaryLen == 112`                              | PASS UC30D |
+| TC-AS-161    | `ASL.W #2,D0` → 0xE540 (CCC=2, D=1, SS=01, I=0, TT=00, RRR=0)                                         | [N]  | UFR-ASM-006  | REQ-AS-029             | INT-AS-091   | `text_w(0) == 0xE540`                             | PASS UC30D |
+| TC-AS-162    | `ASR.W #2,D1` → 0xE441 (D=0 right, CCC=2)                                                              | [N]  | UFR-ASM-006  | REQ-AS-029             | INT-AS-092   | `text_w(2) == 0xE441`                             | PASS UC30D |
+| TC-AS-163    | `LSL.W #1,D2` → 0xE34A (TT=01 LS, CCC=1, D=1)                                                         | [N]  | UFR-ASM-006  | REQ-AS-029             | INT-AS-093   | `text_w(4) == 0xE34A`                             | PASS UC30D |
+| TC-AS-164    | `LSR.W #1,D3` → 0xE24B (TT=01, D=0)                                                                    | [N]  | UFR-ASM-006  | REQ-AS-029             | INT-AS-094   | `text_w(6) == 0xE24B`                             | PASS UC30D |
+| TC-AS-165    | `ROL.W #1,D4` → 0xE35C (TT=11 RO, D=1)                                                                 | [N]  | UFR-ASM-006  | REQ-AS-029             | INT-AS-095   | `text_w(8) == 0xE35C`                             | PASS UC30D |
+| TC-AS-166    | `ROR.W #1,D5` → 0xE25D (TT=11, D=0)                                                                    | [N]  | UFR-ASM-006  | REQ-AS-029             | INT-AS-096   | `text_w(10) == 0xE25D`                            | PASS UC30D |
+| TC-AS-167    | `ROXL.W #1,D6` → 0xE356 (TT=10 ROX, D=1, RRR=6)                                                       | [N]  | UFR-ASM-006  | REQ-AS-029             | INT-AS-097   | `text_w(12) == 0xE356`                            | PASS UC30D |
+| TC-AS-168    | `ROXR.W #1,D7` → 0xE257 (TT=10, D=0, RRR=7)                                                           | [N]  | UFR-ASM-006  | REQ-AS-029             | INT-AS-098   | `text_w(14) == 0xE257`                            | PASS UC30D |
+| TC-AS-169    | `ASL.W D1,D0` → 0xE360 (register count: I=1, CCC=D1=1)                                                 | [N]  | UFR-ASM-006  | REQ-AS-029             | INT-AS-099   | `text_w(16) == 0xE360`                            | PASS UC30D |
+| TC-AS-170    | `BTST D0,D1` → 0x0101 (dynamic, TT=0, src=D0, dst=D1)                                                  | [N]  | UFR-ASM-006  | REQ-AS-030             | INT-AS-100   | `text_w(18) == 0x0101`                            | PASS UC30D |
+| TC-AS-171    | `BCHG D2,D3` → 0x0543 (TT=1, src=D2=2, dst=D3 MMMRRR=000011)                                          | [N]  | UFR-ASM-006  | REQ-AS-030             | INT-AS-101   | `text_w(20) == 0x0543`                            | PASS UC30D |
+| TC-AS-172    | `BCLR D4,D5` → 0x0985 (TT=2, src=D4=4, dst=D5 MMMRRR=000101)                                          | [N]  | UFR-ASM-006  | REQ-AS-030             | INT-AS-102   | `text_w(22) == 0x0985`                            | PASS UC30D |
+| TC-AS-173    | `BSET D6,D7` → 0x0DC7 (TT=3, src=D6=6, dst=D7 MMMRRR=000111)                                          | [N]  | UFR-ASM-006  | REQ-AS-030             | INT-AS-103   | `text_w(24) == 0x0DC7`                            | PASS UC30D |
+| TC-AS-174    | `BTST #7,D0` opword → 0x0800 (static, `0000 100 1 00 000 000`)                                         | [N]  | UFR-ASM-006  | REQ-AS-030             | INT-AS-104   | `text_w(26) == 0x0800`                            | PASS UC30D |
+| TC-AS-175    | `BTST #7,D0` ext → 0x0007                                                                               | [N]  | UFR-ASM-006  | REQ-AS-030             | INT-AS-105   | `text_w(28) == 0x0007`                            | PASS UC30D |
+| TC-AS-176    | `BSET #3,D1` opword → 0x08C1                                                                            | [N]  | UFR-ASM-006  | REQ-AS-030             | INT-AS-106   | `text_w(30) == 0x08C1`                            | PASS UC30D |
+| TC-AS-177    | `BSET #3,D1` ext → 0x0003                                                                               | [N]  | UFR-ASM-006  | REQ-AS-030             | INT-AS-107   | `text_w(32) == 0x0003`                            | PASS UC30D |
+| TC-AS-178    | `MOVEM.L D0-D1/A0-A1,-(SP)` opword → 0x48E7 (store, .L, -(SP))                                        | [N]  | UFR-ASM-006  | REQ-AS-031, REQ-AS-032 | INT-AS-108   | `text_w(34) == 0x48E7`                            | PASS UC30D |
+| TC-AS-179    | `MOVEM.L D0-D1/A0-A1,-(SP)` mask → 0xC0C0 (normal 0x0303 bit-reversed → 0xC0C0)                       | [N]  | UFR-ASM-006  | REQ-AS-031, REQ-AS-032 | INT-AS-109   | `text_w(36) == 0xC0C0`                            | PASS UC30D |
+| TC-AS-180    | `MOVEM.L (SP)+,D0-D1/A0-A1` opword → 0x4CDF (load, .L, (SP)+)                                         | [N]  | UFR-ASM-006  | REQ-AS-031, REQ-AS-032 | INT-AS-110   | `text_w(38) == 0x4CDF`                            | PASS UC30D |
+| TC-AS-181    | `MOVEM.L (SP)+,D0-D1/A0-A1` mask → 0x0303 (normal mask, no reversal for load)                         | [N]  | UFR-ASM-006  | REQ-AS-031, REQ-AS-032 | INT-AS-111   | `text_w(40) == 0x0303`                            | PASS UC30D |
+| TC-AS-182    | `ADDA.W D0,A1` → 0xD2C0 (ooo=3 for .W, A1=1, D0 MMMRRR=000000)                                       | [N]  | UFR-ASM-006  | REQ-AS-033             | INT-AS-112   | `text_w(42) == 0xD2C0`                            | PASS UC30D |
+| TC-AS-183    | `ADDA.L D2,A3` → 0xD7C2 (ooo=7 for .L, A3=3, D2 MMMRRR=000010)                                       | [N]  | UFR-ASM-006  | REQ-AS-033             | INT-AS-113   | `text_w(44) == 0xD7C2`                            | PASS UC30D |
+| TC-AS-184    | `SUBA.W D4,A5` → 0x9AC4 (base 0x9000, ooo=3, A5=5, D4 MMMRRR=000100)                                  | [N]  | UFR-ASM-006  | REQ-AS-033             | INT-AS-114   | `text_w(46) == 0x9AC4`                            | PASS UC30D |
+| TC-AS-185    | `MULU.W D0,D1` → 0xC2C0 (base 0xC000, ooo=0x00C0, D1=1, D0 MMMRRR=000000)                             | [N]  | UFR-ASM-006  | REQ-AS-034             | INT-AS-115   | `text_w(48) == 0xC2C0`                            | PASS UC30D |
+| TC-AS-186    | `MULS.W D2,D3` → 0xC7C2 (ooo=0x01C0 signed, D3=3, D2 MMMRRR=000010)                                   | [N]  | UFR-ASM-006  | REQ-AS-034             | INT-AS-116   | `text_w(50) == 0xC7C2`                            | PASS UC30D |
+| TC-AS-187    | `DIVU.W D0,D1` → 0x82C0 (base 0x8000, D1=1, D0 MMMRRR=000000)                                         | [N]  | UFR-ASM-006  | REQ-AS-034             | INT-AS-117   | `text_w(52) == 0x82C0`                            | PASS UC30D |
+| TC-AS-188    | `DIVS.W D2,D3` → 0x87C2 (ooo=0x01C0, D3=3, D2 MMMRRR=000010)                                          | [N]  | UFR-ASM-006  | REQ-AS-034             | INT-AS-118   | `text_w(54) == 0x87C2`                            | PASS UC30D |
+| TC-AS-189    | `ADDX.W D0,D1` → 0xD340 (base 0xD000, yyy=D1=1, ss=01, M=0, xxx=D0=0)                                 | [N]  | UFR-ASM-006  | REQ-AS-035             | INT-AS-119   | `text_w(56) == 0xD340`                            | PASS UC30D |
+| TC-AS-190    | `SUBX.W D2,D3` → 0x9742 (base 0x9000, yyy=D3=3, ss=01, M=0, xxx=D2=2)                                 | [N]  | UFR-ASM-006  | REQ-AS-035             | INT-AS-120   | `text_w(58) == 0x9742`                            | PASS UC30D |
+| TC-AS-191    | `SNE D0` → 0x56C0 (cccc=0110 NE, EA=000000 Dn)                                                         | [N]  | UFR-ASM-006  | REQ-AS-036             | INT-AS-121   | `text_w(60) == 0x56C0`                            | PASS UC30D |
+| TC-AS-192    | `SEQ D1` → 0x57C1 (cccc=0111 EQ, EA=000001 D1)                                                         | [N]  | UFR-ASM-006  | REQ-AS-036             | INT-AS-122   | `text_w(62) == 0x57C1`                            | PASS UC30D |
+| TC-AS-193    | `DBRA D0,dbra_top` opword → 0x51C8 (DBRA=DBF cccc=0001, 001 D0=0)                                      | [N]  | UFR-ASM-006  | REQ-AS-036             | INT-AS-123   | `text_w(64) == 0x51C8`                            | PASS UC30D |
+| TC-AS-194    | `DBRA D0,dbra_top` disp → 0xFFFE (−2: self-referencing label, disp=64−66=−2)                           | [N]  | UFR-ASM-006  | REQ-AS-036             | INT-AS-124   | `text_w(66) == 0xFFFE`                            | PASS UC30D |
+| TC-AS-195    | `DBNE D1,dbne_top` opword → 0x56C9 (DBNE cccc=0110, 001 D1=1)                                          | [N]  | UFR-ASM-006  | REQ-AS-036             | INT-AS-125   | `text_w(68) == 0x56C9`                            | PASS UC30D |
+| TC-AS-196    | `DBNE D1,dbne_top` disp → 0xFFFE (−2: label at opword start, PC+2=70, disp=68−70=−2)                   | [N]  | UFR-ASM-006  | REQ-AS-036             | INT-AS-126   | `text_w(70) == 0xFFFE`                            | PASS UC30D |
+| TC-AS-197    | `EXG D0,D1` → 0xC141 (mode 0x08 Dx/Dy, `1100 000 1 01000 001`)                                        | [N]  | UFR-ASM-006  | REQ-AS-037             | INT-AS-127   | `text_w(72) == 0xC141`                            | PASS UC30D |
+| TC-AS-198    | `EXG A0,A1` → 0xC149 (mode 0x09 Ax/Ay, `1100 000 1 01001 001`)                                        | [N]  | UFR-ASM-006  | REQ-AS-037             | INT-AS-128   | `text_w(74) == 0xC149`                            | PASS UC30D |
+| TC-AS-199    | `EXG D0,A0` → 0xC188 (mode 0x11 Dx/Ay, `1100 000 1 10001 000`)                                        | [N]  | UFR-ASM-006  | REQ-AS-037             | INT-AS-129   | `text_w(76) == 0xC188`                            | PASS UC30D |
+| TC-AS-200    | `PEA (A0)` → 0x4850 (control EA (An)=mode 010 reg 0)                                                   | [N]  | UFR-ASM-006  | REQ-AS-037             | INT-AS-130   | `text_w(78) == 0x4850`                            | PASS UC30D |
+| TC-AS-201    | `PEA $100.W` opword → 0x4878 (ABS.W EA = mode 111 reg 000)                                             | [N]  | UFR-ASM-006  | REQ-AS-037             | INT-AS-131   | `text_w(80) == 0x4878`                            | PASS UC30D |
+| TC-AS-202    | `PEA $100.W` ext → 0x0100                                                                               | [N]  | UFR-ASM-006  | REQ-AS-037             | INT-AS-132   | `text_w(82) == 0x0100`                            | PASS UC30D |
+| TC-AS-203    | `ASL.W #0,D0` → ST_ERROR (count 0 not allowed)                                                          | [R]  | UFR-ASM-006  | REQ-AS-029             | INT-AS-133   | `as_assemble()` returns ST_ERROR                  | PASS UC30D |
+| TC-AS-204    | `LSR.W #9,D0` → ST_ERROR (count > 8 not allowed)                                                        | [R]  | UFR-ASM-006  | REQ-AS-029             | INT-AS-134   | `as_assemble()` returns ST_ERROR                  | PASS UC30D |
+| TC-AS-205    | `ASL.W #1,A0` → ST_ERROR (destination must be Dn, not An)                                              | [R]  | UFR-ASM-006  | REQ-AS-029             | INT-AS-135   | `as_assemble()` returns ST_ERROR                  | PASS UC30D |
+| TC-AS-206    | `BTST #32,D0` → ST_ERROR (static bit# > 31 for Dn destination)                                         | [R]  | UFR-ASM-006  | REQ-AS-030             | INT-AS-136   | `as_assemble()` returns ST_ERROR                  | PASS UC30D |
+| TC-AS-207    | `MOVEM.L X0-X1,-(SP)` → ST_ERROR (invalid register name in list)                                       | [R]  | UFR-ASM-006  | REQ-AS-031, REQ-AS-032 | INT-AS-137   | `as_assemble()` returns ST_ERROR                  | PASS UC30D |
+| TC-AS-208    | `ADDA.W D0,D1` → ST_ERROR (destination must be An)                                                     | [R]  | UFR-ASM-006  | REQ-AS-033             | INT-AS-138   | `as_assemble()` returns ST_ERROR                  | PASS UC30D |
+| TC-AS-209    | `ADDX.W D0,-(A1)` → ST_ERROR (mixed Dn/-(An) operands)                                                 | [R]  | UFR-ASM-006  | REQ-AS-035             | INT-AS-139   | `as_assemble()` returns ST_ERROR                  | PASS UC30D |
+| TC-AS-210    | `PEA #42` → ST_ERROR (#imm is not a control addressing mode)                                            | [R]  | UFR-ASM-006  | REQ-AS-037             | INT-AS-140   | `as_assemble()` returns ST_ERROR                  | PASS UC30D |
+
+#### Test Summary — UC30D
+
+| Category | Count | Source |
+|---|---|---|
+| [R] Robustness | 8 | `use_case_30D.c` — shift count 0/9, shift to An, BTST bit#>31, MOVEM bad reglist, ADDA Dn dest, ADDX mismatch, PEA #imm |
+| [N] Nominal | 44 | `use_case_30D.c` — byte-exact encoding of all 35 instructions in test30d.S |
+| **Total** | **52** | |
+
+#### REQ to TC coverage (UC30D)
+
+| REQ          | TC(s)                                                        | Status    |
+|--------------|--------------------------------------------------------------|-----------|
+| REQ-AS-029   | TC-AS-161..169, TC-AS-203..205                               | v UC30D   |
+| REQ-AS-030   | TC-AS-170..177, TC-AS-206                                    | v UC30D   |
+| REQ-AS-031   | TC-AS-178..181, TC-AS-207                                    | v UC30D   |
+| REQ-AS-032   | TC-AS-178..181, TC-AS-207                                    | v UC30D   |
+| REQ-AS-033   | TC-AS-182..184, TC-AS-208                                    | v UC30D   |
+| REQ-AS-034   | TC-AS-185..188                                               | v UC30D   |
+| REQ-AS-035   | TC-AS-189..190, TC-AS-209                                    | v UC30D   |
+| REQ-AS-036   | TC-AS-191..196                                               | v UC30D   |
+| REQ-AS-037   | TC-AS-197..202, TC-AS-210                                    | v UC30D   |
+
+#### UFR traceability (UC30D)
+
+| UFR          | REQ(s)                           | TC(s)                                       | Status    |
+|--------------|----------------------------------|---------------------------------------------|-----------|
+| UFR-ASM-006  | REQ-AS-029..037                  | TC-AS-159..210                              | v UC30D   |

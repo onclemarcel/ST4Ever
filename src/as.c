@@ -1958,6 +1958,677 @@ static st_error_t as_encode_unlk(as_st_t *ptS, as_context_t *ptCtx,
                         (st_u16_t)(0x4E58u | (st_u16_t)tDst.iReg), iLine);
 }
 
+/* ================================================================== */
+/* UC30D instruction encoders                                          */
+/* ================================================================== */
+
+/* ------------------------------------------------------------------
+ * Shift/rotate register instructions
+ * Syntax: mnem.sz #cnt,Dn  or  mnem.sz Dn,Dn
+ * Opword: 1110 CCC D SS I TT RRR
+ *   CCC: immediate count (0=8) or source register number
+ *   D:   direction 0=right 1=left
+ *   SS:  00=B 01=W 10=L
+ *   I:   0=immediate count 1=register count
+ *   TT:  00=AS 01=LS 10=ROX 11=RO
+ *   RRR: destination register
+ * ------------------------------------------------------------------ */
+
+static st_error_t as_encode_shift(as_st_t *ptS, as_context_t *ptCtx,
+                                    const as_tok_t *ptTok,
+                                    int iTT, int iDir)
+{
+    char     szSrc[AS_MAX_WORD];
+    char     szDst[AS_MAX_WORD];
+    as_ea_t  tSrc;
+    as_ea_t  tDst;
+    char     cSz   = ptTok->cSize;
+    int      iLine = ptTok->iLine;
+    int      iSzCode;
+    int      iCCC;
+    int      iI;
+    st_u16_t uiOp;
+
+    if (cSz == 0) cSz = 'W';
+    iSzCode = as_sz_code(cSz);
+    if (iSzCode < 0)
+    { as_err(ptCtx, iLine, "SHIFT: invalid size"); return ST_ERROR; }
+
+    as_split_ops(ptTok->szOps, szSrc, AS_MAX_WORD, szDst, AS_MAX_WORD);
+
+    if (!as_parse_ea(szSrc, &tSrc, ptS))
+    { as_err(ptCtx, iLine, "SHIFT: bad source '%s'", szSrc); return ST_ERROR; }
+    if (!as_parse_ea(szDst, &tDst, ptS) || tDst.eMode != AS_EA_DN)
+    { as_err(ptCtx, iLine, "SHIFT: dest must be Dn"); return ST_ERROR; }
+
+    if (tSrc.eMode == AS_EA_IMM)
+    {
+        iI   = 0; /* immediate */
+        iCCC = tSrc.iDisp;
+        if (iCCC < 1 || iCCC > 8)
+        { as_err(ptCtx, iLine, "SHIFT: count must be 1-8"); return ST_ERROR; }
+        if (iCCC == 8) iCCC = 0; /* 8 encodes as 0 */
+    }
+    else if (tSrc.eMode == AS_EA_DN)
+    {
+        iI   = 1; /* register */
+        iCCC = tSrc.iReg;
+    }
+    else
+    { as_err(ptCtx, iLine, "SHIFT: source must be #n or Dn"); return ST_ERROR; }
+
+    uiOp = (st_u16_t)(0xE000u                    |
+                       ((st_u16_t)iCCC    << 9)   |
+                       ((st_u16_t)iDir    << 8)   |
+                       ((st_u16_t)iSzCode << 6)   |
+                       ((st_u16_t)iI      << 5)   |
+                       ((st_u16_t)iTT     << 3)   |
+                       (st_u16_t)tDst.iReg);
+    return as_emit_be16(ptS, ptCtx, uiOp, iLine);
+}
+
+/* ------------------------------------------------------------------
+ * Bit manipulation: BTST/BCHG/BCLR/BSET
+ * Dynamic (Dn bit#): 0000 nnn 1 TT MMMRRR
+ * Static  (#imm):    0000 100 1 TT MMMRRR + 0x00bb
+ *   TT: BTST=00 BCHG=01 BCLR=10 BSET=11
+ * ------------------------------------------------------------------ */
+
+static st_error_t as_encode_bitop(as_st_t *ptS, as_context_t *ptCtx,
+                                    const as_tok_t *ptTok, int iTT)
+{
+    char     szSrc[AS_MAX_WORD];
+    char     szDst[AS_MAX_WORD];
+    as_ea_t  tSrc;
+    as_ea_t  tDst;
+    int      iLine = ptTok->iLine;
+    int      iEAMR;
+    st_u16_t uiOp;
+
+    as_split_ops(ptTok->szOps, szSrc, AS_MAX_WORD, szDst, AS_MAX_WORD);
+
+    if (!as_parse_ea(szSrc, &tSrc, ptS))
+    { as_err(ptCtx, iLine, "BITOP: bad source '%s'", szSrc); return ST_ERROR; }
+    if (!as_parse_ea(szDst, &tDst, ptS))
+    { as_err(ptCtx, iLine, "BITOP: bad dest '%s'", szDst); return ST_ERROR; }
+
+    iEAMR = as_ea_modeword(&tDst);
+    if (iEAMR < 0)
+    { as_err(ptCtx, iLine, "BITOP: invalid dest EA"); return ST_ERROR; }
+
+    if (tSrc.eMode == AS_EA_DN)
+    {
+        /* Dynamic: 0000 nnn 1 TT MMMRRR */
+        uiOp = (st_u16_t)(((st_u16_t)tSrc.iReg << 9) |
+                           0x0100u                     |
+                           ((st_u16_t)iTT << 6)        |
+                           (st_u16_t)(iEAMR & 0x3F));
+        return as_emit_be16(ptS, ptCtx, uiOp, iLine);
+    }
+    else if (tSrc.eMode == AS_EA_IMM)
+    {
+        /* Static: 0000 100 1 TT MMMRRR + word(bitnumber) */
+        int iBit = tSrc.iDisp;
+        /* For Dn dest: bit modulo 32; for memory: modulo 8 — just validate range */
+        if (tDst.eMode == AS_EA_DN)
+        { if (iBit < 0 || iBit > 31) { as_err(ptCtx, iLine, "BITOP: bit# 0-31 for Dn"); return ST_ERROR; } }
+        else
+        { if (iBit < 0 || iBit > 7)  { as_err(ptCtx, iLine, "BITOP: bit# 0-7 for mem");  return ST_ERROR; } }
+
+        uiOp = (st_u16_t)(0x0800u                 |
+                           ((st_u16_t)iTT << 6)    |
+                           (st_u16_t)(iEAMR & 0x3F));
+        if (as_emit_be16(ptS, ptCtx, uiOp, iLine) != ST_NO_ERROR)
+            return ST_ERROR;
+        return as_emit_be16(ptS, ptCtx, (st_u16_t)(iBit & 0xFF), iLine);
+    }
+
+    as_err(ptCtx, iLine, "BITOP: source must be Dn or #n");
+    return ST_ERROR;
+}
+
+/* ------------------------------------------------------------------
+ * Register list parser for MOVEM
+ * Parses "D0-D7/A0-A6" style lists.
+ * Returns 16-bit mask: bits 0-7 = D0-D7, bits 8-15 = A0-A7.
+ * Returns 0 on parse error (empty list is also 0; caller must
+ * supply at least one register).
+ * ------------------------------------------------------------------ */
+
+static st_u16_t as_parse_reglist(const char *sz)
+{
+    st_u16_t    uiMask = 0;
+    const char *p      = sz;
+    char        szTok[8];
+    int         i;
+    int         iR1;
+    int         iR2;
+    int         bIsAn;
+    int         bIsAn2;
+
+    while (*p)
+    {
+        while (*p == ' ' || *p == '\t') p++;
+        if (*p == '\0') break;
+
+        /* Read first register token */
+        i = 0;
+        while (i < 7 && (isalnum((unsigned char)*p))) szTok[i++] = (char)toupper((unsigned char)*p++);
+        szTok[i] = '\0';
+        if (i == 0) return 0;
+
+        iR1 = as_parse_dn_str(szTok);
+        if (iR1 >= 0) { bIsAn = 0; }
+        else
+        {
+            iR1 = as_parse_an_str(szTok);
+            if (iR1 < 0) return 0;
+            bIsAn = 1;
+        }
+
+        if (*p == '-')
+        {
+            /* Range */
+            p++;
+            i = 0;
+            while (i < 7 && (isalnum((unsigned char)*p))) szTok[i++] = (char)toupper((unsigned char)*p++);
+            szTok[i] = '\0';
+            if (!bIsAn)
+            {
+                iR2 = as_parse_dn_str(szTok); bIsAn2 = 0;
+            }
+            else
+            {
+                iR2 = as_parse_an_str(szTok); bIsAn2 = 1;
+            }
+            if (iR2 < 0 || bIsAn2 != bIsAn || iR2 < iR1) return 0;
+            for (i = iR1; i <= iR2; i++)
+                uiMask |= (st_u16_t)(bIsAn ? (1u << (8 + i)) : (1u << i));
+        }
+        else
+        {
+            /* Single register */
+            uiMask |= (st_u16_t)(bIsAn ? (1u << (8 + iR1)) : (1u << iR1));
+        }
+
+        while (*p == ' ' || *p == '\t') p++;
+        if (*p == '/') p++;
+    }
+    return uiMask;
+}
+
+/* Returns ST_TRUE if string looks like a MOVEM register list */
+static st_bool_t as_is_reglist(const char *sz)
+{
+    if (strchr(sz, '/') != NULL) return ST_TRUE;
+    /* Range pattern: D?-D? or A?-A? */
+    if ((sz[0] == 'D' || sz[0] == 'A') && isdigit((unsigned char)sz[1]) && sz[2] == '-')
+        return ST_TRUE;
+    return ST_FALSE;
+}
+
+/* Reverse 16 bits of regmask (for predecrement mode) */
+static st_u16_t as_reverse_regmask(st_u16_t uiMask)
+{
+    st_u16_t uiRev = 0u;
+    int      i;
+    for (i = 0; i < 16; i++)
+        if (uiMask & (st_u16_t)(1u << i))
+            uiRev |= (st_u16_t)(1u << (15 - i));
+    return uiRev;
+}
+
+/* ------------------------------------------------------------------
+ * MOVEM.W/L — move multiple registers
+ * Store: reglist,ea  →  0100 1000 1 S MMMRRR + mask
+ * Load:  ea,reglist  →  0100 1100 1 S MMMRRR + mask
+ *   S: 0=W 1=L
+ * Predecrement store: mask is bit-reversed.
+ * ------------------------------------------------------------------ */
+
+static st_error_t as_encode_movem(as_st_t *ptS, as_context_t *ptCtx,
+                                    const as_tok_t *ptTok)
+{
+    char     szSrc[AS_MAX_OPSZ];
+    char     szDst[AS_MAX_OPSZ];
+    as_ea_t  tEA;
+    char     cSz   = ptTok->cSize;
+    int      iLine = ptTok->iLine;
+    int      iSz;   /* 0=W 1=L */
+    int      bStore;
+    st_u16_t uiMask;
+    int      iEAMR;
+    st_u16_t uiOp;
+
+    if (cSz == 0) cSz = 'L';
+    iSz = (cSz == 'L') ? 1 : 0;
+    if (cSz != 'W' && cSz != 'L')
+    { as_err(ptCtx, iLine, "MOVEM: size must be W or L"); return ST_ERROR; }
+
+    as_split_ops(ptTok->szOps, szSrc, AS_MAX_OPSZ, szDst, AS_MAX_OPSZ);
+
+    /* Determine direction from which operand looks like a reglist */
+    if (as_is_reglist(szSrc))
+    {
+        /* store: reglist -> ea */
+        uiMask = as_parse_reglist(szSrc);
+        bStore = 1;
+        if (!as_parse_ea(szDst, &tEA, ptS))
+        { as_err(ptCtx, iLine, "MOVEM: bad dest EA '%s'", szDst); return ST_ERROR; }
+    }
+    else if (as_is_reglist(szDst))
+    {
+        /* load: ea -> reglist */
+        uiMask = as_parse_reglist(szDst);
+        bStore = 0;
+        if (!as_parse_ea(szSrc, &tEA, ptS))
+        { as_err(ptCtx, iLine, "MOVEM: bad src EA '%s'", szSrc); return ST_ERROR; }
+    }
+    else
+    {
+        /* Single register case: try szDst as EA; if memory EA → store */
+        if (as_parse_ea(szDst, &tEA, ptS) &&
+            tEA.eMode != AS_EA_DN && tEA.eMode != AS_EA_AN &&
+            tEA.eMode != AS_EA_IMM)
+        {
+            uiMask = as_parse_reglist(szSrc);
+            bStore = 1;
+        }
+        else if (as_parse_ea(szSrc, &tEA, ptS) &&
+                 tEA.eMode != AS_EA_DN && tEA.eMode != AS_EA_AN &&
+                 tEA.eMode != AS_EA_IMM)
+        {
+            uiMask = as_parse_reglist(szDst);
+            bStore = 0;
+        }
+        else
+        {
+            as_err(ptCtx, iLine, "MOVEM: cannot determine direction");
+            return ST_ERROR;
+        }
+    }
+
+    if (uiMask == 0)
+    { as_err(ptCtx, iLine, "MOVEM: empty or invalid register list"); return ST_ERROR; }
+
+    iEAMR = as_ea_modeword(&tEA);
+    if (iEAMR < 0)
+    { as_err(ptCtx, iLine, "MOVEM: invalid EA"); return ST_ERROR; }
+
+    /* For predecrement store, bit-reverse the mask */
+    if (bStore && tEA.eMode == AS_EA_AN_PRE)
+        uiMask = as_reverse_regmask(uiMask);
+
+    uiOp = (st_u16_t)((bStore ? 0x4880u : 0x4C80u) |
+                       ((st_u16_t)iSz << 6)          |
+                       (st_u16_t)(iEAMR & 0x3F));
+    if (as_emit_be16(ptS, ptCtx, uiOp, iLine) != ST_NO_ERROR)
+        return ST_ERROR;
+    if (as_emit_be16(ptS, ptCtx, uiMask, iLine) != ST_NO_ERROR)
+        return ST_ERROR;
+    return as_ea_emit(&tEA, cSz, ptS, ptCtx, iLine);
+}
+
+/* ------------------------------------------------------------------
+ * ADDA / SUBA — add/subtract to address register
+ * ADDA.W src,An: 1101 nnn 011 MMMRRR
+ * ADDA.L src,An: 1101 nnn 111 MMMRRR
+ * SUBA.W src,An: 1001 nnn 011 MMMRRR
+ * SUBA.L src,An: 1001 nnn 111 MMMRRR
+ * ------------------------------------------------------------------ */
+
+static st_error_t as_encode_adda_suba(as_st_t *ptS, as_context_t *ptCtx,
+                                        const as_tok_t *ptTok, st_u16_t uiBase)
+{
+    char     szSrc[AS_MAX_WORD];
+    char     szDst[AS_MAX_WORD];
+    as_ea_t  tSrc;
+    as_ea_t  tDst;
+    char     cSz   = ptTok->cSize;
+    int      iLine = ptTok->iLine;
+    int      iOoo;
+    int      iEAMR;
+    st_u16_t uiOp;
+
+    if (cSz == 0) cSz = 'W';
+    if (cSz == 'W') iOoo = 3;
+    else if (cSz == 'L') iOoo = 7;
+    else { as_err(ptCtx, iLine, "ADDA/SUBA: size must be W or L"); return ST_ERROR; }
+
+    as_split_ops(ptTok->szOps, szSrc, AS_MAX_WORD, szDst, AS_MAX_WORD);
+
+    if (!as_parse_ea(szSrc, &tSrc, ptS))
+    { as_err(ptCtx, iLine, "ADDA/SUBA: bad source '%s'", szSrc); return ST_ERROR; }
+    if (!as_parse_ea(szDst, &tDst, ptS) || tDst.eMode != AS_EA_AN)
+    { as_err(ptCtx, iLine, "ADDA/SUBA: dest must be An"); return ST_ERROR; }
+
+    iEAMR = as_ea_modeword(&tSrc);
+    if (iEAMR < 0)
+    { as_err(ptCtx, iLine, "ADDA/SUBA: invalid source EA"); return ST_ERROR; }
+
+    uiOp = (st_u16_t)(uiBase                      |
+                       ((st_u16_t)tDst.iReg << 9)  |
+                       ((st_u16_t)iOoo       << 6)  |
+                       (st_u16_t)(iEAMR & 0x3F));
+    if (as_emit_be16(ptS, ptCtx, uiOp, iLine) != ST_NO_ERROR)
+        return ST_ERROR;
+    return as_ea_emit(&tSrc, cSz, ptS, ptCtx, iLine);
+}
+
+/* ------------------------------------------------------------------
+ * MULU/MULS/DIVU/DIVS — multiply/divide (word src × 32-bit Dn)
+ * MULU.W src,Dn: 1100 nnn 011 MMMRRR
+ * MULS.W src,Dn: 1100 nnn 111 MMMRRR
+ * DIVU.W src,Dn: 1000 nnn 011 MMMRRR
+ * DIVS.W src,Dn: 1000 nnn 111 MMMRRR
+ * ------------------------------------------------------------------ */
+
+static st_error_t as_encode_mul_div(as_st_t *ptS, as_context_t *ptCtx,
+                                      const as_tok_t *ptTok,
+                                      st_u16_t uiBase, int iSigned)
+{
+    char     szSrc[AS_MAX_WORD];
+    char     szDst[AS_MAX_WORD];
+    as_ea_t  tSrc;
+    as_ea_t  tDst;
+    int      iLine = ptTok->iLine;
+    int      iEAMR;
+    st_u16_t uiOp;
+
+    /* Size is always W (word source operand); size suffix optional */
+    if (ptTok->cSize != 0 && ptTok->cSize != 'W')
+    { as_err(ptCtx, iLine, "MULU/DIVU: only .W size supported"); return ST_ERROR; }
+
+    as_split_ops(ptTok->szOps, szSrc, AS_MAX_WORD, szDst, AS_MAX_WORD);
+
+    if (!as_parse_ea(szSrc, &tSrc, ptS))
+    { as_err(ptCtx, iLine, "MULU/DIVU: bad source '%s'", szSrc); return ST_ERROR; }
+    if (!as_parse_ea(szDst, &tDst, ptS) || tDst.eMode != AS_EA_DN)
+    { as_err(ptCtx, iLine, "MULU/DIVU: dest must be Dn"); return ST_ERROR; }
+
+    iEAMR = as_ea_modeword(&tSrc);
+    if (iEAMR < 0)
+    { as_err(ptCtx, iLine, "MULU/DIVU: invalid source EA"); return ST_ERROR; }
+
+    /* ooo: unsigned=011 signed=111 */
+    uiOp = (st_u16_t)(uiBase                      |
+                       ((st_u16_t)tDst.iReg << 9)  |
+                       (iSigned ? 0x01C0u : 0x00C0u)|
+                       (st_u16_t)(iEAMR & 0x3F));
+    if (as_emit_be16(ptS, ptCtx, uiOp, iLine) != ST_NO_ERROR)
+        return ST_ERROR;
+    return as_ea_emit(&tSrc, 'W', ptS, ptCtx, iLine);
+}
+
+/* ------------------------------------------------------------------
+ * ADDX / SUBX — add/subtract with extend
+ * ADDX.sz Dx,Dy:     1101 yyy 1 ss 00 0 xxx
+ * ADDX.sz -(Ax),-(Ay): 1101 yyy 1 ss 00 1 xxx
+ * SUBX same but 1001 base
+ * ------------------------------------------------------------------ */
+
+static st_error_t as_encode_addx_subx(as_st_t *ptS, as_context_t *ptCtx,
+                                        const as_tok_t *ptTok, st_u16_t uiBase)
+{
+    char     szSrc[AS_MAX_WORD];
+    char     szDst[AS_MAX_WORD];
+    as_ea_t  tSrc;
+    as_ea_t  tDst;
+    char     cSz   = ptTok->cSize;
+    int      iLine = ptTok->iLine;
+    int      iSzCode;
+    int      bMem;
+    st_u16_t uiOp;
+
+    if (cSz == 0) cSz = 'W';
+    iSzCode = as_sz_code(cSz);
+    if (iSzCode < 0)
+    { as_err(ptCtx, iLine, "ADDX/SUBX: invalid size"); return ST_ERROR; }
+
+    as_split_ops(ptTok->szOps, szSrc, AS_MAX_WORD, szDst, AS_MAX_WORD);
+
+    if (!as_parse_ea(szSrc, &tSrc, ptS))
+    { as_err(ptCtx, iLine, "ADDX/SUBX: bad source '%s'", szSrc); return ST_ERROR; }
+    if (!as_parse_ea(szDst, &tDst, ptS))
+    { as_err(ptCtx, iLine, "ADDX/SUBX: bad dest '%s'", szDst); return ST_ERROR; }
+
+    if (tSrc.eMode == AS_EA_DN && tDst.eMode == AS_EA_DN)
+        bMem = 0;
+    else if (tSrc.eMode == AS_EA_AN_PRE && tDst.eMode == AS_EA_AN_PRE)
+        bMem = 1;
+    else
+    { as_err(ptCtx, iLine, "ADDX/SUBX: operands must be Dx,Dy or -(Ax),-(Ay)"); return ST_ERROR; }
+
+    uiOp = (st_u16_t)(uiBase                          |
+                       ((st_u16_t)tDst.iReg   << 9)   |
+                       (1u                    << 8)    |
+                       ((st_u16_t)iSzCode     << 6)    |
+                       ((st_u16_t)bMem        << 3)    |
+                       (st_u16_t)tSrc.iReg);
+    return as_emit_be16(ptS, ptCtx, uiOp, iLine);
+}
+
+/* ------------------------------------------------------------------
+ * Scc — Set byte on condition
+ * 0101 cccc 11 MMMRRR  (always byte, B size implied)
+ * ------------------------------------------------------------------ */
+
+static const struct { const char *sz; int iCC; } g_as_aScc[] =
+{
+    { "ST",  0x00 }, { "SF",  0x01 },
+    { "SHI", 0x02 }, { "SLS", 0x03 },
+    { "SCC", 0x04 }, { "SHS", 0x04 },
+    { "SCS", 0x05 }, { "SLO", 0x05 },
+    { "SNE", 0x06 }, { "SEQ", 0x07 },
+    { "SVC", 0x08 }, { "SVS", 0x09 },
+    { "SPL", 0x0A }, { "SMI", 0x0B },
+    { "SGE", 0x0C }, { "SLT", 0x0D },
+    { "SGT", 0x0E }, { "SLE", 0x0F },
+    { NULL,   -1  }
+};
+
+static int as_scc_code(const char *szMnem)
+{
+    int i;
+    for (i = 0; g_as_aScc[i].sz != NULL; i++)
+        if (strcmp(szMnem, g_as_aScc[i].sz) == 0)
+            return g_as_aScc[i].iCC;
+    return -1;
+}
+
+static st_error_t as_encode_scc(as_st_t *ptS, as_context_t *ptCtx,
+                                   const as_tok_t *ptTok)
+{
+    int      iCC   = as_scc_code(ptTok->szMnem);
+    int      iLine = ptTok->iLine;
+    as_ea_t  tDst;
+    int      iEAMR;
+    st_u16_t uiOp;
+
+    if (iCC < 0)
+    { as_err(ptCtx, iLine, "Scc: unknown mnemonic"); return ST_ERROR; }
+
+    if (!as_parse_ea(ptTok->szOps, &tDst, ptS))
+    { as_err(ptCtx, iLine, "Scc: bad dest EA '%s'", ptTok->szOps); return ST_ERROR; }
+
+    iEAMR = as_ea_modeword(&tDst);
+    if (iEAMR < 0)
+    { as_err(ptCtx, iLine, "Scc: invalid dest EA"); return ST_ERROR; }
+
+    uiOp = (st_u16_t)(0x50C0u                 |
+                       ((st_u16_t)iCC   << 8)  |
+                       (st_u16_t)(iEAMR & 0x3F));
+    if (as_emit_be16(ptS, ptCtx, uiOp, iLine) != ST_NO_ERROR)
+        return ST_ERROR;
+    return as_ea_emit(&tDst, 'B', ptS, ptCtx, iLine);
+}
+
+/* ------------------------------------------------------------------
+ * DBcc — Decrement and branch on condition
+ * 0101 cccc 11 001 rrr + 16-bit displacement
+ * DBRA = DBF (cc=0x01)
+ * Displacement: target - (opword_addr + 2)
+ * ------------------------------------------------------------------ */
+
+static const struct { const char *sz; int iCC; } g_as_aDBcc[] =
+{
+    { "DBT",  0x00 }, { "DBRA", 0x01 }, { "DBF",  0x01 },
+    { "DBHI", 0x02 }, { "DBLS", 0x03 },
+    { "DBCC", 0x04 }, { "DBHS", 0x04 },
+    { "DBCS", 0x05 }, { "DBLO", 0x05 },
+    { "DBNE", 0x06 }, { "DBEQ", 0x07 },
+    { "DBVC", 0x08 }, { "DBVS", 0x09 },
+    { "DBPL", 0x0A }, { "DBMI", 0x0B },
+    { "DBGE", 0x0C }, { "DBLT", 0x0D },
+    { "DBGT", 0x0E }, { "DBLE", 0x0F },
+    { NULL,    -1  }
+};
+
+static int as_dbcc_code(const char *szMnem)
+{
+    int i;
+    for (i = 0; g_as_aDBcc[i].sz != NULL; i++)
+        if (strcmp(szMnem, g_as_aDBcc[i].sz) == 0)
+            return g_as_aDBcc[i].iCC;
+    return -1;
+}
+
+static st_error_t as_encode_dbcc(as_st_t *ptS, as_context_t *ptCtx,
+                                    const as_tok_t *ptTok)
+{
+    int       iCC    = as_dbcc_code(ptTok->szMnem);
+    int       iLine  = ptTok->iLine;
+    char      szReg[AS_MAX_WORD];
+    char      szLbl[AS_MAX_WORD];
+    as_ea_t   tReg;
+    st_u32_t  uiTgt  = 0u;
+    st_u32_t  uiCurPC;
+    st_i32_t  iDisp;
+    int       iSec   = 0;
+    st_u16_t  uiOp;
+
+    if (iCC < 0)
+    { as_err(ptCtx, iLine, "DBcc: unknown mnemonic"); return ST_ERROR; }
+
+    /* Operands: "Dn,label" */
+    as_split_ops(ptTok->szOps, szReg, AS_MAX_WORD, szLbl, AS_MAX_WORD);
+
+    if (!as_parse_ea(szReg, &tReg, ptS) || tReg.eMode != AS_EA_DN)
+    { as_err(ptCtx, iLine, "DBcc: first operand must be Dn"); return ST_ERROR; }
+
+    if (ptS->iPass == 1)
+    {
+        ptS->uiPC += 4u;  /* opword(2) + displacement(2) */
+        return ST_NO_ERROR;
+    }
+
+    /* Pass 2: resolve target label */
+    if (!as_eval(ptS, szLbl, &uiTgt, &iSec))
+    {
+        as_err(ptCtx, iLine, "DBcc: undefined label '%s'", szLbl);
+        return ST_ERROR;
+    }
+
+    uiCurPC = ptS->uiPC;
+    iDisp   = (st_i32_t)uiTgt - (st_i32_t)(uiCurPC + 2u);
+
+    if (iDisp < -32768 || iDisp > 32767)
+    {
+        as_err(ptCtx, iLine, "DBcc: displacement %d out of range", iDisp);
+        return ST_ERROR;
+    }
+
+    uiOp = (st_u16_t)(0x50C8u                 |
+                       ((st_u16_t)iCC   << 8)  |
+                       (st_u16_t)tReg.iReg);
+    if (as_emit_be16(ptS, ptCtx, uiOp, iLine) != ST_NO_ERROR)
+        return ST_ERROR;
+    return as_emit_be16(ptS, ptCtx, (st_u16_t)(st_i16_t)iDisp, iLine);
+}
+
+/* ------------------------------------------------------------------
+ * EXG — exchange registers
+ * EXG Dx,Dy: 1100 xxx 1 01000 yyy  (mode=01000)
+ * EXG Ax,Ay: 1100 xxx 1 01001 yyy  (mode=01001)
+ * EXG Dx,Ay: 1100 xxx 1 10001 yyy  (mode=10001)
+ * ------------------------------------------------------------------ */
+
+static st_error_t as_encode_exg(as_st_t *ptS, as_context_t *ptCtx,
+                                   const as_tok_t *ptTok)
+{
+    char     szSrc[AS_MAX_WORD];
+    char     szDst[AS_MAX_WORD];
+    as_ea_t  tSrc;
+    as_ea_t  tDst;
+    int      iLine = ptTok->iLine;
+    int      iMode;
+    st_u16_t uiOp;
+
+    as_split_ops(ptTok->szOps, szSrc, AS_MAX_WORD, szDst, AS_MAX_WORD);
+
+    if (!as_parse_ea(szSrc, &tSrc, ptS))
+    { as_err(ptCtx, iLine, "EXG: bad source '%s'", szSrc); return ST_ERROR; }
+    if (!as_parse_ea(szDst, &tDst, ptS))
+    { as_err(ptCtx, iLine, "EXG: bad dest '%s'", szDst); return ST_ERROR; }
+
+    if (tSrc.eMode == AS_EA_DN && tDst.eMode == AS_EA_DN)
+        iMode = 0x08; /* 01000: Dx,Dy */
+    else if (tSrc.eMode == AS_EA_AN && tDst.eMode == AS_EA_AN)
+        iMode = 0x09; /* 01001: Ax,Ay */
+    else if (tSrc.eMode == AS_EA_DN && tDst.eMode == AS_EA_AN)
+        iMode = 0x11; /* 10001: Dx,Ay */
+    else if (tSrc.eMode == AS_EA_AN && tDst.eMode == AS_EA_DN)
+    {
+        /* EXG An,Dn → swap operands → EXG Dn,An */
+        int iTmp = tSrc.iReg;
+        tSrc.iReg = tDst.iReg;
+        tDst.iReg = iTmp;
+        iMode = 0x11;
+    }
+    else
+    { as_err(ptCtx, iLine, "EXG: operands must be Dn/Dn, An/An or Dn/An"); return ST_ERROR; }
+
+    uiOp = (st_u16_t)(0xC100u                      |
+                       ((st_u16_t)tSrc.iReg  << 9)  |
+                       ((st_u16_t)iMode       << 3)  |
+                       (st_u16_t)tDst.iReg);
+    return as_emit_be16(ptS, ptCtx, uiOp, iLine);
+}
+
+/* ------------------------------------------------------------------
+ * PEA — push effective address
+ * 0100 100 001 MMMRRR
+ * Source must be a control addressing mode (not Dn, An, #imm,
+ * predecrement, or postincrement).
+ * ------------------------------------------------------------------ */
+
+static st_error_t as_encode_pea(as_st_t *ptS, as_context_t *ptCtx,
+                                   const as_tok_t *ptTok)
+{
+    as_ea_t  tSrc;
+    int      iLine = ptTok->iLine;
+    int      iEAMR;
+    st_u16_t uiOp;
+
+    if (!as_parse_ea(ptTok->szOps, &tSrc, ptS))
+    { as_err(ptCtx, iLine, "PEA: bad EA '%s'", ptTok->szOps); return ST_ERROR; }
+
+    /* Control EA: (An), d16(An), d8(An,Xn), abs.W, abs.L, d16(PC), d8(PC,Xn) */
+    if (tSrc.eMode == AS_EA_DN     || tSrc.eMode == AS_EA_AN      ||
+        tSrc.eMode == AS_EA_AN_POST|| tSrc.eMode == AS_EA_AN_PRE  ||
+        tSrc.eMode == AS_EA_IMM)
+    { as_err(ptCtx, iLine, "PEA: control EA required"); return ST_ERROR; }
+
+    iEAMR = as_ea_modeword(&tSrc);
+    if (iEAMR < 0)
+    { as_err(ptCtx, iLine, "PEA: invalid EA"); return ST_ERROR; }
+
+    uiOp = (st_u16_t)(0x4840u | (st_u16_t)(iEAMR & 0x3F));
+    if (as_emit_be16(ptS, ptCtx, uiOp, iLine) != ST_NO_ERROR)
+        return ST_ERROR;
+    return as_ea_emit(&tSrc, 'L', ptS, ptCtx, iLine);
+}
+
 /* ------------------------------------------------------------------ */
 /* Master instruction dispatcher (UC30C)                               */
 /* ------------------------------------------------------------------ */
@@ -2049,8 +2720,52 @@ static st_error_t as_do_instruction(as_st_t *ptS, as_context_t *ptCtx,
     if (strcmp(sz, "UNLK") == 0)
         return as_encode_unlk(ptS, ptCtx, ptTok);
 
-    as_err(ptCtx, ptTok->iLine,
-           "unknown mnemonic '%s' (UC30D will add shifts/MOVEM)", sz);
+    /* UC30D: shifts */
+    if (strcmp(sz, "ASL") == 0) return as_encode_shift(ptS, ptCtx, ptTok, 0, 1);
+    if (strcmp(sz, "ASR") == 0) return as_encode_shift(ptS, ptCtx, ptTok, 0, 0);
+    if (strcmp(sz, "LSL") == 0) return as_encode_shift(ptS, ptCtx, ptTok, 1, 1);
+    if (strcmp(sz, "LSR") == 0) return as_encode_shift(ptS, ptCtx, ptTok, 1, 0);
+    if (strcmp(sz, "ROXL")== 0) return as_encode_shift(ptS, ptCtx, ptTok, 2, 1);
+    if (strcmp(sz, "ROXR")== 0) return as_encode_shift(ptS, ptCtx, ptTok, 2, 0);
+    if (strcmp(sz, "ROL") == 0) return as_encode_shift(ptS, ptCtx, ptTok, 3, 1);
+    if (strcmp(sz, "ROR") == 0) return as_encode_shift(ptS, ptCtx, ptTok, 3, 0);
+
+    /* UC30D: bit ops */
+    if (strcmp(sz, "BTST") == 0) return as_encode_bitop(ptS, ptCtx, ptTok, 0);
+    if (strcmp(sz, "BCHG") == 0) return as_encode_bitop(ptS, ptCtx, ptTok, 1);
+    if (strcmp(sz, "BCLR") == 0) return as_encode_bitop(ptS, ptCtx, ptTok, 2);
+    if (strcmp(sz, "BSET") == 0) return as_encode_bitop(ptS, ptCtx, ptTok, 3);
+
+    /* UC30D: MOVEM */
+    if (strcmp(sz, "MOVEM") == 0) return as_encode_movem(ptS, ptCtx, ptTok);
+
+    /* UC30D: address register arithmetic */
+    if (strcmp(sz, "ADDA") == 0) return as_encode_adda_suba(ptS, ptCtx, ptTok, 0xD000u);
+    if (strcmp(sz, "SUBA") == 0) return as_encode_adda_suba(ptS, ptCtx, ptTok, 0x9000u);
+
+    /* UC30D: multiply/divide */
+    if (strcmp(sz, "MULU") == 0) return as_encode_mul_div(ptS, ptCtx, ptTok, 0xC000u, 0);
+    if (strcmp(sz, "MULS") == 0) return as_encode_mul_div(ptS, ptCtx, ptTok, 0xC000u, 1);
+    if (strcmp(sz, "DIVU") == 0) return as_encode_mul_div(ptS, ptCtx, ptTok, 0x8000u, 0);
+    if (strcmp(sz, "DIVS") == 0) return as_encode_mul_div(ptS, ptCtx, ptTok, 0x8000u, 1);
+
+    /* UC30D: extended arithmetic */
+    if (strcmp(sz, "ADDX") == 0) return as_encode_addx_subx(ptS, ptCtx, ptTok, 0xD000u);
+    if (strcmp(sz, "SUBX") == 0) return as_encode_addx_subx(ptS, ptCtx, ptTok, 0x9000u);
+
+    /* UC30D: Scc */
+    if (as_scc_code(sz) >= 0)
+        return as_encode_scc(ptS, ptCtx, ptTok);
+
+    /* UC30D: DBcc */
+    if (as_dbcc_code(sz) >= 0)
+        return as_encode_dbcc(ptS, ptCtx, ptTok);
+
+    /* UC30D: EXG / PEA */
+    if (strcmp(sz, "EXG") == 0) return as_encode_exg(ptS, ptCtx, ptTok);
+    if (strcmp(sz, "PEA") == 0) return as_encode_pea(ptS, ptCtx, ptTok);
+
+    as_err(ptCtx, ptTok->iLine, "unknown mnemonic '%s'", sz);
     return ST_ERROR;
 }
 

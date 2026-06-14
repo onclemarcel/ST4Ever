@@ -245,6 +245,7 @@ through one or more test cases in Section 5.
 | UFR-ASM-003  | The assembler shall accept source files with either LF or CRLF line endings and produce bit-identical binary output regardless of the line-ending style present in the source file. | ✓ UC30B | UC30B |
 | UFR-ASM-004  | The assembler shall encode the 68000 instruction subset MOVE/MOVEA/MOVEQ/LEA/CLR/SWAP using all applicable Effective Address modes; the produced binary shall be byte-identical to the output of the real DEVPAC3 assembler on an ATARI ST, as validated by the round-trip disassemble→reassemble test. | ✓ UC30B | UC30B |
 | UFR-ASM-005  | The assembler shall encode the 68000 ALU + control-flow instruction subset: ADD/SUB/AND/OR (with automatic EA↔Dn direction detection), CMP/EOR (fixed direction), immediate ALU (ADDI/SUBI/CMPI/ANDI/ORI/EORI), quick (ADDQ/SUBQ, immediate 1–8), unary (NEG/NOT/TST/EXT.W/EXT.L), implied control (NOP/RTS/RTR/RTE), STOP/#SR, TRAP/#n (0–15), JMP/JSR, LINK An/#d16, UNLK An, and branches BRA/BSR/Bcc (14 conditions + BHS/BLO aliases) always in long form (4 bytes, 16-bit signed displacement). | ✓ UC30C | UC30C |
+| UFR-ASM-006  | The assembler shall complete the 68000 base instruction set by encoding: shifts (ASL/ASR/LSL/LSR/ROL/ROR/ROXL/ROXR — immediate count 1–8 or register), bit operations (BTST/BCHG/BCLR/BSET — dynamic Dn or static #imm), MOVEM.W/L (register-list to/from EA, predecrement mask reversed), ADDA/SUBA (address register destination, .W and .L), MULU/MULS/DIVU/DIVS (.W source), ADDX/SUBX (Dn,Dn or -(An),-(An) only), Scc (16 conditions), DBcc (16 conditions, 16-bit displacement), EXG (three modes), and PEA (control EA only). | ✓ UC30D | UC30D |
 
 ---
 
@@ -1064,6 +1065,44 @@ requirement that will expose it (`UFR-EXE-*`, planned UC21–27).
 | `as_encode_jmp_jsr()` (internal) | REQ-AS-027 | `as.c` |
 | `as_encode_link()` (internal) | REQ-AS-027 | `as.c` |
 | `as_encode_unlk()` (internal) | REQ-AS-027 | `as.c` |
+
+---
+
+### §2.28 DEVPAC3 Assembler — Instruction Set Completion (UC30D)
+
+> Parent UFR: UFR-ASM-006 (§1.12)
+
+| REQ | Description | UFR | Status | Impl. |
+|-----|-------------|-----|--------|-------|
+| REQ-AS-029 | `as_encode_shift()` shall encode ASL/ASR (TT=0), LSL/LSR (TT=1), ROXL/ROXR (TT=2), ROL/ROR (TT=3) using opword `1110 CCC D SS I TT RRR`. Immediate count 1–8 (count 8 encodes as CCC=000, I=0); register count Dn (CCC=reg, I=1). Destination must be Dn; count outside 1–8 or non-Dn destination → ST_ERROR. Impl: `as_encode_shift()` in `as.c` | UFR-ASM-006 | ✓ UC30D | UC30D |
+| REQ-AS-030 | `as_encode_bitop()` shall encode BTST (TT=0), BCHG (TT=1), BCLR (TT=2), BSET (TT=3). Dynamic form (Dn source): `0000 nnn 1 TT MMMRRR`. Static form (#imm source): `0000 100 1 TT MMMRRR` + extension word 0x00nn. Static bit# > 31 for Dn destination → ST_ERROR. Impl: `as_encode_bitop()` in `as.c` | UFR-ASM-006 | ✓ UC30D | UC30D |
+| REQ-AS-031 | `as_parse_reglist()` shall parse a DEVPAC3 register list string (e.g. `D0-D7/A0-A6`) and return a 16-bit mask with bit 0=D0…bit 7=D7, bit 8=A0…bit 15=A7. `as_reverse_regmask()` shall bit-reverse all 16 positions of a mask (D0=bit0 ↔ bit15, A7=bit15 ↔ bit0) for use with predecrement MOVEM stores. Impl: `as_parse_reglist()`, `as_reverse_regmask()` in `as.c` | UFR-ASM-006 | ✓ UC30D | UC30D |
+| REQ-AS-032 | `as_encode_movem()` shall encode MOVEM.W/L. Store to `-(An)`: opword `0100 1000 1 S MMMRRR` + reversed mask. Load from `(An)+`: opword `0100 1100 1 S MMMRRR` + normal mask. Direction detected from operand types (reglist in src → store, reglist in dst → load). Invalid reglist → ST_ERROR. Impl: `as_encode_movem()` in `as.c` | UFR-ASM-006 | ✓ UC30D | UC30D |
+| REQ-AS-033 | `as_encode_adda_suba()` shall encode ADDA.W (ooo=3) and ADDA.L (ooo=7) with base 0xD000; SUBA.W (ooo=3) and SUBA.L (ooo=7) with base 0x9000. Opword: `base \| (An<<9) \| (ooo<<6) \| MMMRRR`. Destination must be An; Dn destination → ST_ERROR. Impl: `as_encode_adda_suba()` in `as.c` | UFR-ASM-006 | ✓ UC30D | UC30D |
+| REQ-AS-034 | `as_encode_mul_div()` shall encode MULU (base 0xC000, ooo=0x00C0), MULS (0xC000, 0x01C0), DIVU (0x8000, 0x00C0), DIVS (0x8000, 0x01C0). Opword: `base \| (Dn<<9) \| ooo \| MMMRRR`. Size is always W; destination must be Dn; non-Dn destination → ST_ERROR. Impl: `as_encode_mul_div()` in `as.c` | UFR-ASM-006 | ✓ UC30D | UC30D |
+| REQ-AS-035 | `as_encode_addx_subx()` shall encode ADDX (base 0xD000) and SUBX (base 0x9000) in exactly two forms: Dn,Dn (M=0, opword `1x01 yyy 1 ss 00 0 xxx`) and -(An),-(An) (M=1, opword `1x01 yyy 1 ss 00 1 xxx`). Mixed Dn/-(An) operands → ST_ERROR. Impl: `as_encode_addx_subx()` in `as.c` | UFR-ASM-006 | ✓ UC30D | UC30D |
+| REQ-AS-036 | `as_encode_scc()` and `as_encode_dbcc()` shall look up the condition code from a table `g_as_aScc[]`/`g_as_aDBcc[]`. Scc: `0101 cccc 11 MMMRRR`. DBcc: `0101 cccc 11 001 rrr` + 16-bit signed displacement; DBRA=DBF (cccc=0001); pass 1 advances PC+4; pass 2 resolves label. Undefined label → ST_ERROR. Impl: `as_encode_scc()`, `as_encode_dbcc()`, `g_as_aScc[]`, `g_as_aDBcc[]` in `as.c` | UFR-ASM-006 | ✓ UC30D | UC30D |
+| REQ-AS-037 | `as_encode_exg()` shall encode EXG in three modes: Dx/Dy (iMode=0x08, opword `1100 xxx 1 01000 yyy`), Ax/Ay (0x09, `1100 xxx 1 01001 yyy`), Dx/Ay (0x11, `1100 xxx 1 10001 yyy`). `EXG An,Dn` shall auto-swap to canonical Dn/An form. `as_encode_pea()` shall encode PEA as `0100 100 001 MMMRRR`; control EA only — Dn/An/post/pre/#imm → ST_ERROR. Impl: `as_encode_exg()`, `as_encode_pea()` in `as.c` | UFR-ASM-006 | ✓ UC30D | UC30D |
+
+**Function table — `as.h` (UC30D additions):**
+
+| Function | REQ | Impl. |
+|---|---|---|
+| `as_encode_shift()` (internal) | REQ-AS-029 | `as.c` |
+| `as_encode_bitop()` (internal) | REQ-AS-030 | `as.c` |
+| `as_parse_reglist()` (internal) | REQ-AS-031 | `as.c` |
+| `as_is_reglist()` (internal) | REQ-AS-031 | `as.c` |
+| `as_reverse_regmask()` (internal) | REQ-AS-031 | `as.c` |
+| `as_encode_movem()` (internal) | REQ-AS-032 | `as.c` |
+| `as_encode_adda_suba()` (internal) | REQ-AS-033 | `as.c` |
+| `as_encode_mul_div()` (internal) | REQ-AS-034 | `as.c` |
+| `as_encode_addx_subx()` (internal) | REQ-AS-035 | `as.c` |
+| `as_encode_scc()` (internal) | REQ-AS-036 | `as.c` |
+| `as_scc_code()` (internal) | REQ-AS-036 | `as.c` |
+| `as_encode_dbcc()` (internal) | REQ-AS-036 | `as.c` |
+| `as_dbcc_code()` (internal) | REQ-AS-036 | `as.c` |
+| `as_encode_exg()` (internal) | REQ-AS-037 | `as.c` |
+| `as_encode_pea()` (internal) | REQ-AS-037 | `as.c` |
 
 ---
 

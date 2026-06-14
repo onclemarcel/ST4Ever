@@ -28,6 +28,7 @@
 - 2026-06-13: UC30B Codé/Testé/Documenté : Assembleur DEVPAC3 — encodeur EA (12 modes) + MOVE.B/W/L/MOVEA/MOVEQ/LEA/CLR/SWAP byte-exact vs DEVPAC3 réel + fix CRLF + MOVEQ signé (#-1) + round-trip disasm↔assemble fermé — 44 tests PASS (38N+6R) 0 fail — Phase 2 : UFR-ASM-003/004, REQ-AS-013..020, TC-AS-101..112, §6.30B UC.md
 - 2026-06-13: UC30C Codé/Testé : Assembleur DEVPAC3 — ADD/SUB/CMP/AND/OR/EOR + variantes immédiates ADDI/SUBI/CMPI/ANDI/ORI/EORI + ADDQ/SUBQ + NEG/NOT/TST/EXT + NOP/RTS/RTR/RTE/STOP/TRAP/JMP/JSR/LINK/UNLK + BRA/BSR/Bcc(14 cond) long form — 51 tests PASS (45N+6R) 0 fail — ADAPTED: UC11 MOVEQ #$FF→#-1 (UC30B sign-extend)
 - 2026-06-14: Rev_Eng_Guide.md v1.1 — audit hooks ST4Ever réels (12 phases × 3 niveaux : existant/manquant/commande console) + propositions UC32A/B/C déposées en §7 — pivot vers la phase "Revival Engine"
+- 2026-06-14: UC30D Codé/Testé : Assembleur DEVPAC3 — ASL/ASR/LSL/LSR/ROL/ROR/ROXL/ROXR + BTST/BCHG/BCLR/BSET + MOVEM.W/L (masque inversé -(An)) + ADDA/SUBA + MULU/MULS/DIVU/DIVS + ADDX/SUBX + Scc + DBcc + EXG (3 modes) + PEA — 52 tests PASS (44N+8R) 0 fail — instruction set 68000 de base complet
 
 *L'historique des versions antérieures peut être récupéré via le change log github*
 
@@ -517,7 +518,7 @@ Les étapes de développement fonctionnelles sont formalisées en Use Cases, per
 | UC30A | interne | Assembleur DEVPAC3 — infrastructure : lexer + table de symboles + moteur 2 passes + directives (`SECTION`, `DC.B/W/L`, `DS.B/W/L`, `EVEN`, `EQU`, `END`) + sortie PRG header + fixup table | `.S` données pures → `.PRG` valide |
 | UC30B | interne | Assembleur DEVPAC3 — encodeur EA (12 modes) + MOVE.B/W/L/MOVEA/MOVEQ/LEA/CLR/SWAP byte-exact DEVPAC3 + CRLF fix + MOVEQ signé + round-trip fermé | ✓ VALIDÉ 2026-06-13 |
 | UC30C | interne | Assembleur DEVPAC3 — ALU + flux : `ADD/SUB/CMP/AND/OR/EOR` + variantes immédiates + `ADDQ/SUBQ` + `NEG/NOT/TST/EXT` + `BRA/BSR/Bcc(14)` + `NOP/RTS/RTR/RTE/STOP/TRAP/JMP/JSR/LINK/UNLK` | ✓ VALIDÉ 2026-06-13 |
-| UC30D | interne | Assembleur DEVPAC3 — shifts + misc : `ASL/ASR/LSL/LSR/ROL/ROR/ROXL/ROXR` + `BTST/BSET/BCLR/BCHG` + `MOVEM.W/L` + `ADDA/SUBA` + `MULU/MULS/DIVU/DIVS` + `ADDX/SUBX` + `Scc/DBcc` + `EXG/PEA` | instruction set complet |
+| UC30D | interne | Assembleur DEVPAC3 — shifts + misc : `ASL/ASR/LSL/LSR/ROL/ROR/ROXL/ROXR` + `BTST/BSET/BCLR/BCHG` + `MOVEM.W/L` + `ADDA/SUBA` + `MULU/MULS/DIVU/DIVS` + `ADDX/SUBX` + `Scc/DBcc` + `EXG/PEA` | ✓ VALIDÉ 2026-06-14 |
 | UC30E | interne | Assembleur DEVPAC3 — validation : assemble `use_cases/UC30/test.S` de référence → compare byte-à-byte avec `.PRG` connu ; corrige tout écart (même principe que UC15A torture test) | 0 byte de diff vs référence |
 | UC30F | interne | Désassemblage GEN.TTP (assembleur DEVPAC3 d'origine, 68000 pur ~1988) — annotation des blocs fonctionnels (lexer, symbol table, encodeur EA) + comparaison architecturale avec UC30A-E + extraction patterns 68000 pour UC33 | `.s` GEN.TTP annoté dans `use_cases/UC30F/` |
 | UC31 | all | Démo cible via émulateur ST4Ever (choisie parmi candidats §9.4) : référence visuelle validée + désassemblé complet extrait — **pivot émulation → revival** | démo reconnue + .s extrait |
