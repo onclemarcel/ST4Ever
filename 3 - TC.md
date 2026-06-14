@@ -4169,3 +4169,99 @@ Source: `use_cases/use_case_24F.c`
 |--------------|-----------------------------------------|-------------------------------------------|-----------|
 | UFR-ASM-003  | REQ-AS-018                              | TC-AS-111                                 | v UC30B   |
 | UFR-ASM-004  | REQ-AS-013..017, REQ-AS-019..020        | TC-AS-103..104, TC-AS-106..112            | v UC30B   |
+
+---
+
+## §5.99 UC30C — DEVPAC3 ALU + Control Flow Encoder
+
+### Scope
+ALU binary (ADD/SUB/AND/OR/CMP/EOR), immediate ALU (ADDI/SUBI/CMPI/ANDI/ORI/EORI),
+quick (ADDQ/SUBQ), unary (NEG/NOT/TST/EXT), implied control (NOP/RTS/RTR/RTE/STOP/
+TRAP/JMP/JSR/LINK/UNLK), branches BRA/BSR/Bcc 14 conditions always long form.
+Source: `use_cases/use_case_30C.c`, fixtures `use_cases/UC30C/test30c.S` (112 bytes),
+`use_cases/UC30C/test30c_bcc.S` (84 bytes).
+
+### TC-AS — Robustness (UC30C)
+
+| TC           | Description                                                                                 | Cat  | UFR          | REQ          | INT          | Expected                        | Status     |
+|--------------|----------------------------------------------------------------------------------------------|------|--------------|--------------|--------------|----------------------------------|------------|
+| TC-AS-113    | `as_assemble(NULL)` → ST_ERROR, no crash                                                   | [R]  | UFR-ASM-001  | REQ-AS-001   | INT-AS-043   | ST_ERROR                        | PASS UC30C |
+| TC-AS-114    | `ADD.W (A0),(A1)` → ST_ERROR (no Dn operand)                                               | [R]  | UFR-ASM-005  | REQ-AS-021   | INT-AS-044   | ST_ERROR, uiErrorCount > 0      | PASS UC30C |
+| TC-AS-115    | `EOR.W (A0),D1` → ST_ERROR (non-Dn source)                                                 | [R]  | UFR-ASM-005  | REQ-AS-023   | INT-AS-045   | ST_ERROR, uiErrorCount > 0      | PASS UC30C |
+| TC-AS-116    | `ADDQ.W #9,D0` → ST_ERROR (immediate out of range 1–8)                                     | [R]  | UFR-ASM-005  | REQ-AS-025   | INT-AS-046   | ST_ERROR, uiErrorCount > 0      | PASS UC30C |
+| TC-AS-117    | `TRAP #16` → ST_ERROR (vector out of range 0–15)                                            | [R]  | UFR-ASM-005  | REQ-AS-027   | INT-AS-047   | ST_ERROR, uiErrorCount > 0      | PASS UC30C |
+| TC-AS-118    | `BRA no_such_label` → ST_ERROR (undefined label in pass 2)                                  | [R]  | UFR-ASM-005  | REQ-AS-028   | INT-AS-048   | ST_ERROR, uiErrorCount > 0      | PASS UC30C |
+
+### TC-AS — Nominal: instruction encoding fixture (UC30C)
+
+| TC           | Description                                                                                             | Cat  | UFR          | REQ                    | INT          | Expected                                          | Status     |
+|--------------|---------------------------------------------------------------------------------------------------------|------|--------------|------------------------|--------------|---------------------------------------------------|------------|
+| TC-AS-119    | `test30c.S` (31 instructions) assembles with ST_NO_ERROR, pBinary != NULL                              | [N]  | UFR-ASM-005  | REQ-AS-021..028        | INT-AS-049   | ST_NO_ERROR                                       | PASS UC30C |
+| TC-AS-120    | `.text` size = 112 bytes (28-byte header + 112 = 140 total)                                             | [N]  | UFR-ASM-002  | REQ-AS-004             | INT-AS-050   | uiBinaryLen = 140                                 | PASS UC30C |
+| TC-AS-121    | `ADD.W D0,D1` → 0xD240 (EA→Dn, D1, W, D0)                                                             | [N]  | UFR-ASM-005  | REQ-AS-021             | INT-AS-051   | p[0]=0xD2, p[1]=0x40                              | PASS UC30C |
+| TC-AS-122    | `SUB.L D2,D3` → 0x9682 (EA→Dn, D3, L, D2)                                                             | [N]  | UFR-ASM-005  | REQ-AS-021             | INT-AS-052   | p[2]=0x96, p[3]=0x82                              | PASS UC30C |
+| TC-AS-123    | `AND.W D4,D5` → 0xCA44 (EA→Dn, D5, W, D4)                                                             | [N]  | UFR-ASM-005  | REQ-AS-021             | INT-AS-053   | p[4]=0xCA, p[5]=0x44                              | PASS UC30C |
+| TC-AS-124    | `OR.W D0,D1` → 0x8240 (EA→Dn, D1, W, D0)                                                              | [N]  | UFR-ASM-005  | REQ-AS-021             | INT-AS-054   | p[6]=0x82, p[7]=0x40                              | PASS UC30C |
+| TC-AS-125    | `CMP.W D0,D1` → 0xB240 (direction=0, D1, W, D0)                                                       | [N]  | UFR-ASM-005  | REQ-AS-022             | INT-AS-055   | p[8]=0xB2, p[9]=0x40                              | PASS UC30C |
+| TC-AS-126    | `ADD.W D0,(A1)` → 0xD151 (Dn→EA direction=1, D0, W, (A1))                                             | [N]  | UFR-ASM-005  | REQ-AS-021             | INT-AS-056   | p[10]=0xD1, p[11]=0x51                            | PASS UC30C |
+| TC-AS-127    | `EOR.W D0,D1` → 0xB141 (direction=1 always, D0 src, W, D1)                                            | [N]  | UFR-ASM-005  | REQ-AS-023             | INT-AS-057   | p[12]=0xB1, p[13]=0x41                            | PASS UC30C |
+| TC-AS-128    | `ADDI.W #$1234,D0` → 06 40 12 34 (opword + 16-bit imm)                                                | [N]  | UFR-ASM-005  | REQ-AS-024             | INT-AS-058   | p[14..17]=06 40 12 34                             | PASS UC30C |
+| TC-AS-129    | `SUBI.W #$10,D1` → 04 41 00 10                                                                         | [N]  | UFR-ASM-005  | REQ-AS-024             | INT-AS-059   | p[18..21]=04 41 00 10                             | PASS UC30C |
+| TC-AS-130    | `CMPI.L #$12345678,D0` → 0C 80 12 34 56 78                                                             | [N]  | UFR-ASM-005  | REQ-AS-024             | INT-AS-060   | p[22..27]=0C 80 12 34 56 78                       | PASS UC30C |
+| TC-AS-131    | `ANDI.B #$FF,D0` → 02 00 00 FF (upper byte zero for .B imm)                                            | [N]  | UFR-ASM-005  | REQ-AS-024             | INT-AS-061   | p[28..31]=02 00 00 FF                             | PASS UC30C |
+| TC-AS-132    | `ORI.W #$80,D0` → 00 40 00 80                                                                          | [N]  | UFR-ASM-005  | REQ-AS-024             | INT-AS-062   | p[32..35]=00 40 00 80                             | PASS UC30C |
+| TC-AS-133    | `EORI.W #$FFFF,D0` → 0A 40 FF FF                                                                       | [N]  | UFR-ASM-005  | REQ-AS-024             | INT-AS-063   | p[36..39]=0A 40 FF FF                             | PASS UC30C |
+| TC-AS-134    | `ADDQ.W #4,D0` → 0x5840 (data=4 in bits 11-9)                                                         | [N]  | UFR-ASM-005  | REQ-AS-025             | INT-AS-064   | p[40]=0x58, p[41]=0x40                            | PASS UC30C |
+| TC-AS-135    | `ADDQ.W #8,D0` → 0x5040 (data=0 encodes 8 per MC68000 PRM)                                            | [N]  | UFR-ASM-005  | REQ-AS-025             | INT-AS-065   | p[42]=0x50, p[43]=0x40                            | PASS UC30C |
+| TC-AS-136    | `SUBQ.W #2,D0` → 0x5540 (Q=1, data=2)                                                                  | [N]  | UFR-ASM-005  | REQ-AS-025             | INT-AS-066   | p[44]=0x55, p[45]=0x40                            | PASS UC30C |
+| TC-AS-137    | `NEG.W D0` → 0x4440                                                                                    | [N]  | UFR-ASM-005  | REQ-AS-026             | INT-AS-067   | p[46]=0x44, p[47]=0x40                            | PASS UC30C |
+| TC-AS-138    | `NOT.W D0` → 0x4640                                                                                    | [N]  | UFR-ASM-005  | REQ-AS-026             | INT-AS-068   | p[48]=0x46, p[49]=0x40                            | PASS UC30C |
+| TC-AS-139    | `TST.W D0` → 0x4A40                                                                                    | [N]  | UFR-ASM-005  | REQ-AS-026             | INT-AS-069   | p[50]=0x4A, p[51]=0x40                            | PASS UC30C |
+| TC-AS-140    | `EXT.W D0` → 0x4880 (byte→word sign extension)                                                         | [N]  | UFR-ASM-005  | REQ-AS-026             | INT-AS-070   | p[52]=0x48, p[53]=0x80                            | PASS UC30C |
+| TC-AS-141    | `EXT.L D0` → 0x48C0 (word→long sign extension)                                                         | [N]  | UFR-ASM-005  | REQ-AS-026             | INT-AS-071   | p[54]=0x48, p[55]=0xC0                            | PASS UC30C |
+| TC-AS-142    | `NOP` → 0x4E71                                                                                          | [N]  | UFR-ASM-005  | REQ-AS-027             | INT-AS-072   | p[56]=0x4E, p[57]=0x71                            | PASS UC30C |
+| TC-AS-143    | `RTS` → 0x4E75                                                                                          | [N]  | UFR-ASM-005  | REQ-AS-027             | INT-AS-073   | p[58]=0x4E, p[59]=0x75                            | PASS UC30C |
+| TC-AS-144    | `RTR` → 0x4E77                                                                                          | [N]  | UFR-ASM-005  | REQ-AS-027             | INT-AS-074   | p[60]=0x4E, p[61]=0x77                            | PASS UC30C |
+| TC-AS-145    | `RTE` → 0x4E73                                                                                          | [N]  | UFR-ASM-005  | REQ-AS-027             | INT-AS-075   | p[62]=0x4E, p[63]=0x73                            | PASS UC30C |
+| TC-AS-146    | `STOP #$2000` → 4E 72 20 00 (opword + SR value)                                                        | [N]  | UFR-ASM-005  | REQ-AS-027             | INT-AS-076   | p[64..67]=4E 72 20 00                             | PASS UC30C |
+| TC-AS-147    | `TRAP #1` → 0x4E41                                                                                      | [N]  | UFR-ASM-005  | REQ-AS-027             | INT-AS-077   | p[68]=0x4E, p[69]=0x41                            | PASS UC30C |
+| TC-AS-148    | `TRAP #14` → 0x4E4E                                                                                     | [N]  | UFR-ASM-005  | REQ-AS-027             | INT-AS-078   | p[70]=0x4E, p[71]=0x4E                            | PASS UC30C |
+| TC-AS-149    | `JMP (A0)` → 0x4ED0                                                                                     | [N]  | UFR-ASM-005  | REQ-AS-027             | INT-AS-079   | p[72]=0x4E, p[73]=0xD0                            | PASS UC30C |
+| TC-AS-150    | `JSR (A0)` → 0x4E90                                                                                     | [N]  | UFR-ASM-005  | REQ-AS-027             | INT-AS-080   | p[74]=0x4E, p[75]=0x90                            | PASS UC30C |
+| TC-AS-151    | `LINK A1,#-8` → 4E 51 FF F8 (opword + sign-extended d16)                                               | [N]  | UFR-ASM-005  | REQ-AS-027             | INT-AS-081   | p[76..79]=4E 51 FF F8                             | PASS UC30C |
+| TC-AS-152    | `UNLK A1` → 0x4E59                                                                                      | [N]  | UFR-ASM-005  | REQ-AS-027             | INT-AS-082   | p[80]=0x4E, p[81]=0x59                            | PASS UC30C |
+| TC-AS-153    | `BRA bra_tgt` (fwd) → 60 00 00 02  (disp = 86−84 = +2)                                                | [N]  | UFR-ASM-005  | REQ-AS-028             | INT-AS-083   | p[82..85]=60 00 00 02                             | PASS UC30C |
+| TC-AS-154    | `BSR bsr_tgt` (fwd) → 61 00 00 02  (disp = 92−90 = +2)                                                | [N]  | UFR-ASM-005  | REQ-AS-028             | INT-AS-084   | p[88..91]=61 00 00 02                             | PASS UC30C |
+| TC-AS-155    | `BEQ beq_tgt` (fwd) → 67 00 00 02  (disp = 98−96 = +2)                                                | [N]  | UFR-ASM-005  | REQ-AS-028             | INT-AS-085   | p[94..97]=67 00 00 02                             | PASS UC30C |
+| TC-AS-156    | `BNE bne_tgt` (fwd) → 66 00 00 02  (disp = 104−102 = +2)                                              | [N]  | UFR-ASM-005  | REQ-AS-028             | INT-AS-086   | p[100..103]=66 00 00 02                           | PASS UC30C |
+| TC-AS-157    | `BNE bwd_tgt` (bwd) → 66 00 FF FC  (disp = 106−110 = −4 = 0xFFFC)                                    | [N]  | UFR-ASM-005  | REQ-AS-028             | INT-AS-087   | p[108..111]=66 00 FF FC                           | PASS UC30C |
+| TC-AS-158    | `test30c_bcc.S` (16 blocks: NOP+Bcc×14 conds + BHS + BLO): size=84, all condition bytes correct, all displacements=0xFFFC | [N] | UFR-ASM-005 | REQ-AS-028 | INT-AS-088 | size=84; p[2]=0x62..p[80]=0x6F; all disp=0xFFFC | PASS UC30C |
+
+#### Test Summary — UC30C
+
+| Category | Count | Source |
+|---|---|---|
+| [R] Robustness | 6 | `use_case_30C.c` — NULL ptr, no-Dn operand, EOR src, ADDQ range, TRAP range, undef label |
+| [N] Nominal | 45 | `use_case_30C.c` — byte-exact encoding of all UC30C instructions |
+| **Total** | **51** | |
+
+*Note: TC-AS-101 (`as_assemble(NULL)`) overlaps TC-AS-113; both pass independently.*
+
+#### REQ to TC coverage (UC30C)
+
+| REQ          | TC(s)                                                        | Status    |
+|--------------|--------------------------------------------------------------|-----------|
+| REQ-AS-021   | TC-AS-114, TC-AS-121..126                                    | v UC30C   |
+| REQ-AS-022   | TC-AS-125                                                    | v UC30C   |
+| REQ-AS-023   | TC-AS-115, TC-AS-127                                         | v UC30C   |
+| REQ-AS-024   | TC-AS-128..133                                               | v UC30C   |
+| REQ-AS-025   | TC-AS-116, TC-AS-134..136                                    | v UC30C   |
+| REQ-AS-026   | TC-AS-137..141                                               | v UC30C   |
+| REQ-AS-027   | TC-AS-117, TC-AS-142..152                                    | v UC30C   |
+| REQ-AS-028   | TC-AS-118, TC-AS-153..158                                    | v UC30C   |
+
+#### UFR traceability (UC30C)
+
+| UFR          | REQ(s)                           | TC(s)                                       | Status    |
+|--------------|----------------------------------|---------------------------------------------|-----------|
+| UFR-ASM-005  | REQ-AS-021..028                  | TC-AS-113..158                              | v UC30C   |

@@ -244,6 +244,7 @@ through one or more test cases in Section 5.
 | UFR-ASM-002  | The assembler shall produce a valid Atari ST PRG binary with a 28-byte big-endian header (magic 0x601A, text/data/bss sizes, abs_flag), followed by the .text section, .data section, and a PRG fixup table encoding the positions of all relocatable LONG values. | ✓ UC30A | UC30A |
 | UFR-ASM-003  | The assembler shall accept source files with either LF or CRLF line endings and produce bit-identical binary output regardless of the line-ending style present in the source file. | ✓ UC30B | UC30B |
 | UFR-ASM-004  | The assembler shall encode the 68000 instruction subset MOVE/MOVEA/MOVEQ/LEA/CLR/SWAP using all applicable Effective Address modes; the produced binary shall be byte-identical to the output of the real DEVPAC3 assembler on an ATARI ST, as validated by the round-trip disassemble→reassemble test. | ✓ UC30B | UC30B |
+| UFR-ASM-005  | The assembler shall encode the 68000 ALU + control-flow instruction subset: ADD/SUB/AND/OR (with automatic EA↔Dn direction detection), CMP/EOR (fixed direction), immediate ALU (ADDI/SUBI/CMPI/ANDI/ORI/EORI), quick (ADDQ/SUBQ, immediate 1–8), unary (NEG/NOT/TST/EXT.W/EXT.L), implied control (NOP/RTS/RTR/RTE), STOP/#SR, TRAP/#n (0–15), JMP/JSR, LINK An/#d16, UNLK An, and branches BRA/BSR/Bcc (14 conditions + BHS/BLO aliases) always in long form (4 bytes, 16-bit signed displacement). | ✓ UC30C | UC30C |
 
 ---
 
@@ -1026,6 +1027,43 @@ requirement that will expose it (`UFR-EXE-*`, planned UC21–27).
 | `as_encode_clr()` (internal) | REQ-AS-013 | `as.c` |
 | `as_encode_swap()` (internal) | REQ-AS-013 | `as.c` |
 | `disasm_moveq()` (internal) | REQ-AS-020 | `disassemble.c` |
+
+---
+
+### §2.27 DEVPAC3 Assembler — ALU + Control Flow (UC30C)
+
+> Parent UFR: UFR-ASM-005 (§1.12)
+
+| REQ | Description | UFR | Status | Impl. |
+|-----|-------------|-----|--------|-------|
+| REQ-AS-021    | `as_encode_alu_binary()` for ADD/SUB/AND/OR shall detect direction from operand types: destination Dn → direction=0 (EA→Dn); source Dn → direction=1 (Dn→EA); neither Dn → ST_ERROR. Opcode: `base \| (Dn<<9) \| (dir<<8) \| (sz<<6) \| MMMRRR`. Impl: `as_encode_alu_binary()` in `as.c` | UFR-ASM-005 | ✓ UC30C | UC30C |
+| REQ-AS-022    | `as_encode_cmp()` shall always use direction=0 (EA→Dn); destination must be Dn (mode 0); opcode base 0xB000. Non-Dn destination → ST_ERROR. Impl: `as_encode_cmp()` in `as.c` | UFR-ASM-005 | ✓ UC30C | UC30C |
+| REQ-AS-023    | `as_encode_eor()` shall always use direction=1 (Dn→EA); source must be Dn (mode 0); opcode base 0xB000 with direction bit (bit 8) set. Non-Dn source → ST_ERROR. Impl: `as_encode_eor()` in `as.c` | UFR-ASM-005 | ✓ UC30C | UC30C |
+| REQ-AS-024    | Immediate ALU (ADDI=0x0600, SUBI=0x0400, CMPI=0x0C00, ANDI=0x0200, ORI=0x0000, EORI=0x0A00) shall emit opcode `op_bits \| (sz<<6) \| MMMRRR` followed by immediate: .B→16-bit (upper byte 0), .W→16-bit, .L→32-bit. Non-IMM source → ST_ERROR. Impl: `as_encode_imm_alu()` in `as.c` | UFR-ASM-005 | ✓ UC30C | UC30C |
+| REQ-AS-025    | ADDQ/SUBQ shall accept immediate 1–8; value 8 encodes as data bits 000 (hardware interprets 000 as 8 per MC68000 PRM §3). Values outside 1–8 → ST_ERROR. Opcode: `0x5000 \| (data&7)<<9 \| Q<<8 \| sz<<6 \| MMMRRR` (Q=0 ADDQ, Q=1 SUBQ). Impl: `as_encode_addq_subq()` in `as.c` | UFR-ASM-005 | ✓ UC30C | UC30C |
+| REQ-AS-026    | NEG (base 0x4400), NOT (0x4600), TST (0x4A00) shall emit `base \| (sz<<6) \| MMMRRR`. EXT.W Dn → 0x4880\|Rn; EXT.L Dn → 0x48C0\|Rn; EXT requires Dn operand and .W or .L suffix. Impl: `as_encode_unary()`, `as_encode_ext()` in `as.c` | UFR-ASM-005 | ✓ UC30C | UC30C |
+| REQ-AS-027    | Implied opcodes: NOP=0x4E71, RTS=0x4E75, RTR=0x4E77, RTE=0x4E73. STOP emits 0x4E72 + 16-bit SR operand. TRAP #n (0≤n≤15) emits 0x4E40\|n; n outside 0–15 → ST_ERROR. JMP/JSR emit `base\|MMMRRR` + EA extension (JMP=0x4EC0, JSR=0x4E80). LINK An,#d16 emits 0x4E50\|An + sign-extended d16. UNLK An emits 0x4E58\|An. Impl: `as_encode_implied()`, `as_encode_stop()`, `as_encode_trap()`, `as_encode_jmp_jsr()`, `as_encode_link()`, `as_encode_unlk()` in `as.c` | UFR-ASM-005 | ✓ UC30C | UC30C |
+| REQ-AS-028    | BRA/BSR/Bcc (14 conditions HI/LS/CC/CS/NE/EQ/VC/VS/PL/MI/GE/LT/GT/LE; aliases BHS=BCC, BLO=BCS) shall assemble in long form (4 bytes): opword `0x6000\|(cc<<8)` + 16-bit signed displacement = target−(opword_addr+2). Pass 1 advances PC by 4 without displacement resolution. Pass 2 reports ST_ERROR if label is undefined or displacement is outside [−32768, 32767]. Impl: `as_encode_branch()`, `g_as_aBcc[]`, `as_bcc_code()` in `as.c` | UFR-ASM-005 | ✓ UC30C | UC30C |
+
+**Function table — `as.h` (UC30C additions):**
+
+| Function | REQ | Impl. |
+|---|---|---|
+| `as_encode_alu_binary()` (internal) | REQ-AS-021 | `as.c` |
+| `as_encode_cmp()` (internal) | REQ-AS-022 | `as.c` |
+| `as_encode_eor()` (internal) | REQ-AS-023 | `as.c` |
+| `as_encode_imm_alu()` (internal) | REQ-AS-024 | `as.c` |
+| `as_encode_addq_subq()` (internal) | REQ-AS-025 | `as.c` |
+| `as_encode_unary()` (internal) | REQ-AS-026 | `as.c` |
+| `as_encode_ext()` (internal) | REQ-AS-026 | `as.c` |
+| `as_encode_branch()` (internal) | REQ-AS-028 | `as.c` |
+| `as_bcc_code()` (internal) | REQ-AS-028 | `as.c` |
+| `as_encode_implied()` (internal) | REQ-AS-027 | `as.c` |
+| `as_encode_stop()` (internal) | REQ-AS-027 | `as.c` |
+| `as_encode_trap()` (internal) | REQ-AS-027 | `as.c` |
+| `as_encode_jmp_jsr()` (internal) | REQ-AS-027 | `as.c` |
+| `as_encode_link()` (internal) | REQ-AS-027 | `as.c` |
+| `as_encode_unlk()` (internal) | REQ-AS-027 | `as.c` |
 
 ---
 
