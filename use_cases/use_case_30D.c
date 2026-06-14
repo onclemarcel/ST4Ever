@@ -498,7 +498,9 @@ static void test_fixture(void)
     /* INTENT[INT-AS-127 -> TC-AS-197 -> REQ-AS-013]: EXG Dx,Dy */
     TEST_ASSERT("[N] EXG D0,D1 = 0xC141", text_w(&tCtx, 72) == 0xC141u);
     /* INTENT[INT-AS-128 -> TC-AS-198 -> REQ-AS-013]: EXG Ax,Ay */
-    TEST_ASSERT("[N] EXG A0,A1 = 0xC149", text_w(&tCtx, 74) == 0xC149u);
+    /* ADAPTED: UC30E — DEVPAC3 puts second An in bits11-9 and first An in bits2-0
+     * so exg a0,a1 → 0xC348 (A1 high, A0 low), not 0xC149 (A0 high, A1 low) */
+    TEST_ASSERT("[N] EXG A0,A1 = 0xC348 (DEVPAC3 An swap)", text_w(&tCtx, 74) == 0xC348u);
     /* INTENT[INT-AS-129 -> TC-AS-199 -> REQ-AS-013]: EXG Dx,Ay */
     TEST_ASSERT("[N] EXG D0,A0 = 0xC188", text_w(&tCtx, 76) == 0xC188u);
 

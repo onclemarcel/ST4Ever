@@ -29,6 +29,7 @@
 - 2026-06-13: UC30C Codé/Testé : Assembleur DEVPAC3 — ADD/SUB/CMP/AND/OR/EOR + variantes immédiates ADDI/SUBI/CMPI/ANDI/ORI/EORI + ADDQ/SUBQ + NEG/NOT/TST/EXT + NOP/RTS/RTR/RTE/STOP/TRAP/JMP/JSR/LINK/UNLK + BRA/BSR/Bcc(14 cond) long form — 51 tests PASS (45N+6R) 0 fail — ADAPTED: UC11 MOVEQ #$FF→#-1 (UC30B sign-extend)
 - 2026-06-14: Rev_Eng_Guide.md v1.1 — audit hooks ST4Ever réels (12 phases × 3 niveaux : existant/manquant/commande console) + propositions UC32A/B/C déposées en §7 — pivot vers la phase "Revival Engine"
 - 2026-06-14: UC30D Codé/Testé : Assembleur DEVPAC3 — ASL/ASR/LSL/LSR/ROL/ROR/ROXL/ROXR + BTST/BCHG/BCLR/BSET + MOVEM.W/L (masque inversé -(An)) + ADDA/SUBA + MULU/MULS/DIVU/DIVS + ADDX/SUBX + Scc + DBcc + EXG (3 modes) + PEA — 52 tests PASS (44N+8R) 0 fail — instruction set 68000 de base complet
+- 2026-06-14: UC30E Codé/Testé : Torture test assembleur DEVPAC3 — SOURCE.S (4072 lignes) → SOURCE.PRG byte-exact (10218 octets .text, 0 diff) — 4 bugs corrigés : CCR/SR encoding fixe, EXG An↔Am inversé DEVPAC3, BTST/BCHG/BCLR/BSET extension words EA manquantes, taille .text lue depuis header PRG — 8 tests PASS (6N+2R) 0 fail
 
 *L'historique des versions antérieures peut être récupéré via le change log github*
 
@@ -519,7 +520,7 @@ Les étapes de développement fonctionnelles sont formalisées en Use Cases, per
 | UC30B | interne | Assembleur DEVPAC3 — encodeur EA (12 modes) + MOVE.B/W/L/MOVEA/MOVEQ/LEA/CLR/SWAP byte-exact DEVPAC3 + CRLF fix + MOVEQ signé + round-trip fermé | ✓ VALIDÉ 2026-06-13 |
 | UC30C | interne | Assembleur DEVPAC3 — ALU + flux : `ADD/SUB/CMP/AND/OR/EOR` + variantes immédiates + `ADDQ/SUBQ` + `NEG/NOT/TST/EXT` + `BRA/BSR/Bcc(14)` + `NOP/RTS/RTR/RTE/STOP/TRAP/JMP/JSR/LINK/UNLK` | ✓ VALIDÉ 2026-06-13 |
 | UC30D | interne | Assembleur DEVPAC3 — shifts + misc : `ASL/ASR/LSL/LSR/ROL/ROR/ROXL/ROXR` + `BTST/BSET/BCLR/BCHG` + `MOVEM.W/L` + `ADDA/SUBA` + `MULU/MULS/DIVU/DIVS` + `ADDX/SUBX` + `Scc/DBcc` + `EXG/PEA` | ✓ VALIDÉ 2026-06-14 |
-| UC30E | interne | Assembleur DEVPAC3 — validation : assemble `use_cases/UC30/test.S` de référence → compare byte-à-byte avec `.PRG` connu ; corrige tout écart (même principe que UC15A torture test) | 0 byte de diff vs référence |
+| UC30E | interne | Assembleur DEVPAC3 — torture test : SOURCE.S (4072 lignes) → SOURCE.PRG byte-exact — 4 bugs corrigés : CCR/SR, EXG An↔Am, BTST ext words, header PRG size — 8 tests PASS | ✓ VALIDÉ 2026-06-14 |
 | UC30F | interne | Désassemblage GEN.TTP (assembleur DEVPAC3 d'origine, 68000 pur ~1988) — annotation des blocs fonctionnels (lexer, symbol table, encodeur EA) + comparaison architecturale avec UC30A-E + extraction patterns 68000 pour UC33 | `.s` GEN.TTP annoté dans `use_cases/UC30F/` |
 | UC31 | all | Démo cible via émulateur ST4Ever (choisie parmi candidats §9.4) : référence visuelle validée + désassemblé complet extrait — **pivot émulation → revival** | démo reconnue + .s extrait |
 | UC32A | `analyze` | Moteur d'analyse statique PRG — modules `src/prg.h/c` (header exposé, symtab DRI, reloc bitmap, segmap byte/byte) + `src/prg_analyze.h/c` (runtime detector GFA/PureC/ASM, prologue scanner, trap scanner statique GEMDOS/XBIOS, compiler identifier) + `src/boot_analyze.h/c` (boot sector parser + disasm wrapper) + commande console `analyze <file.prg>` | rapport `analyze` : type/compiler/fonctions/TRAPs sur démo cible |

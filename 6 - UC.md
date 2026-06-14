@@ -3447,8 +3447,66 @@ Tests skippés (0) : UC26 est purement interne, aucun skip requis.
 
 ### Points d'attention pour les UCs suivants
 
-- **UC30E (validation round-trip vs DEVPAC3 réel)** : avec l'instruction set de base complet, UC30E assemble `use_cases/UC30/test.S` de référence et compare byte-à-byte avec le `.PRG` produit par DEVPAC3 sur ATARI ST réel. Tout écart indique une différence d'encodage à corriger.
-- **Macros et conditionnels non implémentés** : les sources DEVPAC3 réels utilisent `MACRO`/`ENDM`, `IFEQ`/`ENDC`, labels locaux `.loop` — ces directives ne sont pas dans l'infrastructure UC30A-D et seront ajoutées en UC30E si la fixture de test les requiert.
-- **MOVEM.W non testé** : seul MOVEM.L est dans test30d.S ; la variante `.W` utilise le même encodeur (`as_encode_movem()`) avec taille W dans `as_ea_emit()` — à inclure dans UC30E si la fixture de référence l'utilise.
+- **UC30E (validation round-trip vs DEVPAC3 réel)** : **RÉSOLU UC30E** — `SOURCE.S` assemble avec 0 byte de différence vs `SOURCE.PRG` (10 218 octets, DEVPAC3 réel). 4 bugs corrigés.
+- **Macros et conditionnels non implémentés** : les sources DEVPAC3 réels utilisent `MACRO`/`ENDM`, `IFEQ`/`ENDC`, labels locaux `.loop` — `SOURCE.S` (UC15A) n'utilise pas ces directives ; elles restent à implémenter si UC30F ou UC31 les requiert.
+- **MOVEM.W non testé** : **RÉSOLU UC30E** — `SOURCE.S` couvre MOVEM.W (modes -(An) et (An)+) ; encodeur validé 0 diff.
+
+---
+
+## §6.30E UC30E — Torture Test DEVPAC3 Byte-Exact
+
+### Périmètre implémenté
+
+UC30E valide l'instruction set de base complet de l'assembleur DEVPAC3 (UC30A-D) par comparaison directe byte-à-byte avec le binaire produit par le **vrai DEVPAC3 sur un vrai ATARI ST**. Source : `use_cases/UC15A/SOURCE.S` (4 072 lignes, déjà utilisée comme fixture de torture test du désassembleur en UC15A). Référence : `use_cases/UC15A/SOURCE.PRG` (10 218 octets de `.text`).
+
+**Résultat : 0 byte de différence** — l'assembleur ST4Ever est byte-exact avec DEVPAC3 réel.
+
+Quatre bugs ont été découverts et corrigés :
+
+1. **CCR/SR opcode spécial (`as_encode_imm_alu()`)** — `ANDI/ORI/EORI #imm,CCR` et `#imm,SR` requièrent un opcode fixe `MMMRRR=0x3C` sans extension de destination. Le code existant traitait CCR comme un symbole non défini → mode ABS.W → 6 octets au lieu de 4. Fix : détection par nom avant `as_parse_ea()` ; émission opword + immédiat uniquement.
+
+2. **BTST/BCHG/BCLR/BSET : mots d'extension destination manquants (`as_encode_bitop()`)** — Les deux formes (dynamique Dn et statique #imm) n'appelaient pas `as_ea_emit(&tDst, 'B', ...)` après l'opword. Résultat : pas de déplacement émis pour AN_DISP, AN_IDX, ABS_W, ABS_L. Fix : appel `as_ea_emit` ajouté dans les deux branches.
+
+3. **EXG An,Am : ordre des registres inversé DEVPAC3 (`as_encode_exg()`)** — Pour le mode An↔Am (iMode=0x09), DEVPAC3 place le second opérande en bits 11-9 (champ haut) et le premier en bits 2-0 (champ bas) — à l'inverse de la convention standard. Les modes Dn↔Dm et Dn↔Am ne sont PAS inversés. Fix : branchement conditionnel sur `iMode == 0x09`.
+
+4. **Taille `.text` sur-comptée dans les tests** — `uiBinaryLen − 28` incluait la table de fixups (4 octets après `.text`). Fix : lecture depuis l'en-tête PRG (champ offset 2, u32 big-endian) pour obtenir la vraie taille `.text`.
+
+### Infrastructure validée
+
+- `use_cases/UC15A/SOURCE.S` → `use_cases/UC30E/out_source.prg` → 0 diff vs `SOURCE.PRG`
+- Régression UC30D : test `EXG A0,A1` mis à jour avec marker `ADAPTED: UC30E` (résultat attendu 0xC348 au lieu de 0xC149)
+- `ST_APP_VERSION` : `"0.30.5"`
+
+### Matrice de tests
+
+| Catégorie | Nombre | Description |
+|-----------|--------|-------------|
+| [N] Nominal | 6 | assembly sans erreur, taille .text=10218, 0 diff, PRG chargeable, premiers 4 octets, 10218 octets identiques |
+| [R] Robustness | 2 | NULL context, fichier source inexistant |
+| [S] Skipped | 0 | — |
+| **Total** | **8** | |
+
+### Contrats comportementaux validés
+
+**`as_encode_imm_alu()` — CCR/SR special opcode** :
+- `ANDI.B #$FF,CCR` → opword `0x023C` + `0x00FF` (4 octets, pas d'extension dest)
+- `ORI.W #$0700,SR` → opword `0x007C` + `0x0700` (4 octets, pas d'extension dest)
+- Invariant : la destination CCR/SR est toujours détectée par nom avant tout `as_parse_ea()`
+
+**`as_encode_bitop()` — extension dest** :
+- `BTST D5,8(A3)` → `0x0B2B 0x0008` (opword + déplacement AN_DISP)
+- `BSET D0,$1000.W` → `0x01F8 0x1000` (opword + extension ABS_W)
+- Invariant : tout encodeur de bit-op appelle `as_ea_emit(&tDst, 'B', ...)` en fin de chemin
+
+**`as_encode_exg()` — quirk An↔Am** :
+- `EXG A0,A1` → `0xC348` (A1 dans bits 11-9, A0 dans bits 2-0 — DEVPAC3 quirk)
+- `EXG D0,D1` → standard (D0 dans bits 11-9, D1 dans bits 2-0 — ordre normal)
+- `EXG D0,A1` → standard (D0 dans bits 11-9, A1 dans bits 2-0 — ordre normal)
+
+### Points d'attention pour les UCs suivants
+
+- **UC30F (désassemblage GEN.TTP)** : l'instruction set de base étant validé byte-exact, UC30F peut s'appuyer sur le désassembleur pour annoter l'assembleur DEVPAC3 d'origine. Les quirks d'encodage découverts en UC30E (CCR/SR, BTST ext, EXG An↔Am) doivent être présents dans le désassembleur correspondant (à vérifier).
+- **Macros DEVPAC3 non couvertes** : `SOURCE.S` est une fixture de torture test pour l'instruction set CPU — elle n'utilise pas `MACRO`/`ENDM`, `IFEQ`/`ENDC`. Ces directives restent à implémenter si un UC futur les requiert.
+- **Fixup table non validée** : l'assembleur émet une table de fixups (4 octets dans `SOURCE.PRG`). La logique de fixup elle-même n'est pas couverte par UC30E (SOURCE.S utilise des adresses absolues, aucun fixup n'est nécessaire).
 
 ---

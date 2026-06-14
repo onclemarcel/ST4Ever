@@ -4356,3 +4356,40 @@ Source: `use_cases/use_case_30C.c`, fixtures `use_cases/UC30C/test30c.S` (112 by
 | UFR          | REQ(s)                           | TC(s)                                       | Status    |
 |--------------|----------------------------------|---------------------------------------------|-----------|
 | UFR-ASM-006  | REQ-AS-029..037                  | TC-AS-159..210                              | v UC30D   |
+
+---
+
+### §5.100 UC30E — DEVPAC3 Torture Test (byte-exact vs. real DEVPAC3 output)
+
+> Source: `use_cases/use_case_30E.c` · Reference: `use_cases/UC15A/SOURCE.S` → `use_cases/UC15A/SOURCE.PRG`
+
+| TC | Description | Type | UFR | REQ | INT | Assertion | Status |
+|----|-------------|------|-----|-----|-----|-----------|--------|
+| TC-AS-211 | `as_assemble(NULL)` → ST_ERROR, no crash | [R] | UFR-ASM-007 | REQ-AS-038 | INT-AS-141 | `as_assemble(NULL) == ST_ERROR` | PASS UC30E |
+| TC-AS-212 | Non-existent source path → ST_ERROR | [R] | UFR-ASM-007 | REQ-AS-038 | INT-AS-142 | `as_assemble(&tCtx) == ST_ERROR` after `as_init(bad_path)` | PASS UC30E |
+| TC-AS-213 | `SOURCE.S` assembles without errors (0 error count) | [N] | UFR-ASM-007 | REQ-AS-038 | INT-AS-143 | `as_assemble(&tCtx) == ST_NO_ERROR` | PASS UC30E |
+| TC-AS-214 | Assembled `.text` size (from PRG header) == 10 218 bytes | [N] | UFR-ASM-007 | REQ-AS-038 | INT-AS-144 | `read_be32(pBinary+2) == 10218u` | PASS UC30E |
+| TC-AS-215 | Zero byte differences between assembled and reference `.text` | [N] | UFR-ASM-007 | REQ-AS-038 | INT-AS-145 | `uiDiffs == 0` over 10 218 bytes | PASS UC30E |
+| TC-AS-216 | Reference `SOURCE.PRG` loadable (sanity) | [N] | UFR-ASM-007 | REQ-AS-038 | INT-AS-146 | `uc30e_load_file(SOURCE_PRG, &len) != NULL` | PASS UC30E |
+| TC-AS-217 | Assembled `.text[0..3]` matches PRG reference first 4 bytes | [N] | UFR-ASM-007 | REQ-AS-038 | INT-AS-147 | `pAsm[0..3] == pPrg[0..3]` | PASS UC30E |
+| TC-AS-218 | All 10 218 `.text` bytes identical to real DEVPAC3 output | [N] | UFR-ASM-007 | REQ-AS-038 | INT-AS-148 | confirmed by TC-AS-215 full loop | PASS UC30E |
+
+#### Test Summary — UC30E
+
+| Category | Count | Source |
+|---|---|---|
+| [R] Robustness | 2 | `use_case_30E.c` — NULL ctx, missing source file |
+| [N] Nominal | 6 | `use_case_30E.c` — assembly success, size, 0 byte diff, reference load, first 4 bytes, all 10218 bytes |
+| **Total** | **8** | |
+
+#### REQ to TC coverage (UC30E)
+
+| REQ          | TC(s)                                                        | Status    |
+|--------------|--------------------------------------------------------------|-----------|
+| REQ-AS-038   | TC-AS-211..218                                               | v UC30E   |
+
+#### UFR traceability (UC30E)
+
+| UFR          | REQ(s)                           | TC(s)                                       | Status    |
+|--------------|----------------------------------|---------------------------------------------|-----------|
+| UFR-ASM-007  | REQ-AS-038                       | TC-AS-211..218                              | v UC30E   |
