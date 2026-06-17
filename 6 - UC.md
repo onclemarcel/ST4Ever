@@ -1336,7 +1336,53 @@ Ils guident les sessions futures lors de l'implémentation réelle.
 
 **Points d'attention pour les UCs suivants :**
 - Le désassembleur 68000 de base est maintenant complet : MOVEM, Scc, DBcc/DBRA, MOVE SR/CCR couverts. UC30F (désassemblage GEN.TTP) et UC15A (torture test) bénéficient directement de ce complément — le DC.W count tombe de 270 à 0 pour ces instructions.
-- CHK (0x4180) et MOVEP (0x0108) restent DC.W — ces instructions sont absentes des démos cibles UC31.
+- ~~CHK (0x4180) et MOVEP (0x0108) restent DC.W — ces instructions sont absentes des démos cibles UC31.~~ **RÉSOLU UC14B** — CHK.W et MOVEP.W/L implémentés ; DC.W count UC15A tombe de 124 à 20.
+
+## 20B Use Case 14B (UC14B) — ✓ VALIDÉ (2026-06-17)
+
+**Périmètre fonctionnel implémenté :**
+- `src/disassemble.c` : 6 familles d'instructions rares du 68000 base complétées.
+- **TAS** (`disasm_misc4()`, bloc sz=3 de TST) : `0x4AC0|ea` — byte, pas de suffixe de taille ; An (mode=1) et #imm `$4AFC` (ILLEGAL) → DC.W.
+- **NBCD** (`disasm_misc4()`) : `0x4800|ea` — byte, data alterable ; An et #imm → DC.W.
+- **CHK.W** (`disasm_misc4()`) : `0x4180|(Dn<<9)|ea` — bits 7-6 doivent être 10 ; EA source en bits 5-0, Dn destination en bits 11-9 ; An source → DC.W.
+- **SBCD** (`disasm_group8()`, iDir=1, iSz=0) : RM=bit3 ; mode=0 → `SBCD Ry,Rx` ; mode=1 → `SBCD -(Ay),-(Ax)`.
+- **ABCD** (`disasm_groupC()`, même pattern que SBCD) : `0xC100|...` ; mode=0/1 identique à SBCD.
+- **MOVEP** (`disasm_bit_dynamic()` quand iMode==1) : `0x0108|...` + mot d16 ; dir=iOp>>1, sz=iOp&1 ; buffer < 4 → DC.W ; displacement négatif formaté `-$X(An)`.
+- **DC.W count UC15A torture test** : 124 → 20 (20 restants = opcodes illégaux ou instructions hors jeu base 68000).
+
+**Tests R14/R15 appliqués :**
+- `use_cases/use_case_14B.c` : TEST MATRIX **47N + 6R + 0S = 53 assertions**, 0 failure
+  - [N] : TAS (4×3=12) ; NBCD (3×3=9) ; CHK.W (2×3=6) ; SBCD (2×3=6) ; ABCD (2×3=6) ; MOVEP (4×2=8)
+  - [R] : TAS An/ILLEGAL (2) ; NBCD An/#imm (2) ; CHK.W An (1) ; MOVEP short buf (1)
+- **ADAPTED UC12×2 + UC13×1** : 0x4AC0 (TAS), 0xC100 (ABCD), 0x010B (MOVEP) ne sont plus DC.W.
+
+**Contrats comportementaux validés :**
+
+*TAS*
+- `(uiOpc & 0xFFC0) == 0x4AC0` dans le bloc sz=3 de `disasm_misc4()`.
+- $4AFC est l'opcode ILLEGAL 68000 — il appartient à ce même espace d'adressage (#imm de TAS), d'où son rejet systématique en DC.W.
+
+*NBCD*
+- `(uiOpc & 0xFFC0) == 0x4800` — espace physiquement distinct de NEG (0x4400) et NEGX (0x4000).
+- Mode 1 (An) et mode 7 reg 4 (#imm) tous deux rejetés : NBCD est strictement data-alterable.
+
+*CHK.W*
+- `(uiOpc & 0xF1C0) == 0x4180` — bits 7-6 doivent être exactement 10 ; bits 12 et 8 à 0 (sans quoi on tombe sur d'autres instructions du groupe 4).
+- L'inversion EA/Dn (source en bits bas, destination en bits 11-9) est l'inverse de la plupart des instructions → risque d'erreur de bit-extraction.
+
+*SBCD / ABCD*
+- iDir=1 (bit 8 = 1), iSz=0 (bits 7-6 = 00) dans leurs groupes respectifs.
+- iMode=bit3 : 0 = Dn,Dn ; 1 = -(An),-(An).
+- Rx en bits 11-9 (destination) = `iDn` dans les variables locales ; Ry en bits 2-0 = `iReg`.
+
+*MOVEP*
+- Distingué dans `disasm_bit_dynamic()` par `iMode == 1` (i.e. `(uiOpc >> 3) & 7 == 1`), ce qui correspond à un An dans le champ EA — combinaison invalide pour les bit ops.
+- La variable `iDir16 = (iOp >> 1) & 1` et `iSzM = iOp & 1` extraient dir et sz des bits de commande.
+- `iOp = (uiOpc >> 6) & 0x7` dans `disasm_bit_dynamic()`, donc dir=bit1 de iOp, sz=bit0.
+
+**Points d'attention pour les UCs suivants :**
+- Les 20 DC.W restants dans UC15A correspondent à : opcodes illégaux ($4AFC), instructions 68010+ (RTD, MOVEC, MOVES), CHK.L (sz=3 dans groupCHK qui n'existe pas en 68000 base), et quelques encodages de modes réservés. Ces DC.W sont des artefacts légitimes — aucun problème de désassembleur.
+- Le désassembleur 68000 de base est désormais complet pour le jeu d'instructions courant des démos ATARI ST. Les sessions UC30F (GEN.TTP) et UC31 (démo cible) peuvent s'appuyer sur ce socle.
 
 ## 21 Use Case 15 (UC15) — ✓ VALIDÉ (2026-06-03)
 

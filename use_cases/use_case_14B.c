@@ -22,16 +22,16 @@
  *   MOVEP.L reg→mem: 0x01C8 | (Dn<<9) | An + d16
  *
  * TEST MATRIX - UC14B:
- *   [N] Nominal    : 43 assertions — 12 TAS (4 instrs × 3),
+ *   [N] Nominal    : 47 assertions — 12 TAS (4 instrs × 3),
  *                                     9 NBCD (3 instrs × 3),
  *                                     6 CHK.W (2 instrs × 3),
- *                                     4 SBCD (2 instrs × 2 fields),
- *                                     4 ABCD (2 instrs × 2 fields),
- *                                     8 MOVEP (4 instrs × 2 fields)
- *   [R] Robustness :  8 assertions — TAS An/ILLEGAL, NBCD An/#imm,
- *                                    CHK.W An, MOVEP short buf
+ *                                     6 SBCD (2 instrs × 3),
+ *                                     6 ABCD (2 instrs × 3),
+ *                                     8 MOVEP (4 instrs × 2)
+ *   [R] Robustness :  6 assertions — TAS An/ILLEGAL (2), NBCD An/#imm (2),
+ *                                    CHK.W An (1), MOVEP short buf (1)
  *   [S] Skipped    :  0
- *   Total          : 51 assertions (24 instruction scenarios)
+ *   Total          : 53 assertions (22 instruction scenarios)
  *
  * Traceability:
  *   INT-DIS-078..083 → TC-DIS-460..510 → REQ-DIS-045..050 → UFR-HEX-005

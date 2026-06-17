@@ -757,6 +757,12 @@ requirement that will expose it (`UFR-EXE-*`, planned UC21–27).
 | REQ-DIS-042 | Scc (group 5, bits 7-6=11, 16 conditions): cond in bits 11-8; mnemonics from `g_aszScc[16]` table (ST/SF/SHI/.../SLE); #imm destination (mode=7,reg=4) → DC.W. | UFR-HEX-005 | ✓ UC14A | disasm_group5() Scc path |
 | REQ-DIS-043 | DBcc (group 5, mode=001 in bits 5-3): cond in bits 11-8, Dn in bits 2-0; disp16 word follows; target = (addr+2+disp16) & 0xFFFFFF displayed as `$XXXXXX` (6 hex digits); cond=1 → "DBRA" mnemonic. | UFR-HEX-005 | ✓ UC14A | disasm_group5() DBcc path |
 | REQ-DIS-044 | MOVE to/from SR/CCR: sz=3 (bits 7-6=11) in NEGX (0x40xx), CLR (0x42xx), NEG (0x44xx), NOT (0x46xx) groups decodes as MOVE.W SR/\<ea\>, MOVE.W CCR/\<ea\>, MOVE.W \<ea\>,CCR, MOVE.W \<ea\>,SR respectively; An mode (mode=1) rejected for source operands. | UFR-HEX-005 | ✓ UC14A | NEGX/CLR/NEG/NOT sz=3 cases |
+| REQ-DIS-045 | TAS (0x4AC0\|ea): byte, no size suffix; An mode (mode=1) and #imm (mode=7,reg=4 = ILLEGAL $4AFC) → DC.W; all other data-alterable EA modes decode to `TAS <ea>`. | UFR-HEX-005 | ✓ UC14B | disasm_misc4() TAS block |
+| REQ-DIS-046 | NBCD (0x4800\|ea): byte, data alterable; An mode (mode=1) and #imm (mode=7,reg=4) → DC.W; all other data-alterable EA modes decode to `NBCD <ea>`. | UFR-HEX-005 | ✓ UC14B | disasm_misc4() NBCD block |
+| REQ-DIS-047 | CHK.W (0x4180\|(Dn<<9)\|ea): EA source in bits 5-0, Dn destination in bits 11-9; bits 7-6 must be 10; An source (mode=1) → DC.W; operand format `<ea>,Dn`. | UFR-HEX-005 | ✓ UC14B | disasm_misc4() CHK.W block |
+| REQ-DIS-048 | SBCD (0x8100\|...): group 8, iDir=1, iSz=0; RM=bit3: mode=0 → `SBCD Ry,Rx` (Dn registers, Rx=bits 11-9, Ry=bits 2-0); mode=1 → `SBCD -(Ay),-(Ax)` (predecrement). | UFR-HEX-005 | ✓ UC14B | disasm_group8() SBCD path |
+| REQ-DIS-049 | ABCD (0xC100\|...): group C, same encoding as SBCD (iDir=1, iSz=0, RM=bit3); mode=0 → `ABCD Ry,Rx`; mode=1 → `ABCD -(Ay),-(Ax)`. | UFR-HEX-005 | ✓ UC14B | disasm_groupC() ABCD path |
+| REQ-DIS-050 | MOVEP (0x0108\|...): group 0, bit_dynamic when iMode==1 (An register); dir=iOp>>1 (0=mem→reg, 1=reg→mem), sz=iOp&1 (0=W, 1=L); d16 extension word required (4 bytes total); buffer < 4 → DC.W; negative d16 formatted as `-$X(An)`. | UFR-HEX-005 | ✓ UC14B | disasm_bit_dynamic() MOVEP path |
 
 ---
 

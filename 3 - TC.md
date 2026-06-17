@@ -2424,6 +2424,80 @@ Source: `use_cases/use_case_15A.c`
 
 ---
 
+### 5.46 INTENT Catalog — UC14B
+
+| ID           | Intent                                                                                                                                                 |
+|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------|
+| INT-DIS-078  | TAS \<ea\> — byte, no size suffix; An mode (mode=1) and #imm ILLEGAL (mode=7,reg=4 = $4AFC) must decode as DC.W; all other alterable EA modes must decode correctly to `TAS <ea>`. |
+| INT-DIS-079  | NBCD \<ea\> — byte, data alterable; An mode and #imm must decode as DC.W; Dn/(An)/-(An) must decode to `NBCD <ea>`. |
+| INT-DIS-080  | CHK.W \<ea\>,Dn — EA source in bits 5-0, Dn destination in bits 11-9; bits 7-6 must be 10 (0x4180 base check); An source (mode=1) must decode as DC.W; operand format `<ea>,Dn`. |
+| INT-DIS-081  | SBCD Ry,Rx (RM=0) and SBCD -(Ay),-(Ax) (RM=1) — group 8, iDir=1, iSz=0; Rx=bits 11-9, Ry=bits 2-0; operand format matches RM encoding. |
+| INT-DIS-082  | ABCD Ry,Rx (RM=0) and ABCD -(Ay),-(Ax) (RM=1) — group C, same encoding pattern as SBCD; Rx=bits 11-9, Ry=bits 2-0. |
+| INT-DIS-083  | MOVEP.W/.L mem→reg or reg→mem with d16 extension word; buffer < 4 bytes → DC.W; negative displacement must be formatted as `-$X(An)`, not `$-X(An)`. |
+
+---
+
+### 5.47 Test Cases — UC14B (TAS / NBCD / CHK.W / SBCD / ABCD / MOVEP)
+
+| TC           | Description                                                                            | Type | Parent UFR  | REQ          | INT          | Notes                                       | Result     |
+|--------------|----------------------------------------------------------------------------------------|------|-------------|--------------|--------------|---------------------------------------------|------------|
+| TC-DIS-460   | TAS D0 (0x4AC0): wc=1, mnem=TAS, ops=D0                                               | [N]  | UFR-HEX-005 | REQ-DIS-045  | INT-DIS-078  | 0x4AC0 = TAS Dn                             | PASS UC14B |
+| TC-DIS-461   | TAS (A0) (0x4AD0): wc=1, mnem=TAS, ops=(A0)                                           | [N]  | UFR-HEX-005 | REQ-DIS-045  | INT-DIS-078  | 0x4AD0 = TAS (An) indirect                 | PASS UC14B |
+| TC-DIS-462   | TAS (A1)+ (0x4AD9): wc=1, mnem=TAS, ops=(A1)+                                         | [N]  | UFR-HEX-005 | REQ-DIS-045  | INT-DIS-078  | 0x4AD9 = TAS (A1)+ postincrement           | PASS UC14B |
+| TC-DIS-463   | TAS -(A2) (0x4AE2): wc=1, mnem=TAS, ops=-(A2)                                         | [N]  | UFR-HEX-005 | REQ-DIS-045  | INT-DIS-078  | 0x4AE2 = TAS -(An) predecrement            | PASS UC14B |
+| TC-DIS-464   | TAS A0 (0x4AC8) → DC.W                                                                 | [R]  | UFR-HEX-005 | REQ-DIS-045  | INT-DIS-078  | An mode (mode=1) invalid                   | PASS UC14B |
+| TC-DIS-465   | TAS #imm = ILLEGAL $4AFC → DC.W                                                        | [R]  | UFR-HEX-005 | REQ-DIS-045  | INT-DIS-078  | mode=7,reg=4: ILLEGAL opcode $4AFC         | PASS UC14B |
+| TC-DIS-466   | NBCD D0 (0x4800): wc=1, mnem=NBCD, ops=D0                                             | [N]  | UFR-HEX-005 | REQ-DIS-046  | INT-DIS-079  | 0x4800 = NBCD Dn                           | PASS UC14B |
+| TC-DIS-467   | NBCD (A0) (0x4810): wc=1, mnem=NBCD, ops=(A0)                                         | [N]  | UFR-HEX-005 | REQ-DIS-046  | INT-DIS-079  | 0x4810 = NBCD (An) indirect                | PASS UC14B |
+| TC-DIS-468   | NBCD -(A3) (0x4823): wc=1, mnem=NBCD, ops=-(A3)                                       | [N]  | UFR-HEX-005 | REQ-DIS-046  | INT-DIS-079  | 0x4823 = NBCD -(An) predecrement           | PASS UC14B |
+| TC-DIS-469   | NBCD A0 (0x4808) → DC.W                                                                | [R]  | UFR-HEX-005 | REQ-DIS-046  | INT-DIS-079  | An mode (mode=1) invalid                   | PASS UC14B |
+| TC-DIS-470   | NBCD #imm (0x483C) → DC.W                                                              | [R]  | UFR-HEX-005 | REQ-DIS-046  | INT-DIS-079  | mode=7,reg=4: #imm invalid for NBCD        | PASS UC14B |
+| TC-DIS-471   | CHK.W D1,D2 (0x4581): wc=1, mnem=CHK.W, ops=D1,D2                                    | [N]  | UFR-HEX-005 | REQ-DIS-047  | INT-DIS-080  | 0x4581: bits 7-6=10 required (0x4180 base) | PASS UC14B |
+| TC-DIS-472   | CHK.W (A0),D3 (0x4790): wc=1, mnem=CHK.W, ops=(A0),D3                                | [N]  | UFR-HEX-005 | REQ-DIS-047  | INT-DIS-080  | 0x4790 = CHK.W indirect source             | PASS UC14B |
+| TC-DIS-473   | CHK.W A0,D0 (0x4188) → DC.W                                                           | [R]  | UFR-HEX-005 | REQ-DIS-047  | INT-DIS-080  | An source (mode=1) invalid                 | PASS UC14B |
+| TC-DIS-474   | SBCD D1,D2 (0x8501): wc=1, mnem=SBCD, ops=D1,D2                                       | [N]  | UFR-HEX-005 | REQ-DIS-048  | INT-DIS-081  | 0x8501 = SBCD RM=0 (Dn mode)               | PASS UC14B |
+| TC-DIS-475   | SBCD -(A1),-(A2) (0x8509): wc=1, mnem=SBCD, ops=-(A1),-(A2)                           | [N]  | UFR-HEX-005 | REQ-DIS-048  | INT-DIS-081  | 0x8509 = SBCD RM=1 predecrement            | PASS UC14B |
+| TC-DIS-476   | ABCD D3,D4 (0xC903): wc=1, mnem=ABCD, ops=D3,D4                                       | [N]  | UFR-HEX-005 | REQ-DIS-049  | INT-DIS-082  | 0xC903 = ABCD RM=0 (Dn mode)               | PASS UC14B |
+| TC-DIS-477   | ABCD -(A0),-(A1) (0xC308): wc=1, mnem=ABCD, ops=-(A0),-(A1)                           | [N]  | UFR-HEX-005 | REQ-DIS-049  | INT-DIS-082  | 0xC308 = ABCD RM=1 predecrement            | PASS UC14B |
+| TC-DIS-478   | MOVEP.W $4(A0),D1 (0x0308+0x0004): mnem=MOVEP.W, ops=$4(A0),D1                        | [N]  | UFR-HEX-005 | REQ-DIS-050  | INT-DIS-083  | dir=0 sz=0: mem→reg word                   | PASS UC14B |
+| TC-DIS-479   | MOVEP.W D2,-$2(A1) (0x0589+0xFFFE): mnem=MOVEP.W, ops=D2,-$2(A1)                      | [N]  | UFR-HEX-005 | REQ-DIS-050  | INT-DIS-083  | dir=1 sz=0: reg→mem, negative displacement | PASS UC14B |
+| TC-DIS-480   | MOVEP.L $10(A2),D3 (0x074A+0x0010): mnem=MOVEP.L, ops=$10(A2),D3                      | [N]  | UFR-HEX-005 | REQ-DIS-050  | INT-DIS-083  | dir=0 sz=1: mem→reg long                   | PASS UC14B |
+| TC-DIS-481   | MOVEP.L D4,$0(A3) (0x09CB+0x0000): mnem=MOVEP.L, ops=D4,$0(A3)                        | [N]  | UFR-HEX-005 | REQ-DIS-050  | INT-DIS-083  | dir=1 sz=1: reg→mem, zero displacement     | PASS UC14B |
+| TC-DIS-482   | MOVEP.W short buf (0x0308 only, 2 bytes) → DC.W                                        | [R]  | UFR-HEX-005 | REQ-DIS-050  | INT-DIS-083  | buffer < 4: d16 extension word missing     | PASS UC14B |
+
+#### Test Summary — UC14B
+
+| Module | [N] | [R] | [S] | Total | Result     |
+|--------|-----|-----|-----|-------|------------|
+| DIS    | 47  |  6  |  0  |  53   | ALL PASS   |
+
+#### REQ → TC coverage (UC14B)
+
+| REQ          | TC(s)                             | Status     |
+|--------------|-----------------------------------|------------|
+| REQ-DIS-045  | TC-DIS-460..465                   | ✓ UC14B    |
+| REQ-DIS-046  | TC-DIS-466..470                   | ✓ UC14B    |
+| REQ-DIS-047  | TC-DIS-471..473                   | ✓ UC14B    |
+| REQ-DIS-048  | TC-DIS-474..475                   | ✓ UC14B    |
+| REQ-DIS-049  | TC-DIS-476..477                   | ✓ UC14B    |
+| REQ-DIS-050  | TC-DIS-478..482                   | ✓ UC14B    |
+
+#### UFR traceability update (UC14B)
+
+| UFR         | REQ(s)                                       | TC(s)               | Status    |
+|-------------|----------------------------------------------|---------------------|-----------|
+| UFR-HEX-005 | REQ-DIS-045..050 (added UC14B)               | TC-DIS-460..482     | ✓ UC14B   |
+
+#### ADAPTED markers (UC14B)
+
+| File               | Test                                      | Previous assertion           | New assertion (UC14B)            | Root cause                                     |
+|--------------------|-------------------------------------------|------------------------------|----------------------------------|------------------------------------------------|
+| use_case_12.c:399  | TST size=11 (0x4AC0) → DC.W              | bValid==ST_FALSE             | bValid==ST_TRUE, mnem=TAS        | 0x4AC0 = TST group sz=3 → TAS D0              |
+| use_case_12.c:425  | ABCD 0xC100 → DC.W                       | bValid==ST_FALSE             | bValid==ST_TRUE, mnem=ABCD       | 0xC100 = groupC bit8=1 sz=0 RM=0 → ABCD D0,D0 |
+| use_case_13.c:344  | bit dyn An mode (0x010B) → DC.W          | bValid==ST_FALSE             | bValid==ST_TRUE, mnem=MOVEP.W    | 0x010B = bit_dynamic iMode=1 → MOVEP.W $0(A3),D0 |
+
+---
+
 ### 5.50 INTENT Catalog — UC17
 
 | ID           | Intent                                                                                        |
