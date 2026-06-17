@@ -1287,8 +1287,56 @@ Ils guident les sessions futures lors de l'implémentation réelle.
 
 **Points d'attention pour les UCs suivants :**
 - ~~UC15 : format PRG fixups~~ **✓ IMPLÉMENTÉ UC15** — `load_do_prg()` complet, adresses dans le disasm panel maintenant correctes (offset fichier = offset RAM puisque load à ST_LOAD_BASE=0x0800 et les fixups sont déjà appliqués).
-- UC31 : le désassembleur couvre le sous-ensemble démo (MOVE/MOVEQ/LEA/CLR/EXG/SWAP/ADD/SUB/CMP/AND/OR/EOR/NOT/NEG/shifts/rotations/bits/BRA/BSR/Bcc/JMP/JSR/RTS/TRAP). Il manque encore MOVEM, CHK, DBcc/Scc, MOVEP pour couverture complète 68000 — ces instructions apparaissent rarement dans les démos courtes ; ajout possible dans un UC15-bis si nécessaire.
+- ~~UC31 : il manque encore MOVEM, CHK, DBcc/Scc pour couverture complète 68000.~~ **RÉSOLU UC14A** — MOVEM.W/L + Scc (16 cond) + DBcc/DBRA (16 cond) + MOVE SR/CCR implémentés; désassembleur 68000 de base complet.
 - ~~UC21 : le CPU 68000 réel décodera les instructions via un mécanisme similaire au désassembleur mais avec exécution effective des effets (registres, flags SR).~~ **RÉSOLU UC21**
+
+## 20A Use Case 14A (UC14A) — ✓ VALIDÉ (2026-06-17)
+
+**Périmètre fonctionnel implémenté :**
+- `src/disassemble.c` : complète le désassembleur 68000 base pour les instructions MOVEM, Scc, DBcc/DBRA et MOVE to/from SR/CCR.
+- **Nouvelle helper** `disasm_fmt_reglist(uiMask, bReverse, szBuf, uiBufLen)` : formate une liste de registres D0-D7/A0-A7 avec runs contiguës (ex. `D0-D3/A1/A6`) ; `bReverse=1` pour le mode `-(An)`.
+- **Tables ajoutées** : `g_aszScc[16]` (ST/SF/SHI/SLS/SCC/SCS/SNE/SEQ/SVC/SVS/SPL/SMI/SGE/SLT/SGT/SLE) et `g_aszDBcc[16]` (DBT/DBRA/DBHI/…/DBLE).
+- **Bloc MOVEM** dans `disasm_misc4()` (entre EXT.W/L et le fallback DC.W) :
+  - Store (bit 10=0, 0x4880 base) : mode=0/1/3 → DC.W ; `-(An)` (mode=4) → masque inversé ; autres modes → masque normal ; ext `iExtSoFar=0`.
+  - Load (bit 10=1, 0x4C80 base) : mode=4 → DC.W ; autres modes → masque normal ; ext `iExtSoFar=1` (masque déjà consommé).
+  - Taille : bit 6 → `MOVEM.W` (0) ou `MOVEM.L` (1).
+- **`disasm_group5()` reécrit** : dispatch sur bit5-3 :
+  - `mode=001` → DBcc : lit `disp16` en big-endian, cible `(addr+2+disp16)&0xFFFFFF` formatée `$XXXXXX` ; `cond=1` → `"DBRA"`.
+  - Autres modes → Scc : rejet `mode=7,reg=4` (#imm) → DC.W.
+- **sz=3 dans NEGX/CLR/NEG/NOT** (bits 7-6=11) :
+  - `disasm_negx()` (0x40xx) sz=3 → `MOVE.W SR,<ea>`.
+  - `disasm_clr()` (0x42xx) sz=3 → `MOVE.W CCR,<ea>`.
+  - `disasm_neg()` (0x44xx) sz=3, mode≠1 → `MOVE.W <ea>,CCR`.
+  - `disasm_not()` (0x46xx) sz=3, mode≠1 → `MOVE.W <ea>,SR`.
+
+**Tests R14/R15 appliqués :**
+- `use_cases/use_case_14A.c` : TEST MATRIX **86N + 8R + 0S = 94 assertions** (40 scénarios instructions), 0 failure
+  - [N] : MOVEM store (4 instrs × 3) ; MOVEM load (4 instrs × 3 + empty mask × 2) ; MOVE SR/CCR (6 × 3) ; Scc (6 × 3) ; DBcc/DBRA (8 × 3)
+  - [R] : MOVEM An mode (2) ; MOVEM (An)+ store (1) ; MOVEM -(An) load (1) ; Scc #imm (1) ; DBcc short buf (1) ; MOVEM short buf (1) ; MOVE An,SR (1)
+- **ADAPTED UC11×1 + UC12×4** : CLR/NEG/NEGX sz=3 et Scc (0x50C0/0x51C0) ne sont plus DC.W.
+
+**Contrats comportementaux validés :**
+
+*`disasm_fmt_reglist()` — formatage liste registres*
+- `bReverse=0` : `aPresent[i] = (uiMask >> i) & 1` → bit0=D0, bit15=A7.
+- `bReverse=1` : `aPresent[i] = (uiMask >> (15-i)) & 1` → bit0=A7, bit15=D0.
+- Runs contiguës collapsées : D0-D3 plutôt que D0/D1/D2/D3.
+- Frontière D7/A0 jamais franchie dans un run.
+
+*MOVEM — encoding/decoding*
+- 0x4880-0x48C7 = EXT.W/EXT.L D0-D7 (capturé avant MOVEM) : mode=0 (Dn) physiquement inaccessible depuis MOVEM.
+- `iExtSoFar=1` dans `disasm_fmt_ea` pour MOVEM load : le mot masque (déjà lu) est compté comme extension word → calcul d16(PC) correct.
+- Buffer guard : `uiBufLen < 4` (pas de mot masque) → DC.W.
+
+*Scc / DBcc*
+- Scc : bits 7-6=11 dans groupe 5 ET mode≠001 → Scc ; mode=7,reg=4 (#imm) → DC.W.
+- DBcc vs Scc : distingués par bits 5-3 == 001 (DBcc) vs autres (Scc).
+- DBRA : mnemonic spécial pour cond=1 (False), conforme DEVPAC3.
+- Cible 24-bit : masquage `& 0x00FFFFFF`, 6 chiffres hex : `$001010`.
+
+**Points d'attention pour les UCs suivants :**
+- Le désassembleur 68000 de base est maintenant complet : MOVEM, Scc, DBcc/DBRA, MOVE SR/CCR couverts. UC30F (désassemblage GEN.TTP) et UC15A (torture test) bénéficient directement de ce complément — le DC.W count tombe de 270 à 0 pour ces instructions.
+- CHK (0x4180) et MOVEP (0x0108) restent DC.W — ces instructions sont absentes des démos cibles UC31.
 
 ## 21 Use Case 15 (UC15) — ✓ VALIDÉ (2026-06-03)
 

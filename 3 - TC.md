@@ -2336,6 +2336,94 @@ Source: `use_cases/use_case_15A.c`
 
 ---
 
+### 5.44 INTENT Catalog — UC14A
+
+| ID           | Intent                                                                                                                                                             |
+|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| INT-DIS-072  | MOVEM store (0x48xx): mask word follows opcode; -(An) uses reversed bit order (bit0=A7 … bit15=D0); all other EA modes use normal order; modes 0/1/3 produce DC.W. |
+| INT-DIS-073  | MOVEM load (0x4Cxx): normal mask (bit0=D0 … bit15=A7); (An)+ valid; -(An) rejected; iExtSoFar=1 ensures correct PC-relative address computation.                   |
+| INT-DIS-074  | MOVE to/from SR/CCR: sz=3 in NEGX/CLR/NEG/NOT groups decodes as MOVE.W SR/ea, MOVE.W CCR/ea, MOVE.W ea/CCR, MOVE.W ea/SR; An source rejected.                     |
+| INT-DIS-075  | Scc (16 conditions): cond in bits 11-8; 16 mnemonics ST..SLE; #imm destination rejected.                                                                           |
+| INT-DIS-076  | DBcc/DBRA (16 conditions): mode=001; disp16 word follows; cond=1 → "DBRA" mnemonic; target displayed as $XXXXXX (6 hex digits).                                    |
+| INT-DIS-077  | Robustness: invalid EA modes for MOVEM (Dn/An/(An)+ store, -(An) load), #imm Scc, short buffer for MOVEM/DBcc, An source for SR/CCR → all produce DC.W.           |
+
+### 5.45 Test Cases — UC14A (MOVEM / Scc / DBcc / MOVE SR/CCR)
+
+| TC           | Description                                                                          | Type | UFR          | REQ                    | INT          | Expected                                    | Result        |
+|--------------|--------------------------------------------------------------------------------------|------|--------------|------------------------|--------------|---------------------------------------------|---------------|
+| TC-DIS-420   | MOVEM.L D0-D7/A0-A7,-(A7): wc=2, mnem=MOVEM.L, ops=D0-D7/A0-A7,-(A7)              | [N]  | UFR-HEX-005  | REQ-DIS-039,041        | INT-DIS-072  | reversed mask 0xFFFF                        | PASS UC14A    |
+| TC-DIS-421   | MOVEM.L D0/A6,-(A7): ops=D0/A6,-(A7) — non-contiguous registers                    | [N]  | UFR-HEX-005  | REQ-DIS-039,041        | INT-DIS-072  | reversed: D0→bit15=0x8000, A6→bit1=0x0002  | PASS UC14A    |
+| TC-DIS-422   | MOVEM.W D0-D3,(A0): wc=2, mnem=MOVEM.W, ops=D0-D3,(A0) — non-predecrement store   | [N]  | UFR-HEX-005  | REQ-DIS-039,041        | INT-DIS-072  | normal mask order; run D0-D3                | PASS UC14A    |
+| TC-DIS-423   | MOVEM.L A0-A7,$20(A5): wc=3, ops=A0-A7,$20(A5) — d16(An) + mask word              | [N]  | UFR-HEX-005  | REQ-DIS-039,041        | INT-DIS-072  | wc=3 (opcode+mask+ext)                      | PASS UC14A    |
+| TC-DIS-424   | MOVEM.L (A0)+,D0-D7: wc=2, mnem=MOVEM.L, ops=(A0)+,D0-D7                          | [N]  | UFR-HEX-005  | REQ-DIS-040,041        | INT-DIS-073  | normal mask 0x00FF → D0-D7                  | PASS UC14A    |
+| TC-DIS-425   | MOVEM.W (A7)+,D0-D7/A0-A7: wc=2, mnem=MOVEM.W, ops=(A7)+,D0-D7/A0-A7             | [N]  | UFR-HEX-005  | REQ-DIS-040,041        | INT-DIS-073  | 0x4C9F + mask 0xFFFF                        | PASS UC14A    |
+| TC-DIS-426   | MOVEM.L (A0),D3/A5: wc=2, ops=(A0),D3/A5 — sparse non-contiguous regs             | [N]  | UFR-HEX-005  | REQ-DIS-040,041        | INT-DIS-073  | 0x4CD0 + mask 0x2008                        | PASS UC14A    |
+| TC-DIS-427   | MOVEM.L $1234.W,D0-D3: wc=3, ops=$1234.W,D0-D3 — abs.W EA                         | [N]  | UFR-HEX-005  | REQ-DIS-040,041        | INT-DIS-073  | wc=3 (opcode+mask+abs.W)                    | PASS UC14A    |
+| TC-DIS-428   | MOVEM.L (A0)+ with mask=0x0000: wc=2, mnem=MOVEM.L                                 | [N]  | UFR-HEX-005  | REQ-DIS-040            | INT-DIS-073  | wc=2; no register list crash                | PASS UC14A    |
+| TC-DIS-429   | MOVE.W SR,D0 (0x40C0): wc=1, mnem=MOVE.W, ops=SR,D0                               | [N]  | UFR-HEX-005  | REQ-DIS-044            | INT-DIS-074  | NEGX group sz=3 → MOVE.W SR,ea             | PASS UC14A    |
+| TC-DIS-430   | MOVE.W SR,D7 (0x40C7): ops=SR,D7                                                   | [N]  | UFR-HEX-005  | REQ-DIS-044            | INT-DIS-074  | same group, different Dn                    | PASS UC14A    |
+| TC-DIS-431   | MOVE.W SR,(A0) (0x40D0): wc=1, ops=SR,(A0)                                         | [N]  | UFR-HEX-005  | REQ-DIS-044            | INT-DIS-074  | EA mode=2/(An)                              | PASS UC14A    |
+| TC-DIS-432   | MOVE.W D0,CCR (0x44C0): wc=1, mnem=MOVE.W, ops=D0,CCR                             | [N]  | UFR-HEX-005  | REQ-DIS-044            | INT-DIS-074  | NEG group sz=3                              | PASS UC14A    |
+| TC-DIS-433   | MOVE.W D0,SR (0x46C0): wc=1, mnem=MOVE.W, ops=D0,SR                               | [N]  | UFR-HEX-005  | REQ-DIS-044            | INT-DIS-074  | NOT group sz=3                              | PASS UC14A    |
+| TC-DIS-434   | MOVE.W #$2700,SR (0x46FC+0x2700): wc=2, ops=#$2700,SR                              | [N]  | UFR-HEX-005  | REQ-DIS-044            | INT-DIS-074  | #imm→SR; MOVE.W CCR,ea via CLR sz=3        | PASS UC14A    |
+| TC-DIS-435   | ST D0 (0x50C0): wc=1, mnem=ST, ops=D0                                              | [N]  | UFR-HEX-005  | REQ-DIS-042            | INT-DIS-075  | cond=0 (always true)                        | PASS UC14A    |
+| TC-DIS-436   | SF D0 (0x51C0): mnem=SF — ADAPTED(UC12) was DC.W                                   | [N]  | UFR-HEX-005  | REQ-DIS-042            | INT-DIS-075  | cond=1 (always false)                       | PASS UC14A    |
+| TC-DIS-437   | SNE D3 (0x56C3): mnem=SNE, ops=D3                                                  | [N]  | UFR-HEX-005  | REQ-DIS-042            | INT-DIS-075  | cond=6 (NE)                                 | PASS UC14A    |
+| TC-DIS-438   | SEQ D5 (0x57C5): mnem=SEQ, ops=D5                                                  | [N]  | UFR-HEX-005  | REQ-DIS-042            | INT-DIS-075  | cond=7 (EQ)                                 | PASS UC14A    |
+| TC-DIS-439   | SGE D2 (0x5CC2): mnem=SGE, ops=D2                                                  | [N]  | UFR-HEX-005  | REQ-DIS-042            | INT-DIS-075  | cond=0xC (GE)                               | PASS UC14A    |
+| TC-DIS-440   | SLE (A0)+ (0x5FD8): mnem=SLE, ops=(A0)+                                            | [N]  | UFR-HEX-005  | REQ-DIS-042            | INT-DIS-075  | cond=0xF (LE), mode=3/(An)+                 | PASS UC14A    |
+| TC-DIS-441   | DBRA D0,$001010: wc=2, mnem=DBRA, ops=D0,$001010 — positive disp                  | [N]  | UFR-HEX-005  | REQ-DIS-043            | INT-DIS-076  | cond=1 → DBRA; disp=+0x000E                 | PASS UC14A    |
+| TC-DIS-442   | DBRA D5,$000FF0: ops=D5,$000FF0 — negative displacement                             | [N]  | UFR-HEX-005  | REQ-DIS-043            | INT-DIS-076  | disp=0xFFEE (signed -18)                    | PASS UC14A    |
+| TC-DIS-443   | DBT D0,$001010: mnem=DBT — cond=0 (always true)                                    | [N]  | UFR-HEX-005  | REQ-DIS-043            | INT-DIS-076  | DBT distinct from DBRA                      | PASS UC14A    |
+| TC-DIS-444   | DBNE D3,$001020: mnem=DBNE, ops=D3,$001020                                          | [N]  | UFR-HEX-005  | REQ-DIS-043            | INT-DIS-076  | cond=6 (NE), disp=+0x001E                   | PASS UC14A    |
+| TC-DIS-445   | DBEQ D7,$000FF8: ops=D7,$000FF8 — negative disp, reg=7                              | [N]  | UFR-HEX-005  | REQ-DIS-043            | INT-DIS-076  | disp=0xFFF6 (signed -10)                    | PASS UC14A    |
+| TC-DIS-446   | DBLT D0,$001002: zero displacement → target = addr+2                                | [N]  | UFR-HEX-005  | REQ-DIS-043            | INT-DIS-076  | disp=0x0000                                 | PASS UC14A    |
+| TC-DIS-447   | DBGT D2,$00100C: mnem=DBGT, ops=D2,$00100C                                          | [N]  | UFR-HEX-005  | REQ-DIS-043            | INT-DIS-076  | cond=0xE (GT)                               | PASS UC14A    |
+| TC-DIS-448   | DBLE D1,$001008: mnem=DBLE, ops=D1,$001008                                          | [N]  | UFR-HEX-005  | REQ-DIS-043            | INT-DIS-076  | cond=0xF (LE)                               | PASS UC14A    |
+| TC-DIS-449   | MOVEM.L store mode=1 (An) → DC.W (0x48C8)                                          | [R]  | UFR-HEX-005  | REQ-DIS-039            | INT-DIS-077  | DC.W; 0x4880-0x48C7 = EXT.W/L              | PASS UC14A    |
+| TC-DIS-450   | MOVEM.W store mode=1 (An) → DC.W (0x4888)                                          | [R]  | UFR-HEX-005  | REQ-DIS-039            | INT-DIS-077  | DC.W                                        | PASS UC14A    |
+| TC-DIS-451   | MOVEM.W store mode=3 ((An)+) → DC.W (0x4898)                                       | [R]  | UFR-HEX-005  | REQ-DIS-039            | INT-DIS-077  | DC.W; postincrement invalid for store       | PASS UC14A    |
+| TC-DIS-452   | MOVEM.W load mode=4 (-(An)) → DC.W (0x4CA0)                                        | [R]  | UFR-HEX-005  | REQ-DIS-040            | INT-DIS-077  | DC.W; predecrement invalid for load         | PASS UC14A    |
+| TC-DIS-453   | SNE #imm (0x56FC) → DC.W                                                            | [R]  | UFR-HEX-005  | REQ-DIS-042            | INT-DIS-077  | DC.W; #imm dest rejected                    | PASS UC14A    |
+| TC-DIS-454   | DBRA D0 with 2-byte buffer → DC.W                                                   | [R]  | UFR-HEX-005  | REQ-DIS-043            | INT-DIS-077  | DC.W; disp16 word missing                   | PASS UC14A    |
+| TC-DIS-455   | MOVEM.L -(A7) with 2-byte buffer → DC.W                                             | [R]  | UFR-HEX-005  | REQ-DIS-039            | INT-DIS-077  | DC.W; mask word missing                     | PASS UC14A    |
+| TC-DIS-456   | MOVE.W An,SR (0x46C8) → DC.W                                                        | [R]  | UFR-HEX-005  | REQ-DIS-044            | INT-DIS-077  | DC.W; An source invalid for SR/CCR          | PASS UC14A    |
+
+#### Test Summary — UC14A
+
+| Module | [N] | [R] | [S] | Total | Result     |
+|--------|-----|-----|-----|-------|------------|
+| DIS    | 29  | 8   | 0   | 37    | ALL PASS   |
+
+#### REQ → TC coverage (UC14A)
+
+| REQ          | TC(s)                                         | Status     |
+|--------------|-----------------------------------------------|------------|
+| REQ-DIS-039  | TC-DIS-420..423, TC-DIS-449..451, TC-DIS-455 | ✓ UC14A    |
+| REQ-DIS-040  | TC-DIS-424..428, TC-DIS-452                   | ✓ UC14A    |
+| REQ-DIS-041  | TC-DIS-420..428                               | ✓ UC14A    |
+| REQ-DIS-042  | TC-DIS-435..440, TC-DIS-453                   | ✓ UC14A    |
+| REQ-DIS-043  | TC-DIS-441..448, TC-DIS-454                   | ✓ UC14A    |
+| REQ-DIS-044  | TC-DIS-429..434, TC-DIS-456                   | ✓ UC14A    |
+
+#### UFR traceability update (UC14A)
+
+| UFR         | REQ(s)                                       | TC(s)               | Status    |
+|-------------|----------------------------------------------|---------------------|-----------|
+| UFR-HEX-005 | REQ-DIS-039..044 (added UC14A)               | TC-DIS-420..456     | ✓ UC14A   |
+
+#### ADAPTED markers (UC14A)
+
+| File               | Test                                  | Previous assertion      | New assertion (UC14A)    | Root cause                           |
+|--------------------|---------------------------------------|-------------------------|--------------------------|--------------------------------------|
+| use_case_11.c:264  | CLR size=11                           | bValid==ST_FALSE        | bValid==ST_TRUE, mnem=MOVE.W | 0x42C0 = CLR group sz=3 → MOVE.W CCR,D0 |
+| use_case_12.c:139  | SUBQ size=11 → DC.W (Scc)            | bValid==ST_FALSE        | bValid==ST_TRUE, mnem=SF     | 0x51C0 = group5 cond=1 sz=3 → SF D0 |
+| use_case_12.c:296  | NEG size=11 → DC.W                   | bValid==ST_FALSE        | bValid==ST_TRUE, mnem=MOVE.W | 0x44C0 = NEG group sz=3 → MOVE.W D0,CCR |
+| use_case_12.c:390  | NEGX size=11 → DC.W                  | bValid==ST_FALSE        | bValid==ST_TRUE, mnem=MOVE.W | 0x40C0 = NEGX group sz=3 → MOVE.W SR,D0 |
+| use_case_12.c:433  | 0x50C0 (ST/Scc) → DC.W               | bValid==ST_FALSE        | bValid==ST_TRUE, mnem=ST     | 0x50C0 = group5 cond=0 → ST D0      |
+
+---
+
 ### 5.50 INTENT Catalog — UC17
 
 | ID           | Intent                                                                                        |

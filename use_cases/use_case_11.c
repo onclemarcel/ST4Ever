@@ -256,13 +256,14 @@ int main(void)
     /* CLR.W (A1) = 0x4251 */
     UC11_CHECK_1W("CLR.W (A1)", 0x42, 0x51, "CLR.W", "(A1)");
 
-    /* CLR size=11 (0x42C0) → invalid size → DC.W */
+    /* ADAPTED: UC14A — 0x42C0 (CLR group sz=3) now decodes as MOVE.W CCR,<ea> */
     {
         static const st_u8_t aBuf[2] = { 0x42, 0xC0 };
         memset(&tR, 0, sizeof(tR));
         disasm_one(aBuf, 2, 0x1000, &tR);
-        UC_TEST("[N] CLR size=11 → DC.W (invalid size)",
-                tR.bValid == ST_FALSE);
+        UC_TEST("[N] 0x42C0 = MOVE.W CCR,D0 ADAPTED(UC14A)",
+                tR.bValid == ST_TRUE
+                && strcmp(tR.szMnemonic, "MOVE.W") == 0);
     }
 
     /* ================================================================

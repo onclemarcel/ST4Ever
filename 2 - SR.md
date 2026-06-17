@@ -751,6 +751,12 @@ requirement that will expose it (`UFR-EXE-*`, planned UC21–27).
 | REQ-DIS-036 | Branch target address = `(instruction_addr + 2 + displacement) & 0x00FFFFFF`; displayed as `$XXXXXX` (6 hex digits). | UFR-HEX-005 | ✓ UC14 | UC14 |
 | REQ-DIS-037 | Bcc (conditions 2-15): same short/long/0xFF rules as BRA/BSR; mnemonics from `g_aszBcc[16]` table (BHI, BLS, BCC, BCS, BNE, BEQ, BVC, BVS, BPL, BMI, BGE, BLT, BGT, BLE). | UFR-HEX-005 | ✓ UC14 | UC14 |
 | REQ-DIS-038 | `disasm_range()` shall walk a realistic mixed control-flow stream (MOVE + TST + BEQ.S + NOP + BRA.S + RTS) correctly, with addresses advancing per `iWordCount`. | UFR-HEX-005 | ✓ UC14 | UC14 |
+| REQ-DIS-039 | MOVEM.W/L store (0x4880/0x48C0 base + ea): mask word follows opcode; -(An) predecrement uses reversed mask (bit0=A7 … bit15=D0); modes 0 (Dn), 1 (An), 3 ((An)+) rejected → DC.W. | UFR-HEX-005 | ✓ UC14A | disasm_fmt_reglist() + MOVEM store block |
+| REQ-DIS-040 | MOVEM.W/L load (0x4C80/0x4CC0 base + ea): normal mask order (bit0=D0 … bit15=A7); mode 4 (-(An)) rejected → DC.W; iExtSoFar=1 passed to disasm_fmt_ea for PC-relative displacement. | UFR-HEX-005 | ✓ UC14A | MOVEM load block |
+| REQ-DIS-041 | Register list formatted as `D0-D7/A0-A7` groups: consecutive ranges collapsed (e.g. D0-D3), groups separated by '/', no single run crosses the D7/A0 boundary. | UFR-HEX-005 | ✓ UC14A | disasm_fmt_reglist() |
+| REQ-DIS-042 | Scc (group 5, bits 7-6=11, 16 conditions): cond in bits 11-8; mnemonics from `g_aszScc[16]` table (ST/SF/SHI/.../SLE); #imm destination (mode=7,reg=4) → DC.W. | UFR-HEX-005 | ✓ UC14A | disasm_group5() Scc path |
+| REQ-DIS-043 | DBcc (group 5, mode=001 in bits 5-3): cond in bits 11-8, Dn in bits 2-0; disp16 word follows; target = (addr+2+disp16) & 0xFFFFFF displayed as `$XXXXXX` (6 hex digits); cond=1 → "DBRA" mnemonic. | UFR-HEX-005 | ✓ UC14A | disasm_group5() DBcc path |
+| REQ-DIS-044 | MOVE to/from SR/CCR: sz=3 (bits 7-6=11) in NEGX (0x40xx), CLR (0x42xx), NEG (0x44xx), NOT (0x46xx) groups decodes as MOVE.W SR/\<ea\>, MOVE.W CCR/\<ea\>, MOVE.W \<ea\>,CCR, MOVE.W \<ea\>,SR respectively; An mode (mode=1) rejected for source operands. | UFR-HEX-005 | ✓ UC14A | NEGX/CLR/NEG/NOT sz=3 cases |
 
 ---
 

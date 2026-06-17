@@ -7,7 +7,8 @@
  *        AND/ANDI/OR/ORI/EOR/EORI/NOT/NEG/NEGX/TST/EXT
  * UC13: ASL/ASR/LSL/LSR/ROL/ROR/ROXL/ROXR (register + memory)
  *        BTST/BCHG/BCLR/BSET (static #imm + dynamic Dn)
- * UC14: BRA/BSR/Bcc/JMP/JSR/RTS/RTR/RTE/TRAP/ILLEGAL   (TODO)
+ * UC14: BRA/BSR/Bcc/JMP/JSR/RTS/RTR/RTE/TRAP/ILLEGAL
+ * UC14A: MOVEM.W/L / Scc / DBcc/DBRA / MOVE to-from SR/CCR
  */
 
 #include "disassemble.h"
@@ -53,6 +54,20 @@ static const char * const g_aszDn[8] =
     { "D0","D1","D2","D3","D4","D5","D6","D7" };
 static const char * const g_aszAn[8] =
     { "A0","A1","A2","A3","A4","A5","A6","A7" };
+
+/* UC14A: Scc mnemonics, indexed by bits 11-8 of group 5 opcode (sz=3) */
+static const char * const g_aszScc[16] =
+{
+    "ST",  "SF",  "SHI", "SLS", "SCC", "SCS", "SNE", "SEQ",
+    "SVC", "SVS", "SPL", "SMI", "SGE", "SLT", "SGT", "SLE"
+};
+
+/* UC14A: DBcc mnemonics — DBRA is the standard alias for DBF (cond=1) */
+static const char * const g_aszDBcc[16] =
+{
+    "DBT",  "DBRA", "DBHI", "DBLS", "DBCC", "DBCS", "DBNE", "DBEQ",
+    "DBVC", "DBVS", "DBPL", "DBMI", "DBGE", "DBLT", "DBGT", "DBLE"
+};
 
 /* ------------------------------------------------------------------
  * Low-level helpers
@@ -405,6 +420,52 @@ static int disasm_ea_ext_cnt(int iMode, int iReg)
 }
 
 /* ------------------------------------------------------------------
+ * UC14A: MOVEM register list formatter
+ *
+ * uiMask   : 16-bit register mask from the opcode extension word
+ * bReverse : 1 for -(An) predecrement (mask bits are reversed)
+ * szOut    : receives "D0/D2-D5/A0-A7" style string
+ * ------------------------------------------------------------------ */
+static void disasm_fmt_reglist(st_u16_t uiMask, int bReverse,
+                                char *szOut, size_t uiOutLen)
+{
+    static const char * const aszReg[16] = {
+        "D0","D1","D2","D3","D4","D5","D6","D7",
+        "A0","A1","A2","A3","A4","A5","A6","A7"
+    };
+    int aPresent[16];
+    int i, iStart, iPos;
+    int bFirst;
+
+    for (i = 0; i < 16; i++)
+        aPresent[i] = bReverse ? ((uiMask >> (15 - i)) & 1)
+                                : ((uiMask >> i) & 1);
+
+    iPos   = 0;
+    bFirst = 1;
+    i      = 0;
+    while (i < 16)
+    {
+        if (!aPresent[i]) { i++; continue; }
+        iStart = i;
+        /* extend run without crossing the D7/A0 boundary */
+        while (i < 16 && aPresent[i] && !(iStart <= 7 && i >= 8))
+            i++;
+        if (!bFirst && iPos < (int)uiOutLen - 1)
+            szOut[iPos++] = '/';
+        bFirst = 0;
+        if (i - iStart == 1)
+            iPos += snprintf(szOut + iPos, uiOutLen - (size_t)iPos,
+                             "%s", aszReg[iStart]);
+        else
+            iPos += snprintf(szOut + iPos, uiOutLen - (size_t)iPos,
+                             "%s-%s", aszReg[iStart], aszReg[i - 1]);
+    }
+    if (bFirst)
+        snprintf(szOut, uiOutLen, "(none)");
+}
+
+/* ------------------------------------------------------------------
  * UC11 / UC12: group 0x4 miscellaneous
  * ------------------------------------------------------------------ */
 
@@ -422,21 +483,25 @@ static void disasm_misc4(const st_u8_t *pBuf, size_t uiBufLen,
     /* --- UC12: NEGX  0100 0000 ss EA -------------------------------- */
     if ((uiOpc & 0xFF00) == 0x4000)
     {
-        int nExt;
         iSz   = (uiOpc >> 6) & 3;
         iMode = (uiOpc >> 3) & 7;
         iReg  = (uiOpc     ) & 7;
         if (iSz == 3)
         {
-            /* sz=3: MOVE.W SR,<ea> — DC.W but consume EA extension words */
-            nExt = disasm_ea_ext_cnt(iMode, iReg);
-            disasm_dc_word(pBuf, uiBufLen, uiAddr, ptR);
-            if (nExt > 0 && uiBufLen >= (size_t)((1 + nExt) * 2))
-            {
-                ptR->iWordCount = 1 + nExt;
-                disasm_fill_words(ptR, pBuf, uiBufLen);
-                disasm_fmt_line(ptR);
-            }
+            /* UC14A: MOVE.W SR,<ea> */
+            n = disasm_fmt_ea(pBuf + 2, uiBufLen - 2, uiAddr, 0,
+                              iMode, iReg, 1, szEA, sizeof(szEA));
+            if (n < 0)
+            { disasm_dc_word(pBuf, uiBufLen, uiAddr, ptR); return; }
+            ptR->uiAddr     = uiAddr;
+            ptR->auWords[0] = uiOpc;
+            ptR->iWordCount = 1 + n;
+            ptR->bValid     = ST_TRUE;
+            snprintf(ptR->szMnemonic, sizeof(ptR->szMnemonic), "MOVE.W");
+            snprintf(ptR->szOperands, sizeof(ptR->szOperands),
+                     "SR,%s", szEA);
+            disasm_fill_words(ptR, pBuf, uiBufLen);
+            disasm_fmt_line(ptR);
             return;
         }
         disasm_unary_ea(pBuf, uiBufLen, uiAddr, "NEGX", iSz, iMode, iReg, ptR);
@@ -449,7 +514,24 @@ static void disasm_misc4(const st_u8_t *pBuf, size_t uiBufLen,
         iSz   = (uiOpc >> 6) & 3;
         iMode = (uiOpc >> 3) & 7;
         iReg  = (uiOpc     ) & 7;
-        if (iSz == 3) { disasm_dc_word(pBuf, uiBufLen, uiAddr, ptR); return; }
+        if (iSz == 3)
+        {
+            /* UC14A: MOVE.W CCR,<ea> (68010+, rare in 68000 code) */
+            n = disasm_fmt_ea(pBuf + 2, uiBufLen - 2, uiAddr, 0,
+                              iMode, iReg, 1, szEA, sizeof(szEA));
+            if (n < 0)
+            { disasm_dc_word(pBuf, uiBufLen, uiAddr, ptR); return; }
+            ptR->uiAddr     = uiAddr;
+            ptR->auWords[0] = uiOpc;
+            ptR->iWordCount = 1 + n;
+            ptR->bValid     = ST_TRUE;
+            snprintf(ptR->szMnemonic, sizeof(ptR->szMnemonic), "MOVE.W");
+            snprintf(ptR->szOperands, sizeof(ptR->szOperands),
+                     "CCR,%s", szEA);
+            disasm_fill_words(ptR, pBuf, uiBufLen);
+            disasm_fmt_line(ptR);
+            return;
+        }
         disasm_unary_ea(pBuf, uiBufLen, uiAddr, "CLR", iSz, iMode, iReg, ptR);
         return;
     }
@@ -457,21 +539,27 @@ static void disasm_misc4(const st_u8_t *pBuf, size_t uiBufLen,
     /* --- UC12: NEG   0100 0100 ss EA -------------------------------- */
     if ((uiOpc & 0xFF00) == 0x4400)
     {
-        int nExt;
         iSz   = (uiOpc >> 6) & 3;
         iMode = (uiOpc >> 3) & 7;
         iReg  = (uiOpc     ) & 7;
         if (iSz == 3)
         {
-            /* sz=3: MOVE.W <ea>,CCR — DC.W but consume EA extension words */
-            nExt = disasm_ea_ext_cnt(iMode, iReg);
-            disasm_dc_word(pBuf, uiBufLen, uiAddr, ptR);
-            if (nExt > 0 && uiBufLen >= (size_t)((1 + nExt) * 2))
-            {
-                ptR->iWordCount = 1 + nExt;
-                disasm_fill_words(ptR, pBuf, uiBufLen);
-                disasm_fmt_line(ptR);
-            }
+            /* UC14A: MOVE.W <ea>,CCR */
+            if (iMode == 1)
+            { disasm_dc_word(pBuf, uiBufLen, uiAddr, ptR); return; }
+            n = disasm_fmt_ea(pBuf + 2, uiBufLen - 2, uiAddr, 0,
+                              iMode, iReg, 1, szEA, sizeof(szEA));
+            if (n < 0)
+            { disasm_dc_word(pBuf, uiBufLen, uiAddr, ptR); return; }
+            ptR->uiAddr     = uiAddr;
+            ptR->auWords[0] = uiOpc;
+            ptR->iWordCount = 1 + n;
+            ptR->bValid     = ST_TRUE;
+            snprintf(ptR->szMnemonic, sizeof(ptR->szMnemonic), "MOVE.W");
+            snprintf(ptR->szOperands, sizeof(ptR->szOperands),
+                     "%s,CCR", szEA);
+            disasm_fill_words(ptR, pBuf, uiBufLen);
+            disasm_fmt_line(ptR);
             return;
         }
         disasm_unary_ea(pBuf, uiBufLen, uiAddr, "NEG", iSz, iMode, iReg, ptR);
@@ -481,21 +569,27 @@ static void disasm_misc4(const st_u8_t *pBuf, size_t uiBufLen,
     /* --- UC12: NOT   0100 0110 ss EA -------------------------------- */
     if ((uiOpc & 0xFF00) == 0x4600)
     {
-        int nExt;
         iSz   = (uiOpc >> 6) & 3;
         iMode = (uiOpc >> 3) & 7;
         iReg  = (uiOpc     ) & 7;
         if (iSz == 3)
         {
-            /* sz=3: MOVE.W <ea>,SR — DC.W but consume EA extension words */
-            nExt = disasm_ea_ext_cnt(iMode, iReg);
-            disasm_dc_word(pBuf, uiBufLen, uiAddr, ptR);
-            if (nExt > 0 && uiBufLen >= (size_t)((1 + nExt) * 2))
-            {
-                ptR->iWordCount = 1 + nExt;
-                disasm_fill_words(ptR, pBuf, uiBufLen);
-                disasm_fmt_line(ptR);
-            }
+            /* UC14A: MOVE.W <ea>,SR */
+            if (iMode == 1)
+            { disasm_dc_word(pBuf, uiBufLen, uiAddr, ptR); return; }
+            n = disasm_fmt_ea(pBuf + 2, uiBufLen - 2, uiAddr, 0,
+                              iMode, iReg, 1, szEA, sizeof(szEA));
+            if (n < 0)
+            { disasm_dc_word(pBuf, uiBufLen, uiAddr, ptR); return; }
+            ptR->uiAddr     = uiAddr;
+            ptR->auWords[0] = uiOpc;
+            ptR->iWordCount = 1 + n;
+            ptR->bValid     = ST_TRUE;
+            snprintf(ptR->szMnemonic, sizeof(ptR->szMnemonic), "MOVE.W");
+            snprintf(ptR->szOperands, sizeof(ptR->szOperands),
+                     "%s,SR", szEA);
+            disasm_fill_words(ptR, pBuf, uiBufLen);
+            disasm_fmt_line(ptR);
             return;
         }
         disasm_unary_ea(pBuf, uiBufLen, uiAddr, "NOT", iSz, iMode, iReg, ptR);
@@ -526,23 +620,26 @@ static void disasm_misc4(const st_u8_t *pBuf, size_t uiBufLen,
     /* --- UC12: TST   0100 1010 ss EA -------------------------------- */
     if ((uiOpc & 0xFF00) == 0x4A00)
     {
-        int nExt;
         iSz   = (uiOpc >> 6) & 3;
         iMode = (uiOpc >> 3) & 7;
         iReg  = (uiOpc     ) & 7;
         if (iSz == 3)
         {
-            /* sz=3: TAS / ILLEGAL — DC.W, consume EA ext words if any.
-             * mode 7.4 (#imm) is excluded by disasm_ea_ext_cnt so
-             * ILLEGAL ($4AFC) keeps iWordCount=1. */
-            nExt = disasm_ea_ext_cnt(iMode, iReg);
-            disasm_dc_word(pBuf, uiBufLen, uiAddr, ptR);
-            if (nExt > 0 && uiBufLen >= (size_t)((1 + nExt) * 2))
-            {
-                ptR->iWordCount = 1 + nExt;
-                disasm_fill_words(ptR, pBuf, uiBufLen);
-                disasm_fmt_line(ptR);
-            }
+            /* UC14B: TAS — 0100 1010 11 EA — byte, no size suffix
+             * An (mode 1) invalid; #imm (mode7,reg4) = ILLEGAL → DC.W */
+            if (iMode == 1 || (iMode == 7 && iReg == 4))
+            { disasm_dc_word(pBuf, uiBufLen, uiAddr, ptR); return; }
+            n = disasm_fmt_ea(pBuf + 2, uiBufLen - 2, uiAddr, 0,
+                               iMode, iReg, 0, szEA, sizeof(szEA));
+            if (n < 0) { disasm_dc_word(pBuf, uiBufLen, uiAddr, ptR); return; }
+            ptR->uiAddr     = uiAddr;
+            ptR->auWords[0] = uiOpc;
+            ptR->iWordCount = 1 + n;
+            ptR->bValid     = ST_TRUE;
+            snprintf(ptR->szMnemonic, sizeof(ptR->szMnemonic), "TAS");
+            snprintf(ptR->szOperands, sizeof(ptR->szOperands), "%s", szEA);
+            disasm_fill_words(ptR, pBuf, uiBufLen);
+            disasm_fmt_line(ptR);
             return;
         }
         disasm_unary_ea(pBuf, uiBufLen, uiAddr, "TST", iSz, iMode, iReg, ptR);
@@ -715,57 +812,104 @@ static void disasm_misc4(const st_u8_t *pBuf, size_t uiBufLen,
         return;
     }
 
-    /* MOVEM: 0100 1000/1100 1s EA — opcode + register-mask + optional EA-ext.
+    /* UC14A: MOVEM — 0100 1d00 1s MMMRRR + register-mask + optional EA-ext.
      * EXT.W ($4880-$4887) and EXT.L ($48C0-$48C7) are caught above.
      * Any remaining $48xx/$4Cxx with bit 7 set are MOVEM.
+     * d=0: store (reglist → EA), d=1: load (EA → reglist)
+     * s=0: .W,  s=1: .L
      */
     if ((uiOpc & 0xFF80) == 0x4880 || (uiOpc & 0xFF80) == 0x4C80)
     {
-        int iMvmMode = (uiOpc >> 3) & 7;
-        int iMvmReg  = uiOpc & 7;
-        int nWords   = 2; /* opcode + register-mask */
-        if      (iMvmMode == 5) nWords = 3;                    /* d16(An) */
-        else if (iMvmMode == 6) nWords = 3;                    /* d8(An,Xn) */
-        else if (iMvmMode == 7 && iMvmReg == 0) nWords = 3;   /* abs.W */
-        else if (iMvmMode == 7 && iMvmReg == 1) nWords = 4;   /* abs.L */
-        while (nWords > 1 && (size_t)(nWords * 2) > uiBufLen) nWords--;
-        disasm_dc_word(pBuf, uiBufLen, uiAddr, ptR);
-        ptR->iWordCount = nWords;
+        int      iMvmDir  = (uiOpc >> 10) & 1; /* 0=store,  1=load  */
+        int      iMvmSz   = (uiOpc >>  6) & 1; /* 0=.W,     1=.L    */
+        int      iMvmMode = (uiOpc >>  3) & 7;
+        int      iMvmReg  = (uiOpc       ) & 7;
+        st_u16_t uiMask;
+        char     szRL[64];
+        int      nEA;
+
+        /* Reject Dn (0), An (1), #imm (7.4) */
+        if (iMvmMode == 0 || iMvmMode == 1
+        || (iMvmMode == 7 && iMvmReg == 4))
+        { disasm_dc_word(pBuf, uiBufLen, uiAddr, ptR); return; }
+        /* Store: (An)+ not valid; Load: -(An) not valid */
+        if (!iMvmDir && iMvmMode == 3)
+        { disasm_dc_word(pBuf, uiBufLen, uiAddr, ptR); return; }
+        if (iMvmDir && iMvmMode == 4)
+        { disasm_dc_word(pBuf, uiBufLen, uiAddr, ptR); return; }
+        if (uiBufLen < 4)
+        { disasm_dc_word(pBuf, uiBufLen, uiAddr, ptR); return; }
+
+        uiMask = disasm_rw(pBuf + 2);
+        /* Mask is reversed in bit order for -(An) predecrement store */
+        disasm_fmt_reglist(uiMask, (!iMvmDir && iMvmMode == 4),
+                           szRL, sizeof(szRL));
+
+        nEA = disasm_fmt_ea(pBuf + 4, uiBufLen - 4, uiAddr, 1,
+                            iMvmMode, iMvmReg,
+                            iMvmSz ? 2 : 1, szEA, sizeof(szEA));
+        if (nEA < 0)
+        { disasm_dc_word(pBuf, uiBufLen, uiAddr, ptR); return; }
+
+        ptR->uiAddr     = uiAddr;
+        ptR->auWords[0] = uiOpc;
+        ptR->auWords[1] = uiMask;
+        ptR->iWordCount = 2 + nEA;
+        ptR->bValid     = ST_TRUE;
+        snprintf(ptR->szMnemonic, sizeof(ptR->szMnemonic),
+                 "MOVEM.%c", iMvmSz ? 'L' : 'W');
+        if (!iMvmDir)   /* store: reglist,<ea> */
+            snprintf(ptR->szOperands, sizeof(ptR->szOperands),
+                     "%s,%s", szRL, szEA);
+        else            /* load:  <ea>,reglist */
+            snprintf(ptR->szOperands, sizeof(ptR->szOperands),
+                     "%s,%s", szEA, szRL);
         disasm_fill_words(ptR, pBuf, uiBufLen);
         disasm_fmt_line(ptR);
         return;
     }
-    /* NBCD: 0100 1000 00 EA — 1 opcode word + EA extension words */
+    /* UC14B: NBCD — 0100 1000 00 EA — byte, no size suffix
+     * An (mode 1) and #imm (mode7,reg4) invalid */
     if ((uiOpc & 0xFFC0) == 0x4800)
     {
-        int nExt;
         iMode = (uiOpc >> 3) & 7;
         iReg  = uiOpc & 7;
-        nExt  = disasm_ea_ext_cnt(iMode, iReg);
-        disasm_dc_word(pBuf, uiBufLen, uiAddr, ptR);
-        if (nExt > 0 && uiBufLen >= (size_t)((1 + nExt) * 2))
-        {
-            ptR->iWordCount = 1 + nExt;
-            disasm_fill_words(ptR, pBuf, uiBufLen);
-            disasm_fmt_line(ptR);
-        }
+        if (iMode == 1 || (iMode == 7 && iReg == 4))
+        { disasm_dc_word(pBuf, uiBufLen, uiAddr, ptR); return; }
+        n = disasm_fmt_ea(pBuf + 2, uiBufLen - 2, uiAddr, 0,
+                           iMode, iReg, 0, szEA, sizeof(szEA));
+        if (n < 0) { disasm_dc_word(pBuf, uiBufLen, uiAddr, ptR); return; }
+        ptR->uiAddr     = uiAddr;
+        ptR->auWords[0] = uiOpc;
+        ptR->iWordCount = 1 + n;
+        ptR->bValid     = ST_TRUE;
+        snprintf(ptR->szMnemonic, sizeof(ptR->szMnemonic), "NBCD");
+        snprintf(ptR->szOperands, sizeof(ptR->szOperands), "%s", szEA);
+        disasm_fill_words(ptR, pBuf, uiBufLen);
+        disasm_fmt_line(ptR);
         return;
     }
 
-    /* CHK.W: 0100 DDD 1 10 EA — bit8=1, bits7-6=10 */
+    /* UC14B: CHK.W — 0100 DDD 1 10 EA — mode 1 (An) invalid source */
     if ((uiOpc & 0xF1C0) == 0x4180)
     {
-        int nExt;
+        iAn   = (uiOpc >> 9) & 7;  /* destination Dn */
         iMode = (uiOpc >> 3) & 7;
         iReg  = uiOpc & 7;
-        nExt  = disasm_ea_ext_cnt(iMode, iReg);
-        disasm_dc_word(pBuf, uiBufLen, uiAddr, ptR);
-        if (nExt > 0 && uiBufLen >= (size_t)((1 + nExt) * 2))
-        {
-            ptR->iWordCount = 1 + nExt;
-            disasm_fill_words(ptR, pBuf, uiBufLen);
-            disasm_fmt_line(ptR);
-        }
+        if (iMode == 1)
+        { disasm_dc_word(pBuf, uiBufLen, uiAddr, ptR); return; }
+        n = disasm_fmt_ea(pBuf + 2, uiBufLen - 2, uiAddr, 0,
+                           iMode, iReg, 1, szEA, sizeof(szEA));
+        if (n < 0) { disasm_dc_word(pBuf, uiBufLen, uiAddr, ptR); return; }
+        ptR->uiAddr     = uiAddr;
+        ptR->auWords[0] = uiOpc;
+        ptR->iWordCount = 1 + n;
+        ptR->bValid     = ST_TRUE;
+        snprintf(ptR->szMnemonic, sizeof(ptR->szMnemonic), "CHK.W");
+        snprintf(ptR->szOperands, sizeof(ptR->szOperands),
+                 "%s,%s", szEA, g_aszDn[iAn]);
+        disasm_fill_words(ptR, pBuf, uiBufLen);
+        disasm_fmt_line(ptR);
         return;
     }
 
@@ -1165,16 +1309,38 @@ static void disasm_bit_dynamic(const st_u8_t *pBuf, size_t uiBufLen,
     char     szEA[40];
     int      n;
 
-    /* An mode → MOVEP (opcode + d16 displacement = 2 words) */
+    /* UC14B: MOVEP — 0000 DDD 1 d s 001 AAA + d16
+     * bit 7 (iOp>>1): direction 0=mem→reg, 1=reg→mem
+     * bit 6 (iOp&1):  size 0=word, 1=long */
     if (iMode == 1)
     {
-        disasm_dc_word(pBuf, uiBufLen, uiAddr, ptR);
-        if (uiBufLen >= 4)
-        {
-            ptR->iWordCount = 2;
-            disasm_fill_words(ptR, pBuf, uiBufLen);
-            disasm_fmt_line(ptR);
-        }
+        int      iDir16 = (iOp >> 1) & 1;
+        int      iSzM   = iOp & 1;
+        st_i16_t iDisp16;
+        char     szDisp[32];
+        if (uiBufLen < 4)
+        { disasm_dc_word(pBuf, uiBufLen, uiAddr, ptR); return; }
+        iDisp16 = (st_i16_t)disasm_rw(pBuf + 2);
+        if (iDisp16 < 0)
+            snprintf(szDisp, sizeof(szDisp), "-$%X(%s)",
+                     (unsigned)(-(int)iDisp16), g_aszAn[iReg]);
+        else
+            snprintf(szDisp, sizeof(szDisp), "$%X(%s)",
+                     (unsigned)(int)iDisp16, g_aszAn[iReg]);
+        ptR->uiAddr     = uiAddr;
+        ptR->auWords[0] = uiOpc;
+        ptR->iWordCount = 2;
+        ptR->bValid     = ST_TRUE;
+        snprintf(ptR->szMnemonic, sizeof(ptR->szMnemonic),
+                 "MOVEP.%c", iSzM ? 'L' : 'W');
+        if (iDir16 == 0)
+            snprintf(ptR->szOperands, sizeof(ptR->szOperands),
+                     "%s,%s", szDisp, g_aszDn[iDn]);
+        else
+            snprintf(ptR->szOperands, sizeof(ptR->szOperands),
+                     "%s,%s", g_aszDn[iDn], szDisp);
+        disasm_fill_words(ptR, pBuf, uiBufLen);
+        disasm_fmt_line(ptR);
         return;
     }
 
@@ -1313,30 +1479,68 @@ static void disasm_group0(const st_u8_t *pBuf, size_t uiBufLen,
 }
 
 /* ------------------------------------------------------------------
- * UC12: Group 0x5 — ADDQ / SUBQ  (Scc/DBcc → DC.W)
+ * UC12/UC14A: Group 0x5 — ADDQ / SUBQ / Scc / DBcc / DBRA
  * ------------------------------------------------------------------ */
 
 static void disasm_group5(const st_u8_t *pBuf, size_t uiBufLen,
                            st_u32_t uiAddr, disasm_result_t *ptR)
 {
-    st_u16_t uiOpc = disasm_rw(pBuf);
-    int      iSz   = (uiOpc >> 6) & 3;
+    st_u16_t uiOpc  = disasm_rw(pBuf);
+    int      iCond  = (uiOpc >> 8) & 0xF;
+    int      iSz    = (uiOpc >> 6) & 3;
+    int      iMode  = (uiOpc >> 3) & 7;
+    int      iReg   = (uiOpc     ) & 7;
+    st_i16_t iDisp16;
+    st_u32_t uiTarget;
+    char     szEA[40];
+    int      n;
 
-    if (iSz == 3)
-    {
-        /* Scc / DBcc — DC.W; DBcc (mode=001) uses 2 words (opcode + d16) */
-        disasm_dc_word(pBuf, uiBufLen, uiAddr, ptR);
-        if (((uiOpc >> 3) & 7) == 1 && uiBufLen >= 4)
-        {
-            ptR->iWordCount = 2;
-            disasm_fill_words(ptR, pBuf, uiBufLen);
-            disasm_fmt_line(ptR);
-        }
-    }
-    else
+    if (iSz != 3)
     {
         disasm_addq_subq(pBuf, uiBufLen, uiAddr, ptR);
+        return;
     }
+
+    /* --- UC14A: DBcc — mode 001 (Dn direct) -------------------------- */
+    if (iMode == 1)
+    {
+        if (uiBufLen < 4)
+        { disasm_dc_word(pBuf, uiBufLen, uiAddr, ptR); return; }
+        iDisp16  = (st_i16_t)disasm_rw(pBuf + 2);
+        uiTarget = (st_u32_t)((st_i32_t)(uiAddr + 2) + (st_i32_t)iDisp16)
+                   & 0x00FFFFFFu;
+        ptR->uiAddr     = uiAddr;
+        ptR->auWords[0] = uiOpc;
+        ptR->iWordCount = 2;
+        ptR->bValid     = ST_TRUE;
+        snprintf(ptR->szMnemonic, sizeof(ptR->szMnemonic),
+                 "%s", g_aszDBcc[iCond]);
+        snprintf(ptR->szOperands, sizeof(ptR->szOperands),
+                 "%s,$%06X", g_aszDn[iReg], (unsigned)uiTarget);
+        disasm_fill_words(ptR, pBuf, uiBufLen);
+        disasm_fmt_line(ptR);
+        return;
+    }
+
+    /* --- UC14A: Scc — byte set-on-condition -------------------------  */
+    /* #imm (mode 7, reg 4) is not a valid destination for Scc */
+    if (iMode == 7 && iReg == 4)
+    { disasm_dc_word(pBuf, uiBufLen, uiAddr, ptR); return; }
+
+    n = disasm_fmt_ea(pBuf + 2, uiBufLen - 2, uiAddr, 0,
+                      iMode, iReg, 0, szEA, sizeof(szEA));
+    if (n < 0)
+    { disasm_dc_word(pBuf, uiBufLen, uiAddr, ptR); return; }
+
+    ptR->uiAddr     = uiAddr;
+    ptR->auWords[0] = uiOpc;
+    ptR->iWordCount = 1 + n;
+    ptR->bValid     = ST_TRUE;
+    snprintf(ptR->szMnemonic, sizeof(ptR->szMnemonic),
+             "%s", g_aszScc[iCond]);
+    snprintf(ptR->szOperands, sizeof(ptR->szOperands), "%s", szEA);
+    disasm_fill_words(ptR, pBuf, uiBufLen);
+    disasm_fmt_line(ptR);
 }
 
 /* ------------------------------------------------------------------
@@ -1359,10 +1563,21 @@ static void disasm_group8(const st_u8_t *pBuf, size_t uiBufLen,
                        iDir ? "DIVS" : "DIVU", ptR);
         return;
     }
-    /* SBCD (bit8=1, size=00, mode 000 or 001) → DC.W */
+    /* UC14B: SBCD — bit8=1, sz=00, mode 000 (Dn,Dn) or 001 (-(An),-(An)) */
     if (iDir == 1 && iSz == 0 && (iMode == 0 || iMode == 1))
     {
-        disasm_dc_word(pBuf, uiBufLen, uiAddr, ptR);
+        ptR->uiAddr     = uiAddr;
+        ptR->auWords[0] = uiOpc;
+        ptR->iWordCount = 1;
+        ptR->bValid     = ST_TRUE;
+        snprintf(ptR->szMnemonic, sizeof(ptR->szMnemonic), "SBCD");
+        if (iMode == 0)
+            snprintf(ptR->szOperands, sizeof(ptR->szOperands),
+                     "%s,%s", g_aszDn[iReg], g_aszDn[iDn]);
+        else
+            snprintf(ptR->szOperands, sizeof(ptR->szOperands),
+                     "-(%s),-(%s)", g_aszAn[iReg], g_aszAn[iDn]);
+        disasm_fmt_line(ptR);
         return;
     }
     disasm_dreg_ea(pBuf, uiBufLen, uiAddr, "OR",
@@ -1463,10 +1678,21 @@ static void disasm_groupC(const st_u8_t *pBuf, size_t uiBufLen,
                        iDir ? "MULS" : "MULU", ptR);
         return;
     }
-    /* ABCD (bit8=1, size=00, mode 000/001) → DC.W */
+    /* UC14B: ABCD — bit8=1, sz=00, mode 000 (Dn,Dn) or 001 (-(An),-(An)) */
     if (iDir == 1 && iSz == 0 && (iMode == 0 || iMode == 1))
     {
-        disasm_dc_word(pBuf, uiBufLen, uiAddr, ptR);
+        ptR->uiAddr     = uiAddr;
+        ptR->auWords[0] = uiOpc;
+        ptR->iWordCount = 1;
+        ptR->bValid     = ST_TRUE;
+        snprintf(ptR->szMnemonic, sizeof(ptR->szMnemonic), "ABCD");
+        if (iMode == 0)
+            snprintf(ptR->szOperands, sizeof(ptR->szOperands),
+                     "%s,%s", g_aszDn[iReg], g_aszDn[iDn]);
+        else
+            snprintf(ptR->szOperands, sizeof(ptR->szOperands),
+                     "-(%s),-(%s)", g_aszAn[iReg], g_aszAn[iDn]);
+        disasm_fmt_line(ptR);
         return;
     }
     disasm_dreg_ea(pBuf, uiBufLen, uiAddr, "AND",

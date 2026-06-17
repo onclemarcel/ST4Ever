@@ -339,9 +339,16 @@ int main(void)
                 strcmp(tRd.szMnemonic, "DC.W") == 0);
     }
 
-    /* Dynamic bit op with An mode (mode=1) → DC.W */
-    /* BTST D0,A3: 0x0100|mode1,reg3 = 0x0100|0x0B = 0x010B */
-    UC13_DCW("bit dyn An mode → DC.W", 0x01, 0x0B);
+    /* ADAPTED: UC14B — 0x010B (dyn bit An mode) now decodes as MOVEP.W $0(A3),D0 */
+    {
+        static const st_u8_t _buf[4] = { 0x01, 0x0B, 0, 0 };
+        disasm_result_t _r;
+        memset(&_r, 0, sizeof(_r));
+        disasm_one(_buf, 4, 0, &_r);
+        UC_TEST("[R] bit dyn An mode = MOVEP.W ADAPTED(UC14B)",
+                _r.bValid == ST_TRUE
+                && strcmp(_r.szMnemonic, "MOVEP.W") == 0);
+    }
 
     /* NULL pBuf */
     eRet = disasm_one(NULL, 4, 0, &tR);

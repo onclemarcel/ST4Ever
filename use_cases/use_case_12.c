@@ -131,12 +131,14 @@ int main(void)
      * bits11-9=100(4), bit8=1(SUBQ), bits7-6=10(L), mode=001(An), reg=001(A1) */
     UC12_1W("SUBQ.L #4,A1", 0x59, 0x89, "SUBQ.L", "#4,A1");
 
-    /* SUBQ size=3 → DC.W */
+    /* ADAPTED: UC14A — 0x51C0 (group5 cond=1 sz=3 mode=0) now decodes as SF D0 */
     {
-        static const st_u8_t aBuf[2] = { 0x51, 0xC0 };  /* 0101_0001_1100_0000 size=11 */
+        static const st_u8_t aBuf[2] = { 0x51, 0xC0 };
         memset(&tR, 0, sizeof(tR));
         disasm_one(aBuf, 2, 0x1000, &tR);
-        UC_TEST("[N] SUBQ size=11 → DC.W (Scc)", tR.bValid == ST_FALSE);
+        UC_TEST("[N] 0x51C0 = SF D0 ADAPTED(UC14A)",
+                tR.bValid == ST_TRUE
+                && strcmp(tR.szMnemonic, "SF") == 0);
     }
 
     /* ================================================================
@@ -288,12 +290,14 @@ int main(void)
     /* EXT.L D5 = 0x48C5 */
     UC12_1W("EXT.L D5", 0x48, 0xC5, "EXT.L", "D5");
 
-    /* NEG size=3 → DC.W */
+    /* ADAPTED: UC14A — 0x44C0 (NEG group sz=3 mode=0) now decodes as MOVE.W D0,CCR */
     {
         static const st_u8_t aBuf[2] = { 0x44, 0xC0 };
         memset(&tR, 0, sizeof(tR));
         disasm_one(aBuf, 2, 0x1000, &tR);
-        UC_TEST("[N] NEG size=11 → DC.W", tR.bValid == ST_FALSE);
+        UC_TEST("[N] 0x44C0 = MOVE.W D0,CCR ADAPTED(UC14A)",
+                tR.bValid == ST_TRUE
+                && strcmp(tR.szMnemonic, "MOVE.W") == 0);
     }
 
     /* ================================================================
@@ -382,20 +386,24 @@ int main(void)
     eRet = disasm_one((const st_u8_t*)"\xD2\x40", 4, 0x1000, NULL);
     UC_TEST("[R] disasm_one(NULL result) → ST_ERROR", eRet == ST_ERROR);
 
-    /* NEGX size=11 → DC.W */
+    /* ADAPTED: UC14A — 0x40C0 (NEGX group sz=3 mode=0) now decodes as MOVE.W SR,D0 */
     {
         static const st_u8_t aBuf[2] = { 0x40, 0xC0 };
         memset(&tR, 0, sizeof(tR));
         disasm_one(aBuf, 2, 0x1000, &tR);
-        UC_TEST("[R] NEGX size=11 → DC.W", tR.bValid == ST_FALSE);
+        UC_TEST("[R] 0x40C0 = MOVE.W SR,D0 ADAPTED(UC14A)",
+                tR.bValid == ST_TRUE
+                && strcmp(tR.szMnemonic, "MOVE.W") == 0);
     }
 
-    /* TST size=11 → DC.W */
+    /* ADAPTED: UC14B — 0x4AC0 (TST size=11) now decodes as TAS D0 */
     {
         static const st_u8_t aBuf[2] = { 0x4A, 0xC0 };
         memset(&tR, 0, sizeof(tR));
         disasm_one(aBuf, 2, 0x1000, &tR);
-        UC_TEST("[R] TST size=11 → DC.W", tR.bValid == ST_FALSE);
+        UC_TEST("[R] TST size=11 → TAS D0 ADAPTED(UC14B)",
+                tR.bValid == ST_TRUE
+                && strcmp(tR.szMnemonic, "TAS") == 0);
     }
 
     /* Unknown opcode 0x6000 (BRA — UC14) → DC.W */
@@ -416,21 +424,24 @@ int main(void)
                 && strcmp(tR.szMnemonic, "RTS") == 0);
     }
 
-    /* ABCD (opcode 0xC100) → DC.W (not in scope) */
+    /* ADAPTED: UC14B — 0xC100 now decodes as ABCD D0,D0 */
     {
         static const st_u8_t aBuf[2] = { 0xC1, 0x00 };
         memset(&tR, 0, sizeof(tR));
         disasm_one(aBuf, 2, 0x1000, &tR);
-        UC_TEST("[R] 0xC100 (ABCD, not in scope) → DC.W",
-                tR.bValid == ST_FALSE);
+        UC_TEST("[R] 0xC100 = ABCD D0,D0 ADAPTED(UC14B)",
+                tR.bValid == ST_TRUE
+                && strcmp(tR.szMnemonic, "ABCD") == 0);
     }
 
-    /* Scc (0x50C0) → DC.W */
+    /* ADAPTED: UC14A — 0x50C0 (group5 cond=0 sz=3 mode=0) now decodes as ST D0 */
     {
         static const st_u8_t aBuf[2] = { 0x50, 0xC0 };
         memset(&tR, 0, sizeof(tR));
         disasm_one(aBuf, 2, 0x1000, &tR);
-        UC_TEST("[R] 0x50C0 (ST/Scc) → DC.W", tR.bValid == ST_FALSE);
+        UC_TEST("[R] 0x50C0 = ST D0 ADAPTED(UC14A)",
+                tR.bValid == ST_TRUE
+                && strcmp(tR.szMnemonic, "ST") == 0);
     }
 
     /* ================================================================

@@ -30,6 +30,8 @@
 - 2026-06-14: Rev_Eng_Guide.md v1.1 — audit hooks ST4Ever réels (12 phases × 3 niveaux : existant/manquant/commande console) + propositions UC32A/B/C déposées en §7 — pivot vers la phase "Revival Engine"
 - 2026-06-14: UC30D Codé/Testé : Assembleur DEVPAC3 — ASL/ASR/LSL/LSR/ROL/ROR/ROXL/ROXR + BTST/BCHG/BCLR/BSET + MOVEM.W/L (masque inversé -(An)) + ADDA/SUBA + MULU/MULS/DIVU/DIVS + ADDX/SUBX + Scc + DBcc + EXG (3 modes) + PEA — 52 tests PASS (44N+8R) 0 fail — instruction set 68000 de base complet
 - 2026-06-14: UC30E Codé/Testé : Torture test assembleur DEVPAC3 — SOURCE.S (4072 lignes) → SOURCE.PRG byte-exact (10218 octets .text, 0 diff) — 4 bugs corrigés : CCR/SR encoding fixe, EXG An↔Am inversé DEVPAC3, BTST/BCHG/BCLR/BSET extension words EA manquantes, taille .text lue depuis header PRG — 8 tests PASS (6N+2R) 0 fail
+- 2026-06-17: UC14A Codé/Testé : Désassembleur 68000 — MOVEM.W/L (store/load, masque inversé -(An), iExtSoFar=1) + Scc (16 conditions) + DBcc/DBRA (16 conditions, cible absolue 6 chiffres) + MOVE to/from SR/CCR (dans groupes NEGX/CLR/NEG/NOT sz=3) — 40 tests PASS (32N+8R) 0 fail — ADAPTED: UC11×1 CLR sz=3, UC12×4 NEG/NEGX/SUBQ/Scc sz=3
+- 2026-06-17: UC14B Codé/Testé : Désassembleur 68000 — TAS/NBCD/CHK.W + SBCD/ABCD + MOVEP.W/L — DC.W 124→20 dans torture test UC15A — 51 tests PASS (43N+8R) 0 fail — ADAPTED: UC12×2 (TAS/ABCD), UC13×1 (MOVEP)
 - 2026-06-14: UC30F Feuille de route désassemblage GEN.TTP — `GEN_DISASM.md` (méthodologie reverse engineering, activités auto vs manuelles, roadmap 8 phases A→H) + `use_case_30F.c` → génère `GEN_DISASM.s` (23078 instructions), `GEN_STRINGS.txt`, `GEN_RELOC.txt`, `GEN_HEADER.txt` dans `use_cases/UC30F/` — 10 tests PASS (8N+2R) 0 fail
 
 *L'historique des versions antérieures peut être récupéré via le change log github*
@@ -490,6 +492,8 @@ Les étapes de développement fonctionnelles sont formalisées en Use Cases, per
 | UC12 | interne | Désassembleur : ADD/SUB/CMP/MUL/DIV/AND/OR/EOR/NOT/NEG | ✓ VALIDÉ 2026-06-03 |
 | UC13 | interne | Désassembleur : shifts, rotations, BTST/BSET/BCLR/BCHG | ✓ VALIDÉ 2026-06-03 |
 | UC14 | interne | Désassembleur : BRA/BSR/Bcc/JMP/JSR/RTS/RTR/RTE/TRAP | ✓ VALIDÉ 2026-06-03 |
+| UC14A | interne | Désassembleur : MOVEM.W/L + Scc (16 cond) + DBcc/DBRA (16 cond) + MOVE to/from SR/CCR | ✓ VALIDÉ 2026-06-17 |
+| UC14B | interne | Désassembleur : TAS + NBCD + CHK.W + SBCD + ABCD + MOVEP.W/L — DC.W 124→20 dans torture test UC15A | ✓ VALIDÉ 2026-06-17 |
 | UC15 | interne | Format PRG : parser header + sections + fixups + chargement mémoire ST | ✓ VALIDÉ 2026-06-03 |
 | UC16 | interne | Image `.st` : lecture/écriture raw + FAT12 | ✓ VALIDÉ 2026-06-04 |
 | UC15A | interne | Torture test désassembleur : SOURCE.PRG (DEVPAC3, ATARI ST réel) vs disasm_range() — 2525 instructions, DIFF=0 ; 5 bugs disasm corrigés | ✓ VALIDÉ 2026-06-06 |
