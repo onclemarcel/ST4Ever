@@ -3599,8 +3599,65 @@ Quatre bugs ont été découverts et corrigés :
 
 ### Points d'attention pour les UCs suivants
 
-- **UC30F (désassemblage GEN.TTP)** : l'instruction set de base étant validé byte-exact, UC30F peut s'appuyer sur le désassembleur pour annoter l'assembleur DEVPAC3 d'origine. Les quirks d'encodage découverts en UC30E (CCR/SR, BTST ext, EXG An↔Am) doivent être présents dans le désassembleur correspondant (à vérifier).
+- ~~UC30F (désassemblage GEN.TTP)~~ **RÉSOLU UC30F** — `GEN_DISASM.s` généré + strings/reloc/header extraits.
+- ~~Annotation manuelle GEN.TTP~~ **RÉSOLU UC30G** — `GEN_DISASM_annotated.s` généré automatiquement par le moteur d'annotation.
 - **Macros DEVPAC3 non couvertes** : `SOURCE.S` est une fixture de torture test pour l'instruction set CPU — elle n'utilise pas `MACRO`/`ENDM`, `IFEQ`/`ENDC`. Ces directives restent à implémenter si un UC futur les requiert.
 - **Fixup table non validée** : l'assembleur émet une table de fixups (4 octets dans `SOURCE.PRG`). La logique de fixup elle-même n'est pas couverte par UC30E (SOURCE.S utilise des adresses absolues, aucun fixup n'est nécessaire).
+
+---
+
+## §6.30F UC30F — Feuille de route désassemblage GEN.TTP — ✓ VALIDÉ (2026-06-14)
+
+**Périmètre fonctionnel implémenté :**
+- `use_cases/use_case_30F.c` : charge `tools/ST/GEN.TTP` (DEVPAC3 d'origine, 68000 pur ~1988, 69 370 octets .text), génère dans `use_cases/UC30F/` :
+  - `GEN_DISASM.s` : 22 929 instructions désassemblées (10 tests PASS 8N+2R)
+  - `GEN_STRINGS.txt` : chaînes ASCII imprimables ≥ 6 chars
+  - `GEN_RELOC.txt` : 120 fixups avec offset source + valeur cible
+  - `GEN_HEADER.txt` : header PRG décodé (text/data/bss/sym/fix sizes)
+
+**Points d'attention pour les UCs suivants :**
+- La zone BCF0-BD08 est une zone data (chaîne "Press a key to exit") mal interprétée par le désassembleur linéaire. **RÉSOLU UC30G** — le moteur d'annotation détecte ces désalignements.
+- Les 120 fixups incluent 2 targets mal alignées (BAF8, BD0A). **RÉSOLU UC30G** — réalignement automatique.
+
+---
+
+## §6.30G UC30G — Moteur d'annotation désassemblé 68000 — ✓ VALIDÉ (2026-06-18)
+
+**Périmètre fonctionnel implémenté :**
+- `src/annotate.h` / `src/annotate.c` : moteur d'annotation extensible par pipeline de passes.
+- **Architecture pipeline** : `annot_db_t` (array parallèle à `disasm_result_t[]`) + `annot_fix_region_t` (liste chaînée pour régions réalignées) + `atExtra[32]` (entrées virtuelles pour adresses absentes du désassemblé linéaire).
+- **Pass 0 — réalignement** : scan JSR/BSR dont la cible n'est pas dans `puAddrSet` (addr_set trié) → re-désassemble depuis la cible via `disasm_one()` → trouve le point de resync (même `auWords[0]` à la même adresse) → crée `annot_fix_region_t` + entrée virtuelle dans `atExtra[]` pour la cible.
+- **Pass 1 — fixups** : décode la table de fixups PRG (PRG header + bitstream) → labels `fix_`/`dat_`/`bss_` aux adresses cibles + commentaire `[fixup $src]` sur l'instruction source.
+- **Pass 2 — appels** : scan JSR/BSR → labels `sub_` aux adresses cibles (inclut les entrées virtuelles) + commentaire `[call]`.
+- **Pass 3 — branches** : scan Bcc/DBcc → labels `loc_` + commentaire `[branch]`.
+- **Pass 4 — gotos** : scan BRA (adresses internes uniquement) → labels `bra_` + commentaire `[goto]`.
+- **Pass 5 — patterns** : fenêtre glissante sur ptResults[], 9 patterns table-driven : `strcmp` sur mnémonique + `strstr` optionnel sur opérandes. Patterns : return_ok_moveq, return_error_moveq, return_ok_clr, return_value_tst, prologue_link, prologue_movem_sp, epilogue_unlk_rts, epilogue_movem_rts, epilogue_unlk_movem_rts.
+- **Émission** : `annot_emit()` — pour chaque instruction linéaire : si PAD → émet DC.W $0000 + ptFixed[]; si dans zone supprimée → skip; sinon émet label+szLine+commentaire aligné colonne 70.
+
+**Tests R14/R15 appliqués :**
+- `use_cases/use_case_30G.c` : TEST MATRIX **14N + 4R + 0S = 18 assertions**, 0 failure
+  - [N] : ouverture GEN.TTP + disasm 22929 instr + annot_run + 2 fix regions (BAF8/BD0A) + région PAD BAF6 + label sub_BAF8 + commentaire [fixup] à $E0 + pattern retour $7F0 + émission + vérifications fichier sortie
+  - [R] : NULL ptDb, NULL ptResults, mauvais magic, adresse inconnue
+
+**Contrats comportementaux validés :**
+
+*Pipeline passes — ordre obligatoire*
+- Pass 0 (réalignement) DOIT s'exécuter en premier : les passes 1-4 labellisent les adresses virtuelles créées par Pass 0. Si Pass 2 s'exécute avant Pass 0, les JSR targets mal alignées ne trouvent pas d'entrée dans `ptDb` et leurs labels `sub_` sont silencieusement ignorés.
+- `puAddrSet` est trié par `qsort` dans `annot_run` avant les passes : les passes utilisent `annot_in_addrset()` (binary search O(log n)).
+
+*Réalignement — invariants*
+- Un mot `0x0000` avant une entrée de fonction est la signature de `EVEN` de DEVPAC3. Le désassembleur linéaire consomme `0x0000` comme opcode ORI.B puis le premier mot réel comme valeur immédiate (4 octets gaspillés).
+- Le resync est déterminé par `ptResults[idx].auWords[0] == tR.auWords[0]` (premier mot opcode identique) : condition nécessaire et suffisante sur 68000 word-aligned.
+- 51 fix regions sont créées pour GEN.TTP (2 JSR réels + 49 BSR.S fantômes dans la zone string BCF0-BD08). Les 49 fantômes proviennent des bytes ASCII `0x65 0x78 0x69 0x74` ("exit") lus comme `BCS.S`/`BVS.S` par le désassembleur linéaire.
+
+*Patterns — règles de matching*
+- `strcmp` exact sur `szMnemonic` : "MOVEQ" matche "MOVEQ" mais pas "MOVEQ.L". GEN.TTP étant du 68000 pur, toutes les mnémoniques sont sans suffixe de taille → strcmp fonctionne parfaitement.
+- Opérande hint `strstr` : "#-1" dans `szOperands` de MOVEQ est suffisant pour distinguer return 0 vs return -1.
+- Premier pattern matché uniquement : si prologue_link et prologue_movem_sp sont tous deux possibles à la même position, seul le premier de la table est appliqué.
+
+**Points d'attention pour les UCs suivants :**
+- **Fusion fix regions BCF0-BD08** : les 49 fix regions fantômes pourraient être fusionnées en une seule région DATA (BCF0-BD08). Coût : un pass supplémentaire qui détecte les fix regions consécutives issues d'une même zone. À implémenter si nécessaire pour UC30F annotation manuelle.
+- **Pass `annotate` console** : l'architecture permet d'ajouter une commande `annotate <file.ttp>` dans ST4Ever qui appelle `disasm_range()` + `annot_run()` + `annot_emit()` directement depuis la console (UC32A scope).
+- **Extension patterns** : ajouter de nouveaux patterns = ajouter une ligne dans `g_annot_aPatterns[]` dans `annotate.c`, aucun autre changement requis.
 
 ---

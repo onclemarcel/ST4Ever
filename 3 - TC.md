@@ -4555,3 +4555,76 @@ Source: `use_cases/use_case_30C.c`, fixtures `use_cases/UC30C/test30c.S` (112 by
 | UFR          | REQ(s)                           | TC(s)                                       | Status    |
 |--------------|----------------------------------|---------------------------------------------|-----------|
 | UFR-ASM-007  | REQ-AS-038                       | TC-AS-211..218                              | v UC30E   |
+
+---
+
+### 5.95 INTENT Catalog — UC30G
+
+| ID           | Intent                                                                                                                     |
+|--------------|----------------------------------------------------------------------------------------------------------------------------|
+| INT-ANN-001  | `annot_db_init(NULL, N)` must return ST_ERROR without crashing.                                                           |
+| INT-ANN-002  | `annot_run(NULL, …)` must return ST_ERROR without crashing.                                                               |
+| INT-ANN-003  | `annot_emit(NULL, …)` must return ST_ERROR without crashing.                                                              |
+| INT-ANN-004  | GEN.TTP binary opens and is fully readable.                                                                               |
+| INT-ANN-005  | A binary with wrong magic (≠ 0x601A) must be rejected by `annot_run`.                                                    |
+| INT-ANN-006  | `disasm_range` on GEN.TTP .text produces at least 20 000 instructions.                                                   |
+| INT-ANN-007  | `annot_db_init` succeeds for the instruction count produced by `disasm_range`.                                            |
+| INT-ANN-008  | `annot_run` completes without error on GEN.TTP.                                                                           |
+| INT-ANN-009  | Pass 0 (realignment) creates a fix region for BAF8 (JSR target after EVEN pad at BAF6).                                  |
+| INT-ANN-010  | Pass 0 (realignment) creates a fix region for BD0A (JSR target in string+pad region).                                    |
+| INT-ANN-011  | The PAD predecessor address BAF6 is marked ANNOT_RGN_PAD in ptDb.                                                        |
+| INT-ANN-012  | Address BAF8 has label "sub_BAF8" (virtual entry created by Pass 0, labelled by Pass 2).                                 |
+| INT-ANN-013  | The JSR at $0000E0 (fixup #7 at offset 0xE2) has a [fixup] inline comment.                                               |
+| INT-ANN-014  | MOVEQ #-1,D0 + RTS at $0007F0 is detected by the pattern engine and receives a return pattern comment.                   |
+| INT-ANN-015  | `annot_emit` produces a non-empty output file at GEN_OUT_PATH.                                                            |
+| INT-ANN-016  | The output file contains the "sub_BAF8" label string.                                                                     |
+| INT-ANN-017  | The output file contains the "EVEN alignment pad" annotation string.                                                      |
+| INT-ANN-018  | `annot_set_label` on an address not in the DB returns ST_ERROR.                                                           |
+
+---
+
+### 5.96 Test Cases — UC30G (68000 annotation engine)
+
+| TC           | Description                                                                             | Type | Parent UFR  | REQ         | INT          | Notes                                          | Result      |
+|--------------|-----------------------------------------------------------------------------------------|------|-------------|-------------|--------------|------------------------------------------------|-------------|
+| TC-ANN-001   | `annot_db_init(NULL, 100)` → ST_ERROR                                                   | [R]  | UFR-ANN-001 | REQ-ANN-001 | INT-ANN-001  | NULL ptDb guard                               | PASS UC30G  |
+| TC-ANN-002   | `annot_run(NULL, NULL, 0, NULL, 0)` → ST_ERROR                                          | [R]  | UFR-ANN-001 | REQ-ANN-001 | INT-ANN-002  | NULL ptDb guard in annot_run                  | PASS UC30G  |
+| TC-ANN-003   | `annot_emit(NULL, NULL, 0, "x.s")` → ST_ERROR                                           | [R]  | UFR-ANN-001 | REQ-ANN-009 | INT-ANN-003  | NULL ptDb guard in annot_emit                 | PASS UC30G  |
+| TC-ANN-004   | GEN.TTP opens, buffer allocated, file fully read                                        | [N]  | UFR-ANN-001 | REQ-ANN-001 | INT-ANN-004  | fixture: `tools/ST/GEN.TTP`                   | PASS UC30G  |
+| TC-ANN-005   | Binary with magic=0xDEAD → `annot_run` returns ST_ERROR                                 | [R]  | UFR-ANN-001 | REQ-ANN-001 | INT-ANN-005  | annot_parse_prg_hdr rejects bad magic         | PASS UC30G  |
+| TC-ANN-006   | `disasm_range` on GEN.TTP → uiLines ≥ 20 000                                           | [N]  | UFR-ANN-001 | REQ-ANN-001 | INT-ANN-006  | actual: 22 929 instructions                   | PASS UC30G  |
+| TC-ANN-007   | `annot_db_init(ptDb, 22929)` → ST_NO_ERROR                                              | [N]  | UFR-ANN-001 | REQ-ANN-001 | INT-ANN-007  | ptEntries + puAddrSet allocated               | PASS UC30G  |
+| TC-ANN-008   | `annot_run` on GEN.TTP with 22 929 results → ST_NO_ERROR                                | [N]  | UFR-ANN-001 | REQ-ANN-001 | INT-ANN-008  | all 6 passes succeed                          | PASS UC30G  |
+| TC-ANN-009   | ptFixList contains a region with uiAddrTarget == 0xBAF8                                 | [N]  | UFR-ANN-001 | REQ-ANN-006 | INT-ANN-009  | JSR at $E0 → target $BAF8 after EVEN pad      | PASS UC30G  |
+| TC-ANN-010   | ptFixList contains a region with uiAddrTarget == 0xBD0A                                 | [N]  | UFR-ANN-001 | REQ-ANN-006 | INT-ANN-010  | JSR at $480 → target $BD0A after string+pad   | PASS UC30G  |
+| TC-ANN-011   | `annot_find_entry(&tDb, 0xBAF6)->eRegion == ANNOT_RGN_PAD`                              | [N]  | UFR-ANN-001 | REQ-ANN-006 | INT-ANN-011  | predecessor instr at BAF6 marked PAD          | PASS UC30G  |
+| TC-ANN-012   | `annot_find_entry(&tDb, 0xBAF8)->szLabel` starts with "sub_"                            | [N]  | UFR-ANN-001 | REQ-ANN-007 | INT-ANN-012  | virtual entry + sub_ label; actual: "sub_BAF8" | PASS UC30G |
+| TC-ANN-013   | `annot_find_entry(&tDb, 0xE0)->szComment` contains "[fixup"                             | [N]  | UFR-ANN-001 | REQ-ANN-007 | INT-ANN-013  | fixup #7 at offset 0xE2 → comment on JSR      | PASS UC30G  |
+| TC-ANN-014   | `annot_find_entry(&tDb, 0x7F0)->szComment` is non-empty                                 | [N]  | UFR-ANN-001 | REQ-ANN-008 | INT-ANN-014  | MOVEQ #-1 + RTS → return_error_moveq pattern  | PASS UC30G  |
+| TC-ANN-015   | `annot_emit` → ST_NO_ERROR; output file exists                                          | [N]  | UFR-ANN-001 | REQ-ANN-009 | INT-ANN-015  | writes GEN_DISASM_annotated.s                 | PASS UC30G  |
+| TC-ANN-016   | Output file contains string "sub_BAF8"                                                  | [N]  | UFR-ANN-001 | REQ-ANN-009 | INT-ANN-016  | label emitted before PAD+ptFixed block        | PASS UC30G  |
+| TC-ANN-017   | Output file contains string "EVEN alignment pad"                                        | [N]  | UFR-ANN-001 | REQ-ANN-009 | INT-ANN-017  | DC.W $0000 comment in fix region              | PASS UC30G  |
+| TC-ANN-018   | `annot_set_label(&tDb, 0xFFFF00, "bad")` → ST_ERROR                                     | [R]  | UFR-ANN-001 | REQ-ANN-004 | INT-ANN-018  | address not in DB                             | PASS UC30G  |
+
+#### Test Summary — UC30G
+
+| Module | [N] | [R] | [S] | Total | Result     |
+|--------|-----|-----|-----|-------|------------|
+| ANN    | 14  |  4  |  0  |  18   | ALL PASS   |
+
+#### REQ → TC coverage (UC30G)
+
+| REQ          | TC(s)                              | Status     |
+|--------------|------------------------------------|------------|
+| REQ-ANN-001  | TC-ANN-001..008                    | ✓ UC30G    |
+| REQ-ANN-004  | TC-ANN-018                         | ✓ UC30G    |
+| REQ-ANN-006  | TC-ANN-009..011                    | ✓ UC30G    |
+| REQ-ANN-007  | TC-ANN-012..013                    | ✓ UC30G    |
+| REQ-ANN-008  | TC-ANN-014                         | ✓ UC30G    |
+| REQ-ANN-009  | TC-ANN-015..017                    | ✓ UC30G    |
+
+#### UFR traceability (UC30G)
+
+| UFR          | REQ(s)                                       | TC(s)               | Status    |
+|--------------|----------------------------------------------|---------------------|-----------|
+| UFR-ANN-001  | REQ-ANN-001..009                             | TC-ANN-001..018     | ✓ UC30G   |

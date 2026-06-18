@@ -250,6 +250,16 @@ through one or more test cases in Section 5.
 
 ---
 
+### 1.13 Annotation Engine — `ANN`
+
+> Design ref: CLAUDE.md §6.UC30G; depends on `disassemble.h` (UC11–14), `annotate.h` (UC30G)
+
+| ID           | User/System Functional Requirement                                                                                                                  | Status   | UC    |
+|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------|----------|-------|
+| UFR-ANN-001  | The application shall provide a 68000 disassembly annotation engine that, given a PRG/TTP binary and its linear `disasm_result_t[]` array, detects EVEN-pad misalignments (re-disassembles from the true entry point and substitutes the corrected instructions in output), labels control-flow targets (fixup addresses → `fix_`/`dat_`/`bss_`, JSR/BSR → `sub_`, Bcc/DBcc → `loc_`, BRA → `bra_`), detects prologue/epilogue/return patterns by mnemonic sequence matching, and writes a fully annotated disassembly file. | ✓ UC30G | UC30G |
+
+---
+
 ## 2. Software Requirements
 
 Software Requirements are technical refinements of Section 1 UFRs.  They are
@@ -1134,6 +1144,36 @@ requirement that will expose it (`UFR-EXE-*`, planned UC21–27).
 | `as_encode_imm_alu()` (internal) | REQ-AS-024 | CCR/SR special opcode — UC30E |
 | `as_encode_bitop()` (internal) | REQ-AS-030 | dest EA extension words — UC30E |
 | `as_encode_exg()` (internal) | REQ-AS-037 | An↔Am register swap — UC30E |
+
+---
+
+### §2.30 Annotation Engine — `annotate.h` / `annotate.c` (UC30G)
+
+> Parent UFR: UFR-ANN-001 (§1.13)
+
+| REQ | Description | UFR | Status | Impl. |
+|-----|-------------|-----|--------|-------|
+| REQ-ANN-001 | `annot_db_init(ptDb, iCount)` shall allocate `ptEntries[iCount]` (calloc) and `puAddrSet[iCount]` (calloc); `ptDb` NULL or `iCount ≤ 0` → ST_ERROR; on success all fields except iCount are zeroed. Impl: `annot_db_init()` | UFR-ANN-001 | ✓ UC30G | annotate.c |
+| REQ-ANN-002 | `annot_db_shutdown(ptDb)` shall free ptEntries, puAddrSet, and every node in ptFixList (including ptFixed arrays); after return all pointers are NULL. No-op if ptDb is NULL. Impl: `annot_db_shutdown()` | UFR-ANN-001 | ✓ UC30G | annotate.c |
+| REQ-ANN-003 | `annot_find_entry(ptDb, uiAddr)` shall binary-search puAddrSet for uiAddr → return &ptEntries[idx]; if not found, linear-scan atExtra[0..iExtraCount-1]; return NULL if still not found. Impl: `annot_find_entry()` | UFR-ANN-001 | ✓ UC30G | annotate.c |
+| REQ-ANN-004 | `annot_set_label(ptDb, uiAddr, szLabel)` shall call `annot_find_entry()` and on success snprintf szLabel into ptE->szLabel; if address not found → ST_ERROR. Impl: `annot_set_label()` | UFR-ANN-001 | ✓ UC30G | annotate.c |
+| REQ-ANN-005 | `annot_append_comment(ptDb, uiAddr, szComment)` shall append szComment to ptE->szComment (space-separated if already non-empty); address not found → ST_ERROR. Impl: `annot_append_comment()` | UFR-ANN-001 | ✓ UC30G | annotate.c |
+| REQ-ANN-006 | Pass 0 (realignment): `annot_pass_realign()` shall scan ptResults for JSR/BSR instructions whose operand target is not in puAddrSet; for each: re-disassemble from the target using `disasm_one()`, find the re-sync point (same auWords[0] at same address as linear), store as annot_fix_region_t prepended to ptDb->ptFixList, add a virtual annot_entry_t in ptDb->atExtra[] for the target address. Targets in .data/.bss or >= uiTextSize are silently skipped. Impl: `annot_pass_realign()` | UFR-ANN-001 | ✓ UC30G | annotate.c |
+| REQ-ANN-007 | Passes 1–4: `annot_pass_fixups()` shall decode the PRG fixup table and set fix_/dat_/bss_ labels + [fixup] comments; `annot_pass_calls()` shall set sub_ labels at JSR/BSR targets; `annot_pass_branches()` shall set loc_ labels at Bcc/DBcc targets; `annot_pass_bra()` shall set bra_ labels at BRA targets (internal addresses only). Impl: `annot_pass_fixups()`, `annot_pass_calls()`, `annot_pass_branches()`, `annot_pass_bra()` | UFR-ANN-001 | ✓ UC30G | annotate.c |
+| REQ-ANN-008 | Pass 5 (patterns): `annot_pass_patterns()` shall slide a window over ptResults[]; for each position, attempt all patterns in g_annot_aPatterns[] in order; a pattern matches when all mnemonics match by strcmp and optional operand hints match by strstr; on match, append szComment to ptDb at the first matched instruction address; only the first matching pattern per position is applied. Impl: `annot_pass_patterns()` | UFR-ANN-001 | ✓ UC30G | annotate.c |
+| REQ-ANN-009 | `annot_emit(ptDb, ptResults, iCount, szOutPath)` shall write annotated disassembly: for addresses in a fix region at uiAddrPad, emit a DC.W $0000 EVEN pad line then the ptFixed[] re-disassembled instructions; addresses in [uiAddrPad+1, uiAddrResync) are suppressed; all other instructions emit 4-space indent + szLine + comment padded to ANNOT_COMMENT_COL. NULL parameters → ST_ERROR. Impl: `annot_emit()` | UFR-ANN-001 | ✓ UC30G | annotate.c |
+
+**Function table — `annotate.h` (UC30G):**
+
+| Function | REQ | Impl. |
+|---|---|---|
+| `annot_db_init()` | REQ-ANN-001 | annotate.c |
+| `annot_db_shutdown()` | REQ-ANN-002 | annotate.c |
+| `annot_find_entry()` | REQ-ANN-003 | annotate.c |
+| `annot_set_label()` | REQ-ANN-004 | annotate.c |
+| `annot_append_comment()` | REQ-ANN-005 | annotate.c |
+| `annot_run()` | REQ-ANN-001, REQ-ANN-006..008 | annotate.c |
+| `annot_emit()` | REQ-ANN-009 | annotate.c |
 
 ---
 
