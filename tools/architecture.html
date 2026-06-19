@@ -1053,11 +1053,16 @@ function renderModuleDetail(base) {
   html+='<span class="stat-chip"><b>'+mod.internal.length+'</b> static</span>';
   html+='<span class="stat-chip"><b>'+Object.keys(mod.globals).length+'</b> globales</span>';
   html+=covBadge(ratio);
-  if (tcFnCount > 0) {
-    html+='<span class="stat-chip" title="Fonctions avec traçabilité TC (Phase 2 documentaire)" '+
-          'style="border-color:var(--accent); color:var(--accent);">'+
-          '<b>'+tcFnCount+'/'+allFns.length+'</b> TC</span>';
-  }
+  // TC chip — always visible: shows Phase 2 documentation progress
+  // Blue = some TC traceability done, grey = Phase 2 pending
+  var tcStyle = tcFnCount > 0
+    ? 'border-color:var(--accent); color:var(--accent);'
+    : 'border-color:var(--border); color:var(--muted);';
+  var tcTitle = tcFnCount > 0
+    ? tcFnCount+'/'+allFns.length+' fonctions avec traçabilite TC ('+tcTotal+' paires fn-TC)'
+    : 'Phase 2 (INTENT/TC/REQ) non effectuee pour ce module';
+  html+='<span class="stat-chip" title="'+esc(tcTitle)+'" style="'+tcStyle+'">'+
+        '<b>'+tcFnCount+'/'+allFns.length+'</b> TC</span>';
   html+='</div>';
 
   // Dependencies
