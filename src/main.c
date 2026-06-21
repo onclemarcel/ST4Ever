@@ -89,19 +89,18 @@ static void print_usage(const char *szArgv0)
 int main(int argc, char *argv[])
 {
     st_bool_t       bTraceAtStart;        // Manage command line --trace option
-    st_error_t      eResult;              // Output of called functions
+    char            szScriptFile[ST_MAX_PATH];  // Manage --script option
+    st_error_t      eResult;                    // Output of called functions
     st_machine_t    tMachine;
-    int             iArg;
-    int             iExitCode;
-    char            szScriptFile[ST_MAX_PATH];
+    int             iExitCode;               // Main exit code
 
     /* ---- 0. Init application context ---- */
     bTraceAtStart   = ST_FALSE;              // Do not show the trace console
-    iExitCode       = 0;                     // 0 = no error
     szScriptFile[0] = '\0';                  // Init optional input script path
+    iExitCode       = 0;                     // 0 = no error
 
     /* ---- 1. Parse command-line options --------------------------- */
-    for (iArg = 1; iArg < argc; iArg++)
+    for (int iArg = 1; iArg < argc; iArg++)
     {
         /* -- 1.1 Manage the Trace Console option -- */
         if (strcmp(argv[iArg], "-t") == 0)
@@ -125,6 +124,7 @@ int main(int argc, char *argv[])
             strncpy(szScriptFile, argv[iArg], ST_MAX_PATH - 1);
             szScriptFile[ST_MAX_PATH - 1] = '\0';
         }
+        /* -- 1.3 Manage the help option -- */
         else if (strcmp(argv[iArg], "-h")     == 0
               || strcmp(argv[iArg], "--help") == 0)
         {
@@ -132,6 +132,7 @@ int main(int argc, char *argv[])
             return 0;
         }
         else
+        /* -- 1.4 Manage unknown options -- */
         {
             fprintf(stderr,
                     "%s: unknown option '%s'\n",
