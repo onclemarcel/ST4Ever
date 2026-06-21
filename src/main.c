@@ -6,8 +6,9 @@
  *   2. Initialise platform-specific subsystems (win_console_init).
  *   3. Initialise the trace subsystem (trace_init).
  *   4. Initialise the GUI subsystem (gui_init).
- *   5. Initialise and run the interactive console (line_init/run).
- *   6. Perform orderly shutdown in reverse initialisation order.
+ *   5. Initialise the ST Machine (st_init, load_init, exec_init)
+ *   6. Initialise and run the interactive console (line_init/run).
+ *   7. Perform orderly shutdown in reverse initialisation order.
  *
  * Command-line options:
  *   -t              Open the trace console at startup.
@@ -45,7 +46,14 @@ extern st_error_t win_console_shutdown(void);
  * print_usage() - Print command-line usage to stdout.
  *
  * Parameters:
- *   szArgv0 [in] : argv[0] (program name).
+ *   szArgv0 [in] : argv[0] (program name)
+ * 
+ * Returns:
+ *   Void
+ * 
+ * Global Variables:
+ *   None
+ * 
  */
 static void print_usage(const char *szArgv0)
 {
@@ -65,39 +73,54 @@ static void print_usage(const char *szArgv0)
 /* ------------------------------------------------------------------
  * main()
  * ------------------------------------------------------------------ */
-
+/*
+ * main() - Entry point of ST4Ever application.
+ *
+ * Parameters:
+ *   argc [in] : number of commang-line arguments
+ * 
+ * Returns:
+ *   Void
+ * 
+ * Global Variables:
+ *   None
+ * 
+ */
 int main(int argc, char *argv[])
 {
-    st_bool_t       bTraceAtStart;
-    st_error_t      eResult;
-    line_context_t  tLineCtx;
+    st_bool_t       bTraceAtStart;        // Manage command line --trace option
+    st_error_t      eResult;              // Output of called functions
     st_machine_t    tMachine;
     int             iArg;
     int             iExitCode;
     char            szScriptFile[ST_MAX_PATH];
 
-    bTraceAtStart  = ST_FALSE;
-    iExitCode      = 0;
-    szScriptFile[0] = '\0';
-    memset(&tLineCtx, 0, sizeof(tLineCtx));
+    /* ---- 0. Init application context ---- */
+    bTraceAtStart   = ST_FALSE;              // Do not show the trace console
+    iExitCode       = 0;                     // 0 = no error
+    szScriptFile[0] = '\0';                  // Init optional input script path
 
     /* ---- 1. Parse command-line options --------------------------- */
     for (iArg = 1; iArg < argc; iArg++)
     {
+        /* -- 1.1 Manage the Trace Console option -- */
         if (strcmp(argv[iArg], "-t") == 0)
         {
             bTraceAtStart = ST_TRUE;
         }
+        /* -- 1.2 Manage the input script option -- */
         else if (strcmp(argv[iArg], "--script") == 0)
         {
+            /* -- 1.2.1 Check that --script option comes with a file name */
             if (iArg + 1 >= argc)
             {
-                fprintf(stderr,
-                        "%s: --script requires a file argument\n",
-                        ST_APP_NAME);
+                fprintf(stderr, "%s: --script requires a file argument\n",
+                                ST_APP_NAME);
                 print_usage(argv[0]);
                 return 1;
             }
+
+            /* -- 1.2.2 Copy the argument into the script string */
             iArg++;
             strncpy(szScriptFile, argv[iArg], ST_MAX_PATH - 1);
             szScriptFile[ST_MAX_PATH - 1] = '\0';
@@ -178,30 +201,22 @@ int main(int argc, char *argv[])
     }
 
     /* ---- 6. Console init & run ----------------------------------- */
-    eResult = line_init(&tLineCtx);
-    if (eResult != ST_NO_ERROR)
+    st_u64_t result = line_init(szScriptFile);
+    if (result == ST_ERROR)
     {
         LOG_ERROR("line_init() failed");
         iExitCode = 1;
         goto shutdown_load;
     }
 
-    /* Restore --script path (line_init() zeroes the context) */
-    if (szScriptFile[0] != '\0')
-    {
-        strncpy(tLineCtx.szScriptFile, szScriptFile,
-                ST_MAX_PATH - 1);
-        tLineCtx.szScriptFile[ST_MAX_PATH - 1] = '\0';
-    }
-
-    eResult = line_run(&tLineCtx);
+    eResult = line_run();
     if (eResult != ST_NO_ERROR)
     {
         LOG_ERROR("line_run() returned ST_ERROR");
         iExitCode = 1;
     }
 
-    eResult = line_shutdown(&tLineCtx);
+    eResult = line_shutdown();
     if (eResult != ST_NO_ERROR)
     {
         LOG_ERROR("line_shutdown() failed");

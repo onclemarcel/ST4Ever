@@ -85,10 +85,12 @@ typedef struct parsed_cmd_s
 
 typedef struct line_context_s
 {
-    char        szCwd[ST_MAX_PATH];        /* Current working dir      */
-    char        szSelected[ST_MAX_PATH];   /* Path selected via `dir`  */
-    st_mutex_t *ptSelectedMutex;           /* Protects szSelected      */
-    char        szScriptFile[ST_MAX_PATH]; /* --script path (UC4.3)    */
+    st_u32_t    ulMagic;                   /* Magic ST4Ever OO-like tag */
+    st_object_t eObject;                   /* Object type for tests     */
+    char        szCwd[ST_MAX_PATH];        /* Current working dir       */
+    char        szSelected[ST_MAX_PATH];   /* Path selected via `dir`   */
+    st_mutex_t *ptSelectedMutex;           /* Protects szSelected       */
+    char        szScriptFile[ST_MAX_PATH]; /* --script path (UC4.3)     */
     st_bool_t   bRunning;                  /* ST_FALSE = shutdown       */
 } line_context_t;
 
@@ -103,30 +105,30 @@ typedef struct line_context_s
  * loads ~/.st4ever_history.
  *
  * Parameters:
- *   ptCtx [out] : Context to initialise (must not be NULL).
+ *   szScriptFile [in] : file name of a script to execute
  *
  * Returns:
  *   ST_NO_ERROR on success.
- *   ST_ERROR    if ptCtx is NULL or getcwd() fails.
+ *   ST_ERROR    if getcwd() fails.
  */
-st_error_t line_init(line_context_t *ptCtx);
+st_u64_t line_init(const char* szScriptFile);
 
 /*
  * line_run() - Start the blocking interactive console loop.
  *
- * If ptCtx->szScriptFile is non-empty, reads commands from that file
+ * If g_line_ptCtx.szScriptFile is non-empty, reads commands from that file
  * and returns when exhausted (batch mode, non-interactive).
  * Otherwise enters the interactive raw-mode loop; returns on `quit`,
  * EOF, or fatal error.
  *
  * Parameters:
- *   ptCtx [in/out] : Initialised console context.
+ *   None
  *
  * Returns:
  *   ST_NO_ERROR on normal exit.
  *   ST_ERROR    on fatal internal error.
  */
-st_error_t line_run(line_context_t *ptCtx);
+st_error_t line_run();
 
 /*
  * line_shutdown() - Release console resources.
@@ -135,12 +137,12 @@ st_error_t line_run(line_context_t *ptCtx);
  * ptSelectedMutex, and zeroes the context.
  *
  * Parameters:
- *   ptCtx [in/out] : Context (zeroed on return).
+ *   None
  *
  * Returns:
  *   ST_NO_ERROR always.
  */
-st_error_t line_shutdown(line_context_t *ptCtx);
+st_error_t line_shutdown();
 
 /* ------------------------------------------------------------------
  * API — console output
@@ -161,30 +163,26 @@ void line_print_error(const char *szFmt, ...);
  * selection.
  *
  * Parameters:
- *   ptCtx  [in/out] : Console context.
  *   szPath [in]     : Absolute path to record (NULL = clear).
  *
  * Returns:
  *   ST_NO_ERROR on success.
- *   ST_ERROR    if ptCtx is NULL.
+ *   ST_ERROR    on error
  */
-st_error_t line_set_selected(line_context_t *ptCtx,
-                               const char     *szPath);
+st_error_t line_set_selected(const char     *szPath);
 
 /*
  * line_get_selected() - Read szSelected under mutex.
  *
  * Parameters:
- *   ptCtx  [in]  : Console context.
  *   szBuf  [out] : Receives selected path (empty string if none).
  *   uiLen  [in]  : Buffer size (>= 1).
  *
  * Returns:
  *   ST_NO_ERROR on success.
- *   ST_ERROR    if ptCtx or szBuf is NULL, or uiLen == 0.
+ *   ST_ERROR    if szBuf is NULL, or uiLen == 0.
  */
-st_error_t line_get_selected(const line_context_t *ptCtx,
-                               char                 *szBuf,
+st_error_t line_get_selected(char                 *szBuf,
                                size_t                uiLen);
 
 /* ------------------------------------------------------------------
@@ -309,12 +307,11 @@ int line_complete_path_query(const char *szPrefix,
  *
  * Format: "ST4Ever vX.Y.Z | <cwd> [| sel: <file>] [| T]"
  * On Windows: SetConsoleTitleA(); on Linux: ANSI OSC 0 escape.
- * Safe to call with ptCtx == NULL (shows minimal title).
  *
  * Parameters:
- *   ptCtx [in] : Console context (may be NULL before line_init).
+ *   None
  */
-void line_update_console_title(const line_context_t *ptCtx);
+st_error_t line_update_console_title();
 
 /* ------------------------------------------------------------------
  * API — ANSI colour toggle

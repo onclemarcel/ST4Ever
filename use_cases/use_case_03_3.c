@@ -35,21 +35,26 @@ int main(void)
 {
     dir_view_t     *ptView;
     dir_view_t     *ptNull;
-    line_context_t  tCtx;
+    line_context_t *tCtx;
+    st_u64_t        ullR;
     st_error_t      eResult;
 
     /* ---- Setup ---------------------------------------------------- */
     trace_init(ST_FALSE);
     gui_init();
-    line_init(&tCtx);
-
+    ullR = line_init("");
+    UC_CHECK("[N] line_init(\"\")", ullR);
+    tCtx = (void*)ullR;
+    UC_CHECK_OBJ(tCtx, ST_LINE_CTX);
+    if (g_uc_fails) return 1;
+    
     printf("\n--- Test group 1: dir_open / dir_close lifecycle ---\n");
 
     /* INTENT[INT-DIR-001 → TC-DIR-001..002 → REQ-DIR-001,004 → UFR-DIR-001]:
      * dir_open with valid path returns ST_NO_ERROR and a non-NULL view */
     ptView  = NULL;
     /* ADAPTED: UC4.1 - dir_open() gained bShowHidden parameter */
-    eResult = dir_open(TEST_DIR_PATH, &tCtx, ST_FALSE, &ptView);
+    eResult = dir_open(TEST_DIR_PATH, tCtx, ST_FALSE, &ptView);
     UC_TEST("[N] TC-DIR-001 dir_open(valid path) -> ST_NO_ERROR",
             eResult == ST_NO_ERROR);
     UC_TEST("[N] TC-DIR-002 dir_open: *pptView != NULL",
@@ -88,7 +93,7 @@ int main(void)
      * dir_open can be called again on the same path after a close */
     ptView  = NULL;
     /* ADAPTED: UC4.1 - dir_open() gained bShowHidden parameter */
-    eResult = dir_open(TEST_DIR_PATH, &tCtx, ST_FALSE, &ptView);
+    eResult = dir_open(TEST_DIR_PATH, tCtx, ST_FALSE, &ptView);
     UC_TEST("[N] TC-DIR-008 dir_open second time -> ST_NO_ERROR",
             eResult == ST_NO_ERROR);
     if (ptView != NULL)
@@ -111,7 +116,7 @@ int main(void)
     /* INTENT[INT-DIR-006 → TC-DIR-011 → REQ-DIR-001 → UFR-DIR-001]:
      * NULL pptView must be rejected before any side effect */
     /* ADAPTED: UC4.1 - bShowHidden parameter added */
-    eResult = dir_open(TEST_DIR_PATH, &tCtx, ST_FALSE, NULL);
+    eResult = dir_open(TEST_DIR_PATH, tCtx, ST_FALSE, NULL);
     UC_TEST("[R] TC-DIR-011 dir_open(NULL pptView) -> ST_ERROR",
             eResult == ST_ERROR);
 
@@ -139,7 +144,7 @@ int main(void)
      * non-existent path opens with an empty tree (non-fatal scan failure) */
     ptView  = NULL;
     /* ADAPTED: UC4.1 - bShowHidden parameter added */
-    eResult = dir_open("nonexistent_path_xyz_st4ever", &tCtx, ST_FALSE,
+    eResult = dir_open("nonexistent_path_xyz_st4ever", tCtx, ST_FALSE,
                        &ptView);
     UC_TEST("[R] TC-DIR-015 dir_open(non-existent path) -> ST_NO_ERROR",
             eResult == ST_NO_ERROR);
@@ -163,7 +168,7 @@ int main(void)
      * dir tree: ASCII render, highlight, keyboard, mouse click */
 #ifdef ST_MANUAL_TEST
     ptView = NULL;
-    dir_open("use_cases", &tCtx, ST_FALSE, &ptView);
+    dir_open("use_cases", tCtx, ST_FALSE, &ptView);
     platform_sleep_ms(500);
     TEST_MANUAL("[S] TC-DIR-017 ASCII tree rendered in window",
                 "Is the use_cases/ tree shown as ASCII lines in the window?");
@@ -201,7 +206,7 @@ int main(void)
 #endif
 
     /* ---- Teardown ------------------------------------------------- */
-    line_shutdown(&tCtx);
+    line_shutdown();
     gui_shutdown();
     trace_shutdown();
 

@@ -885,7 +885,7 @@ static void dir_activate_sel(dir_view_t *ptView, gui_window_t hWnd)
         /* File: update console selection (mutex-safe, UC4.3) */
         if (ptView->ptLineCtx != NULL)
         {
-            line_set_selected(ptView->ptLineCtx, ptNode->szPath);
+            line_set_selected(ptNode->szPath);
             /* P11: record last-selected for secondary visual indicator */
             strncpy(ptView->szLastSelected, ptNode->szPath,
                     ST_MAX_PATH - 1);
@@ -1126,7 +1126,7 @@ static void dir_handle_key(dir_view_t  *ptView,
                     {
                         ptView->szLastSelected[0] = '\0';
                         if (ptView->ptLineCtx != NULL)
-                            line_set_selected(ptView->ptLineCtx, "");
+                            line_set_selected("");
                     }
                     dir_toggle_multi_sel(ptView, ptNode->szPath);
                     bRedraw = ST_TRUE;
@@ -1147,7 +1147,7 @@ static void dir_handle_key(dir_view_t  *ptView,
                 }
                 if (ptView->ptLineCtx != NULL)
                 {
-                    line_set_selected(ptView->ptLineCtx, ptNode->szPath);
+                    line_set_selected(ptNode->szPath);
                     /* P11: record last-selected for secondary indicator */
                     strncpy(ptView->szLastSelected, ptNode->szPath,
                             ST_MAX_PATH - 1);

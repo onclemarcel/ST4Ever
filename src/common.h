@@ -19,6 +19,20 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <inttypes.h>
+
+/* ------------------------------------------------------------------
+ * Fixed-width integer aliases
+ * ------------------------------------------------------------------ */
+
+typedef uint8_t  st_u8_t;    /* Unsigned  8-bit */
+typedef uint16_t st_u16_t;   /* Unsigned 16-bit */
+typedef uint32_t st_u32_t;   /* Unsigned 32-bit */
+typedef uint64_t st_u64_t;   /* Unsigned 64-bit */
+typedef int8_t   st_i8_t;    /* Signed    8-bit */
+typedef int16_t  st_i16_t;   /* Signed   16-bit */
+typedef int32_t  st_i32_t;   /* Signed   32-bit */
+typedef int64_t  st_i64_t;   /* Signed   64-bit */
 
 /* ------------------------------------------------------------------
  * Return codes
@@ -41,6 +55,24 @@ typedef enum st_bool_s
 } st_bool_t;
 
 /* ------------------------------------------------------------------
+ * ST4Ever Objects - used to retrieve static structures in tests
+ * ------------------------------------------------------------------ */
+
+ typedef enum st_object_s
+ {
+    ST_UNKNOWN  = 0,
+    ST_LINE_CTX = 1
+ } st_object_t;
+
+ #define OBJ_MAGIC  0xCAFEDECA
+
+typedef struct st_obj_generic_s
+{
+    st_u32_t    ulMagic;                   /* Magic ST4Ever OO-like tag */
+    st_object_t eObject;                   /* Object type for tests     */
+} st_obj_generic_t;
+
+/* ------------------------------------------------------------------
  * Platform detection
  * ------------------------------------------------------------------ */
 
@@ -51,19 +83,6 @@ typedef enum st_bool_s
 #else
     #error "Unsupported platform - only Windows (MSYS2) and Linux supported"
 #endif
-
-/* ------------------------------------------------------------------
- * Fixed-width integer aliases
- * ------------------------------------------------------------------ */
-
-typedef uint8_t  st_u8_t;    /* Unsigned  8-bit */
-typedef uint16_t st_u16_t;   /* Unsigned 16-bit */
-typedef uint32_t st_u32_t;   /* Unsigned 32-bit */
-typedef uint64_t st_u64_t;   /* Unsigned 64-bit */
-typedef int8_t   st_i8_t;    /* Signed    8-bit */
-typedef int16_t  st_i16_t;   /* Signed   16-bit */
-typedef int32_t  st_i32_t;   /* Signed   32-bit */
-typedef int64_t  st_i64_t;   /* Signed   64-bit */
 
 /* ------------------------------------------------------------------
  * Utility macros

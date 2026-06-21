@@ -2,38 +2,7 @@
 
 ## 0. Historique des versions de CLAUDE.md
 - 2026-05-28: Démarrage du Projet ST4Ever : l'ensemble des éléments du projet sont gérés sous Github - [ST4EVER](https://github.com/onclemarcel/ST4Ever)
-- 2026-06-07: UC22 codé; tests use_cases_22.c en cours; Process d'implémentation R19 interrompu (cf section 5 - R19 pour les étapes de développement d'un Use Case)
-- 2026-06-07: Restructuration documentaire : SRTD.md archivé → scindé en **2 - SR.md** (UFR/REQ) et **3 - TC.md** (TCs) ; **6 - UC.md** enrichi (§1.1 table dépendances inter-UC, ~45 marqueurs RÉSOLU UCxx) ; R17 révisé (traçabilité Impl. column UC22+)
-- 2026-06-08: UC22 Codé/Testé : ADD/SUB/CMP/AND/OR/EOR/shifts + NEG/NOT/TST/EXT/ADDQ/SUBQ/ADDI/SUBI/CMPI/ANDI/ORI/EORI/MULU/MULS/DIVU/DIVS + ADDX/SUBX + rotations ASL/ASR/LSL/LSR/ROL/ROR/ROXL/ROXR — 70 tests PASS 0 fail
-- 2026-06-08: UC23 Codé/Testé : BRA/BSR/Bcc(14 cond) + NOP/STOP/RTE/RTS/RTR/TRAP/LINK/UNLK/JSR/JMP + Scc/DBcc + cpu_raise_exception (pile d'exception complète) — 79 tests PASS 0 fail
-- 2026-06-08: UC23-bis Codé/Testé : MOVEM.L/W -(An)/(An)+ (snapshot+reversed-mask) + ADDA.W/SUBA.W sign-extend 16→32 bits — 26 tests PASS 0 fail
-- 2026-06-08: UC24 Codé/Testé : Memory map ST complet — dispatcher Shifter/YM2149/MFP/ACIA + ROM bus error + bug palette offset 0x20→0x40 corrigé — 49 tests PASS 0 fail
-- 2026-06-08: UC24A Codé/Testé : Sector Fingerprint Engine — vecteur 24D + cosine pondéré + DB bootstrap/learn/finalize/save/load + signatures packers + 42 tests PASS 0 fail
-- 2026-06-08: UC24B Codé/Testé : Coloration sémantique secteurs dans hex_edit — aeSecType heap + ehex_classify_sectors() + table g_aSecTint[16] + tint rendu par row — 10 tests PASS 0 fail
-- 2026-06-09: UC24C Codé/Testé : JSON annotation + bandeau contextuel — image_annot.c (load/save/get/set, parser hand-rolled) + ehex_render_band() 2 lignes (LBA/type/BPB + note éditable) + CTRL+N/CTRL+S + HEX_ZONE_BAND_NOTE — 32 tests PASS 0 fail
-- 2026-06-09: UC24D Codé/Testé : Labels cliquables dans le bandeau — FAT1/FAT2/Root/Data en cyan cliquables + chips JSON [N] + ehex_jump_to_lba() + edit_hex_set_cursor_pos() API publique — 10 tests PASS 0 fail
-- 2026-06-10: Revue console + 1-OC.md mis à jour par Tonton — 3 bugs corrigés (trace level warning, image --msa .st→.msa Case 3, auto-complétion espaces `\ `) + P50-P56 déposées + DOC UFR-MNT-010 noté — 0 régression tests
-- 2026-06-10: UC24E Codé/Testé : `dir --select` headless (P50) + `script <file>` commande interactive (P51) + CTRL+O→mount (P52) + `edit -h/--hex` force hex (P54) + suppression `umount` (P55) + `image --dir` extraction .st/.msa → répertoire (P56) — 19 tests PASS 0 fail
-- 2026-06-10: UC24F Codé/Testé : Navigation arborescente vue mount (P53) — `image_st_mkdir`/`image_st_list_dir`/`image_st_write_file_in_dir` + mount ENTER→subdir/LEFT→parent + `mount_dir_cb` récursif 1 niveau + `mount_save_image` extrait subdirs — 26 tests PASS 0 fail
-- 2026-06-10: Revue UC24E/UC24F — 6 bugs corrigés : BUG-04 (iNotImported + avertissement Skipped dans panneau mount), BUG-05 (T1440→T80 via TS/SPT/Heads), BUG-06 (Geometry '—' sur mount répertoire local), BUG-07 (image --dir xx.st : xx.st source pas dest), BUG-08 (ESPACE vue dir → rafraîchissement immédiat), BUG-09 (historique ALT+← persistant entre sessions dir) — 0 régression tests
-- 2026-06-10: UC24G Codé/Testé : P57 `trace level all|info|error|todo` incrémental + P58 `image --in/--out` explicites + P60 sélection simple/multi exclusive dans vue dir + Phase 2 DOC-01/DOC-02 SR.md restructuré + TC.md UC24G (14 tests) + use_case_24G.c — 14 tests PASS 0 fail
-- 2026-06-11: UC25A Codé/Testé : moteur d'exécution pas-à-pas `exec.c` (thread CPU + état partagé mutex + breakpoints EXEC_BP_MAX=8) + `exec_mon.c` (vue monitor F5/F6/F7/F8/B/C) + `exec_cpu.c` (vue registres D0-D7/A0-A7/PC/SSP/SR) + `line_cmd_execute()` + `exec_init/shutdown` dans main.c — 30 tests PASS (13N+9R+8S) 0 fail
-- 2026-06-11: UC25B Codé/Testé : vue mémoire `exec_mem.c` (hex dump 16 bytes/row, PC row highlight yellow, UP/DN/PgUp/PgDn/HOME snap) + vue désassembleur `exec_asm.c` (disasm_one forward, PC highlight, UP/DN/PgUp/PgDn/F snap) + fix exec_open (g_exec_bOpen=TRUE avant view opens) — 21 tests PASS (11N+4R+6S) 0 fail
-- 2026-06-11: BUG-10 + edit backup — BUG-10 : correction LF-only (`bEndOfBuf` avant `*p='\0'` dans `etxt_load`) + `edit backup [on|off]` + `edit_txt_set/get_backup()` + `szBackupPath` + sauvegarde `_YYYYMMDD_HHMMSS.bak` à l'ouverture, suppression/conservation à la fermeture — use_case_08.c : 36→43 tests (20N+11R+12S) Phase 2 : UFR-EDT-007, REQ-EDT-014..017, TC-EDT-037..043
-- 2026-06-11: UC26 Codé/Testé : moteur rendu Shifter — `shifter.h/c` + `shifter_render()` décodage bitplanes→RGB32 (low/med/high res, 4/2/1 plans, palette 16 couleurs ST 3-bit→8-bit) — 33 tests PASS (26N+7R) 0 fail
-- 2026-06-11: UC27 Codé/Testé : vue écran D2D — `exec_screen.h/c` + `renderer_platform_draw_bitmap()` D2D (BGRA+ALPHA_IGNORE, nearest-neighbour) + `exec_screen_open/close` intégrés dans `exec_open/close` + `hScrWnd` dans `exec_state_t` + invalidation dans exec thread — 21 tests PASS (7N+4R+10S) 0 fail
-- 2026-06-12: UC28 Codé/Testé : Line-A traps — `linea.h/c` (`linea_init` param block RAM + `linea_dispatch` LINEA_INIT/PUT_PIXEL/GET_PIXEL/stubs) + `CPU.c` case 0xA→linea_dispatch / case 0xF→cpu_raise_exception(LINE_F) + `exec.c` linea_init() dans exec_open + pipeline shifter 1 plan validé — 29 tests PASS (24N+5R) 0 fail
-- 2026-06-12: UC29 Codé/Testé : XBIOS/GEMDOS minimaux + PUT_PIXEL — `tos.h/c` (TRAP #1: Pterm0/Pterm; TRAP #14: Vsync/Setpalette/Setcolor/Setscreen) + `CPU.c` TRAP #1→tos_gemdos / TRAP #14→tos_xbios + `linea.c` PUT_PIXEL ($A001) bitplane D0=color/D1=y/D2=x (low/med/high res) — 37 tests PASS (28N+9R) 0 fail
-- 2026-06-12: UC30A Codé/Testé : Assembleur DEVPAC3 infrastructure — lexer + table symboles 4096 entrées + moteur 2 passes + directives SECTION/DC.B/W/L/DS.B/W/L/EVEN/EQU/SET/END + sortie PRG 28 octets header + liste fixups RLE — 35 tests PASS (26N+9R) 0 fail
-- 2026-06-13: UC30B Codé/Testé/Documenté : Assembleur DEVPAC3 — encodeur EA (12 modes) + MOVE.B/W/L/MOVEA/MOVEQ/LEA/CLR/SWAP byte-exact vs DEVPAC3 réel + fix CRLF + MOVEQ signé (#-1) + round-trip disasm↔assemble fermé — 44 tests PASS (38N+6R) 0 fail — Phase 2 : UFR-ASM-003/004, REQ-AS-013..020, TC-AS-101..112, §6.30B UC.md
-- 2026-06-13: UC30C Codé/Testé : Assembleur DEVPAC3 — ADD/SUB/CMP/AND/OR/EOR + variantes immédiates ADDI/SUBI/CMPI/ANDI/ORI/EORI + ADDQ/SUBQ + NEG/NOT/TST/EXT + NOP/RTS/RTR/RTE/STOP/TRAP/JMP/JSR/LINK/UNLK + BRA/BSR/Bcc(14 cond) long form — 51 tests PASS (45N+6R) 0 fail — ADAPTED: UC11 MOVEQ #$FF→#-1 (UC30B sign-extend)
-- 2026-06-14: Rev_Eng_Guide.md v1.1 — audit hooks ST4Ever réels (12 phases × 3 niveaux : existant/manquant/commande console) + propositions UC32A/B/C déposées en §7 — pivot vers la phase "Revival Engine"
-- 2026-06-14: UC30D Codé/Testé : Assembleur DEVPAC3 — ASL/ASR/LSL/LSR/ROL/ROR/ROXL/ROXR + BTST/BCHG/BCLR/BSET + MOVEM.W/L (masque inversé -(An)) + ADDA/SUBA + MULU/MULS/DIVU/DIVS + ADDX/SUBX + Scc + DBcc + EXG (3 modes) + PEA — 52 tests PASS (44N+8R) 0 fail — instruction set 68000 de base complet
-- 2026-06-14: UC30E Codé/Testé : Torture test assembleur DEVPAC3 — SOURCE.S (4072 lignes) → SOURCE.PRG byte-exact (10218 octets .text, 0 diff) — 4 bugs corrigés : CCR/SR encoding fixe, EXG An↔Am inversé DEVPAC3, BTST/BCHG/BCLR/BSET extension words EA manquantes, taille .text lue depuis header PRG — 8 tests PASS (6N+2R) 0 fail
-- 2026-06-17: UC14A Codé/Testé : Désassembleur 68000 — MOVEM.W/L (store/load, masque inversé -(An), iExtSoFar=1) + Scc (16 conditions) + DBcc/DBRA (16 conditions, cible absolue 6 chiffres) + MOVE to/from SR/CCR (dans groupes NEGX/CLR/NEG/NOT sz=3) — 40 tests PASS (32N+8R) 0 fail — ADAPTED: UC11×1 CLR sz=3, UC12×4 NEG/NEGX/SUBQ/Scc sz=3
-- 2026-06-18: UC30G Codé/Testé : moteur d'annotation désassemblé 68000 — pipeline 6 passes (réalignement EVEN pads + fixup labels + sub_/loc_/bra_ + 9 patterns prologue/épilogue/retour) + émission avec substitution fix regions (BAF8/BD0A) — 18 tests PASS (14N+4R) 0 fail
-- 2026-06-17: UC14B Codé/Testé : Désassembleur 68000 — TAS/NBCD/CHK.W + SBCD/ABCD + MOVEP.W/L — DC.W 124→20 dans torture test UC15A — 51 tests PASS (43N+8R) 0 fail — ADAPTED: UC12×2 (TAS/ABCD), UC13×1 (MOVEP)
-- 2026-06-14: UC30F Feuille de route désassemblage GEN.TTP — `GEN_DISASM.md` (méthodologie reverse engineering, activités auto vs manuelles, roadmap 8 phases A→H) + `use_case_30F.c` → génère `GEN_DISASM.s` (23078 instructions), `GEN_STRINGS.txt`, `GEN_RELOC.txt`, `GEN_HEADER.txt` dans `use_cases/UC30F/` — 10 tests PASS (8N+2R) 0 fail
+- 2026-06-20: UC30G développé, la première phase de construction des briques de bases de ST4Ever est atteinte. Il faut consolider les bases, évaluer l'architecture globale, vérifier que les tests sont suffisants et couvrants => développement de scripts dans ./tools pour récupérer les informations présentes dans les fichiers sources.
 
 *L'historique des versions antérieures peut être récupéré via le change log github*
 
@@ -172,7 +141,7 @@ Ordre canonique du corps d'une fonction :
 ```
 1. Déclarations de variables locales (toutes en tête)
 2. Garde de validation des paramètres  →  LOG_ERROR + return ST_ERROR
-3. LOG_TRACE d'entrée (fonctions publiques et handlers)
+3. LOG_TRACE d'entrée (LOG_TRACE est désactivé par défaut)
 4. Corps fonctionnel
 5. LOG_INFO de sortie (si l'effet est significatif)
 6. return
@@ -187,9 +156,7 @@ if (ptParam == NULL)
 }
 ```
 
-**LOG_TRACE** — après la garde, pour les fonctions publiques et les handlers.
-Pas dans les micro-helpers internes (< 5 lignes, aucun effet de bord).
-Cast `(void *)` obligatoire sur tout pointeur passé avec `%p` :
+**LOG_TRACE** — après la garde. Pas dans les micro-helpers internes (< 5 lignes, aucun effet de bord). Cast `(void *)` obligatoire sur tout pointeur passé avec `%p` :
 `LOG_TRACE("ptX=%p uiY=%u", (void *)ptX, uiY)`
 
 **LOG_INFO** — juste avant le `return ST_NO_ERROR` final si la fonction produit

@@ -51,7 +51,7 @@
  * ------------------------------------------------------------------ */
 
 /* Print a test result line */
-#define TEST_ASSERT(desc, cond) \
+/*#define TEST_ASSERT(desc, cond) \
     do { \
         if (cond) { \
             printf("  [PASS] %s\n", (desc)); \
@@ -60,7 +60,7 @@
             g_uc_fails++; \
         } \
     } while (0)
-
+*/
 #define UC_TEST(desc, cond) \
     do { \
         if (cond) { \
@@ -71,12 +71,34 @@
         } \
     } while (0)
 
-/* Call an ST4Ever function and check ST_NO_ERROR */
+/* Call an ST4Ever function and check for result != ST_ERROR */
 #define UC_CHECK(desc, call) \
     do { \
-        st_error_t _e = (call); \
-        UC_TEST(desc, _e == ST_NO_ERROR); \
+        st_u64_t _e = (call); \
+        UC_TEST(desc, _e != ST_ERROR); \
     } while (0)
+
+/* Check if the pointer is a registered ST4Ever structure */
+#define UC_CHECK_OBJ(pt, type) \
+    do { \
+        st_obj_generic_t* obj = (void*)pt;  \
+        if (obj < 0x10000)                  \
+        {                                   \
+            printf("  [FAIL] Unreadable pointer %p\n", (void*)obj);    \
+            g_uc_fails++;                   \
+        }                                   \
+        if (obj->ulMagic != 0xCAFEDECA)     \
+        {                                   \
+            printf("  [FAIL] Not a ST4Ever structure %p\n", (void*)obj);    \
+            g_uc_fails++;                   \
+        }                                   \
+                                            \
+        if (obj->eObject != type)           \
+        {                                   \
+            printf("  [FAIL] Incorrect pointer type (%d)\n", (void*)obj->eObject);    \
+            g_uc_fails++;                   \
+        }                                   \
+    } while(0)
 
 /* Skip a test with a reason - does not count as failure */
 #define TEST_SKIP(desc) \

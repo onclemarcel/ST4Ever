@@ -52,7 +52,7 @@ int main(void)
     /* ---- Setup ---------------------------------------------------- */
     trace_init(ST_FALSE);
     gui_init();
-    line_init(&tCtx);
+    line_init("\0");
 
     printf("\n--- Test group 1: gui_request_close() guard ---\n");
 

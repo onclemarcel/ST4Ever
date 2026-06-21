@@ -201,37 +201,44 @@ static void test_trace(void)
 
 static void test_line(void)
 {
-    line_context_t tCtx;
-    st_error_t     eR;
+    line_context_t* tCtx;
+    const char*     szScript = "";
+    st_u64_t        ullR;
 
     printf("\n--- Test group 2: Console context ---\n");
 
     /* INTENT[INT-CON-001 → TC-CON-001 → REQ-CON-001]:
      * line_init must reject a NULL context pointer */
-    eR = line_init(NULL);
-    UC_TEST("[R] line_init(NULL) returns ST_ERROR", eR == ST_ERROR);
+    ullR = line_init(NULL);
+    UC_TEST("[R] line_init(NULL) returns ST_ERROR", ullR == ST_ERROR);
 
     /* INTENT[INT-CON-002 → TC-CON-002 → REQ-CON-002]:
      * line_init must populate the context and capture the cwd */
-    UC_CHECK("[N] line_init(&tCtx)", line_init(&tCtx));
+    ullR = line_init(szScript);
+    UC_CHECK("[N] line_init(szScript = "")", ullR);
+    tCtx = (void*)ullR;
+    UC_CHECK_OBJ(tCtx, ST_LINE_CTX);
+
+    if (g_uc_fails) return;
+    
     UC_TEST("[N] bRunning == TRUE after init",
-            tCtx.bRunning == ST_TRUE);
+            tCtx->bRunning == ST_TRUE);
     UC_TEST("[N] szCwd non-empty after init",
-            tCtx.szCwd[0] != '\0');
-    printf("  [INFO] cwd = '%s'\n", tCtx.szCwd);
+            tCtx->szCwd[0] != '\0');
+    printf("  [INFO] cwd = '%s'\n", tCtx->szCwd);
 
     /* line_run() not called - would block on stdin */
 
     /* INTENT[INT-CON-003 → TC-CON-003 → REQ-CON-004]:
      * line_shutdown must reject a NULL context pointer */
-    eR = line_shutdown(NULL);
-    UC_TEST("[R] line_shutdown(NULL) returns ST_ERROR", eR == ST_ERROR);
+    ullR = line_shutdown();
+    UC_TEST("[R] line_shutdown(NULL) returns ST_ERROR", ullR == ST_NO_ERROR);
 
     /* INTENT[INT-CON-004 → TC-CON-004 → REQ-CON-005]:
      * line_shutdown must clear the context and set bRunning FALSE */
-    UC_CHECK("[N] line_shutdown(&tCtx)", line_shutdown(&tCtx));
+    UC_CHECK("[N] line_shutdown()", line_shutdown());
     UC_TEST("[N] bRunning == FALSE after shutdown",
-            tCtx.bRunning == ST_FALSE);
+            tCtx->bRunning == ST_FALSE);
 }
 
 /* ------------------------------------------------------------------

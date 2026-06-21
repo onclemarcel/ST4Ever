@@ -27,7 +27,6 @@
  * Internal constants
  * ------------------------------------------------------------------ */
 
-#define TRACE_LOGFILE           "st4ever_trace.log"
 #define TRACE_COMPACT_FUNCLEN   80   /* max func name stored for compact */
 
 /* GUI trace window ring buffer.
@@ -481,10 +480,10 @@ static void trace_event_callback(gui_window_t  hWnd,
 
 st_error_t trace_init(st_bool_t bOpen)
 {
+    
     if (g_trace_bInitialised == ST_TRUE)
     {
-        fprintf(stderr,
-                "[trace_init] WARNING: called more than once\n");
+        fprintf(stderr, "[trace_init] WARNING: called more than once\n");
         return ST_NO_ERROR;
     }
 

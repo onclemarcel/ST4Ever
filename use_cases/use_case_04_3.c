@@ -259,48 +259,53 @@ static void test_colors(void)
 
 static void test_selected_accessor(void)
 {
-    line_context_t tCtx;
+    line_context_t *tCtx;
     char           szBuf[ST_MAX_PATH];
-
+    st_u64_t       ullR = line_init("");
+    tCtx = (void*)ullR;
+    UC_CHECK_OBJ(tCtx, ST_LINE_CTX);
+    if (g_uc_fails) return;
+    
     printf("\n--- Selected accessor ---\n");
 
-    UC_CHECK("[N] line_init", line_init(&tCtx));
+    UC_CHECK("[N] line_init", ullR);
 
     /* INTENT[INT-LIN-013 → TC-LIN-013]:
      * After init, selected is empty. */
     UC_CHECK("[N] get_selected after init",
-             line_get_selected(&tCtx, szBuf, sizeof(szBuf)));
+             line_get_selected(szBuf, sizeof(szBuf)));
     UC_TEST("[N] selected empty after init", szBuf[0] == '\0');
 
     /* INTENT[INT-LIN-014 → TC-LIN-014]:
      * set_selected() stores, get_selected() retrieves. */
     UC_CHECK("[N] set_selected '/tmp/hello.prg'",
-             line_set_selected(&tCtx, "/tmp/hello.prg"));
+             line_set_selected("/tmp/hello.prg"));
 
     UC_CHECK("[N] get_selected",
-             line_get_selected(&tCtx, szBuf, sizeof(szBuf)));
+             line_get_selected(szBuf, sizeof(szBuf)));
     UC_TEST("[N] retrieved path matches",
             strcmp(szBuf, "/tmp/hello.prg") == 0);
 
     /* INTENT[INT-LIN-015 → TC-LIN-015]:
      * set_selected(NULL) clears the selection. */
     UC_CHECK("[N] set_selected(NULL) clears",
-             line_set_selected(&tCtx, NULL));
+             line_set_selected(NULL));
     UC_CHECK("[N] get_selected after clear",
-             line_get_selected(&tCtx, szBuf, sizeof(szBuf)));
+             line_get_selected(szBuf, sizeof(szBuf)));
     UC_TEST("[N] selected empty after NULL set", szBuf[0] == '\0');
 
     /* Robustness */
+    tCtx->bRunning = ST_FALSE;
     UC_TEST("[R] set_selected(NULL ctx) → ST_ERROR",
-            line_set_selected(NULL, "/tmp/x") == ST_ERROR);
+            line_set_selected("/tmp/x") == ST_ERROR);
     UC_TEST("[R] get_selected(NULL ctx) → ST_ERROR",
-            line_get_selected(NULL, szBuf, sizeof(szBuf))
+            line_get_selected(szBuf, sizeof(szBuf))
             == ST_ERROR);
     UC_TEST("[R] get_selected(NULL buf) → ST_ERROR",
-            line_get_selected(&tCtx, NULL, sizeof(szBuf))
+            line_get_selected(NULL, sizeof(szBuf))
             == ST_ERROR);
 
-    UC_CHECK("[N] line_shutdown", line_shutdown(&tCtx));
+    UC_CHECK("[N] line_shutdown", line_shutdown());
 }
 
 /* ------------------------------------------------------------------
@@ -309,8 +314,9 @@ static void test_selected_accessor(void)
 
 static void test_script(void)
 {
-    line_context_t tCtx;
-    const char    *szScript;
+    line_context_t *tCtx;
+    const char     *szScript;
+    st_u64_t        ullR;
 
     printf("\n--- Script mode ---\n");
 
@@ -321,39 +327,43 @@ static void test_script(void)
 
     if (szScript != NULL)
     {
-        UC_CHECK("[N] line_init for script mode",
-                 line_init(&tCtx));
+        ullR = line_init(szScript);
+        tCtx = (void*)ullR;
+        UC_CHECK_OBJ(tCtx, ST_LINE_CTX);
+        if (g_uc_fails) return;
+    
+        UC_CHECK("[N] line_init for script mode", ullR);
 
-        strncpy(tCtx.szScriptFile, szScript,
+        strncpy(tCtx->szScriptFile, szScript,
                 ST_MAX_PATH - 1);
-        tCtx.szScriptFile[ST_MAX_PATH - 1] = '\0';
+        tCtx->szScriptFile[ST_MAX_PATH - 1] = '\0';
 
         /* line_run() with szScriptFile set → batch mode */
         UC_CHECK("[N] line_run script mode",
-                 line_run(&tCtx));
+                 line_run());
 
         /* After script ran 'quit': bRunning should be FALSE */
         UC_TEST("[N] bRunning FALSE after quit in script",
-                tCtx.bRunning == ST_FALSE);
+                tCtx->bRunning == ST_FALSE);
 
         UC_CHECK("[N] line_shutdown after script",
-                 line_shutdown(&tCtx));
+                 line_shutdown());
     }
 
     /* INTENT[INT-LIN-017 → TC-LIN-017]:
      * --script with missing file → ST_ERROR from line_run. */
     UC_CHECK("[N] line_init for missing script",
-             line_init(&tCtx));
-    strncpy(tCtx.szScriptFile,
+             line_init(""));
+    strncpy(tCtx->szScriptFile,
             "use_cases/UC04_3/no_such_script.txt",
             ST_MAX_PATH - 1);
-    tCtx.szScriptFile[ST_MAX_PATH - 1] = '\0';
+    tCtx->szScriptFile[ST_MAX_PATH - 1] = '\0';
 
     UC_TEST("[R] line_run with missing script → ST_ERROR",
-            line_run(&tCtx) == ST_ERROR);
+            line_run() == ST_ERROR);
 
     UC_CHECK("[N] line_shutdown after missing script",
-             line_shutdown(&tCtx));
+             line_shutdown());
 }
 
 /* ------------------------------------------------------------------

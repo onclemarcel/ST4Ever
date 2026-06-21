@@ -62,6 +62,13 @@
 #endif
 
 /* ------------------------------------------------------------------
+ * The global line context structure
+ * ------------------------------------------------------------------ */
+
+static line_context_t  g_line_ptCtx = {.ulMagic = OBJ_MAGIC, 
+                                       .eObject = ST_LINE_CTX };
+
+/* ------------------------------------------------------------------
  * ANSI colour helpers — runtime-toggled via g_line_bColors
  * ------------------------------------------------------------------ */
 
@@ -108,7 +115,7 @@ static const char *line_path_basename(const char *szPath);
  * Console title update (P8)
  * ------------------------------------------------------------------ */
 
-void line_update_console_title(const line_context_t *ptCtx)
+st_error_t line_update_console_title()
 {
     char        szTitle[256];
     char        szSel[ST_MAX_PATH];
@@ -116,14 +123,18 @@ void line_update_console_title(const line_context_t *ptCtx)
     const char *pCwd;
     int         iRet;
 
-    pCwd      = (ptCtx != NULL) ? ptCtx->szCwd : "";
+    /* -- 1. Check if console line is initialized - return if not */
+    if (!g_line_ptCtx.bRunning)
+    {
+        LOG_ERROR("Use line_init() before use of any line_*() function");
+        return ST_ERROR;
+    }
+    
+    pCwd      = g_line_ptCtx.szCwd;
     szSel[0]  = '\0';
 
-    if (ptCtx != NULL)
-    {
-        line_get_selected(ptCtx, szSel, sizeof(szSel));
-    }
-
+    line_get_selected(szSel, sizeof(szSel));
+    
     if (szSel[0] != '\0')
     {
         pBase = line_path_basename(szSel);
@@ -143,7 +154,7 @@ void line_update_console_title(const line_context_t *ptCtx)
 
     if (iRet < 0)
     {
-        return; /* snprintf error */
+        return ST_ERROR; /* snprintf error */
     }
 
 #ifdef ST_PLATFORM_WINDOWS
@@ -152,6 +163,8 @@ void line_update_console_title(const line_context_t *ptCtx)
     printf("\033]0;%s\007", szTitle);
     fflush(stdout);
 #endif
+
+    return ST_NO_ERROR;
 }
 
 /* ------------------------------------------------------------------
@@ -906,61 +919,67 @@ st_bool_t line_get_colors(void)
  * Thread-safe selected path accessors
  * ------------------------------------------------------------------ */
 
-st_error_t line_set_selected(line_context_t *ptCtx,
-                               const char     *szPath)
+st_error_t line_set_selected(const char     *szPath)
 {
-    if (ptCtx == NULL)
+    /* -- 1. Check if console line is initialized - return if not */
+    if (!g_line_ptCtx.bRunning)
     {
-        LOG_ERROR("ptCtx is NULL");
+        LOG_ERROR("Use line_init() before use of any line_*() function");
         return ST_ERROR;
     }
 
-    if (ptCtx->ptSelectedMutex != NULL)
+    if (g_line_ptCtx.ptSelectedMutex != NULL)
     {
-        platform_mutex_lock(ptCtx->ptSelectedMutex);
+        platform_mutex_lock(g_line_ptCtx.ptSelectedMutex);
     }
 
     if (szPath == NULL)
     {
-        ptCtx->szSelected[0] = '\0';
+        g_line_ptCtx.szSelected[0] = '\0';
     }
     else
     {
-        strncpy(ptCtx->szSelected, szPath, ST_MAX_PATH - 1);
-        ptCtx->szSelected[ST_MAX_PATH - 1] = '\0';
+        strncpy(g_line_ptCtx.szSelected, szPath, ST_MAX_PATH - 1);
+        g_line_ptCtx.szSelected[ST_MAX_PATH - 1] = '\0';
     }
 
-    if (ptCtx->ptSelectedMutex != NULL)
+    if (g_line_ptCtx.ptSelectedMutex != NULL)
     {
-        platform_mutex_unlock(ptCtx->ptSelectedMutex);
+        platform_mutex_unlock(g_line_ptCtx.ptSelectedMutex);
     }
 
     return ST_NO_ERROR;
 }
 
-st_error_t line_get_selected(const line_context_t *ptCtx,
-                               char                 *szBuf,
-                               size_t                uiLen)
+st_error_t line_get_selected(char                 *szBuf,
+                             size_t                uiLen)
 {
-    if (ptCtx == NULL || szBuf == NULL || uiLen == 0)
+    if (szBuf == NULL || uiLen == 0)
     {
         LOG_ERROR("NULL parameter or uiLen==0");
         return ST_ERROR;
     }
 
-    if (ptCtx->ptSelectedMutex != NULL)
+    /* -- 1. Check if console line is initialized - return if not */
+    if (!g_line_ptCtx.bRunning)
     {
-        platform_mutex_lock(
-            (st_mutex_t *)ptCtx->ptSelectedMutex);
+        LOG_ERROR("Use line_init() before use of any line_*() function");
+        return ST_ERROR;
     }
 
-    strncpy(szBuf, ptCtx->szSelected, uiLen - 1);
+    if (g_line_ptCtx.ptSelectedMutex != NULL)
+    {
+        platform_mutex_lock(
+            (st_mutex_t *)g_line_ptCtx.ptSelectedMutex);
+    }
+
+    strncpy(szBuf, g_line_ptCtx.szSelected, uiLen - 1);
     szBuf[uiLen - 1] = '\0';
 
-    if (ptCtx->ptSelectedMutex != NULL)
+    if (g_line_ptCtx.ptSelectedMutex != NULL)
     {
         platform_mutex_unlock(
-            (st_mutex_t *)ptCtx->ptSelectedMutex);
+            (st_mutex_t *)g_line_ptCtx.ptSelectedMutex);
     }
 
     return ST_NO_ERROR;
@@ -970,18 +989,23 @@ st_error_t line_get_selected(const line_context_t *ptCtx,
  * Command handlers
  * ------------------------------------------------------------------ */
 
-static st_error_t line_cmd_help(const parsed_cmd_t *ptParsed,
-                                 line_context_t     *ptCtx)
+static st_error_t line_cmd_help(const parsed_cmd_t *ptParsed)
 {
     size_t uiCmdCount;
     size_t uiIdx;
 
-    LOG_TRACE("ptParsed=%p ptCtx=%p",
-              (void *)ptParsed, (void *)ptCtx);
+    LOG_TRACE("ptParsed=%p", (void *)ptParsed);
 
-    if (ptParsed == NULL || ptCtx == NULL)
+    if (ptParsed == NULL)
     {
         LOG_ERROR("NULL parameter");
+        return ST_ERROR;
+    }
+
+    /* -- 1. Check if console line is initialized - return if not */
+    if (!g_line_ptCtx.bRunning)
+    {
+        LOG_ERROR("Use line_init() before use of any line_*() function");
         return ST_ERROR;
     }
 
@@ -1027,15 +1051,20 @@ static st_error_t line_cmd_help(const parsed_cmd_t *ptParsed,
     return ST_NO_ERROR;
 }
 
-static st_error_t line_cmd_quit(const parsed_cmd_t *ptParsed,
-                                 line_context_t     *ptCtx)
+static st_error_t line_cmd_quit(const parsed_cmd_t *ptParsed)
 {
-    LOG_TRACE("ptParsed=%p ptCtx=%p",
-              (void *)ptParsed, (void *)ptCtx);
+    LOG_TRACE("ptParsed=%p", (void *)ptParsed);
 
-    if (ptParsed == NULL || ptCtx == NULL)
+    if (ptParsed == NULL)
     {
         LOG_ERROR("NULL parameter");
+        return ST_ERROR;
+    }
+
+    /* -- 1. Check if console line is initialized - return if not */
+    if (!g_line_ptCtx.bRunning)
+    {
+        LOG_ERROR("Use line_init() before use of any line_*() function");
         return ST_ERROR;
     }
 
@@ -1045,24 +1074,30 @@ static st_error_t line_cmd_quit(const parsed_cmd_t *ptParsed,
     }
 
     line_print_msg("Goodbye. The Atari ST lives on...");
-    ptCtx->bRunning = ST_FALSE;
+    g_line_ptCtx.bRunning = ST_FALSE;
 
     LOG_INFO("quit requested");
     return ST_NO_ERROR;
 }
 
-static st_error_t line_cmd_trace(const parsed_cmd_t *ptParsed,
-                                  line_context_t     *ptCtx)
+static st_error_t line_cmd_trace(const parsed_cmd_t *ptParsed)
 {
     st_error_t  eResult;
     const char *szArg;
 
-    LOG_TRACE("ptParsed=%p ptCtx=%p",
-              (void *)ptParsed, (void *)ptCtx);
+    LOG_TRACE("ptParsed=%p",
+              (void *)ptParsed);
 
-    if (ptParsed == NULL || ptCtx == NULL)
+    if (ptParsed == NULL)
     {
         LOG_ERROR("NULL parameter");
+        return ST_ERROR;
+    }
+
+    /* -- 1. Check if console line is initialized - return if not */
+    if (!g_line_ptCtx.bRunning)
+    {
+        LOG_ERROR("Use line_init() before use of any line_*() function");
         return ST_ERROR;
     }
 
@@ -1213,8 +1248,7 @@ static st_error_t line_cmd_trace(const parsed_cmd_t *ptParsed,
     return ST_NO_ERROR;
 }
 
-static st_error_t line_cmd_dir(const parsed_cmd_t *ptParsed,
-                                 line_context_t     *ptCtx)
+static st_error_t line_cmd_dir(const parsed_cmd_t *ptParsed)
 {
     char        szSelPath[ST_MAX_PATH];
     const char *szPath;
@@ -1224,12 +1258,18 @@ static st_error_t line_cmd_dir(const parsed_cmd_t *ptParsed,
     file_stat_t tStat;
     int         iArg;
 
-    LOG_TRACE("ptParsed=%p ptCtx=%p",
-              (void *)ptParsed, (void *)ptCtx);
+    LOG_TRACE("ptParsed=%p", (void *)ptParsed);
 
-    if (ptParsed == NULL || ptCtx == NULL)
+    if (ptParsed == NULL)
     {
         LOG_ERROR("NULL parameter");
+        return ST_ERROR;
+    }
+
+    /* -- 1. Check if console line is initialized - return if not */
+    if (!g_line_ptCtx.bRunning)
+    {
+        LOG_ERROR("Use line_init() before use of any line_*() function");
         return ST_ERROR;
     }
 
@@ -1281,9 +1321,9 @@ static st_error_t line_cmd_dir(const parsed_cmd_t *ptParsed,
             line_print_error("dir --select: '%s': not found.", szSelPath);
             return ST_NO_ERROR;
         }
-        line_set_selected(ptCtx, szSelPath);
+        line_set_selected(szSelPath);
         line_print_msg("Selected: %s", szSelPath);
-        line_update_console_title(ptCtx);
+        line_update_console_title();
         return ST_NO_ERROR;
     }
 
@@ -1304,7 +1344,7 @@ static st_error_t line_cmd_dir(const parsed_cmd_t *ptParsed,
         g_line_ptDirView = NULL;
     }
 
-    eResult = dir_open(szPath, ptCtx, bShowHidden, &g_line_ptDirView);
+    eResult = dir_open(szPath, &g_line_ptCtx, bShowHidden, &g_line_ptDirView);
     if (eResult != ST_NO_ERROR)
     {
         line_print_error("dir: failed to open view for '%s'",
@@ -1350,17 +1390,22 @@ static st_error_t line_cmd_dir(const parsed_cmd_t *ptParsed,
     return ST_NO_ERROR;
 }
 
-static st_error_t line_cmd_colors(const parsed_cmd_t *ptParsed,
-                                   line_context_t     *ptCtx)
+static st_error_t line_cmd_colors(const parsed_cmd_t *ptParsed)
 {
     const char *szArg;
 
-    LOG_TRACE("ptParsed=%p ptCtx=%p",
-              (void *)ptParsed, (void *)ptCtx);
+    LOG_TRACE("ptParsed=%p", (void *)ptParsed);
 
-    if (ptParsed == NULL || ptCtx == NULL)
+    if (ptParsed == NULL)
     {
         LOG_ERROR("NULL parameter");
+        return ST_ERROR;
+    }
+
+    /* -- 1. Check if console line is initialized - return if not */
+    if (!g_line_ptCtx.bRunning)
+    {
+        LOG_ERROR("Use line_init() before use of any line_*() function");
         return ST_ERROR;
     }
 
@@ -1403,8 +1448,7 @@ static st_error_t line_cmd_colors(const parsed_cmd_t *ptParsed,
     return ST_NO_ERROR;
 }
 
-static st_error_t line_cmd_load(const parsed_cmd_t *ptParsed,
-                                 line_context_t     *ptCtx)
+static st_error_t line_cmd_load(const parsed_cmd_t *ptParsed)
 {
     char        szPath[ST_MAX_PATH];
     char        szSel[ST_MAX_PATH];
@@ -1413,12 +1457,18 @@ static st_error_t line_cmd_load(const parsed_cmd_t *ptParsed,
     int         i;
     const load_state_t *ptState;
 
-    LOG_TRACE("ptParsed=%p ptCtx=%p",
-              (void *)ptParsed, (void *)ptCtx);
+    LOG_TRACE("ptParsed=%p", (void *)ptParsed);
 
-    if (ptParsed == NULL || ptCtx == NULL)
+    if (ptParsed == NULL)
     {
         LOG_ERROR("NULL parameter");
+        return ST_ERROR;
+    }
+
+    /* -- 1. Check if console line is initialized - return if not */
+    if (!g_line_ptCtx.bRunning)
+    {
+        LOG_ERROR("Use line_init() before use of any line_*() function");
         return ST_ERROR;
     }
 
@@ -1439,7 +1489,7 @@ static st_error_t line_cmd_load(const parsed_cmd_t *ptParsed,
     if (szPath[0] == '\0')
     {
         szSel[0] = '\0';
-        line_get_selected(ptCtx, szSel, sizeof(szSel));
+        line_get_selected(szSel, sizeof(szSel));
         if (szSel[0] != '\0')
         {
             strncpy(szPath, szSel, ST_MAX_PATH - 1);
@@ -1514,14 +1564,13 @@ static st_error_t line_cmd_load(const parsed_cmd_t *ptParsed,
                        (unsigned)ptState->uiSize);
     }
 
-    line_update_console_title(ptCtx);
+    line_update_console_title();
     return ST_NO_ERROR;
 }
 
 /* line_cmd_edit() — open text or binary editor on a file.
  * UC8: routes text files to edit_txt; binary/image = stub. */
-static st_error_t line_cmd_edit(const parsed_cmd_t *ptParsed,
-                                 line_context_t     *ptCtx)
+static st_error_t line_cmd_edit(const parsed_cmd_t *ptParsed)
 {
     char        szPath[ST_MAX_PATH];
     char        szSel[ST_MAX_PATH];
@@ -1530,12 +1579,18 @@ static st_error_t line_cmd_edit(const parsed_cmd_t *ptParsed,
     st_bool_t   bForceHex;
     int         i;
 
-    LOG_TRACE("ptParsed=%p ptCtx=%p",
-              (void *)ptParsed, (void *)ptCtx);
+    LOG_TRACE("ptParsed=%p", (void *)ptParsed);
 
-    if (ptParsed == NULL || ptCtx == NULL)
+    if (ptParsed == NULL)
     {
         LOG_ERROR("NULL parameter");
+        return ST_ERROR;
+    }
+
+    /* -- 1. Check if console line is initialized - return if not */
+    if (!g_line_ptCtx.bRunning)
+    {
+        LOG_ERROR("Use line_init() before use of any line_*() function");
         return ST_ERROR;
     }
 
@@ -1588,7 +1643,7 @@ static st_error_t line_cmd_edit(const parsed_cmd_t *ptParsed,
     if (szPath[0] == '\0')
     {
         szSel[0] = '\0';
-        line_get_selected(ptCtx, szSel, sizeof(szSel));
+        line_get_selected(szSel, sizeof(szSel));
         if (szSel[0] != '\0')
         {
             strncpy(szPath, szSel, ST_MAX_PATH - 1);
@@ -1640,7 +1695,7 @@ static st_error_t line_cmd_edit(const parsed_cmd_t *ptParsed,
                     "edit: could not close previous hex view");
             g_line_ptEditHexView = NULL;
         }
-        eResult = edit_hex_open(szPath, ptCtx,
+        eResult = edit_hex_open(szPath, &g_line_ptCtx,
                                  &g_line_ptEditHexView);
         if (eResult != ST_NO_ERROR)
         {
@@ -1651,7 +1706,7 @@ static st_error_t line_cmd_edit(const parsed_cmd_t *ptParsed,
                        szPath,
                        g_line_ptEditHexView
                        ? g_line_ptEditHexView->uiSize : (size_t)0);
-        line_update_console_title(ptCtx);
+        line_update_console_title();
         return ST_NO_ERROR;
     }
 
@@ -1664,7 +1719,7 @@ static st_error_t line_cmd_edit(const parsed_cmd_t *ptParsed,
         g_line_ptEditTxtView = NULL;
     }
 
-    eResult = edit_txt_open(szPath, ptCtx, &g_line_ptEditTxtView);
+    eResult = edit_txt_open(szPath, &g_line_ptCtx, &g_line_ptEditTxtView);
     if (eResult != ST_NO_ERROR)
     {
         line_print_error("edit: failed to open '%s'.", szPath);
@@ -1675,21 +1730,26 @@ static st_error_t line_cmd_edit(const parsed_cmd_t *ptParsed,
                    szPath,
                    g_line_ptEditTxtView
                    ? g_line_ptEditTxtView->iLineCount : 0);
-    line_update_console_title(ptCtx);
+    line_update_console_title();
     return ST_NO_ERROR;
 }
 
-static st_error_t line_cmd_where(const parsed_cmd_t *ptParsed,
-                                  line_context_t     *ptCtx)
+static st_error_t line_cmd_where(const parsed_cmd_t *ptParsed)
 {
     char szSel[ST_MAX_PATH];
 
-    LOG_TRACE("ptParsed=%p ptCtx=%p",
-              (void *)ptParsed, (void *)ptCtx);
+    LOG_TRACE("ptParsed=%p", (void *)ptParsed);
 
-    if (ptParsed == NULL || ptCtx == NULL)
+    if (ptParsed == NULL)
     {
         LOG_ERROR("NULL parameter");
+        return ST_ERROR;
+    }
+
+    /* -- 1. Check if console line is initialized - return if not */
+    if (!g_line_ptCtx.bRunning)
+    {
+        LOG_ERROR("Use line_init() before use of any line_*() function");
         return ST_ERROR;
     }
 
@@ -1699,10 +1759,10 @@ static st_error_t line_cmd_where(const parsed_cmd_t *ptParsed,
     }
 
     line_print_msg("Working directory : %s%s%s",
-                   c_cyan(), ptCtx->szCwd, c_reset());
+                   c_cyan(), g_line_ptCtx.szCwd, c_reset());
 
     szSel[0] = '\0';
-    line_get_selected(ptCtx, szSel, sizeof(szSel));
+    line_get_selected(szSel, sizeof(szSel));
 
     if (szSel[0] != '\0')
     {
@@ -1715,21 +1775,26 @@ static st_error_t line_cmd_where(const parsed_cmd_t *ptParsed,
                        c_gray(), c_reset());
     }
 
-    LOG_INFO("where: cwd='%s' sel='%s'", ptCtx->szCwd, szSel);
+    LOG_INFO("where: cwd='%s' sel='%s'", g_line_ptCtx.szCwd, szSel);
     return ST_NO_ERROR;
 }
 
-static st_error_t line_cmd_info(const parsed_cmd_t *ptParsed,
-                                 line_context_t     *ptCtx)
+static st_error_t line_cmd_info(const parsed_cmd_t *ptParsed)
 {
     char szSel[ST_MAX_PATH];
 
-    LOG_TRACE("ptParsed=%p ptCtx=%p",
-              (void *)ptParsed, (void *)ptCtx);
+    LOG_TRACE("ptParsed=%p", (void *)ptParsed);
 
-    if (ptParsed == NULL || ptCtx == NULL)
+    if (ptParsed == NULL)
     {
         LOG_ERROR("NULL parameter");
+        return ST_ERROR;
+    }
+
+    /* -- 1. Check if console line is initialized - return if not */
+    if (!g_line_ptCtx.bRunning)
+    {
+        LOG_ERROR("Use line_init() before use of any line_*() function");
         return ST_ERROR;
     }
 
@@ -1739,14 +1804,14 @@ static st_error_t line_cmd_info(const parsed_cmd_t *ptParsed,
     }
 
     szSel[0] = '\0';
-    line_get_selected(ptCtx, szSel, sizeof(szSel));
+    line_get_selected(szSel, sizeof(szSel));
 
     printf("\n");
     printf("%s%s  === ST4Ever %s Status ===\n%s",
            c_bold(), c_cyan(), ST_APP_VERSION, c_reset());
 
     line_print_msg("Working dir  : %s%s%s",
-                   c_cyan(), ptCtx->szCwd, c_reset());
+                   c_cyan(), g_line_ptCtx.szCwd, c_reset());
 
     if (szSel[0] != '\0')
     {
@@ -1822,8 +1887,7 @@ static st_error_t line_cmd_info(const parsed_cmd_t *ptParsed,
     return ST_NO_ERROR;
 }
 
-static st_error_t line_cmd_history(const parsed_cmd_t *ptParsed,
-                                    line_context_t     *ptCtx)
+static st_error_t line_cmd_history(const parsed_cmd_t *ptParsed)
 {
     int  iCount;
     int  iN;
@@ -1831,14 +1895,18 @@ static st_error_t line_cmd_history(const parsed_cmd_t *ptParsed,
     int  iVirt;
     char szEntry[ST_MAX_CMD];
 
-    LOG_TRACE("ptParsed=%p ptCtx=%p",
-              (void *)ptParsed, (void *)ptCtx);
+    LOG_TRACE("ptParsed=%p", (void *)ptParsed);
 
-    ST_UNUSED(ptCtx);
-
-    if (ptParsed == NULL || ptCtx == NULL)
+    if (ptParsed == NULL)
     {
         LOG_ERROR("NULL parameter");
+        return ST_ERROR;
+    }
+
+    /* -- 1. Check if console line is initialized - return if not */
+    if (!g_line_ptCtx.bRunning)
+    {
+        LOG_ERROR("Use line_init() before use of any line_*() function");
         return ST_ERROR;
     }
 
@@ -1888,19 +1956,24 @@ static st_error_t line_cmd_history(const parsed_cmd_t *ptParsed,
     return ST_NO_ERROR;
 }
 
-static st_error_t line_cmd_execute(const parsed_cmd_t *ptParsed,
-                                    line_context_t     *ptCtx)
+static st_error_t line_cmd_execute(const parsed_cmd_t *ptParsed)
 {
     const load_state_t *ptLoad;
     char                szSelected[ST_MAX_PATH];
     st_error_t          eResult;
 
-    LOG_TRACE("ptParsed=%p ptCtx=%p",
-              (void *)ptParsed, (void *)ptCtx);
+    LOG_TRACE("ptParsed=%p", (void *)ptParsed);
 
-    if (ptParsed == NULL || ptCtx == NULL)
+    if (ptParsed == NULL)
     {
         LOG_ERROR("NULL parameter");
+        return ST_ERROR;
+    }
+
+    /* -- 1. Check if console line is initialized - return if not */
+    if (!g_line_ptCtx.bRunning)
+    {
+        LOG_ERROR("Use line_init() before use of any line_*() function");
         return ST_ERROR;
     }
 
@@ -1926,7 +1999,7 @@ static st_error_t line_cmd_execute(const parsed_cmd_t *ptParsed,
     {
         /* No argument: check current selection */
         szSelected[0] = '\0';
-        line_get_selected(ptCtx, szSelected, sizeof(szSelected));
+        line_get_selected(szSelected, sizeof(szSelected));
         if (szSelected[0] != '\0')
         {
             eResult = load_file(szSelected);
@@ -1967,14 +2040,19 @@ static st_error_t line_cmd_execute(const parsed_cmd_t *ptParsed,
     return ST_NO_ERROR;
 }
 
-static st_error_t line_cmd_stub(const parsed_cmd_t *ptParsed,
-                                 line_context_t     *ptCtx)
-{
-    const char *szCmd;
+/* ------------------------------------------------------------------
+ * line_cmd_mount / line_cmd_umount (UC18.1)
+ * ------------------------------------------------------------------ */
 
-    LOG_TRACE("ptParsed=%p ptCtx=%p",
-              (void *)ptParsed, (void *)ptCtx);
-    ST_UNUSED(ptCtx);
+static st_error_t line_cmd_mount(const parsed_cmd_t *ptParsed)
+{
+    char        szPath[ST_MAX_PATH];
+    char        szSel[ST_MAX_PATH];
+    file_stat_t tStat;
+    int         iKey;
+    int         iArgIdx;
+
+    LOG_TRACE("ptParsed=%p", (void *)ptParsed);
 
     if (ptParsed == NULL)
     {
@@ -1982,28 +2060,12 @@ static st_error_t line_cmd_stub(const parsed_cmd_t *ptParsed,
         return ST_ERROR;
     }
 
-    szCmd = (ptParsed->iArgc > 0) ? ptParsed->aszArgv[0] : "?";
-
-    line_print_warning(
-        "'%s' is not yet implemented - coming in a future UC.",
-        szCmd);
-
-    LOG_TODO("command '%s' not yet implemented", szCmd);
-    return ST_NO_ERROR;
-}
-
-/* ------------------------------------------------------------------
- * line_cmd_mount / line_cmd_umount (UC18.1)
- * ------------------------------------------------------------------ */
-
-static st_error_t line_cmd_mount(const parsed_cmd_t *ptParsed,
-                                  line_context_t     *ptCtx)
-{
-    char        szPath[ST_MAX_PATH];
-    char        szSel[ST_MAX_PATH];
-    file_stat_t tStat;
-    int         iKey;
-    int         iArgIdx;
+    /* -- 1. Check if console line is initialized - return if not */
+    if (!g_line_ptCtx.bRunning)
+    {
+        LOG_ERROR("Use line_init() before use of any line_*() function");
+        return ST_ERROR;
+    }
 
     /* Collect path: explicit arg > selected file > cwd (confirmation) */
     szPath[0] = '\0';
@@ -2021,7 +2083,7 @@ static st_error_t line_cmd_mount(const parsed_cmd_t *ptParsed,
     if (szPath[0] == '\0')
     {
         szSel[0] = '\0';
-        line_get_selected(ptCtx, szSel, sizeof(szSel));
+        line_get_selected(szSel, sizeof(szSel));
         if (szSel[0] != '\0')
         {
             strncpy(szPath, szSel, ST_MAX_PATH - 1);
@@ -2030,7 +2092,7 @@ static st_error_t line_cmd_mount(const parsed_cmd_t *ptParsed,
         else
         {
             /* Use cwd — ask for confirmation */
-            line_print_msg("Mount '%s'? (y/n): ", ptCtx->szCwd);
+            line_print_msg("Mount '%s'? (y/n): ", g_line_ptCtx.szCwd);
             fflush(stdout);
             iKey = 0;
             if (console_read_key(&iKey) != ST_NO_ERROR ||
@@ -2041,7 +2103,7 @@ static st_error_t line_cmd_mount(const parsed_cmd_t *ptParsed,
                 return ST_NO_ERROR;
             }
             printf("\n");
-            strncpy(szPath, ptCtx->szCwd, ST_MAX_PATH - 1);
+            strncpy(szPath, g_line_ptCtx.szCwd, ST_MAX_PATH - 1);
             szPath[ST_MAX_PATH - 1] = '\0';
         }
     }
@@ -2067,7 +2129,7 @@ static st_error_t line_cmd_mount(const parsed_cmd_t *ptParsed,
         g_line_ptMountView = NULL;
     }
 
-    if (mount_view_open(szPath, ptCtx, &g_line_ptMountView) != ST_NO_ERROR)
+    if (mount_view_open(szPath, &g_line_ptCtx, &g_line_ptMountView) != ST_NO_ERROR)
     {
         line_print_error("mount failed for '%s'.", szPath);
         return ST_NO_ERROR;
@@ -2075,7 +2137,7 @@ static st_error_t line_cmd_mount(const parsed_cmd_t *ptParsed,
 
     line_print_msg("Mounted '%s' — %d file(s) on A:\\.",
                    szPath, g_line_ptMountView->iEntryCount);
-    line_update_console_title(ptCtx);
+    line_update_console_title();
     return ST_NO_ERROR;
 }
 
@@ -2105,8 +2167,7 @@ static int line_is_disk_path(const char *szPath)
              strcmp(szDot, ".MSA") == 0));
 }
 
-static st_error_t line_cmd_image(const parsed_cmd_t *ptParsed,
-                                  line_context_t     *ptCtx)
+static st_error_t line_cmd_image(const parsed_cmd_t *ptParsed)
 {
     mount_view_t    *ptTmpView  = NULL;
     image_st_t      *ptConvImg  = NULL;
@@ -2129,7 +2190,20 @@ static st_error_t line_cmd_image(const parsed_cmd_t *ptParsed,
     int              i;
     st_error_t       eResult;
 
-    LOG_TRACE("argc=%d", ptParsed->iArgc);
+    LOG_TRACE("ptParsed=%p", (void *)ptParsed);
+
+    if (ptParsed == NULL)
+    {
+        LOG_ERROR("NULL parameter");
+        return ST_ERROR;
+    }
+
+    /* -- 1. Check if console line is initialized - return if not */
+    if (!g_line_ptCtx.bRunning)
+    {
+        LOG_ERROR("Use line_init() before use of any line_*() function");
+        return ST_ERROR;
+    }
 
     szIn[0]  = '\0';
     szOut[0] = '\0';
@@ -2215,7 +2289,7 @@ static st_error_t line_cmd_image(const parsed_cmd_t *ptParsed,
     }
 
     /* ---- cwd buffer (used for default output names) ---------------- */
-    strncpy(szCwdBuf, ptCtx->szCwd, ST_MAX_PATH - 1);
+    strncpy(szCwdBuf, g_line_ptCtx.szCwd, ST_MAX_PATH - 1);
     szCwdBuf[ST_MAX_PATH - 1] = '\0';
     uiCwdLen = strlen(szCwdBuf);
     if (uiCwdLen > 0 &&
@@ -2235,7 +2309,7 @@ static st_error_t line_cmd_image(const parsed_cmd_t *ptParsed,
         if (g_line_ptMountView == NULL)
         {
             /* No --in and no mounted view: fall back to selected */
-            line_get_selected(ptCtx, szIn, ST_MAX_PATH);
+            line_get_selected(szIn, ST_MAX_PATH);
             if (szIn[0] != '\0')
                 bHaveIn = ST_TRUE;
         }
@@ -2254,14 +2328,14 @@ static st_error_t line_cmd_image(const parsed_cmd_t *ptParsed,
         }
         else
         {
-            snprintf(szAutoDst, sizeof(szAutoDst), "%sdisk", szCwdBuf);
+            snprintf(szAutoDst, sizeof(szAutoDst) + 4, "%sdisk", szCwdBuf);
             memset(&tStat, 0, sizeof(tStat));
             if (file_stat(szAutoDst, &tStat) == ST_NO_ERROR
              && tStat.bExists)
             {
                 for (iExtNum = 2; iExtNum <= 99; iExtNum++)
                 {
-                    snprintf(szAutoDst, sizeof(szAutoDst),
+                    snprintf(szAutoDst, sizeof(szAutoDst) + 4,
                              "%sdisk%d", szCwdBuf, iExtNum);
                     memset(&tStat, 0, sizeof(tStat));
                     if (file_stat(szAutoDst, &tStat) != ST_NO_ERROR
@@ -2281,7 +2355,7 @@ static st_error_t line_cmd_image(const parsed_cmd_t *ptParsed,
                 line_print_error("image --dir: source not found: '%s'", szIn);
                 return ST_NO_ERROR;
             }
-            eResult = mount_view_open(szIn, ptCtx, &ptTmpView);
+            eResult = mount_view_open(szIn, &g_line_ptCtx, &ptTmpView);
             if (eResult != ST_NO_ERROR || ptTmpView == NULL)
             {
                 line_print_error("image --dir: failed to open disk '%s'",
@@ -2326,7 +2400,7 @@ static st_error_t line_cmd_image(const parsed_cmd_t *ptParsed,
             line_print_msg("Image saved: %s", szOut);
         else
             line_print_error("Failed to save image.");
-        line_update_console_title(ptCtx);
+        line_update_console_title();
         return ST_NO_ERROR;
     }
 
@@ -2379,7 +2453,7 @@ static st_error_t line_cmd_image(const parsed_cmd_t *ptParsed,
         else
             line_print_error("Failed to save image.");
 
-        line_update_console_title(ptCtx);
+        line_update_console_title();
         return ST_NO_ERROR;
     }
 
@@ -2399,7 +2473,7 @@ static st_error_t line_cmd_image(const parsed_cmd_t *ptParsed,
         }
         else
         {
-            strncpy(szSrcDir, ptCtx->szCwd, ST_MAX_PATH - 1);
+            strncpy(szSrcDir, g_line_ptCtx.szCwd, ST_MAX_PATH - 1);
             szSrcDir[ST_MAX_PATH - 1] = '\0';
         }
 
@@ -2417,7 +2491,7 @@ static st_error_t line_cmd_image(const parsed_cmd_t *ptParsed,
             snprintf(szOut, sizeof(szOut), "%.*sdisk.%s",
                      (int)(sizeof(szOut) - 9), szCwdBuf, szExt);
 
-        eResult = mount_view_open(szSrcDir, ptCtx, &ptTmpView);
+        eResult = mount_view_open(szSrcDir, &g_line_ptCtx, &ptTmpView);
         if (eResult != ST_NO_ERROR || ptTmpView == NULL)
         {
             line_print_error("image: failed to pack '%s'", szSrcDir);
@@ -2435,7 +2509,7 @@ static st_error_t line_cmd_image(const parsed_cmd_t *ptParsed,
         else
             line_print_error("Failed to save image.");
 
-        line_update_console_title(ptCtx);
+        line_update_console_title();
         return ST_NO_ERROR;
     }
 }
@@ -2596,7 +2670,6 @@ static void line_conv_rec_cb(const char        *szFullPath,
  * line_cmd_convert() - Shared implementation for st2msa and msa2st.
  */
 static st_error_t line_cmd_convert(const parsed_cmd_t *ptParsed,
-                                    line_context_t     *ptCtx,
                                     const char         *szSrcExt,
                                     const char         *szDstExt)
 {
@@ -2613,9 +2686,24 @@ static st_error_t line_cmd_convert(const parsed_cmd_t *ptParsed,
     szSrcPath[0] = '\0';
     szDirPath[0] = '\0';
 
-    LOG_TRACE("szSrcExt=%s szDstExt=%s argc=%d",
-              szSrcExt, szDstExt, ptParsed->iArgc);
+    
+    LOG_TRACE("szSrcExt=%s szDstExt=%s ptParsed=%p", 
+               szSrcExt, szDstExt, (void *)ptParsed);
 
+    if (szSrcExt == NULL || szDstExt == NULL ||ptParsed == NULL)
+    {
+        LOG_ERROR("NULL parameter");
+        return ST_ERROR;
+    }
+
+    /* -- 1. Check if console line is initialized - return if not */
+    if (!g_line_ptCtx.bRunning)
+    {
+        LOG_ERROR("Use line_init() before use of any line_*() function");
+        return ST_ERROR;
+    }
+
+    
     /* Parse flags */
     for (i = 1; i < ptParsed->iArgc; i++)
     {
@@ -2664,7 +2752,7 @@ static st_error_t line_cmd_convert(const parsed_cmd_t *ptParsed,
         }
         else
         {
-            line_get_selected(ptCtx, szSel, sizeof(szSel));
+            line_get_selected(szSel, sizeof(szSel));
             if (szSel[0] != '\0')
             {
                 memset(&tStat, 0, sizeof(tStat));
@@ -2672,11 +2760,11 @@ static st_error_t line_cmd_convert(const parsed_cmd_t *ptParsed,
                 if (tStat.bIsDir)
                     strncpy(szDirPath, szSel, sizeof(szDirPath) - 1);
                 else
-                    strncpy(szDirPath, ptCtx->szCwd,
+                    strncpy(szDirPath, g_line_ptCtx.szCwd,
                             sizeof(szDirPath) - 1);
             }
             else
-                strncpy(szDirPath, ptCtx->szCwd,
+                strncpy(szDirPath, g_line_ptCtx.szCwd,
                         sizeof(szDirPath) - 1);
         }
 
@@ -2712,7 +2800,7 @@ static st_error_t line_cmd_convert(const parsed_cmd_t *ptParsed,
     /* Single-file mode */
     if (szSrcPath[0] == '\0')
     {
-        line_get_selected(ptCtx, szSel, sizeof(szSel));
+        line_get_selected(szSel, sizeof(szSel));
         if (szSel[0] != '\0')
             strncpy(szSrcPath, szSel, sizeof(szSrcPath) - 1);
     }
@@ -2761,16 +2849,14 @@ static st_error_t line_cmd_convert(const parsed_cmd_t *ptParsed,
     return ST_NO_ERROR;
 }
 
-static st_error_t line_cmd_st2msa(const parsed_cmd_t *ptParsed,
-                                   line_context_t     *ptCtx)
+static st_error_t line_cmd_st2msa(const parsed_cmd_t *ptParsed)
 {
-    return line_cmd_convert(ptParsed, ptCtx, "st", "msa");
+    return line_cmd_convert(ptParsed, "st", "msa");
 }
 
-static st_error_t line_cmd_msa2st(const parsed_cmd_t *ptParsed,
-                                   line_context_t     *ptCtx)
+static st_error_t line_cmd_msa2st(const parsed_cmd_t *ptParsed)
 {
-    return line_cmd_convert(ptParsed, ptCtx, "msa", "st");
+    return line_cmd_convert(ptParsed, "msa", "st");
 }
 
 /* ------------------------------------------------------------------
@@ -2778,11 +2864,9 @@ static st_error_t line_cmd_msa2st(const parsed_cmd_t *ptParsed,
  * ------------------------------------------------------------------ */
 
 /* Forward declaration — defined after line_read_rich() */
-static st_error_t line_cmd_script(const parsed_cmd_t *ptParsed,
-                                   line_context_t     *ptCtx);
+static st_error_t line_cmd_script(const parsed_cmd_t *ptParsed);
 
-typedef st_error_t (*cmd_handler_fn)(const parsed_cmd_t *,
-                                      line_context_t *);
+typedef st_error_t (*cmd_handler_fn)(const parsed_cmd_t *);
 
 static const cmd_handler_fn g_line_aHandlers[CMD_COUNT] =
 {
@@ -2805,18 +2889,23 @@ static const cmd_handler_fn g_line_aHandlers[CMD_COUNT] =
     /* CMD_SCRIPT     */ line_cmd_script,
 };
 
-static st_error_t line_dispatch(const parsed_cmd_t *ptParsed,
-                                 line_context_t     *ptCtx)
+static st_error_t line_dispatch(const parsed_cmd_t *ptParsed)
 {
     cmd_handler_fn pfnHandler;
     st_error_t     eResult;
 
-    LOG_TRACE("eCmd=%d argc=%d",
-              (int)ptParsed->eCmd, ptParsed->iArgc);
+    LOG_TRACE("ptParsed=%p", (void *)ptParsed);
 
-    if (ptParsed == NULL || ptCtx == NULL)
+    if (ptParsed == NULL)
     {
         LOG_ERROR("NULL parameter");
+        return ST_ERROR;
+    }
+
+    /* -- 1. Check if console line is initialized - return if not */
+    if (!g_line_ptCtx.bRunning)
+    {
+        LOG_ERROR("Use line_init() before use of any line_*() function");
         return ST_ERROR;
     }
 
@@ -2851,7 +2940,7 @@ static st_error_t line_dispatch(const parsed_cmd_t *ptParsed,
         return ST_ERROR;
     }
 
-    eResult = pfnHandler(ptParsed, ptCtx);
+    eResult = pfnHandler(ptParsed);
     if (eResult != ST_NO_ERROR)
     {
         LOG_ERROR("handler for '%s' returned ST_ERROR",
@@ -2871,8 +2960,7 @@ static st_error_t line_dispatch(const parsed_cmd_t *ptParsed,
  * Format: ST4Ever [T][basename]>
  * [T] shown when trace is open; [basename] when a file is selected.
  */
-static void line_build_prompt(const line_context_t *ptCtx,
-                               char                 *szOut,
+static void line_build_prompt(char                 *szOut,
                                size_t                uiMax)
 {
     char       szSel[ST_MAX_PATH];
@@ -2880,8 +2968,15 @@ static void line_build_prompt(const line_context_t *ptCtx,
     size_t     uiPos;
     int        iRet;
 
-    if (ptCtx == NULL || szOut == NULL || uiMax == 0)
+    if (szOut == NULL || uiMax == 0)
     {
+        return;
+    }
+
+    /* -- 1. Check if console line is initialized - return if not */
+    if (!g_line_ptCtx.bRunning)
+    {
+        LOG_ERROR("Use line_init() before use of any line_*() function");
         return;
     }
 
@@ -2903,7 +2998,7 @@ static void line_build_prompt(const line_context_t *ptCtx,
 
     /* [basename] indicator when a file is selected */
     szSel[0] = '\0';
-    line_get_selected(ptCtx, szSel, sizeof(szSel));
+    line_get_selected(szSel, sizeof(szSel));
     if (szSel[0] != '\0')
     {
         pBase = line_path_basename(szSel);
@@ -2930,8 +3025,7 @@ static void line_build_prompt(const line_context_t *ptCtx,
  * Ghost text (szGhost) is shown in DIM colour at the cursor position
  * to preview a completion candidate.  Pass NULL for no ghost.
  */
-static void line_redraw(const line_context_t *ptCtx,
-                         const char           *szBuf,
+static void line_redraw( const char           *szBuf,
                          size_t                uiLen,
                          size_t                uiCursor,
                          const char           *szGhost)
@@ -2940,7 +3034,14 @@ static void line_redraw(const line_context_t *ptCtx,
     size_t uiGhostLen;
     size_t uiMoveBack;
 
-    line_build_prompt(ptCtx, szPrompt, sizeof(szPrompt));
+    /* -- 1. Check if console line is initialized - return if not */
+    if (!g_line_ptCtx.bRunning)
+    {
+        LOG_ERROR("Use line_init() before use of any line_*() function");
+        return;
+    }
+
+    line_build_prompt(szPrompt, sizeof(szPrompt));
 
     /* Erase line and redraw from column 0 */
     printf("\r\033[2K%s", szPrompt);
@@ -2979,16 +3080,22 @@ static void line_redraw(const line_context_t *ptCtx,
  * line_shortcut() - Fill szBuf with a command name, redraw it as if
  * the user typed it, emit newline, and return ST_NO_ERROR to commit.
  */
-static st_error_t line_shortcut(const line_context_t *ptCtx,
-                                  char                 *szBuf,
-                                  const char           *szCmd)
+static st_error_t line_shortcut(char                 *szBuf,
+                                const char           *szCmd)
 {
     size_t uiLen;
+
+    /* -- 1. Check if console line is initialized - return if not */
+    if (!g_line_ptCtx.bRunning)
+    {
+        LOG_ERROR("Use line_init() before use of any line_*() function");
+        return ST_ERROR;
+    }
 
     strncpy(szBuf, szCmd, ST_MAX_CMD - 1);
     szBuf[ST_MAX_CMD - 1] = '\0';
     uiLen = strlen(szBuf);
-    line_redraw(ptCtx, szBuf, uiLen, uiLen, NULL);
+    line_redraw(szBuf, uiLen, uiLen, NULL);
     printf("\n");
     fflush(stdout);
     return ST_NO_ERROR;
@@ -3007,8 +3114,7 @@ static st_error_t line_shortcut(const line_context_t *ptCtx,
  *   ST_NO_ERROR  line committed in szBuf.
  *   ST_ERROR     stdin closed (EOF) or fatal read error.
  */
-static st_error_t line_read_rich(line_context_t *ptCtx,
-                                  char           *szBuf)
+static st_error_t line_read_rich(char           *szBuf)
 {
     /* Editing state */
     size_t     uiLen;
@@ -3053,9 +3159,16 @@ static st_error_t line_read_rich(line_context_t *ptCtx,
     szGhost[0]          = '\0';
     szLastPrompt[0]     = '\0';
 
+    /* -- 1. Check if console line is initialized - return if not */
+    if (!g_line_ptCtx.bRunning)
+    {
+        LOG_ERROR("Use line_init() before use of any line_*() function");
+        return ST_ERROR;
+    }
+
     /* Show initial empty prompt */
-    line_redraw(ptCtx, szBuf, uiLen, uiCursor, NULL);
-    line_build_prompt(ptCtx, szLastPrompt, sizeof(szLastPrompt));
+    line_redraw(szBuf, uiLen, uiCursor, NULL);
+    line_build_prompt(szLastPrompt, sizeof(szLastPrompt));
 
     for (;;)
     {
@@ -3074,12 +3187,12 @@ static st_error_t line_read_rich(line_context_t *ptCtx,
         if (iKey == CON_KEY_TIMEOUT)
         {
             char szNewPrompt[256];
-            line_build_prompt(ptCtx, szNewPrompt, sizeof(szNewPrompt));
+            line_build_prompt(szNewPrompt, sizeof(szNewPrompt));
             if (strcmp(szNewPrompt, szLastPrompt) != 0)
             {
                 strncpy(szLastPrompt, szNewPrompt, sizeof(szLastPrompt) - 1);
                 szLastPrompt[sizeof(szLastPrompt) - 1] = '\0';
-                line_redraw(ptCtx, szBuf, uiLen, uiCursor,
+                line_redraw(szBuf, uiLen, uiCursor,
                             iCompleteCur >= 0 ? szGhost : NULL);
             }
             continue;
@@ -3112,7 +3225,7 @@ static st_error_t line_read_rich(line_context_t *ptCtx,
             uiCursor = 0;
             memset(szBuf, 0, ST_MAX_CMD);
             iHistBrowse = -1;
-            line_redraw(ptCtx, szBuf, uiLen, uiCursor, NULL);
+            line_redraw(szBuf, uiLen, uiCursor, NULL);
             continue;
         }
 
@@ -3125,11 +3238,11 @@ static st_error_t line_read_rich(line_context_t *ptCtx,
                 uiCursor = 0;
                 memset(szBuf, 0, ST_MAX_CMD);
                 iHistBrowse = -1;
-                line_redraw(ptCtx, szBuf, uiLen, uiCursor, NULL);
+                line_redraw(szBuf, uiLen, uiCursor, NULL);
             }
             else
             {
-                return line_shortcut(ptCtx, szBuf, "quit");
+                return line_shortcut(szBuf, "quit");
             }
             continue;
         }
@@ -3137,39 +3250,39 @@ static st_error_t line_read_rich(line_context_t *ptCtx,
         /* ---- CTRL shortcuts: instant dispatch --------------- */
         if (iKey == CON_KEY_CTRL_Q)
         {
-            return line_shortcut(ptCtx, szBuf, "quit");
+            return line_shortcut(szBuf, "quit");
         }
         if (iKey == CON_KEY_CTRL_H)
         {
-            return line_shortcut(ptCtx, szBuf, "help");
+            return line_shortcut(szBuf, "help");
         }
         if (iKey == CON_KEY_CTRL_T)
         {
-            return line_shortcut(ptCtx, szBuf, "trace");
+            return line_shortcut(szBuf, "trace");
         }
         if (iKey == CON_KEY_CTRL_D)
         {
-            return line_shortcut(ptCtx, szBuf, "dir");
+            return line_shortcut(szBuf, "dir");
         }
         if (iKey == CON_KEY_CTRL_L)
         {
-            return line_shortcut(ptCtx, szBuf, "load");
+            return line_shortcut(szBuf, "load");
         }
         if (iKey == CON_KEY_CTRL_E)
         {
-            return line_shortcut(ptCtx, szBuf, "edit");
+            return line_shortcut(szBuf, "edit");
         }
         if (iKey == CON_KEY_CTRL_O)
         {
-            return line_shortcut(ptCtx, szBuf, "mount");
+            return line_shortcut(szBuf, "mount");
         }
         if (iKey == CON_KEY_CTRL_W)
         {
-            return line_shortcut(ptCtx, szBuf, "where");
+            return line_shortcut(szBuf, "where");
         }
         if (iKey == CON_KEY_CTRL_X)
         {
-            return line_shortcut(ptCtx, szBuf, "execute");
+            return line_shortcut(szBuf, "execute");
         }
 
         /* ---- TAB: completion -------------------------------- */
@@ -3214,7 +3327,7 @@ static st_error_t line_read_rich(line_context_t *ptCtx,
                 else
                 {
                     iCompleteCount = line_complete_path_query(
-                        szPrefix, ptCtx->szCwd,
+                        szPrefix, g_line_ptCtx.szCwd,
                         aaCompleteCands, LINE_COMPLETE_MAX);
                 }
 
@@ -3222,7 +3335,7 @@ static st_error_t line_read_rich(line_context_t *ptCtx,
                 {
                     /* No candidates: ignore TAB silently */
                     iCompleteCur = -1;
-                    line_redraw(ptCtx, szBuf, uiLen, uiCursor, NULL);
+                    line_redraw(szBuf, uiLen, uiCursor, NULL);
                     continue;
                 }
 
@@ -3245,7 +3358,7 @@ static st_error_t line_read_rich(line_context_t *ptCtx,
                     }
                     iCompleteCur = -1;
                     szGhost[0]   = '\0';
-                    line_redraw(ptCtx, szBuf, uiLen, uiCursor, NULL);
+                    line_redraw(szBuf, uiLen, uiCursor, NULL);
                     continue;
                 }
 
@@ -3320,7 +3433,7 @@ static st_error_t line_read_rich(line_context_t *ptCtx,
                     sizeof(szGhost) - 1);
             szGhost[sizeof(szGhost) - 1] = '\0';
 
-            line_redraw(ptCtx, szBuf, uiLen, uiCursor, szGhost);
+            line_redraw(szBuf, uiLen, uiCursor, szGhost);
             continue;
         }
 
@@ -3355,7 +3468,7 @@ static st_error_t line_read_rich(line_context_t *ptCtx,
             {
                 uiLen    = strlen(szBuf);
                 uiCursor = uiLen;
-                line_redraw(ptCtx, szBuf, uiLen, uiCursor, NULL);
+                line_redraw(szBuf, uiLen, uiCursor, NULL);
             }
             continue;
         }
@@ -3377,7 +3490,7 @@ static st_error_t line_read_rich(line_context_t *ptCtx,
                 {
                     uiLen    = strlen(szBuf);
                     uiCursor = uiLen;
-                    line_redraw(ptCtx, szBuf, uiLen, uiCursor, NULL);
+                    line_redraw(szBuf, uiLen, uiCursor, NULL);
                 }
             }
             else
@@ -3388,7 +3501,7 @@ static st_error_t line_read_rich(line_context_t *ptCtx,
                 szBuf[ST_MAX_CMD - 1] = '\0';
                 uiLen    = strlen(szBuf);
                 uiCursor = uiLen;
-                line_redraw(ptCtx, szBuf, uiLen, uiCursor, NULL);
+                line_redraw(szBuf, uiLen, uiCursor, NULL);
             }
             continue;
         }
@@ -3399,7 +3512,7 @@ static st_error_t line_read_rich(line_context_t *ptCtx,
             if (uiCursor > 0)
             {
                 uiCursor--;
-                line_redraw(ptCtx, szBuf, uiLen, uiCursor, NULL);
+                line_redraw(szBuf, uiLen, uiCursor, NULL);
             }
             continue;
         }
@@ -3408,20 +3521,20 @@ static st_error_t line_read_rich(line_context_t *ptCtx,
             if (uiCursor < uiLen)
             {
                 uiCursor++;
-                line_redraw(ptCtx, szBuf, uiLen, uiCursor, NULL);
+                line_redraw(szBuf, uiLen, uiCursor, NULL);
             }
             continue;
         }
         if (iKey == CON_KEY_HOME)
         {
             uiCursor = 0;
-            line_redraw(ptCtx, szBuf, uiLen, uiCursor, NULL);
+            line_redraw(szBuf, uiLen, uiCursor, NULL);
             continue;
         }
         if (iKey == CON_KEY_END)
         {
             uiCursor = uiLen;
-            line_redraw(ptCtx, szBuf, uiLen, uiCursor, NULL);
+            line_redraw(szBuf, uiLen, uiCursor, NULL);
             continue;
         }
 
@@ -3436,7 +3549,7 @@ static st_error_t line_read_rich(line_context_t *ptCtx,
                 uiCursor--;
                 uiLen--;
                 iHistBrowse = -1;
-                line_redraw(ptCtx, szBuf, uiLen, uiCursor, NULL);
+                line_redraw(szBuf, uiLen, uiCursor, NULL);
             }
             continue;
         }
@@ -3450,7 +3563,7 @@ static st_error_t line_read_rich(line_context_t *ptCtx,
                 uiLen--;
                 szBuf[uiLen] = '\0';
                 iHistBrowse  = -1;
-                line_redraw(ptCtx, szBuf, uiLen, uiCursor, NULL);
+                line_redraw(szBuf, uiLen, uiCursor, NULL);
             }
             continue;
         }
@@ -3471,7 +3584,7 @@ static st_error_t line_read_rich(line_context_t *ptCtx,
                 uiLen++;
                 szBuf[uiLen] = '\0';
                 iHistBrowse  = -1;
-                line_redraw(ptCtx, szBuf, uiLen, uiCursor, NULL);
+                line_redraw(szBuf, uiLen, uiCursor, NULL);
             }
             continue;
         }
@@ -3484,8 +3597,7 @@ static st_error_t line_read_rich(line_context_t *ptCtx,
  * Script (batch) mode
  * ------------------------------------------------------------------ */
 
-static st_error_t line_exec_script(line_context_t *ptCtx,
-                                    const char     *szPath)
+static st_error_t line_exec_script(const char     *szPath)
 {
     FILE         *pFile;
     char          szInput[ST_MAX_CMD];
@@ -3493,12 +3605,18 @@ static st_error_t line_exec_script(line_context_t *ptCtx,
     st_error_t    eResult;
     size_t        uiLen;
 
-    LOG_TRACE("ptCtx=%p szPath='%s'", (void *)ptCtx,
-              szPath ? szPath : "NULL");
+    LOG_TRACE("szPath='%s'", szPath ? szPath : "NULL");
 
-    if (ptCtx == NULL || szPath == NULL || szPath[0] == '\0')
+    if (szPath == NULL || szPath[0] == '\0')
     {
         LOG_ERROR("NULL/empty parameter");
+        return ST_ERROR;
+    }
+
+    /* -- 1. Check if console line is initialized - return if not */
+    if (!g_line_ptCtx.bRunning)
+    {
+        LOG_ERROR("Use line_init() before use of any line_*() function");
         return ST_ERROR;
     }
 
@@ -3512,7 +3630,7 @@ static st_error_t line_exec_script(line_context_t *ptCtx,
 
     LOG_INFO("running script '%s'", szPath);
 
-    while (ptCtx->bRunning == ST_TRUE
+    while (g_line_ptCtx.bRunning == ST_TRUE
            && fgets(szInput, sizeof(szInput), pFile) != NULL)
     {
         /* Strip trailing CR/LF */
@@ -3530,7 +3648,7 @@ static st_error_t line_exec_script(line_context_t *ptCtx,
 
         eResult = line_parse_cmd(szInput, &tParsed);
         if (eResult == ST_NO_ERROR)
-            line_dispatch(&tParsed, ptCtx);
+            line_dispatch(&tParsed);
     }
 
     fclose(pFile);
@@ -3538,17 +3656,22 @@ static st_error_t line_exec_script(line_context_t *ptCtx,
     return ST_NO_ERROR;
 }
 
-static st_error_t line_cmd_script(const parsed_cmd_t *ptParsed,
-                                   line_context_t     *ptCtx)
+static st_error_t line_cmd_script(const parsed_cmd_t *ptParsed)
 {
     char szPath[ST_MAX_PATH];
 
-    LOG_TRACE("ptParsed=%p ptCtx=%p",
-              (void *)ptParsed, (void *)ptCtx);
+    LOG_TRACE("ptParsed=%p", (void *)ptParsed);
 
-    if (ptParsed == NULL || ptCtx == NULL)
+    if (ptParsed == NULL)
     {
         LOG_ERROR("NULL parameter");
+        return ST_ERROR;
+    }
+
+    /* -- 1. Check if console line is initialized - return if not */
+    if (!g_line_ptCtx.bRunning)
+    {
+        LOG_ERROR("Use line_init() before use of any line_*() function");
         return ST_ERROR;
     }
 
@@ -3561,7 +3684,7 @@ static st_error_t line_cmd_script(const parsed_cmd_t *ptParsed,
     strncpy(szPath, ptParsed->aszArgv[1], ST_MAX_PATH - 1);
     szPath[ST_MAX_PATH - 1] = '\0';
 
-    if (line_exec_script(ptCtx, szPath) != ST_NO_ERROR)
+    if (line_exec_script(szPath) != ST_NO_ERROR)
         line_print_error("script: failed to run '%s'.", szPath);
 
     return ST_NO_ERROR;
@@ -3571,21 +3694,21 @@ static st_error_t line_cmd_script(const parsed_cmd_t *ptParsed,
  * Public API — lifecycle
  * ------------------------------------------------------------------ */
 
-st_error_t line_init(line_context_t *ptCtx)
+st_u64_t line_init(const char* szScriptFile)
 {
     char       *pCwd;
     st_error_t  eResult;
 
-    LOG_TRACE("ptCtx=%p", (void *)ptCtx);
+    LOG_TRACE("g_line_ptCtx=%p - szScriptFile=%p",
+              (void*)&g_line_ptCtx, szScriptFile);
 
-    if (ptCtx == NULL)
+    if (szScriptFile == NULL)
     {
-        LOG_ERROR("ptCtx is NULL");
+        LOG_ERROR("NULL parameter");
         return ST_ERROR;
     }
 
-    memset(ptCtx, 0, sizeof(line_context_t));
-    ptCtx->bRunning = ST_TRUE;
+    g_line_ptCtx.bRunning = ST_TRUE;
 
     /* P24: auto-detect ANSI capability based on stdout TTY status */
 #ifdef ST_PLATFORM_WINDOWS
@@ -3594,30 +3717,39 @@ st_error_t line_init(line_context_t *ptCtx)
     g_line_bColors = isatty(STDOUT_FILENO) ? ST_TRUE : ST_FALSE;
 #endif
 
-    pCwd = getcwd(ptCtx->szCwd, ST_MAX_PATH);
+    pCwd = getcwd(g_line_ptCtx.szCwd, ST_MAX_PATH);
     if (pCwd == NULL)
     {
         LOG_ERROR("getcwd() failed - using '.'");
-        strncpy(ptCtx->szCwd, ".", ST_MAX_PATH - 1);
-        ptCtx->szCwd[ST_MAX_PATH - 1] = '\0';
+        strncpy(g_line_ptCtx.szCwd, ".", ST_MAX_PATH - 1);
+        g_line_ptCtx.szCwd[ST_MAX_PATH - 1] = '\0';
     }
 
     /* Create the mutex protecting szSelected */
-    eResult = platform_mutex_create(&ptCtx->ptSelectedMutex);
+    eResult = platform_mutex_create(&g_line_ptCtx.ptSelectedMutex);
     if (eResult != ST_NO_ERROR)
     {
         LOG_ERROR("platform_mutex_create failed for ptSelectedMutex");
         return ST_ERROR;
     }
 
+    /* Check if any script in given in parameter */
+    if (szScriptFile[0] != '\0')
+    {
+        strncpy(g_line_ptCtx.szScriptFile, szScriptFile,
+                ST_MAX_PATH - 1);
+        g_line_ptCtx.szScriptFile[ST_MAX_PATH - 1] = '\0';
+    }
+
+
     /* Load command history from the default history file */
     line_history_load(NULL);
 
-    LOG_INFO("console initialised, cwd='%s'", ptCtx->szCwd);
-    return ST_NO_ERROR;
+    LOG_INFO("console initialised, cwd='%s'", g_line_ptCtx.szCwd);
+    return (st_u64_t)(uintptr_t)&g_line_ptCtx;
 }
 
-st_error_t line_run(line_context_t *ptCtx)
+st_error_t line_run()
 {
     char         szInput[ST_MAX_CMD];
     parsed_cmd_t tParsed;
@@ -3625,18 +3757,19 @@ st_error_t line_run(line_context_t *ptCtx)
     st_bool_t    bRawMode;
     size_t       uiLen;
 
-    LOG_TRACE("ptCtx=%p", (void *)ptCtx);
+    LOG_TRACE("Running the console command line");
 
-    if (ptCtx == NULL)
+    /* -- 1. Check if console line is initialized - return if not */
+    if (!g_line_ptCtx.bRunning)
     {
-        LOG_ERROR("ptCtx is NULL");
+        LOG_ERROR("Use line_init() before use of any line_*() function");
         return ST_ERROR;
     }
 
     /* -- Batch / script mode ----------------------------------- */
-    if (ptCtx->szScriptFile[0] != '\0')
+    if (g_line_ptCtx.szScriptFile[0] != '\0')
     {
-        return line_exec_script(ptCtx, ptCtx->szScriptFile);
+        return line_exec_script(g_line_ptCtx.szScriptFile);
     }
 
     /* -- Banner ------------------------------------------------ */
@@ -3657,7 +3790,7 @@ st_error_t line_run(line_context_t *ptCtx)
     LOG_INFO("console loop starting");
 
     /* P8: set initial console title */
-    line_update_console_title(ptCtx);
+    line_update_console_title();
 
     /* -- Switch to raw mode for the rich line editor ----------- */
     bRawMode = ST_FALSE;
@@ -3672,15 +3805,15 @@ st_error_t line_run(line_context_t *ptCtx)
     }
 
     /* -- Main loop --------------------------------------------- */
-    while (ptCtx->bRunning == ST_TRUE)
+    while (g_line_ptCtx.bRunning == ST_TRUE)
     {
         if (bRawMode == ST_TRUE)
         {
-            eResult = line_read_rich(ptCtx, szInput);
+            eResult = line_read_rich(szInput);
             if (eResult != ST_NO_ERROR)
             {
                 LOG_INFO("stdin EOF - requesting shutdown");
-                ptCtx->bRunning = ST_FALSE;
+                g_line_ptCtx.bRunning = ST_FALSE;
                 break;
             }
         }
@@ -3694,7 +3827,7 @@ st_error_t line_run(line_context_t *ptCtx)
             {
                 printf("\n");
                 LOG_INFO("stdin EOF - requesting shutdown");
-                ptCtx->bRunning = ST_FALSE;
+                g_line_ptCtx.bRunning = ST_FALSE;
                 break;
             }
 
@@ -3716,7 +3849,7 @@ st_error_t line_run(line_context_t *ptCtx)
             continue;
         }
 
-        eResult = line_dispatch(&tParsed, ptCtx);
+        eResult = line_dispatch(&tParsed);
         if (eResult != ST_NO_ERROR)
         {
             LOG_ERROR("line_dispatch returned error for '%s'", szInput);
@@ -3724,7 +3857,7 @@ st_error_t line_run(line_context_t *ptCtx)
         }
 
         /* P8: refresh console title after each command (state may change) */
-        line_update_console_title(ptCtx);
+        line_update_console_title();
     }
 
     /* -- Restore terminal mode --------------------------------- */
@@ -3741,15 +3874,9 @@ st_error_t line_run(line_context_t *ptCtx)
     return ST_NO_ERROR;
 }
 
-st_error_t line_shutdown(line_context_t *ptCtx)
+st_error_t line_shutdown()
 {
-    LOG_TRACE("ptCtx=%p", (void *)ptCtx);
-
-    if (ptCtx == NULL)
-    {
-        LOG_ERROR("ptCtx is NULL");
-        return ST_ERROR;
-    }
+    LOG_TRACE("Shutdown requested");
 
     /* Close any open dir view */
     if (g_line_ptDirView != NULL)
@@ -3789,13 +3916,13 @@ st_error_t line_shutdown(line_context_t *ptCtx)
     line_history_save(NULL);
 
     /* Destroy the selected-path mutex */
-    if (ptCtx->ptSelectedMutex != NULL)
+    if (g_line_ptCtx.ptSelectedMutex != NULL)
     {
-        platform_mutex_destroy(&ptCtx->ptSelectedMutex);
-        ptCtx->ptSelectedMutex = NULL;
+        platform_mutex_destroy(&g_line_ptCtx.ptSelectedMutex);
+        g_line_ptCtx.ptSelectedMutex = NULL;
     }
 
-    memset(ptCtx, 0, sizeof(line_context_t));
+    memset(&g_line_ptCtx, 0, sizeof(line_context_t));
     LOG_INFO("console shutdown complete");
     return ST_NO_ERROR;
 }
