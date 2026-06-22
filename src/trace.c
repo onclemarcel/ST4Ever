@@ -483,7 +483,7 @@ st_error_t trace_init(st_bool_t bOpen)
     
     if (g_trace_bInitialised == ST_TRUE)
     {
-        fprintf(stderr, "[trace_init] WARNING: called more than once\n");
+        LOG_INFO("Already initialized");
         return ST_NO_ERROR;
     }
 

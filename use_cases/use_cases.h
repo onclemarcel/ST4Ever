@@ -17,6 +17,7 @@
 #include <string.h>
 
 /* ST4Ever portable layer */
+#include "../src/main.h"
 #include "../src/common.h"
 #include "../src/trace.h"
 #include "../src/console.h"
@@ -45,6 +46,7 @@
 #include "../src/sector_analyze.h"
 #include "../src/image_annot.h"
 #include "../src/load.h"
+
 
 /* ------------------------------------------------------------------
  * Test helper macros
@@ -82,18 +84,17 @@
 #define UC_CHECK_OBJ(pt, type) \
     do { \
         st_obj_generic_t* obj = (void*)pt;  \
-        if (obj < 0x10000)                  \
+        if (pt < ST_RETURNS)                \
         {                                   \
-            printf("  [FAIL] Unreadable pointer %p\n", (void*)obj);    \
+            printf("  [FAIL] Value %p is a returned enum (not a pointer)\n", (void*)pt);    \
             g_uc_fails++;                   \
         }                                   \
-        if (obj->ulMagic != 0xCAFEDECA)     \
+        else if (obj->ulMagic != 0xCAFEDECA)     \
         {                                   \
             printf("  [FAIL] Not a ST4Ever structure %p\n", (void*)obj);    \
             g_uc_fails++;                   \
         }                                   \
-                                            \
-        if (obj->eObject != type)           \
+        else if (obj->eObject != type)      \
         {                                   \
             printf("  [FAIL] Incorrect pointer type (%d)\n", (void*)obj->eObject);    \
             g_uc_fails++;                   \

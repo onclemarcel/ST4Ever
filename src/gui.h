@@ -27,11 +27,28 @@
 
 #include "common.h"
 
+#define GUI_MAX_WINDOWS  16
+
 /* ------------------------------------------------------------------
  * Opaque window handle
  * ------------------------------------------------------------------ */
 
 typedef struct gui_window_s *gui_window_t;   /* NULL = invalid        */
+
+/* ------------------------------------------------------------------
+ * GUI context
+ * ------------------------------------------------------------------ */
+
+typedef struct gui_context_s
+{
+    st_u32_t    ulMagic;                   /* Magic ST4Ever OO-like tag */
+    st_object_t eObject;                   /* Object type for tests     */
+    
+    struct gui_window_s *aptWnd[GUI_MAX_WINDOWS]; /* Open windows list  */
+    size_t               uiWndCount;        /* Number of open windows   */ 
+    st_mutex_t          *ptMutex;           /* Protects windows list    */
+    st_bool_t            bInit;             /* Trace of initialization  */
+} gui_context_t;
 
 /* ------------------------------------------------------------------
  * Window types  (determine default sizing and drawing mode)
@@ -165,10 +182,10 @@ typedef struct gui_msg_queue_s *gui_msg_queue_t;   /* NULL = invalid */
  * ST4Ever windows.
  *
  * Returns:
- *   ST_NO_ERROR on success.
+ *   Value of the global gui_context_t structure pointer on success.
  *   ST_ERROR    on platform initialisation failure (logged).
  */
-st_error_t gui_init(void);
+st_u64_t gui_init(void);
 
 /*
  * gui_open_window() - Create and show a window in a new thread.

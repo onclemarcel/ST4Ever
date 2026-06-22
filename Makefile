@@ -73,6 +73,12 @@ ALL_OBJS   := $(SRC_OBJS) $(PLAT_OBJS)
 # Library objects = everything except main.o (used by test programs)
 LIB_OBJS   := $(filter-out $(BUILD)/s_main.o, $(ALL_OBJS))
 
+# Special build of main.c with -DST_TESTING: compiles all funcions
+# but excludes the real main() symbol, so a test executable that needs
+# to drive the full app lifecycle can supply its own main() without a 
+# symbol collision.
+TEST_MAIN_OBJ := $(BUILD)/s_main_testing.o
+
 # Final targets
 TARGET     := $(RELEASE)/st4ever$(EXE)
 UC_TARGETS := $(patsubst $(UC_DIR)/%.c, $(TDIR)/%$(EXE), $(UC_FILES))
@@ -115,6 +121,11 @@ $(BUILD)/s_%.o: src/%.c
 $(BUILD)/p_%.o: $(PLATFORM)/%.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
+# src/main.c, recompiled with -DST_TESTING -> build/s_main_testing.o
+# Excludes the real main() symbol so test_app_main.c can supply its own.
+$(TEST_MAIN_OBJ): src/main.c
+	$(CC) $(CFLAGS) -DST_TEST_FWK -c $< -o $@
+
 # -----------------------------------------------------------------------------
 # Link rules
 # -----------------------------------------------------------------------------
@@ -127,8 +138,8 @@ $(TARGET): $(ALL_OBJS)
 # Each use_case_NN.c linked against the library objects (no main.o)
 # NOTE: run 'make tests' from the project root - test binaries use
 #       relative paths (e.g. use_cases/UC01/hello.prg).
-$(TDIR)/%$(EXE): $(UC_DIR)/%.c $(LIB_OBJS)
-	$(CC) $(CFLAGS) $< $(LIB_OBJS) -o $@ $(LDFLAGS)
+$(TDIR)/%$(EXE): $(UC_DIR)/%.c $(LIB_OBJS) $(TEST_MAIN_OBJ)
+	$(CC) $(CFLAGS) $< $(TEST_MAIN_OBJ) $(LIB_OBJS) -o $@ $(LDFLAGS)
 	@echo "  --> $@"
 
 # -----------------------------------------------------------------------------

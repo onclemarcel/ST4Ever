@@ -23,10 +23,14 @@
 #include "ST.h"
 #include "load.h"
 #include "exec.h"
+#include "main.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+static ST4Ever_context_t g_main_ptCtx = {.ulMagic = 0xCAFEDECA, 
+                                         .eObject = ST_MAIN_CTX};
 
 /* ------------------------------------------------------------------
  * Platform-specific entry points (declared here; defined in win/ or
@@ -39,7 +43,7 @@ extern st_error_t win_console_shutdown(void);
 #endif
 
 /* ------------------------------------------------------------------
- * Internal: usage text
+ * Internal static functions
  * ------------------------------------------------------------------ */
 
 /*
@@ -55,12 +59,16 @@ extern st_error_t win_console_shutdown(void);
  *   None
  * 
  */
-static void print_usage(const char *szArgv0)
+static void ST4Ever_print_usage(const char *szArgv0)
 {
+    LOG_TRACE("szArgv0=%p", szArgv0);
+
+    /* -- 1.3 Show the help message (only in release mode) -- */
     const char *szName;
 
     szName = (szArgv0 != NULL) ? szArgv0 : ST_APP_NAME;
 
+#ifndef ST_TEST_FWK
     printf("Usage: %s [options]\n\n", szName);
     printf("Options:\n");
     printf("  -t              Open the trace console at startup\n");
@@ -68,202 +76,262 @@ static void print_usage(const char *szArgv0)
     printf("  -h / --help     Show this message and exit\n");
     printf("\n");
     printf("Once running, type 'help' for the list of commands.\n");
+#endif
 }
 
-/* ------------------------------------------------------------------
- * main()
- * ------------------------------------------------------------------ */
 /*
- * main() - Entry point of ST4Ever application.
+ * ST4Ever_manage_options() - Manage command-line options.
  *
  * Parameters:
  *   argc [in] : number of commang-line arguments
+ *   argv [in] : the array of command line arguments
  * 
  * Returns:
- *   Void
+ *   ST_ERROR if an argument is unknown
+ *   ST_NO_ERROR if arguments are recognized
  * 
  * Global Variables:
- *   None
+ *   g_main_ptCtx.bTraceAtStart [W] : flag used to start Trace Console
+ *   g_main_ptCtx.szScriptFile  [W] : script name for headless execution
  * 
  */
-int main(int argc, char *argv[])
+static st_error_t ST4Ever_manage_options(int argc, char* argv[])
 {
-    st_bool_t       bTraceAtStart;        // Manage command line --trace option
-    char            szScriptFile[ST_MAX_PATH];  // Manage --script option
-    st_error_t      eResult;                    // Output of called functions
-    st_machine_t    tMachine;
-    int             iExitCode;               // Main exit code
+    LOG_TRACE("argc=%d - argv=%p", argc, argv);
 
-    /* ---- 0. Init application context ---- */
-    bTraceAtStart   = ST_FALSE;              // Do not show the trace console
-    szScriptFile[0] = '\0';                  // Init optional input script path
-    iExitCode       = 0;                     // 0 = no error
-
-    /* ---- 1. Parse command-line options --------------------------- */
+    /* -- 1. Parse command-line options -- */
     for (int iArg = 1; iArg < argc; iArg++)
     {
-        /* -- 1.1 Manage the Trace Console option -- */
-        if (strcmp(argv[iArg], "-t") == 0)
+        /* --- 1.1 Manage the Trace Console option --- */
+        if ((strcmp(argv[iArg], "-t") == 0)
+            || (strcmp(argv[iArg], "--trace") == 0))
         {
-            bTraceAtStart = ST_TRUE;
+            g_main_ptCtx.bTraceAtStart = ST_TRUE;
         }
-        /* -- 1.2 Manage the input script option -- */
+        /* --- 1.2 Manage the input script option --- */
         else if (strcmp(argv[iArg], "--script") == 0)
         {
-            /* -- 1.2.1 Check that --script option comes with a file name */
+            /* ---- 1.2.1 --script option needs with a file name ---- */
             if (iArg + 1 >= argc)
             {
                 fprintf(stderr, "%s: --script requires a file argument\n",
                                 ST_APP_NAME);
-                print_usage(argv[0]);
-                return 1;
+                ST4Ever_print_usage(argv[0]);
+                return ST_QUIT;
             }
 
-            /* -- 1.2.2 Copy the argument into the script string */
+            /* ---- 1.2.2 Check that next argument is not an option ---- */
             iArg++;
-            strncpy(szScriptFile, argv[iArg], ST_MAX_PATH - 1);
-            szScriptFile[ST_MAX_PATH - 1] = '\0';
+            if (argv[iArg][0] == '-')
+            {
+                fprintf(stderr, "%s: --script requires a file argument\n",
+                                ST_APP_NAME);
+                ST4Ever_print_usage(argv[0]);
+                return ST_QUIT;
+            }
+
+            /* ---- 1.2.3 Copy the argument into the script string ---- */
+            strncpy(g_main_ptCtx.szScriptFile, argv[iArg], ST_MAX_PATH - 1);
+            g_main_ptCtx.szScriptFile[ST_MAX_PATH - 1] = '\0';
         }
-        /* -- 1.3 Manage the help option -- */
+        /* --- 1.3 Manage the help option --- */
         else if (strcmp(argv[iArg], "-h")     == 0
               || strcmp(argv[iArg], "--help") == 0)
         {
-            print_usage(argv[0]);
-            return 0;
+            ST4Ever_print_usage(argv[0]);
+            return ST_QUIT;
         }
         else
-        /* -- 1.4 Manage unknown options -- */
+        /* --- 1.4 Manage unknown options --- */
         {
-            fprintf(stderr,
-                    "%s: unknown option '%s'\n",
-                    ST_APP_NAME, argv[iArg]);
-            print_usage(argv[0]);
-            return 1;
+            LOG_ERROR("%s: unknown option '%s'\n", ST_APP_NAME, argv[iArg]);
+            ST4Ever_print_usage(argv[0]);
+            return ST_QUIT;
         }
     }
 
-    /* ---- 2. Platform-specific console init ----------------------- */
+    return ST_NO_ERROR;
+}
+
+/* ------------------------------------------------------------------
+ * Public API - main application function
+ * ------------------------------------------------------------------ */
+
+st_u64_t ST4Ever_init(int argc, char *argv[])
+{
+    st_machine_t    tMachine;
+
+    /* -- 1. Parse command-line options -- */
+    if (ST4Ever_manage_options(argc, argv) == ST_QUIT) return ST_QUIT;
+
+    /* -- 2. Platform-specific console init -- */
 #ifdef ST_PLATFORM_WINDOWS
-    eResult = win_console_init();
-    if (eResult != ST_NO_ERROR)
+    g_main_ptCtx.ptWinConsoleCtx = win_console_init();
+    if (g_main_ptCtx.ptWinConsoleCtx == ST_ERROR)
     {
-        fprintf(stderr,
-                "[FATAL] win_console_init() failed\n");
-        return 1;
+        LOG_ERROR("[FATAL] win_console_init() failed");
+        return ST_ERROR;
     }
 #endif
 
     /* ---- 3. Trace subsystem -------------------------------------- */
-    eResult = trace_init(bTraceAtStart);
-    if (eResult != ST_NO_ERROR)
+    g_main_ptCtx.ptTraceCtx = trace_init(g_main_ptCtx.bTraceAtStart);
+    if (g_main_ptCtx.ptTraceCtx == ST_ERROR)
     {
-        fprintf(stderr,
-                "[FATAL] trace_init() failed\n");
-        iExitCode = 1;
-        goto shutdown_console;
+        LOG_ERROR("[FATAL] trace_init() failed");
+        return ST_ERROR;
     }
 
-    LOG_INFO("%s %s starting (argc=%d, -t=%s)",
+    LOG_INFO("%s %s starting (argc=%d, -t=%s, --script=%s)",
              ST_APP_NAME, ST_APP_VERSION,
              argc,
-             bTraceAtStart == ST_TRUE ? "yes" : "no");
+             g_main_ptCtx.bTraceAtStart == ST_TRUE ? "yes" : "no",
+             g_main_ptCtx.szScriptFile[0] == "\0"  ? "none":
+             g_main_ptCtx.szScriptFile);
 
     /* ---- 4. GUI subsystem (stubbed until UC3) -------------------- */
-    eResult = gui_init();
-    if (eResult != ST_NO_ERROR)
+    g_main_ptCtx.ptGUICtx = gui_init();
+    if (g_main_ptCtx.ptGUICtx == ST_ERROR)
     {
-        /* Non-fatal for UC1: GUI is all stubs */
-        LOG_ERROR("gui_init() failed - GUI views will not open");
+        LOG_ERROR("[FATAL] gui_init() failed");
+        return ST_ERROR;
     }
 
     /* ---- 5. ST machine + load module ----------------------------- */
-    eResult = st_init(&tMachine, NULL);
-    if (eResult != ST_NO_ERROR)
+    g_main_ptCtx.ptSTMachineCtx = st_init(&tMachine, NULL);
+    if (g_main_ptCtx.ptSTMachineCtx == ST_ERROR)
     {
         LOG_ERROR("st_init() failed");
-        iExitCode = 1;
-        goto shutdown_gui;
+        return ST_ERROR;
     }
 
-    eResult = load_init(&tMachine);
-    if (eResult != ST_NO_ERROR)
+    g_main_ptCtx.ptSTLoadCtx = load_init(&tMachine);
+    if (g_main_ptCtx.ptSTLoadCtx == ST_ERROR)
     {
         LOG_ERROR("load_init() failed");
-        iExitCode = 1;
-        goto shutdown_st;
+        return ST_ERROR;
     }
 
-    eResult = exec_init(&tMachine);
-    if (eResult != ST_NO_ERROR)
+    g_main_ptCtx.ptSTExecCtx = exec_init(&tMachine);
+    if (g_main_ptCtx.ptSTExecCtx == ST_ERROR)
     {
         LOG_ERROR("exec_init() failed");
-        iExitCode = 1;
-        goto shutdown_load;
+        return ST_ERROR;
     }
 
     /* ---- 6. Console init & run ----------------------------------- */
-    st_u64_t result = line_init(szScriptFile);
-    if (result == ST_ERROR)
+    g_main_ptCtx.ptConsoleCtx = line_init(g_main_ptCtx.szScriptFile);
+    if (g_main_ptCtx.ptConsoleCtx == ST_ERROR)
     {
         LOG_ERROR("line_init() failed");
-        iExitCode = 1;
-        goto shutdown_load;
+        return ST_ERROR;
     }
 
-    eResult = line_run();
-    if (eResult != ST_NO_ERROR)
-    {
-        LOG_ERROR("line_run() returned ST_ERROR");
-        iExitCode = 1;
-    }
+    return (st_u64_t)&g_main_ptCtx;
+}
 
-    eResult = line_shutdown();
-    if (eResult != ST_NO_ERROR)
-    {
-        LOG_ERROR("line_shutdown() failed");
-    }
+void ST4Ever_run()
+{
+    if (line_run() == ST_ERROR) LOG_ERROR("line_run() returned ST_ERROR");
+}
 
-    /* ---- 7. Ordered shutdown ------------------------------------- */
-    eResult = exec_shutdown();
-    if (eResult != ST_NO_ERROR)
-    {
-        LOG_ERROR("exec_shutdown() failed");
-    }
+st_error_t ST4Ever_shutdown()
+{
+    st_error_t eExitCode;
 
-shutdown_load:
-    eResult = load_shutdown();
-    if (eResult != ST_NO_ERROR)
-    {
-        LOG_ERROR("load_shutdown() failed");
-    }
+    if ((g_main_ptCtx.ptConsoleCtx != ST_ERROR) &&
+       ( g_main_ptCtx.ptConsoleCtx != ST_NO_ERROR))
+       {
+            if (line_shutdown() == ST_ERROR)
+            {
+                LOG_ERROR("line_shutdown() failed");
+                eExitCode = ST_ERROR;
+            } 
+       }
 
-shutdown_st:
-    eResult = st_shutdown(&tMachine);
-    if (eResult != ST_NO_ERROR)
-    {
-        LOG_ERROR("st_shutdown() failed");
-    }
+    if ((g_main_ptCtx.ptSTExecCtx != ST_ERROR) &&
+       ( g_main_ptCtx.ptSTExecCtx != ST_NO_ERROR))
+       {
+            if (exec_shutdown() == ST_ERROR)
+            {
+                LOG_ERROR("exec_shutdown() failed");
+                eExitCode = ST_ERROR;
+            } 
+       }
 
-shutdown_gui:
-    eResult = gui_shutdown();
-    if (eResult != ST_NO_ERROR)
-    {
-        LOG_ERROR("gui_shutdown() failed");
-    }
+    if ((g_main_ptCtx.ptSTLoadCtx != ST_ERROR) &&
+       ( g_main_ptCtx.ptSTLoadCtx != ST_NO_ERROR))
+       {
+            if (load_shutdown() == ST_ERROR)
+            {
+                LOG_ERROR("load_shutdown() failed");
+                eExitCode = ST_ERROR;
+            } 
+       }
+
+    if ((g_main_ptCtx.ptSTMachineCtx != ST_ERROR) &&
+       ( g_main_ptCtx.ptSTMachineCtx != ST_NO_ERROR))
+       {
+            if (st_shutdown(NULL) == ST_ERROR)
+            {
+                LOG_ERROR("st_shutdown() failed");
+                eExitCode = ST_ERROR;
+            } 
+       }
+
+    if ((g_main_ptCtx.ptGUICtx != ST_ERROR) &&
+       ( g_main_ptCtx.ptGUICtx != ST_NO_ERROR))
+       {
+            if (gui_shutdown() == ST_ERROR)
+            {
+                LOG_ERROR("gui_shutdown() failed");
+                eExitCode = ST_ERROR;
+            } 
+       }
 
     LOG_INFO("%s shutdown complete (exit code %d)",
-             ST_APP_NAME, iExitCode);
+             ST_APP_NAME, eExitCode);
 
-shutdown_console:
-    eResult = trace_shutdown();
-    if (eResult != ST_NO_ERROR)
-    {
-        fprintf(stderr, "[FATAL] trace_shutdown() failed\n");
-    }
+    if ((g_main_ptCtx.ptTraceCtx != ST_ERROR) &&
+       ( g_main_ptCtx.ptTraceCtx != ST_NO_ERROR))
+       {
+            if (trace_shutdown() == ST_ERROR)
+            {
+                LOG_ERROR("trace_shutdown() failed");
+                eExitCode = ST_ERROR;
+            } 
+       }
 
 #ifdef ST_PLATFORM_WINDOWS
-    win_console_shutdown();
+        if ((g_main_ptCtx.ptWinConsoleCtx != ST_ERROR) &&
+       ( g_main_ptCtx.ptWinConsoleCtx != ST_NO_ERROR))
+       {
+            if (win_console_shutdown() == ST_ERROR)
+            {
+                LOG_ERROR("win_console_shutdown() failed");
+                eExitCode = ST_ERROR;
+            } 
+       }
 #endif
 
-    return iExitCode;
+    return eExitCode;
 }
+
+/* ------------------------------------------------------------------
+ * main() - Application main entry point, unless a test framework
+ *          takes the hand on the main function by defining ST_TEST_FWK
+ * ------------------------------------------------------------------ */
+#ifndef ST_TEST_FWK
+int main(int argc, char* argv[])
+{
+    /* Init application */
+    st_u64_t result = ST4Ever_init(argc, argv);
+    if ((result == ST_ERROR) || (result == ST_QUIT)) return ST4Ever_shutdown();
+
+    /* Run the command line */
+    ST4Ever_run();
+
+    /* Shutdown properly */
+    return ST4Ever_shutdown();
+}
+#endif

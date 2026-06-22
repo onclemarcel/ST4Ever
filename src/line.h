@@ -87,6 +87,7 @@ typedef struct line_context_s
 {
     st_u32_t    ulMagic;                   /* Magic ST4Ever OO-like tag */
     st_object_t eObject;                   /* Object type for tests     */
+    
     char        szCwd[ST_MAX_PATH];        /* Current working dir       */
     char        szSelected[ST_MAX_PATH];   /* Path selected via `dir`   */
     st_mutex_t *ptSelectedMutex;           /* Protects szSelected       */
@@ -108,7 +109,7 @@ typedef struct line_context_s
  *   szScriptFile [in] : file name of a script to execute
  *
  * Returns:
- *   ST_NO_ERROR on success.
+ *   Value of the global line_context_t structure pointer on success.
  *   ST_ERROR    if getcwd() fails.
  */
 st_u64_t line_init(const char* szScriptFile);

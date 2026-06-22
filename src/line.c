@@ -3702,6 +3702,12 @@ st_u64_t line_init(const char* szScriptFile)
     LOG_TRACE("g_line_ptCtx=%p - szScriptFile=%p",
               (void*)&g_line_ptCtx, szScriptFile);
 
+    if (g_line_ptCtx.bRunning == ST_TRUE)
+    {
+        LOG_INFO("Already initialised");
+        return (st_u64_t)&g_line_ptCtx;
+    }
+    
     if (szScriptFile == NULL)
     {
         LOG_ERROR("NULL parameter");
@@ -3746,7 +3752,7 @@ st_u64_t line_init(const char* szScriptFile)
     line_history_load(NULL);
 
     LOG_INFO("console initialised, cwd='%s'", g_line_ptCtx.szCwd);
-    return (st_u64_t)(uintptr_t)&g_line_ptCtx;
+    return (st_u64_t)&g_line_ptCtx;
 }
 
 st_error_t line_run()

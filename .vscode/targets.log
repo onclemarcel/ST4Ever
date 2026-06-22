@@ -6,7 +6,7 @@ make.exe all --print-data-base --no-builtin-variables --no-builtin-rules --quest
 # This is free software: you are free to change and redistribute it.
 # There is NO WARRANTY, to the extent permitted by law.
 
-# Make data base, printed on Wed Jun 17 19:23:19 2026
+# Make data base, printed on Mon Jun 22 12:34:28 2026
 
 # Variables
 
@@ -77,14 +77,17 @@ CURDIR := c:/msys/home/claude/ST4Ever
 , line 56)
 UC_DIR := use_cases
 # makefile (from 'Makefile', line 69)
-SRC_OBJS :=           build/s_CPU.o           build/s_ST.o           build/s_as.o           build/s_dir.o           build/s_disassemble.o           build/s_edit.o           build/s_edit_hex.o           build/s_edit_txt.o           build/s_exec.o           build/s_exec_asm.o           build/s_exec_cpu.o           build/s_exec_mem.o           build/s_exec_mon.o           build/s_exec_screen.o           build/s_file.o           build/s_gui.o           build/s_image_annot.o           build/s_image_msa.o           build/s_image_st.o           build/s_line.o           build/s_linea.o           build/s_load.o           build/s_main.o           build/s_mount.o           build/s_renderer.o           build/s_sector_analyze.o           build/s_shifter.o           build/s_tos.o           build/s_trace.o
+SRC_OBJS :=           build/s_CPU.o           build/s_ST.o           build/s_annotate.o           build/s_as.o           build/s_dir.o           build/s_disassemble.o           build/s_edit.o           build/s_edit_hex.o           build/s_edit_txt.o           build/s_exec.o           build/s_exec_asm.o           build/s_exec_cpu.o           build/s_exec_mem.o           build/s_exec_mon.o           build/s_exec_screen.o           build/s_fi 
+le.o           build/s_gui.o           build/s_image_annot.o           build/s_image_msa.o           build/s_image_st.o           build/s_line.o           build/s_linea.o           build/s_load.o           build/s_main.o           build/s_mount.o           build/s_renderer.o           build/s_sector_analyze.o           build/s_shifter.o           build/s_tos.o           build/s_trace.o
 # environment
 APPLICATION_INSIGHTS_NO_DIAGNOSTIC_CHANNEL = true
-# automatic
-*D = $(patsubst %/,%,$(patsubst %\,%,$(dir $*)))
 # environment
-PROGRAMFILES  
-= C:\Program Files
+VSCODE_L10N_BUNDLE_LOCATION = 
+# automatic
+*D 
+ = $(patsubst %/,%,$(patsubst %\,%,$(dir $*)))
+# environment
+PROGRAMFILES = C:\Program Files
 # environment
 MFLAGS = -pqrR
 # default
@@ -96,15 +99,15 @@ COPILOT_OTEL_FILE_EXPORTER_PATH = \\.\nul
 # automatic
 +D = $(patsubst %/,%,$(patsubst %\,%,$(dir $+)))
 # makefile (from 'build/p_win_platform.d', line 1)
-MAKEFILE_LIST := Makefile build/s_CPU.d build/s_ST.d build/s_as.d build/s_dir.d build/s_disassemble.d build/s_edit.d build/s_edit_hex.d build/s_edit_txt.d build/s_exec.d build/s_exec_asm.d build/s_exec_c 
-pu.d build/s_exec_mem.d build/s_exec_mon.d build/s_exec_screen.d build/s_file.d build/s_gui.d build/s_image_annot.d build/s_image_msa.d build/s_image_st.d build/s_line.d build/s_linea.d build/s_load.d build/s_main.d build/s_mount.d build/s_renderer.d build/s_sector_analyze.d build/s_shifter.d build/s_tos.d build/s_trace.d build/p_win_D2D.d build/p_win_console.d build/p_win_gui.d build/p_win_platform.d
+MAKEFILE_LIST := Makefile build/s_CPU.d build/s_ST.d build/s_annotate.d build/s_as.d build/s_dir.d build/s_disassemble.d build/s_ 
+edit.d build/s_edit_hex.d build/s_edit_txt.d build/s_exec.d build/s_exec_asm.d build/s_exec_cpu.d build/s_exec_mem.d build/s_exec_mon.d build/s_exec_screen.d build/s_file.d build/s_gui.d build/s_image_annot.d build/s_image_msa.d build/s_image_st.d build/s_line.d build/s_linea.d build/s_load.d build/s_main.d build/s_mount.d build/s_renderer.d build/s_sector_analyze.d build/s_shifter.d build/s_tos.d build/s_trace.d build/p_win_D2D.d build/p_win_console.d build/p_win_gui.d build/p_win_platform.d
 # automatic
-@F = $(notdir $@)
+@F 
+ = $(notdir $@)
 # environment
 VSCODE_PID = 3832
 # automatic
-?D = $(patsubst %/,%,$(patsubst % 
-\,%,$(dir $?)))
+?D = $(patsubst %/,%,$(patsubst %\,%,$(dir $?)))
 # automatic
 *F = $(notdir $*)
 # environment
@@ -114,10 +117,10 @@ GIT_CONFIG_COUNT = 1
 # makefile (from 'Makefile', line 40)
 PLATFORM := win
 # environment
-VSCODE_NLS_CONFIG = {"userLocale":"en-us","osLocale":"fr-fr","resolvedLanguage":"en","defaultMessagesFile":"C:\\Users\\march\\AppData\\Local\\Programs\\Microsoft VS Code\\93cfdd489c\\resources\\app\\out\\nls.messages.json","locale":"en-us","availableLanguages":{}}
+VSCODE_NLS_CONFIG = {"userLocale":"en-us","osLocale":"fr-fr","resolvedLanguage":"en","defaultMessagesFile":"C:\\Users\\march\\AppData\\Local\\Programs\\Microsoft VS Code\\93cfdd489c\\resources\\app\\out\\nls.m 
+essages.json","locale":"en-us","availableLanguages":{}}
 # environment
-ONEDRIVECONSUMER = C:\U 
-sers\march\OneDrive
+ONEDRIVECONSUMER = C:\Users\march\OneDrive
 # default
 MAKE_HOST := x86_64-w64-mingw32
 # environment
@@ -135,27 +138,26 @@ COMSPEC = C:\WINDOWS\system32\cmd.exe
 # environment
 WINDIR = C:\WINDOWS
 # makefile (from 'Makefile', line 71)
-ALL_OBJS :=           build/s_CPU.o           build/s_ST.o           build/s_as.o           build/s_dir.o           build/s_disassemble.o           build/s_edit.o           build/s_edit_hex.o           build/s_edit_txt.o           build/s_exec.o           build/s_exec_asm.o           build/s_exec_cpu.o           build/s_exec_mem.o           build/s_exec_mon.o           build/s_exec_screen.o           build/s_file.o           build/s_gui.o           build/s_image_annot.o           build/s_image_msa.o           build/s_image_st.o           build/s_line.o           build/s_linea.o           build/s_load.o           build/s_main.o  
-          build/s_mount.o           build/s_renderer.o           build/s_sector_analyze.o           build/s_shifter.o           build/s_tos.o           build/s_trace.o   build/p_win_D2D.o   build/p_win_console.o   build/p_win_gui.o   build/p_win_platform.o
+ALL_OBJS :=           build/s_CPU.o           build/s_ST.o           build/s_annotate.o           build/s_as.o           build/s_dir.o           build/s_disassemble.o           build/s_edit.o           build/s_edit_hex.o           build/s_edit_txt.o           build/s_exec.o           build/s_exec_asm.o           build/s_exec_cpu.o           build/s_exec_mem.o           build/s_exec_mon.o           build/s_exec_screen.o           build/s_file.o           build/s_gui.o           build/s_image_annot.o           build/s_image_msa.o          
+  build/s_image_st.o           build/s_line.o           build/s_linea.o           build/s_load.o           build/s_main.o           build/s_mount.o           build/s_renderer.o           build/s_sector_analyze.o           build/s_shifter.o           build/s_tos.o           build/s_trace.o   build/p_win_D2D.o   build/p_win_console.o   build/p_win_gui.o   build/p_win_platform.o
 # environment
 MAKELEVEL := 0
 # default
 MAKE = $(MAKE_COMMAND)
 # environment
-PATH = C:\Program Files\Common Files\Oracle\Java\javapath;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files\NVIDIA Corporation\NVIDIA NvDLISR;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\TDM-GCC-64\bin;C:\WINDOWS\system32;C:\WINDOWS;C:\WINDOWS\System32\Wbem;C:\WINDOWS\System32\WindowsPowerShell\v1.0\;C:\WINDOWS\System32\OpenSSH\;C:\Program Files\Git\cmd;C:\msys;C:\msys\mingw64\bin;C:\Users\march\AppData\Local\Microsoft\WindowsApps;C:\Program Files\Notepad++;C:\Users\march\AppData\Local\GitHubDesktop\bin;C:\Users\march\AppData\Local\Programs\Microsoft VS Code\bin;C:\msys\mingw 
-64\bin;C:\Users\march\hatari-v2.6.1;
+PATH = C:\Program Files\Common Files\Oracle\Java\javapath;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files\NVIDIA Corporation\NVIDIA NvDLISR;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\TDM-GCC-64\bin;C:\WINDOWS\system32;C:\WINDOWS;C:\WINDOWS\System32\Wbem;C:\WINDOWS\System32\WindowsPowerShell\v1.0\;C:\WINDOWS\System32\OpenSSH\;C:\Program Files\Git\cmd;C:\msys;C:\msys\mingw64\bin;C:\Users\march\AppData\Local\Microsoft\WindowsApps;C:\Program Files\Notepad+ 
++;C:\Users\march\AppData\Local\GitHubDesktop\bin;C:\Users\march\AppData\Local\Programs\Microsoft VS Code\bin;C:\msys\mingw64\bin;C:\Users\march\hatari-v2.6.1;
 # environment
 ZES_ENABLE_SYSMAN = 1
-# makefile (from 'Makefile', line 93)
-MANUAL_RUN :=  manual/use_case_01.exe  manual/use_case_02.exe  manual/use_case_03_1.exe  manual/use_case_03_2.exe  manual/use_case_03_3.exe  manual/use_case_04_1.exe  manual/use_case_04_2.exe  manual/use_case_04_3.exe  manual/use_case_04_4.exe  manual/use_case_05.exe  manual/use_case_06.exe  manual/use_case_07.exe  manual/use_case_08.exe  manual/use_case_09.exe  manual/use_case_10.exe  manual/use_case_11.exe  manual/use_case_12.exe  manual/use_case_13.exe  manual/use_case_14.exe  manual/use_case_14A.exe  manual/use_case_14B.exe  manual/use_case_15.exe  manual/use_case_15A.exe  manual/use_case_16.exe  manual/use_case_17.exe  manual/use_case_18_1.exe  manual/use_case_18_2.exe  manual/use_case_19.exe  manual/use_case_20.exe  manual/use_case_20A.exe  manual/use_case_21.exe  manual/use_case_22.exe  manual/use_case_23.exe  manual/use_case_23A.exe  manual/use_case_24.exe  manual/use_case_24A.exe  manual/use 
-_case_24B.exe  manual/use_case_24C.exe  manual/use_case_24D.exe  manual/use_case_24E.exe  manual/use_case_24F.exe  manual/use_case_24G.exe  manual/use_case_25.exe  manual/use_case_25B.exe  manual/use_case_26.exe  manual/use_case_27.exe  manual/use_case_28.exe  manual/use_case_29.exe  manual/use_case_30A.exe  manual/use_case_30B.exe  manual/use_case_30C.exe  manual/use_case_30D.exe  manual/use_case_30E.exe  manual/use_case_30F.exe
+# makefile (from 'Makefile', line 99)
+MANUAL_RUN :=  manual/use_case_00.exe  manual/use_case_01.exe  manual/use_case_02.exe  manual/use_case_03_1.exe  manual/use_case_03_2.exe  manual/use_case_03_3.exe  manual/use_case_04_1.exe  manual/use_case_04_2.exe  manual/use_case_04_3.exe  manual/use_case_04_4.exe  manual/use_case_05.exe  manual/use_case_06.exe  manual/use_case_07.exe  manual/use_case_08.exe  manual/use_case_09.exe  manual/use_case_10.exe  manual/use_case_11.exe  manual/use_case_12.exe  manual/use_case_13.exe  manual/use_case_14.exe  manual/use_case_14A.exe  manual/use_case_14B.exe  manual/use_case_15.exe  manual/use_case_15A.exe  manual/use_case_16.exe  manual/use_case_17.exe  manual/use_case_18_1.exe  manual/use_case_18_2.exe  manual/use_case_19.exe  manual/use_case_20.exe  manual/use_case_20A.exe  manual/use_case_21.exe  manual/use_case_22.exe  manual/use_case_23.exe  manual/use_case_23A.exe  manual/use_case_24.exe  manual/use_case_24A.exe  manual/use_case_24B.exe  manual/use_case_24C.exe  manual/use_case_24D.exe  manual/use_case_24E.exe  manual/use_case_24F.exe  manual/use_case_24G.exe  manual/use_case_25.exe  manual/use_case_25B.exe  manual/use_case_26.exe  manual/use_case_27.exe  manual/use_case_28.exe  manual/use_case_29.exe  manual/use_case_30A.exe  manual/use_case_30B.exe  manual/use_case_30C.exe  manual 
+/use_case_30D.exe  manual/use_case_30E.exe  manual/use_case_30F.exe  manual/use_case_30G.exe
 # environment
 COMPUTERNAME = ONCLEMARCEL
 # default
 MAKEFILES := 
 # automatic
-^ 
-F = $(notdir $^)
+^F = $(notdir $^)
 # makefile (from 'Makefile', line 54)
 RELEASE := release
 # environment
@@ -163,9 +165,9 @@ PROMPT = $P$G
 # environment
 APPLICATION_INSIGHTS_NO_STATSBEAT = true
 # makefile (from 'Makefile', line 67)
-UC_FILES := use_cases/use_case_01.c use_cases/use_case_02.c use_cases/use_case_03_1.c use_cases/use_case_03_2.c use_cases/use_case_03_3.c use_cases/use_case_04_1.c use_cases/use_case_04_2.c use_cases/use_case_04_3.c use_cases/use_case_04_4.c use_cases/use_case_05.c use_cases/use_case_06.c use_cases/use_case_07.c use_cases/use_case_08.c use_cases/use_case_09.c use_cases/use_case_10.c use_cases/use_case_11.c use_cases/use_case_12.c use_cases/use_case_13.c use_cases/use_case_14.c use_cases/use_case_14A.c use_cases/use_case_14B.c use_cases/use_case_15.c use_cases/use_case_15A.c use_cases/use_case_16.c use_cases/use_case_17.c use_cases/use_case_18_1.c use_cases/use_case_18_2.c use_cases/use_case_19.c use_cases/use_case_20.c use_cases/use_case_20A.c use_cases/use_case_21.c use_cases/use_case_22.c use_cases/use_case_23.c use 
-_cases/use_case_23A.c use_cases/use_case_24.c use_cases/use_case_24A.c use_cases/use_case_24B.c use_cases/use_case_24C.c use_cases/use_case_24D.c use_cases/use_case_24E.c use_cases/use_case_24F.c use_cases/use_case_24G.c use_cases/use_case_25.c use_cases/use_case_25B.c use_cases/use_case_26.c use_cases/use_case_27.c use_cases/use_case_28.c use_cases/use_case_29.c use_cases/use_case_30A.c use_cases/use_case_30B.c use_cases/use_case_30C.c use_cases/use_case_30D.c use_cases/use_case_30E.c use_cases/use_case_30 
-F.c
+UC_FILES := use_cases/use_case_00.c use_cases/use_case_01.c use_cases/use_case_02.c use_cases/use_case_03_1.c use_cases/use_case_03_2.c use_cases/use_case_03_3.c use_cases/use_case_04_1.c use_cases/use_case_04_2.c use_cases/use_case_04_3.c use_cases/use_case_04_4.c use_cases/use_case_05.c use_cases/use_case_06.c use_cases/use_case_07.c use_cases/use_case_08.c use_cases/use_case_09.c use_cases/use_case_10.c use_cases/use_case_11.c use_cases/use_case_12.c use_cases/use_case_13.c use_cases/use_case_14.c use_cases/use_case_14A.c use_cases/use_case_14B.c use_cases/use_case_15.c use_cases/use_case_15A.c use_cases/use_case_16.c use_cases/use_case_17.c use_c 
+ases/use_case_18_1.c use_cases/use_case_18_2.c use_cases/use_case_19.c use_cases/use_case_20.c use_cases/use_case_20A.c use_cases/use_case_21.c use_cases/use_case_22.c use_cases/use_case_23.c use_cases/use_case_23A.c use_cases/use_case_24.c use_cases/use_case_24A.c use_cases/use_case_24B.c use_cases/use_case_24C.c use_cases/use_case_24D.c use_cases/use_case_24E.c use_cases/use_case_24F.c use_cases/use_case_24G.c use_cases/use_case_25.c use_cases/use_case_25B.c use_cases/use_case_26.c use_cases/use_case_27.c 
+ use_cases/use_case_28.c use_cases/use_case_29.c use_cases/use_case_30A.c use_cases/use_case_30B.c use_cases/use_case_30C.c use_cases/use_case_30D.c use_cases/use_case_30E.c use_cases/use_case_30F.c use_cases/use_case_30G.c
 # environment
 LOGONSERVER = \\ONCLEMARCEL
 # makefile (from 'Makefile', line 55)
@@ -175,16 +177,18 @@ USERNAME = march
 # environment
 COMMONPROGRAMFILES = C:\Program Files\Common Files
 # makefile (from 'Makefile', line 70)
-PLAT_OBJS :=   build/p_win_D2D.o   build/p_win_console.o   build/p_win_gui.o   build/p_win_platform.o
+PLAT_OBJS :=   build/p_win_D2D.o   build/p_win_console.o   bu 
+ild/p_win_gui.o   build/p_win_platform.o
 # automatic
 ?F = $(notdir $?)
 # environment
 PROGRAMW6432 = C:\Program Files
-# makefile (from 'Makefile', line 206)
+# makefile (from 'Makefile', line 217)
 DD_ARGS := 
+# makefile (from 'Makefile', line 80)
+TEST_MAIN_OBJ := build/s_main_testing.o
 # environment
-PATHEXT = .COM;.EXE;.BAT;.CMD;.VBS;.VB 
-E;.JS;.JSE;.WSF;.WSH;.MSC
+PATHEXT = .COM;.EXE;.BAT;.CMD;.VBS;.VBE;.JS;.JSE;.WSF;.WSH;.MSC
 # automatic
 +F = $(notdir $+)
 # environment
@@ -194,31 +198,32 @@ USERDOMAIN = ONCLEMARCEL
 # 'override' directive
 GNUMAKEFLAGS := 
 # environment
-OS = Windows_NT
+OS = Windows 
+_NT
 # makefile (from 'Makefile', line 41)
 EXE := .exe
 # makefile
 .DEFAULT_GOAL := all
-# makefile (from 'Makefile', line 88)
-MANUAL_TARGETS :=  manual/use_case_01.exe  manual/use_case_02.exe  manual/use_case_03_1.exe  manual/use_case_03_2.exe  manual/use_case_03_3.exe  manual/use_case_04_1.exe  manual/use_case_04_2.exe  manual/use_case_04_3.exe  manual/use_case_04_4.exe  manual/use_case_05.exe  manual/use_case_06.exe  manual/use_case_07.exe  manual/use_case_08.exe  manual/use_case_09.exe  manual/use_case_10.exe  manual/use_case_11.exe  manual/use_case_12.exe  manual/use_case_13.exe  manual/use_case_14.exe  manual/use_case_14A.exe  manual/use_case_14B.exe  manual/use_case_15.exe  manual/use_case_15A.exe  manual/use_case_16.exe  manual/use_case_17.exe  manual/use_case_18_1.exe  manual/use_case_18_2.exe 
-  manual/use_case_19.exe  manual/use_case_20.exe  manual/use_case_20A.exe  manual/use_case_21.exe  manual/use_case_22.exe  manual/use_case_23.exe  manual/use_case_23A.exe  manual/use_case_24.exe  manual/use_case_24A.exe  manual/use_case_24B.exe  manual/use_case_24C.exe  manual/use_case_24D.exe  manual/use_case_24E.exe  manual/use_case_24F.exe  manual/use_case_24G.exe  manual/use_case_25.exe  manual/use_case_25B.exe  manual/use_case_26.exe  manual/use_case_27.exe  manual/use_case_28.exe  manual/use_case_29.exe  manual/use_case_30A.exe  manual/use_case_30B.exe  manual/use_case_30C.exe  manual/use_case_30D.exe  manual/use_case_30E.exe  manual/use_case_30F.exe
+# makefile (from 'Makefile', line 94)
+MANUAL_TARGETS :=  manual/use_case_00.exe  manual/use_case_01.exe  manual/use_case_02.exe  manual/use_case_03_1.exe  manual/use_case_03_2.exe  manual/use_case_03_3.exe  manual/use_case_04_1.exe  manual/use_case_04_2.exe  manual/use_case_04_3.exe  manual/use_case_04_4.exe  manual/use_case_05.exe  manual/use_case_06.exe  manual/use_case_07.exe  manual/use_case_08.exe  manual/use_case_09.exe  manual/use_case_10.exe  manual/use_case_11.exe  manual/use_case_12.exe  manual/use_case_13.exe  manual/use_case_14.exe  manual/use_case_14A.exe  manual/use_case_14B.exe  manual/use_case_15.exe  manual/use_case_15A.exe  manual/use_case_16.exe  manual/use_case_17.exe  manual/use_case_18_1.exe  manual/use_case_18_2.exe  manual/use_case_19.exe  manual/use_case_20.exe  manual/use_case_20A.exe  manual/use_case_21.exe  manual/use_case_22.exe  manual/use_case_23.exe  manual/use_case_23A.exe  manual/use_case_24 
+.exe  manual/use_case_24A.exe  manual/use_case_24B.exe  manual/use_case_24C.exe  manual/use_case_24D.exe  manual/use_case_24E.exe  manual/use_case_24F.exe  manual/use_case_24G.exe  manual/use_case_25.exe  manual/use_case_25B.exe  manual/use_case_26.exe  manual/use_case_27.exe  manual/use_case_28.exe  manual/use_case_29.exe  manual/use_case_30A.exe  manual/use_case_30B.exe  manual/use_case_30C.exe  manual/use_case_30D.exe  manual/use_case_30E.exe  manual/use_case_30F.exe  manual/use_case_30G.exe
 # default
 MAKE_VERSION := 4.4.1
 # makefile (from 'Makefile', line 65)
-SRC_FILES := src/CPU.c src/ST.c src/as.c src/dir.c src/disassemble.c src/edit.c src/edit_hex.c src/edit_txt.c src/exec.c src/exec_asm.c src/exec_cpu.c src/exec_mem.c src/exec_mon.c src/exec_screen.c src/file.c src/gui.c src/image_annot.c src/image_msa.c src/image_st.c src/line.c src/linea 
-.c src/load.c src/main.c src/mount.c src/renderer.c src/sector_analyze.c src/shifter.c src/tos.c src/trace.c
+SRC_FILES := src/CPU.c src/ST.c src/annotate.c src/as.c src/dir.c src/disassemble.c src/edit.c src/edit_hex.c src/edit_txt.c src/exec.c src/exec_asm.c src/exec_cpu.c src/exec_mem.c src/exec_mon.c src/exec_screen.c src/file.c src/gui.c src/image_annot.c src/image_msa.c src/image_st.c src/line.c src/linea.c src/load.c src/main.c src/mount.c src/renderer.c src/sector_analyze.c src/shifter.c src/tos.c src/trace.c
 # environment
-PROGRAMFILES(X86) = C:\Program Files (x86)
+PROGRAMFILES(X86) = C:\Prog 
+ram Files (x86)
 # makefile (from 'Makefile', line 53)
 BUILD := build
 # makefile (from 'Makefile', line 42)
 LDFLAGS := -lkernel32 -luser32 -lgdi32 -ld2d1 -ldwrite -lole32 -luuid
 # environment
 EFC_9168_1592913036 = 1
-# makefile (from 'Makefile', line 78)
-UC_TARGETS :=  test/use_case_01.exe  test/use_case_02.exe  test/use_case_03_1.exe  test/use_case_03_2.exe  test/use_case_03_3.exe  test/use_case_04_1.exe  test/use_case_04_2.exe  test/use_case_04_3.exe  test/use_case_04_4.exe  test/use_case_05.exe  test/use_case_06.exe  test/use_case_07.exe  test/use_case_08.exe  test/use_case_09.exe  test/use_case_10.exe  test/use_case_11.exe  test/use_case_12.exe  test/use_case_13.exe  test/use_case_14.exe  test/use_case_14A.exe  test/use_case_14B.exe  test/use_case_15.exe  test/use_case_15A.exe  test/use_case_16.exe  test/use_case_17.exe  test/use_case_18_1.exe  test/use_case_1 
-8_2.exe  test/use_case_19.exe  test/use_case_20.exe  test/use_case_20A.exe  test/use_case_21.exe  test/use_case_22.exe  test/use_case_23.exe  test/use_case_23A.exe  test/use_case_24.exe  test/use_case_24A.exe  test/use_case_24B.exe  test/use_case_24C.exe  test/use_case_24D.exe  test/use_case_24E.exe  test/use_case_24F.exe  test/use_case_24G.exe  test/use_case_25.exe  test/use_case_25B.exe  test/use_case_26.exe  test/use_case_27.exe  test/use_case_28.exe  test/use_case_29.exe  test/use_case_30A.exe  test/use 
-_case_30B.exe  test/use_case_30C.exe  test/use_case_30D.exe  test/use_case_30E.exe  test/use_case_30F.exe
+# makefile (from 'Makefile', line 84)
+UC_TARGETS :=  test/use_case_00.exe  test/use_case_01.exe  test/use_case_02.exe  test/use_case_03_1.exe  test/use_case_03_2.exe  test/use_case_03_3.exe  test/use_case_04_1.exe  test/use_case_04_2.exe  test/use_case_04_3.exe  test/use_case_04_4.exe  test/use_case_05.exe  test/use_case_06.exe  test/use_case_07.exe  test/use_case_08.exe  test/use_case_09.exe  test/use_case_10.exe  test/use_case_11.exe  test/use_case_12.exe  test/use_case_13.exe  test/use_case_14.exe  test/use_case_14A.exe  test/use_case_14B.exe  test/use_case_15.exe  test/use_case_15A.exe  test/use_case_16.exe  test/use_case_17.exe  test/use_case_18_1.exe  test/use_case_18_2.exe  test/use_case_19.exe  test/use_case_20.exe  test/use_case_20A.exe  test/use_case_21.exe  test/use_case_22.exe  test/use 
+_case_23.exe  test/use_case_23A.exe  test/use_case_24.exe  test/use_case_24A.exe  test/use_case_24B.exe  test/use_case_24C.exe  test/use_case_24D.exe  test/use_case_24E.exe  test/use_case_24F.exe  test/use_case_24G.exe  test/use_case_25.exe  test/use_case_25B.exe  test/use_case_26.exe  test/use_case_27.exe  test/use_case_28.exe  test/use_case_29.exe  test/use_case_30A.exe  test/use_case_30B.exe  test/use_case_30C.exe  test/use_case_30D.exe  test/use_case_30E.exe  test/use_case_30F.exe  test/use_case_30G.exe 
+
 # environment
 USERDOMAIN_ROAMINGPROFILE = ONCLEMARCEL
 # makefile (from 'Makefile', line 66)
@@ -229,13 +234,13 @@ NUMBER_OF_PROCESSORS = 12
 PUBLIC = C:\Users\Public
 # environment
 DEPOT_TOOLS_WIN_TOOLCHAIN = 0
-# makefile (from 'Makefile', line 87)
+# makefile (from 'Makefile', line 93)
 MDIR := manual
 # environment
 APPDATA = C:\Users\march\AppData\Roaming
-# ma 
-kefile (from 'Makefile', line 31)
-CFLAGS := -Wall -Wextra -pedantic -std=gnu99 -g -D_GNU_SOURCE -I./src -MMD -MP
+# makefile (from 'Makefile', line 31)
+CFLAGS := -Wall -Wextra -pedantic -std=gnu99 -g -D_GNU_SOURCE -I./src - 
+MMD -MP
 # environment
 HOMEDRIVE = C:
 # environment
@@ -251,28 +256,27 @@ ELECTRON_RUN_AS_NODE = 1
 # environment
 TEMP = C:\Users\march\AppData\Local\Temp
 # environment
-VSCODE_IPC_HOOK = \\.\pipe\f2a30da9-1.125.0- 
-main-sock
+VSCODE_IPC_HOOK = \\.\pipe\f2a30da9-1.125.0-main-sock
 # default
 .RECIPEPREFIX := 
 # automatic
 <F = $(notdir $<)
 # makefile (from 'Makefile', line 74)
-LIB_OBJS := build/s_CPU.o build/s_ST.o build/s_as.o build/s_dir.o build/s_disassemble.o build/s_edit.o build/s_edit_hex.o build/s_edit_txt.o build/s_exec.o build/s_exec_asm.o build/s_exec_cpu.o build/s_exec_mem.o build/s_exec_mon.o build/s_exec_screen.o build/s_file.o build/s_gui.o build/s_image_annot.o build/s_image_msa.o build/s_image_st.o build/s_line.o build/s_linea.o build/s_load.o build/s_mount.o  
-build/s_renderer.o build/s_sector_analyze.o build/s_shifter.o build/s_tos.o build/s_trace.o build/p_win_D2D.o build/p_win_console.o build/p_win_gui.o build/p_win_platform.o
+LIB_OBJS := build/s_CPU.o build/s_ST.o build/s_annotate.o build/s_as.o build/s_dir.o build/s_disassemble.o build/s_edit.o build/s_edit_hex.o build/s_edit_txt.o build/s_exec.o build/s_exec_asm.o build/s_exec_cpu.o build/s_exec_mem.o build/s_exec_mon.o build/s_exec_screen.o build/s_file.o build/s_gui.o build/s_image_annot.o build/s_image_msa.o build/s_image_st.o build/s_line.o build/s_linea.o build/s_load.o build/s_mount.o build/s_renderer.o build/s_sector_analyze.o build/s_shifter.o build/s_tos.o build/s_tr 
+ace.o build/p_win_D2D.o build/p_win_console.o build/p_win_gui.o build/p_win_platform.o
 # default
 SUFFIXES := 
 # environment
 ALLUSERSPROFILE = C:\ProgramData
-# makefile (from 'Makefile', line 77)
+# makefile (from 'Makefile', line 83)
 TARGET := release/st4ever.exe
 # environment
 SESSIONNAME = Console
 # default
-.FEATURES := target-specific order-only second-expansion else-if shortest-stem undefine oneshell nocomment grouped-target extra-prereqs notintermediate she 
-ll-export archives jobserver output-sync load dospaths
+.FEATURES := target-specific order-only second-expansion else-if shortest-stem undefine oneshell nocomment grouped-target extra-prereqs notintermediate shell-export archives jobserver output-sync load dospaths
 # environment
-PROCESSOR_REVISION = 8d01
+PROCESSOR_REVISIO 
+N = 8d01
 # makefile (from 'Makefile', line 23)
 CC := gcc
 # environment
@@ -280,7 +284,7 @@ VSCODE_ESM_ENTRYPOINT = vs/workbench/api/node/extensionHostProcess
 # environment
 PROCESSOR_IDENTIFIER = Intel64 Family 6 Model 141 Stepping 1, GenuineIntel
 # variable set hash-table stats:
-# Load=123/1024=12%, Rehash=0, Collisions=12/269=4%
+# Load=125/1024=12%, Rehash=0, Collisions=13/284=5%
 
 # Pattern-specific Variable Values
 
@@ -288,35 +292,34 @@ PROCESSOR_IDENTIFIER = Intel64 Family 6 Model 141 Stepping 1, GenuineIntel
 
 # Directories
 
-# use_cases (key c:/ms 
-ys/home/claude/ST4Ever/use_cases, mtime 1781714997): 83 files, no impossibilities.
-# src (key c:/msys/home/claude/ST4Ever/src, mtime 1781710514): 63 files, no impossibilities.
+# use_cases (key c:/msys/home/claude/ST4Ever/use_cases, mtime 1782111280): 85 files, no impossibilities.
+# s 
+rc (key c:/msys/home/claude/ST4Ever/src, mtime 1782110140): 66 files, no impossibilities.
 # win (key c:/msys/home/claude/ST4Ever/win, mtime 1781198810): 6 files, no impossibilities.
-# build (key c:/msys/home/claude/ST4Ever/build, mtime 1781715368): No files, no impossibilities so far.
-# . (key c:/msys/home/claude/ST4Ever, mtime 1781715308): 29 files, no impossibilities.
+# build (key c:/msys/home/claude/ST4Ever/build, mtime 1782124382): No files, no impossibilities so far.
+# . (key c:/msys/home/claude/ST4Ever, mtime 1782124395): 29 files, no impossibilities.
 
-# 181 files, no impossibilities in 5 directories.
+# 186 files, no impossibilities in 5 directories.
 
-# 
- Implicit Rules
+# Implicit Rules
 
 build/s_%.o: src/%.c
-#  recipe to execute (from 'Makefile', line 112):
+#  recipe to execute (from 'Makefile', line 118) 
+:
 	$(CC) $(CFLAGS) -c $< -o $@
 
 build/p_%.o: win/%.c
-#  recipe to execute (from 'Makefile', line 116):
+#  recipe to execute (from 'Makefile', line 122):
 	$(CC) $(CFLAGS) -c $< -o $@
 
-test/%.exe: use_cases/%.c build/s_CPU.o build/s_ST.o build/s_as.o build/s_dir.o build/s_disassemble.o build/s_edit.o build/s_edit_hex.o build/s_edit_txt.o build/s_exec.o build/s_exec_asm.o build/s_exec_cpu.o build/s_exec_mem.o build/s_exec_mon.o build/s_exec_screen.o build/s_file.o build/s_gu 
-i.o build/s_image_annot.o build/s_image_msa.o build/s_image_st.o build/s_line.o build/s_linea.o build/s_load.o build/s_mount.o build/s_renderer.o build/s_sector_analyze.o build/s_shifter.o build/s_tos.o build/s_trace.o build/p_win_D2D.o build/p_win_console.o build/p_win_gui.o build/p_win_platform.o
-#  recipe to execute (from 'Makefile', line 131):
-	$(CC) $(CFLAGS) $< $(LIB_OBJS) -o $@ $(LDFLAGS)
+test/%.exe: use_cases/%.c build/s_CPU.o build/s_ST.o build/s_annotate.o build/s_as.o build/s_dir.o build/s_disassemble.o build/s_edit.o build/s_edit_hex.o build/s_edit_txt.o build/s_exec.o build/s_exec_asm.o build/s_exec_cpu.o build/s_exec_mem.o build/s_exec_mon.o build/s_exec_screen.o build/s_file.o build/s_gui.o build/s_image_annot.o build/s_image_msa.o build/s_image_st.o build/s_line.o build/s_linea.o build/s_load.o build/s_mount.o build/s_renderer.o build/s_sector_analyze.o build/s_shifter.o build/s_tos.o build/s_trace.o build/p_win_D2D.o build/p_win_console.o build/p_win_gui.o build/p_win_platform.o build/s_main_testing.o
+#  recipe to execute (from 'Makefile', line 142):
+	$(CC) $(CFLAGS) $< $(TEST_MAIN_OBJ) $(LIB_OBJS) -o $@ $(LDFLAGS)
 	@echo "  --> $@"
 
-manual/%.exe: use_cases/%.c build/s_CPU.o build/s_ST.o build/s_as.o build/s_dir.o build/s_disassemble.o build/s_edit.o build/s_edit_hex.o build/s_edit_txt.o build/s_exec.o build/s_exec_asm.o build/s_exec_cpu.o build/s_exec_mem.o build/s_exec_mon.o build/s_exec_screen.o build/s_file.o build/s_gui.o build/s_image_annot.o build/s_image_msa.o build/s_image_st.o build/s_line.o build/s_linea.o build/s_load.o build/s_mount.o build/s_renderer.o build/s_sector_analyze.o build/s_shifter.o build/s_tos.o build/s_trace.o build/p_win_D2D.o build/p_win_console.o build/p_win_gui.o build/p_win_platform.o
-#  recipe t 
-o execute (from 'Makefile', line 164):
+manual/%.exe: use_cases/%.c build/s_CPU.o build/s_ST.o build/s_annotate.o build/s_as.o build/s_dir.o build/s_disassemble.o build/s_edit.o build/s_edit_hex.o build/s_edit_txt.o build/s_exec.o build/s_exec_asm.o build/s_exec_cpu.o build/s_exec_mem.o build/s_exec_mon.o build/s_exec_screen.o build/s_file.o build/s_gui.o build/s_image_annot.o build/s_image_msa.o build/s_image_st.o build/s_line.o build/s_linea.o build/s_load.o build/s_mount.o build/s_renderer.o build/s_sector_analyze.o build/s_shifter.o build/s_tos.o build/s_trace.o build/p_win_D2D.o build/p_win_console.o build/p_win_gui.o build/p_win_platform.o
+#  recipe to execut 
+e (from 'Makefile', line 175):
 	mkdir -p $(MDIR)
 	$(CC) $(CFLAGS) -DST_MANUAL_TEST $< $(LIB_OBJS) -o $@ $(LDFLAGS)
 	@echo "  --> $@"
@@ -328,81 +331,64 @@ o execute (from 'Makefile', line 164):
 build/s_ST.d:
 #  Implicit rule search has been done.
 #  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:18
+#  Last modified 2026-06-22 12:19:34
 #  File has been updated.
 #  Successfully updated.
 
 # Not a target:
 manual/use_case_23.exe:
 #  Implicit rule search has not been done.
-#  Modification time never che 
-cked.
-#  File has not been updated.
-
-# Not a target:
-use_cases/use_case_10.c:
-#  Implicit rule search has been done.
-#  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-03 00:05:02
-#  File has been updated.
-#  Successfully updated.
+#  Modification time never checked.
+#  
+ File has not been updated.
 
 build/s_renderer.o: src/renderer.c src/renderer.c src/renderer_backend.h src/renderer.h src/common.h src/gui.h src/trace.h
 #  Implicit rule search has been done.
 #  Implicit/static pattern stem: 'renderer'
-#  File is secondary (prerequisite of .SECONDARY) 
-.
-#  Last modified 2026-06-17 18:55:22
+#  File is secondary (prerequisite of .SECONDARY).
+#  Last modified 2026-06-22 12:19:41
 #  File has been updated.
 #  Successfully updated.
-#  recipe to execute (from 'Makefile', line 112):
+#  recipe to execute (from 'Makefile', line 118):
 	$(CC) $(CFLAGS) -c $< -o $@
 
-build/s_trace.o: src/trace.c src/trace.c src/trace.h src/common.h src/gui.h src/renderer.h
+build/s_trace.o: src/trace.c src/trace.c src/trace.h src/c 
+ommon.h src/gui.h src/renderer.h
 #  Implicit rule search has been done.
 #  Implicit/static pattern stem: 'trace'
 #  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:22
+#  Last modified 2026-06-22 12:19:42
 #  File has been updated.
 #  Successfully updated.
-#  recipe to execute (from 'Make 
-file', line 112):
+#  recipe to execute (from 'Makefile', line 118):
 	$(CC) $(CFLAGS) -c $< -o $@
-
-# Not a target:
-use_cases/use_case_23.c:
-#  Implicit rule search has been done.
-#  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-08 09:42:49
-#  File has been updated.
-#  Successfully updated.
 
 src/exec_cpu.h:
 #  Implicit rule search has been done.
 #  File is secondary (prerequisite of .SECONDARY).
 #  Last modified 2026-06-10 23:51:32
 #  File has been updated.
-#  Successfully updated.
+#  Successf 
+ully updated.
 
-build/s_dir.o: src/dir.c src/dir.c src/dir.h src/ 
-common.h src/gui.h src/renderer.h src/line.h src/trace.h
+build/s_dir.o: src/dir.c src/dir.c src/dir.h src/common.h src/gui.h src/renderer.h src/line.h src/trace.h
 #  Implicit rule search has been done.
 #  Implicit/static pattern stem: 'dir'
 #  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:19
+#  Last modified 2026-06-22 12:19:37
 #  File has been updated.
 #  Successfully updated.
-#  recipe to execute (from 'Makefile', line 112):
+#  recipe to execute (from 'Makefile', line 118):
 	$(CC) $(CFLAGS) -c $< -o $@
 
 # Not a target:
 manual/use_case_02.exe:
 #  Implicit rule search has not been done.
-#  Modification time never checked.
+#  Modifica 
+tion time never checked.
 #  File has not been updated.
 
-# Not a  
-target:
+# Not a target:
 manual/use_case_30C.exe:
 #  Implicit rule search has not been done.
 #  Modification time never checked.
@@ -411,67 +397,38 @@ manual/use_case_30C.exe:
 src/trace.h:
 #  Implicit rule search has been done.
 #  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-08 12:49:10
+#  Last modified 2026-06-21 00:20:32
 #  File has been updated.
 #  Successfully updated.
 
 # Not a target:
 src/edit_txt.c:
 #  Implicit rule search has been done.
-#  File is secondary (prerequisite of .SECONDARY).
+#  File is secondary (prerequisite of .SEC 
+ONDARY).
 #  Last modified 2026-06-11 09:02:41
-#  File has been u 
-pdated.
-#  Successfully updated.
-
-test/use_case_24B.exe: use_cases/use_case_24B.c build/s_CPU.o build/s_ST.o build/s_as.o build/s_dir.o build/s_disassemble.o build/s_edit.o build/s_edit_hex.o build/s_edit_txt.o build/s_exec.o build/s_exec_asm.o build/s_exec_cpu.o build/s_exec_mem.o build/s_exec_mon.o build/s_exec_screen.o build/s_file.o build/s_gui.o build/s_image_annot.o build/s_image_msa.o build/s_image_st.o build/s_line.o build/s_linea.o build/s_load.o build/s_mount.o build/s_renderer.o build/s_sector_an 
-alyze.o build/s_shifter.o build/s_tos.o build/s_trace.o build/p_win_D2D.o build/p_win_console.o build/p_win_gui.o build/p_win_platform.o
-#  Implicit rule search has been done.
-#  Implicit/static pattern stem: 'use_case_24B'
-#  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:33
 #  File has been updated.
 #  Successfully updated.
-#  recipe to execute (from 'Makefile', line 131):
-	$(CC) $(CFLAGS) $< $(LIB_OBJS) -o $@ $(LDFLAGS)
-	@echo "  --> $@"
 
-test/use_case_26.exe: use_cases/use_case_26.c build/s_CPU.o build/s_ST.o build/s_as.o build/s_dir.o build/s_disassemble.o build/s_edit.o build/s_edit_hex.o build/s_edit_txt.o build/s_exec.o build/s_exec_asm.o build/s_exec_cpu.o build/s_exec_mem.o build/s_exec_mon.o build/s_exec_screen.o build/s_file.o build/s_gui.o build/s_image_annot.o build/s_image_msa.o build/s_image_st.o build/s_line.o build/s_linea.o build/s_load.o build/s_mount.o build/s_renderer.o build/s_sector_analyze.o build/s_shifter.o build/s_tos.o build/s_trace.o build/p_win 
-_D2D.o build/p_win_console.o build/p_win_gui.o build/p_win_platform.o
-#  Implicit rule search has been done.
-#  Implicit/static pattern stem: 'use_case_26'
-#  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:36
-#  File has been updated.
-#  Successfully updated.
-#  recipe to execute (from 'Makefile', line 131):
-	$(CC) $(CFLAGS) $< $(LIB_OBJS) -o $@ $(LDFLAGS)
-	@echo "  --> $@"
+# Not a target:
+test/use_case_24B.exe:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
+
+# Not a target:
+test/use_case_26.exe:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
 
 # Not a target:
 build/s_exec_mon.d:
 #  Implicit rule search has been done.
-#  File is secondary (pr 
-erequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:20
+#  File is secondary (prerequisite of .SEC 
+ONDARY).
+#  Last modified 2026-06-22 12:19:39
 #  File has been updated.
-#  Successfully updated.
-
-# Not a target:
-use_cases/use_case_12.c:
-#  Implicit rule search has been done.
-#  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 17:29:45
-#  File has been updated.
-#  Successfully updated.
-
-# Not a target:
-use_cases/use_case_26.c:
-#  Implicit rule search has been done.
-#  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-12 08:28:01
-#  File  
-has been updated.
 #  Successfully updated.
 
 # Not a target:
@@ -486,27 +443,21 @@ src/exec_cpu.c:
 build/p_win_gui.d:
 #  Implicit rule search has been done.
 #  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:24
+#  Last modified 2026-06-22 12:19:44
 #  File has been updated.
-#  Successfully updated.
+#  Successfully 
+ updated.
 
-test/use_case_08.exe: use_cases/use_case_08.c build/s_CPU.o build/s_ST.o build/s_as.o build/s_dir.o build/s_disassemble.o build/s_edit.o build/s_edit_hex.o build/s_edit_txt.o build/s_exec.o build/s_exec_asm.o build/s_exec_cpu.o build/s_exec_mem.o build/s_exec_mon.o build/s_exec_screen.o build/s_file.o build/s_gui.o build/s_image_annot.o build/s_image_msa.o build/s_image_st.o build/s_line.o build/s_linea.o build/s_load.o build/s_mount.o build/s_renderer.o build/s_sector_analyze.o build/s_shifter.o build/s_tos.o build/s_trace.o build/p_win_D2D.o build 
-/p_win_console.o build/p_win_gui.o build/p_win_platform.o
-#  Implicit rule search has been done.
-#  Implicit/static pattern stem: 'use_case_08'
-#  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:27
-#  File has been updated.
-#  Successfully updated.
-#  recipe to execute (from 'Makefile', line 131):
-	$(CC) $(CFLAGS) $< $(LIB_OBJS) -o $@ $(LDFLAGS)
-	@echo "  --> $@"
+# Not a target:
+test/use_case_08.exe:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
 
 # Not a target:
 src/edit_hex.c:
 #  Implicit rule search has been done.
-#  File is secondary (prerequisite of .S 
-ECONDARY).
+#  File is secondary (prerequisite of .SECONDARY).
 #  Last modified 2026-06-09 07:38:52
 #  File has been updated.
 #  Successfully updated.
@@ -515,64 +466,35 @@ ECONDARY).
 build/s_renderer.d:
 #  Implicit rule search has been done.
 #  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:22
+#  Last modified 
+ 2026-06-22 12:19:41
 #  File has been updated.
 #  Successfully updated.
 
 build/s_tos.o: src/tos.c src/tos.c src/tos.h src/common.h src/ST.h src/CPU.h src/trace.h
 #  Implicit rule search has been done.
 #  Implicit/static pattern stem: 'tos'
-#  File is secondary (prerequi 
-site of .SECONDARY).
-#  Last modified 2026-06-17 18:55:22
+#  File is secondary (prerequisite of .SECONDARY).
+#  Last modified 2026-06-22 12:19:42
 #  File has been updated.
 #  Successfully updated.
-#  recipe to execute (from 'Makefile', line 112):
+#  recipe to execute (from 'Makefile', line 118):
 	$(CC) $(CFLAGS) -c $< -o $@
 
 # Not a target:
-use_cases/use_case_28.c:
-#  Implicit rule search has been done.
-#  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-12 08:29:48
-#  File has been updated.
-#  Successfully updated.
-
-test/use_case_15.exe: use_cases/use_case_15.c build/s_CPU.o build/s_ST.o build/s_as.o build/s_dir.o build/s_disassemble.o build/s_edit.o build/s_edit_hex.o build/s_edit_txt.o build/s_exec.o build/s_exec_asm.o build/s_exec_cpu.o build/s_exec_mem.o build/s_exec_mon.o build/s_exec_screen.o build/s_file.o build/s_gui.o build/s_image_annot.o build/s_image_msa.o build/s_image_st.o build/s_line.o build/s_linea.o build/s_load.o build/s_mount.o build/s_renderer.o build/s_sector_analyze.o build/s_shifter.o build/s_tos.o build/s_trace.o build/p_win_D2D.o build/p_win_console.o build/p_win_gui.o build/p_win_platform.o
-#  
- Implicit rule search has been done.
-#  Implicit/static pattern stem: 'use_case_15'
-#  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:30
-#  File has been updated.
-#  Successfully updated.
-#  recipe to execute (from 'Makefile', line 131):
-	$(CC) $(CFLAGS) $< $(LIB_OBJS) -o $@ $(LDFLAGS)
-	@echo "  --> $@"
+test/use_case_15.exe:
+#  Implicit rul 
+e search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
 
 # Not a target:
-use_cases/use_case_24G.c:
-#  Implicit rule search has been done.
-#  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-10 23:31:01
-#  
- File has been updated.
-#  Successfully updated.
+test/use_case_20A.exe:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
 
-test/use_case_20A.exe: use_cases/use_case_20A.c build/s_CPU.o build/s_ST.o build/s_as.o build/s_dir.o build/s_disassemble.o build/s_edit.o build/s_edit_hex.o build/s_edit_txt.o build/s_exec.o build/s_exec_asm.o build/s_exec_cpu.o build/s_exec_mem.o build/s_exec_mon.o build/s_exec_screen.o build/s_file.o build/s_gui.o build/s_image_annot.o build/s_image_msa.o build/s_image_st.o build/s_line.o build/s_linea.o build/s_load.o build/s_mount.o build/s_renderer.o b 
-uild/s_sector_analyze.o build/s_shifter.o build/s_tos.o build/s_trace.o build/p_win_D2D.o build/p_win_console.o build/p_win_gui.o build/p_win_platform.o
-#  Implicit rule search has been done.
-#  Implicit/static pattern stem: 'use_case_20A'
-#  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:31
-#  File has been updated.
-#  Successfully updated.
-#  recipe to execute (from 'Makefile', line 131):
-	$(CC) $(CFLAGS) $< $(LIB_OBJS) -o $@ $(LDFLAGS)
-	@echo "  --> $@"
-
-# Not a target: 
-
+# Not a target:
 use_cases/use_case_03_2.c:
 #  Implicit rule search has been done.
 #  File is secondary (prerequisite of .SECONDARY).
@@ -582,7 +504,8 @@ use_cases/use_case_03_2.c:
 
 # Not a target:
 manual/use_case_08.exe:
-#  Implicit rule search has not been done.
+#  Imp 
+licit rule search has not been done.
 #  Modification time never checked.
 #  File has not been updated.
 
@@ -590,8 +513,7 @@ src/ST.h:
 #  Implicit rule search has been done.
 #  File is secondary (prerequisite of .SECONDARY).
 #  Last modified 2026-06-08 15:01:13
-#  File has been u 
-pdated.
+#  File has been updated.
 #  Successfully updated.
 
 # Not a target:
@@ -602,16 +524,16 @@ manual/use_case_03_1.exe:
 
 win/../src/common.h:
 #  Implicit rule search has been done.
-#  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 17:35:14
+#  File 
+ is secondary (prerequisite of .SECONDARY).
+#  Last modified 2026-06-22 10:05:44
 #  File has been updated.
 #  Successfully updated.
 
 src/console.h:
 #  Implicit rule search has been done.
 #  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026 
--06-10 13:48:45
+#  Last modified 2026-06-10 13:48:45
 #  File has been updated.
 #  Successfully updated.
 
@@ -619,25 +541,29 @@ src/console.h:
 build/s_dir.d:
 #  Implicit rule search has been done.
 #  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:19
+#  Last modified 2026-06-22 12:19:37
 #  File has been updated.
-#  Successfully updated.
+# 
+  Successfully updated.
 
-test/use_case_24C.exe: use_cases/use_case_24C.c build/s_CPU.o build/s_ST.o build/s_as.o build/s_dir.o build/s_disassemble.o build/s_edit.o build/s_edit_hex.o build/s_edit_txt.o build/s_exec.o build/s_exec_asm.o build/s_exec_cpu.o buil 
-d/s_exec_mem.o build/s_exec_mon.o build/s_exec_screen.o build/s_file.o build/s_gui.o build/s_image_annot.o build/s_image_msa.o build/s_image_st.o build/s_line.o build/s_linea.o build/s_load.o build/s_mount.o build/s_renderer.o build/s_sector_analyze.o build/s_shifter.o build/s_tos.o build/s_trace.o build/p_win_D2D.o build/p_win_console.o build/p_win_gui.o build/p_win_platform.o
-#  Implicit rule search has been done.
-#  Implicit/static pattern stem: 'use_case_24C'
-#  File is secondary (prerequisite of .SECON 
-DARY).
-#  Last modified 2026-06-17 18:55:34
+build/s_main_testing.o: src/main.c
+#  Implicit rule search has not been done.
+#  File is secondary (prerequisite of .SECONDARY).
+#  Last modified 2026-06-22 12:33:02
 #  File has been updated.
 #  Successfully updated.
-#  recipe to execute (from 'Makefile', line 131):
-	$(CC) $(CFLAGS) $< $(LIB_OBJS) -o $@ $(LDFLAGS)
-	@echo "  --> $@"
+#  recipe to execute (from 'Makefile', line 127):
+	$(CC) $(CFLAGS) -DST_TEST_FWK -c $< -o $@
 
 # Not a target:
-src/disassemble.c:
+test/use_case_24C.exe:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
+
+# Not a target:
+src/disasse 
+mble.c:
 #  Implicit rule search has been done.
 #  File is secondary (prerequisite of .SECONDARY).
 #  Last modified 2026-06-17 17:27:26
@@ -646,27 +572,26 @@ src/disassemble.c:
 
 dd:
 #  Phony target (prerequisite of .PHONY).
-#  Implicit rule search has not been do 
-ne.
+#  Implicit rule search has not been done.
 #  File does not exist.
 #  File has not been updated.
-#  recipe to execute (from 'Makefile', line 215):
+#  recipe to execute (from 'Makefile', line 226):
 	python tools/gen_dd.py --src src --plat $(PLATFORM) \
 	    --out "4 - DD.md" $(DD_ARGS)
 
 # Not a target:
 src/trace.c:
-#  Implicit rule search has been done.
+#  Implicit r 
+ule search has been done.
 #  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-01 19:40:23
+#  Last modified 2026-06-21 15:58:10
 #  File has been updated.
 #  Successfully updated.
 
 # Not a target:
 src/file.c:
 #  Implicit rule search has been done.
-#  File is secondary (prerequisite of . 
-SECONDARY).
+#  File is secondary (prerequisite of .SECONDARY).
 #  Last modified 2026-06-01 20:22:22
 #  File has been updated.
 #  Successfully updated.
@@ -675,47 +600,33 @@ SECONDARY).
 src/line.c:
 #  Implicit rule search has been done.
 #  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-11 09:02:24
+#  Last modified 2026 
+-06-22 01:01:58
 #  File has been updated.
 #  Successfully updated.
 
 # Not a target:
-use_cases/use_case_15A.c:
-#  Implicit rule search has been done.
-#  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-06 01:57:31
-#  File has been updated.
-#  Successfully updated.
+test/use_case_19.exe:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
 
-test/use_case_19.exe: use_cases/use_case_19.c build/s_CPU.o build/s_ST.o build/s_as.o build/s_dir.o build/s_disassemble.o build/s_edit.o build/s_edit_hex.o build/s_edit_txt.o build/s_exec.o build/s_exec_asm.o build/s_exec_cpu.o build/s_exec_mem.o build/s_exec_mon.o build/s_exec_screen.o build/s_file.o build/s_gui.o build/s_image_annot.o build/s_image_msa.o build/s_image_st.o build/s_line.o build/s_linea.o build/s_load.o build/s_mount.o build/s_renderer.o build/s_sector_analyze.o build/s_shi 
-fter.o build/s_tos.o build/s_trace.o build/p_win_D2D.o build/p_win_console.o build/p_win_gui.o build/p_win_platform.o
-#  Implicit rule search has been done.
-#  Implicit/static pattern stem: 'use_case_19'
-#  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:31
-#  File has been updated.
-#  Successfully updated.
-#  recipe to execute (from 'Makefile', line 131):
-	$(CC) $(CFLAGS) $< $(LIB_OBJS) -o $@ $(LDFLAGS)
-	@echo "  --> $@"
-
-build/s_edit_txt.o: src/edit_txt.c src/edit_txt.c s 
-rc/edit_txt.h src/common.h src/gui.h src/renderer.h src/line.h src/file.h src/trace.h
+build/s_edit_txt.o: src/edit_txt.c src/edit_txt.c src/edit_txt.h src/common.h src/gui.h src/renderer.h src/line.h src/file.h src/trace.h
 #  Implicit rule search has been done.
 #  Implicit/static pattern stem: 'edit_txt'
 #  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:19
+#  Last modified 2026-06- 
+22 12:19:38
 #  File has been updated.
 #  Successfully updated.
-#  recipe to execute (from 'Makefile', line 112):
+#  recipe to execute (from 'Makefile', line 118):
 	$(CC) $(CFLAGS) -c $< -o $@
 
 # Not a target:
 manual/use_case_09.exe:
 #  Implicit rule search has not been done.
 #  Modification time never checked.
-#  Fi 
-le has not been updated.
+#  File has not been updated.
 
 src/as.h:
 #  Implicit rule search has been done.
@@ -725,7 +636,8 @@ src/as.h:
 #  Successfully updated.
 
 # Not a target:
-manual/use_case_18_2.exe:
+manual/use_cas 
+e_18_2.exe:
 #  Implicit rule search has not been done.
 #  Modification time never checked.
 #  File has not been updated.
@@ -733,26 +645,19 @@ manual/use_case_18_2.exe:
 build/s_ST.o: src/ST.c src/ST.c src/ST.h src/common.h src/trace.h
 #  Implicit rule search has been done.
 #  Implicit/static pattern stem: 'ST'
-#  
- File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:18
+#  File is secondary (prerequisite of .SECONDARY).
+#  Last modified 2026-06-22 12:19:34
 #  File has been updated.
 #  Successfully updated.
-#  recipe to execute (from 'Makefile', line 112):
+#  recipe to execute (from 'Makefile', line 118):
 	$(CC) $(CFLAGS) -c $< -o $@
 
-test/use_case_11.exe: use_cases/use_case_11.c build/s_CPU.o build/s_ST.o build/s_as.o build/s_dir.o build/s_disassemble.o build/s_edit.o build/s_edit_hex.o build/s_edit_txt.o build/s_exec.o build/s_exec_asm.o build/s_exec_cpu.o build/s_exec_mem.o build/s_exec_mon.o build/s_exec_screen.o build/s 
-_file.o build/s_gui.o build/s_image_annot.o build/s_image_msa.o build/s_image_st.o build/s_line.o build/s_linea.o build/s_load.o build/s_mount.o build/s_renderer.o build/s_sector_analyze.o build/s_shifter.o build/s_tos.o build/s_trace.o build/p_win_D2D.o build/p_win_console.o build/p_win_gui.o build/p_win_platform.o
-#  Implicit rule search has been done.
-#  Implicit/static pattern stem: 'use_case_11'
-#  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:28
-#  File has been upd 
-ated.
-#  Successfully updated.
-#  recipe to execute (from 'Makefile', line 131):
-	$(CC) $(CFLAGS) $< $(LIB_OBJS) -o $@ $(LDFLAGS)
-	@echo "  --> $@"
+# Not a target:
+test/use_cas 
+e_11.exe:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
 
 # Not a target:
 manual/use_case_05.exe:
@@ -764,80 +669,53 @@ manual/use_case_05.exe:
 build/s_edit_hex.d:
 #  Implicit rule search has been done.
 #  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:19
+#  Last modified 2026-06-22 12:19:37
 #  File has been updated.
 #  Successfully updated.
 
-test/use_case_18_2.exe: use_cases/use_case_18_2.c build/s_CPU.o build/s_ST.o build/s_as.o build/s_dir.o build/s_disassemble.o build/s_edit.o build/s_edit_hex.o build/s_edit_txt.o build/s_exec.o build/s_exec_asm.o build/s_exec_cpu.o build/s_exec_mem.o build/s_exec_mon.o build/s_exec_screen.o build/s_file.o build/s_gui.o build/s_image_annot.o build/s_image_msa.o build/s_image_st.o build/s_line.o build/s_linea.o build/s_load.o build/s_mount.o build/s_renderer.o build/s_sector_analyze.o build/s_shifter.o buil 
-d/s_tos.o build/s_trace.o build/p_win_D2D.o build/p_win_console.o build/p_win_gui.o build/p_win_platform.o
-#  Implicit rule search has been done.
-#  Implicit/static pattern stem: 'use_case_18_2'
-#  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:31
-#  File has been updated.
-#  Successfully updated.
-#  recipe to execute (from 'Makefile', line 131):
-	$(CC) $(CFLAGS) $< $(LIB_OBJS) -o $@ $(LDFLAGS)
-	@echo "  --> $@"
+# Not a target:
+test/use_ca 
+se_18_2.exe:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
 
 win/../src/trace.h:
 #  Implicit rule search has been done.
-# 
-  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-08 12:49:10
-#  File has been updated.
-#  Successfully updated.
-
-test/use_case_30A.exe: use_cases/use_case_30A.c build/s_CPU.o build/s_ST.o build/s_as.o build/s_dir.o build/s_disassemble.o build/s_edit.o build/s_edit_hex.o build/s_edit_txt.o build/s_exec.o build/s_exec_asm.o build/s_exec_cpu.o build/s_exec_mem.o build/s_exec_mon.o build/s_exec_screen.o build/s_file.o build/s_gui.o build/s_image_annot.o build/s_image_msa.o build/s_imag 
-e_st.o build/s_line.o build/s_linea.o build/s_load.o build/s_mount.o build/s_renderer.o build/s_sector_analyze.o build/s_shifter.o build/s_tos.o build/s_trace.o build/p_win_D2D.o build/p_win_console.o build/p_win_gui.o build/p_win_platform.o
-#  Implicit rule search has been done.
-#  Implicit/static pattern stem: 'use_case_30A'
 #  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:37
+#  Last modified 2026-06-21 00:20:32
 #  File has been updated.
 #  Successfully updated.
-#  recipe to execute (from 'Makefile', line  
-131):
-	$(CC) $(CFLAGS) $< $(LIB_OBJS) -o $@ $(LDFLAGS)
-	@echo "  --> $@"
 
 # Not a target:
-manual/use_case_25.exe:
+test/use_case_30A.exe:
 #  Implicit rule search has not been done.
 #  Modification time never checked.
 #  File has not been updated.
 
 # Not a target:
-use_cases/use_case_24C.c:
-#  Implicit rule search has been done.
-#  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-09 08:37:35
-#  File has been updated.
-#  Successfully updated.
+manual/use_case_25.exe:
+# 
+  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
 
-build/s_disassemble.o: src/disassemble.c src/disassemble.c src/disa 
-ssemble.h src/common.h src/trace.h
+build/s_disassemble.o: src/disassemble.c src/disassemble.c src/disassemble.h src/common.h src/trace.h
 #  Implicit rule search has been done.
 #  Implicit/static pattern stem: 'disassemble'
 #  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:19
+#  Last modified 2026-06-22 12:19:37
 #  File has been updated.
 #  Successfully updated.
-#  recipe to execute (from 'Makefile', line 112):
-	$(CC) $(CFLAGS) -c $< -o $@
+#  recipe to execute (from 'Makefile', line 118):
+	$(CC) $(CFLAGS) -c $< -o  
+$@
 
-test/use_case_30C.exe: use_cases/use_case_30C.c build/s_CPU.o build/s_ST.o build/s_as.o build/s_dir.o build/s_disassemble.o build/s_edit.o build/s_edit_hex.o build/s_edit_t 
-xt.o build/s_exec.o build/s_exec_asm.o build/s_exec_cpu.o build/s_exec_mem.o build/s_exec_mon.o build/s_exec_screen.o build/s_file.o build/s_gui.o build/s_image_annot.o build/s_image_msa.o build/s_image_st.o build/s_line.o build/s_linea.o build/s_load.o build/s_mount.o build/s_renderer.o build/s_sector_analyze.o build/s_shifter.o build/s_tos.o build/s_trace.o build/p_win_D2D.o build/p_win_console.o build/p_win_gui.o build/p_win_platform.o
-#  Implicit rule search has been done.
-#  Implicit/static pattern ste 
-m: 'use_case_30C'
-#  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:37
-#  File has been updated.
-#  Successfully updated.
-#  recipe to execute (from 'Makefile', line 131):
-	$(CC) $(CFLAGS) $< $(LIB_OBJS) -o $@ $(LDFLAGS)
-	@echo "  --> $@"
+# Not a target:
+test/use_case_30C.exe:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
 
 # Not a target:
 src/ST.c:
@@ -849,10 +727,10 @@ src/ST.c:
 
 # Not a target:
 build/s_edit.d:
- 
 #  Implicit rule search has been done.
 #  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:19
+#  Last modified 2026-06-22 12:1 
+9:37
 #  File has been updated.
 #  Successfully updated.
 
@@ -862,33 +740,16 @@ manual/use_case_06.exe:
 #  Modification time never checked.
 #  File has not been updated.
 
-# Not a target:
-use_cases/use_case_30B.c:
-#  Implicit rule search has been done.
-#  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-13 22:30:39
-#  File has be 
-en updated.
-#  Successfully updated.
-
 build/s_CPU.o: src/CPU.c src/CPU.c src/CPU.h src/common.h src/ST.h src/linea.h src/tos.h src/trace.h
 #  Implicit rule search has been done.
 #  Implicit/static pattern stem: 'CPU'
 #  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:18
+#  Last modified 2026-06-22 12:19:34
 #  File has been updated.
-#  Successfully updated.
-#  recipe to execute (from 'Makefile', line 112):
+#  Successfu 
+lly updated.
+#  recipe to execute (from 'Makefile', line 118):
 	$(CC) $(CFLAGS) -c $< -o $@
-
-# Not a target:
-use_cases/use_case_09.c:
-#  Implicit rule search has been do 
-ne.
-#  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-02 18:06:55
-#  File has been updated.
-#  Successfully updated.
 
 # Not a target:
 manual/use_case_22.exe:
@@ -896,46 +757,39 @@ manual/use_case_22.exe:
 #  Modification time never checked.
 #  File has not been updated.
 
-test/use_case_09.exe: use_cases/use_case_09.c build/s_CPU.o build/s_ST.o build/s_as.o build/s_dir.o build/s_disassemble.o build/s_edit.o build/s_edit_hex.o build/s_edit_txt.o build/s_exec.o build/s_exec_asm.o build/s_e 
-xec_cpu.o build/s_exec_mem.o build/s_exec_mon.o build/s_exec_screen.o build/s_file.o build/s_gui.o build/s_image_annot.o build/s_image_msa.o build/s_image_st.o build/s_line.o build/s_linea.o build/s_load.o build/s_mount.o build/s_renderer.o build/s_sector_analyze.o build/s_shifter.o build/s_tos.o build/s_trace.o build/p_win_D2D.o build/p_win_console.o build/p_win_gui.o build/p_win_platform.o
-#  Implicit rule search has been done.
-#  Implicit/static pattern stem: 'use_case_09'
-#  File is secondary (prerequis 
-ite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:28
-#  File has been updated.
-#  Successfully updated.
-#  recipe to execute (from 'Makefile', line 131):
-	$(CC) $(CFLAGS) $< $(LIB_OBJS) -o $@ $(LDFLAGS)
-	@echo "  --> $@"
+# Not a target:
+test/use_case_09.exe:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
 
 build/s_image_st.o: src/image_st.c src/image_st.c src/image_st.h src/common.h src/file.h src/trace.h
-#  Implicit rule search has been done.
+#  Implicit rule sea 
+rch has been done.
 #  Implicit/static pattern stem: 'image_st'
 #  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:21
-#  File has be 
-en updated.
+#  Last modified 2026-06-22 12:19:40
+#  File has been updated.
 #  Successfully updated.
-#  recipe to execute (from 'Makefile', line 112):
+#  recipe to execute (from 'Makefile', line 118):
 	$(CC) $(CFLAGS) -c $< -o $@
 
 # Not a target:
 Makefile:
 #  Implicit rule search has been done.
 #  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-08 18:37:38
+#  Last modified 2026-06-22 12:32:57
 #  File has been updated.
 #  Successfully updated.
 
 # Not a target:
-build/s_mount.d:
+build/s_m 
+ount.d:
 #  Implicit rule search has been done.
 #  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:22
+#  Last modified 2026-06-22 12:19:41
 #  File has been updated.
-#  S 
-uccessfully updated.
+#  Successfully updated.
 
 # Not a target:
 manual/use_case_13.exe:
@@ -948,15 +802,15 @@ src/tos.c:
 #  Implicit rule search has been done.
 #  File is secondary (prerequisite of .SECONDARY).
 #  Last modified 2026-06-12 14:12:47
-#  File has been updated.
+#  File has been upda 
+ted.
 #  Successfully updated.
 
 # Not a target:
 use_cases/use_case_04_2.c:
 #  Implicit rule search has been done.
 #  File is secondary (prerequisite of .SECONDARY).
-# 
-  Last modified 2026-06-01 08:51:34
+#  Last modified 2026-06-01 08:51:34
 #  File has been updated.
 #  Successfully updated.
 
@@ -970,14 +824,14 @@ src/exec_screen.c:
 
 # Not a target:
 src/edit.c:
-#  Implicit rule search has been done.
+#  Implicit rule  
+search has been done.
 #  File is secondary (prerequisite of .SECONDARY).
 #  Last modified 2026-05-29 19:14:00
 #  File has been updated.
 #  Successfully updated.
 
-# N 
-ot a target:
+# Not a target:
 use_cases/use_case_05.c:
 #  Implicit rule search has been done.
 #  File is secondary (prerequisite of .SECONDARY).
@@ -985,66 +839,45 @@ use_cases/use_case_05.c:
 #  File has been updated.
 #  Successfully updated.
 
-test/use_case_12.exe: use_cases/use_case_12.c build/s_CPU.o build/s_ST.o build/s_as.o build/s_dir.o build/s_disassemble.o build/s_edit.o build/s_edit_hex.o build/s_edit_txt.o build/s_exec.o build/s_exec_asm.o build/s_exec_cpu.o build/s_exec_mem.o build/s_exec_mon.o build/s_exec_screen.o build/s 
-_file.o build/s_gui.o build/s_image_annot.o build/s_image_msa.o build/s_image_st.o build/s_line.o build/s_linea.o build/s_load.o build/s_mount.o build/s_renderer.o build/s_sector_analyze.o build/s_shifter.o build/s_tos.o build/s_trace.o build/p_win_D2D.o build/p_win_console.o build/p_win_gui.o build/p_win_platform.o
-#  Implicit rule search has been done.
-#  Implicit/static pattern stem: 'use_case_12'
-#  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:28
-#  File has been upd 
-ated.
-#  Successfully updated.
-#  recipe to execute (from 'Makefile', line 131):
-	$(CC) $(CFLAGS) $< $(LIB_OBJS) -o $@ $(LDFLAGS)
-	@echo "  --> $@"
-
 # Not a target:
-use_cases/use_case_20.c:
-#  Implicit rule search has been done.
-#  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-10 10:45:05
-#  File has been updated.
-#  Successfully updated.
+test/use_case_12.exe:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has n 
+ot been updated.
 
 build/s_file.o: src/file.c src/file.c src/file.h src/common.h src/trace.h
 #  Implicit rule search has been done.
-#  Implicit/static pattern ste 
-m: 'file'
+#  Implicit/static pattern stem: 'file'
 #  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:20
+#  Last modified 2026-06-22 12:19:39
 #  File has been updated.
 #  Successfully updated.
-#  recipe to execute (from 'Makefile', line 112):
+#  recipe to execute (from 'Makefile', line 118):
 	$(CC) $(CFLAGS) -c $< -o $@
 
 # Not a target:
 manual/use_case_28.exe:
 #  Implicit rule search has not been done.
 #  Modification time never checked.
+#   
+File has not been updated.
+
+# Not a target:
+test/use_case_24D.exe:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
 #  File has not been updated.
 
-test/use_case_24D.exe: use_cases/use_case_24D.c build/s_CPU.o build/s_ST.o build/s_as.o build/s_dir.o build/s_disassemble.o build/s_e 
-dit.o build/s_edit_hex.o build/s_edit_txt.o build/s_exec.o build/s_exec_asm.o build/s_exec_cpu.o build/s_exec_mem.o build/s_exec_mon.o build/s_exec_screen.o build/s_file.o build/s_gui.o build/s_image_annot.o build/s_image_msa.o build/s_image_st.o build/s_line.o build/s_linea.o build/s_load.o build/s_mount.o build/s_renderer.o build/s_sector_analyze.o build/s_shifter.o build/s_tos.o build/s_trace.o build/p_win_D2D.o build/p_win_console.o build/p_win_gui.o build/p_win_platform.o
-#  Implicit rule search has be 
-en done.
-#  Implicit/static pattern stem: 'use_case_24D'
-#  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:34
-#  File has been updated.
-#  Successfully updated.
-#  recipe to execute (from 'Makefile', line 131):
-	$(CC) $(CFLAGS) $< $(LIB_OBJS) -o $@ $(LDFLAGS)
-	@echo "  --> $@"
-
 build/s_exec_asm.o: src/exec_asm.c src/exec_asm.c src/exec_asm.h src/common.h src/gui.h src/renderer.h src/exec.h src/CPU.h src/ST.h src/disassemble.h src/trace.h
-#  Implicit rule search has been do 
-ne.
+#  Implicit rule search has been done.
 #  Implicit/static pattern stem: 'exec_asm'
 #  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:20
-#  File has been updated.
+#  Last modified 2026-06-22 12:19:38
+# 
+  File has been updated.
 #  Successfully updated.
-#  recipe to execute (from 'Makefile', line 112):
+#  recipe to execute (from 'Makefile', line 118):
 	$(CC) $(CFLAGS) -c $< -o $@
 
 # Not a target:
@@ -1055,27 +888,18 @@ manual/use_case_30A.exe:
 
 src/sector_analyze.h:
 #  Implicit rule search has been done.
-#  File is secondary (prerequisit 
-e of .SECONDARY).
+#  File is secondary (prerequisite of .SECONDARY).
 #  Last modified 2026-06-08 18:30:20
 #  File has been updated.
 #  Successfully updated.
 
 win/../src/console.h:
-#  Implicit rule search has been done.
+#  Impli 
+cit rule search has been done.
 #  File is secondary (prerequisite of .SECONDARY).
 #  Last modified 2026-06-10 13:48:45
 #  File has been updated.
 #  Successfully updated.
-
-# Not a target:
-use_cases/use_case_22.c:
-#  Implicit rule search has been done.
-#  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-08 07:40:21
-#  File has been updated.
-#  Success 
-fully updated.
 
 # Not a target:
 manual/use_case_24B.exe:
@@ -1083,21 +907,15 @@ manual/use_case_24B.exe:
 #  Modification time never checked.
 #  File has not been updated.
 
-test/use_case_14B.exe: use_cases/use_case_14B.c build/s_CPU.o build/s_ST.o build/s_as.o build/s_dir.o build/s_disassemble.o build/s_edit.o build/s_edit_hex.o build/s_edit_txt.o build/s_exec.o build/s_exec_asm.o build/s_exec_cpu.o build/s_exec_mem.o build/s_exec_mon.o build/s_exec_screen.o build/s_file.o build/s_gui.o build/s_image_annot.o buil 
-d/s_image_msa.o build/s_image_st.o build/s_line.o build/s_linea.o build/s_load.o build/s_mount.o build/s_renderer.o build/s_sector_analyze.o build/s_shifter.o build/s_tos.o build/s_trace.o build/p_win_D2D.o build/p_win_console.o build/p_win_gui.o build/p_win_platform.o
-#  Implicit rule search has been done.
-#  Implicit/static pattern stem: 'use_case_14B'
-#  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:29
-#  File has been updated.
-#  Successfully updated.
-#  recipe to exe 
-cute (from 'Makefile', line 131):
-	$(CC) $(CFLAGS) $< $(LIB_OBJS) -o $@ $(LDFLAGS)
-	@echo "  --> $@"
+# Not a target:
+test/use_case_14B.exe:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
 
 src/tos.h:
-#  Implicit rule search has been done.
+#  Implicit rule search has be 
+en done.
 #  File is secondary (prerequisite of .SECONDARY).
 #  Last modified 2026-06-12 14:12:06
 #  File has been updated.
@@ -1112,11 +930,11 @@ src/linea.h:
 
 # Not a target:
 src/as.c:
-#  
- Implicit rule search has been done.
+#  Implicit rule search has been done.
 #  File is secondary (prerequisite of .SECONDARY).
 #  Last modified 2026-06-14 20:19:16
-#  File has been updated.
+#  File has been u 
+pdated.
 #  Successfully updated.
 
 win/../src/gui.h:
@@ -1130,23 +948,16 @@ win/../src/gui.h:
 build/s_image_st.d:
 #  Implicit rule search has been done.
 #  File is secondary (prerequisite of .SECONDARY).
-#  Last modi 
-fied 2026-06-17 18:55:20
+#  Last modified 2026-06-22 12:19:39
 #  File has been updated.
 #  Successfully updated.
 
-test/use_case_24F.exe: use_cases/use_case_24F.c build/s_CPU.o build/s_ST.o build/s_as.o build/s_dir.o build/s_disassemble.o build/s_edit.o build/s_edit_hex.o build/s_edit_txt.o build/s_exec.o build/s_exec_asm.o build/s_exec_cpu.o build/s_exec_mem.o build/s_exec_mon.o build/s_exec_screen.o build/s_file.o build/s_gui.o build/s_image_annot.o build/s_image_msa.o build/s_image_st.o build/s_line.o build/s_linea.o build/s_load.o build/s_m 
-ount.o build/s_renderer.o build/s_sector_analyze.o build/s_shifter.o build/s_tos.o build/s_trace.o build/p_win_D2D.o build/p_win_console.o build/p_win_gui.o build/p_win_platform.o
-#  Implicit rule search has been done.
-#  Implicit/static pattern stem: 'use_case_24F'
-#  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:35
-#  File has been updated.
-#  Successfully updated.
-#  recipe to execute (from 'Makefile', line 131):
-	$(CC) $(CFLAGS) $< $(LIB_OBJS) -o $@ $(LDFLAGS)
-	@echo  
-"  --> $@"
+# Not a target:
+test/use_case_24F.exe:
+#  Implicit rule search has 
+ not been done.
+#  Modification time never checked.
+#  File has not been updated.
 
 # Not a target:
 src/exec_asm.c:
@@ -1164,69 +975,44 @@ src/mount.c:
 #  File has been updated.
 #  Successfully updated.
 
-build/s_image_annot.o: src/image_annot.c src/image_annot.c src/image_annot.h src/ 
-common.h src/trace.h
+build/s_im 
+age_annot.o: src/image_annot.c src/image_annot.c src/image_annot.h src/common.h src/trace.h
 #  Implicit rule search has been done.
 #  Implicit/static pattern stem: 'image_annot'
 #  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:20
+#  Last modified 2026-06-22 12:19:39
 #  File has been updated.
 #  Successfully updated.
-#  recipe to execute (from 'Makefile', line 112):
+#  recipe to execute (from 'Makefile', line 118):
 	$(CC) $(CFLAGS) -c $< -o $@
 
 # Not a target:
 build/s_gui.d:
 #  Implicit rule search has been done.
-#  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:20
-#  File has been updated.
-#  
- Successfully updated.
-
-# Not a target:
-use_cases/use_case_16.c:
-#  Implicit rule search has been done.
-#  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-04 09:19:58
+#  File is secondary (prerequisite of .SECOND 
+ARY).
+#  Last modified 2026-06-22 12:19:39
 #  File has been updated.
 #  Successfully updated.
 
 # Not a target:
-use_cases/use_case_18_2.c:
+build/s_annotate.d:
 #  Implicit rule search has been done.
 #  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-06 17:56:49
+#  Last modified 2026-06-22 12:19:34
 #  File has been updated.
 #  Successfully updated.
 
-build/p_win_platform.o: win/win_platform.c win 
-/win_platform.c win/../src/common.h win/../src/trace.h win/../src/common.h
+build/p_win_platform.o: win/win_platform.c win/win_platform.c win/../src/common.h win/../src/trace.h win/../src/common.h
 #  Implicit rule search has been done.
-#  Implicit/static pattern stem: 'win_platform'
+#  Implicit/static pattern stem: 'win_plat 
+form'
 #  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:24
+#  Last modified 2026-06-22 12:19:45
 #  File has been updated.
 #  Successfully updated.
-#  recipe to execute (from 'Makefile', line 116):
+#  recipe to execute (from 'Makefile', line 122):
 	$(CC) $(CFLAGS) -c $< -o $@
-
-# Not a target:
-use_cases/use_case_18_1.c:
-#  Implicit rule search has been done.
-#  File is secondary (prerequisite of .SECONDARY) 
-.
-#  Last modified 2026-06-06 13:16:24
-#  File has been updated.
-#  Successfully updated.
-
-# Not a target:
-use_cases/use_case_29.c:
-#  Implicit rule search has been done.
-#  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-12 14:22:40
-#  File has been updated.
-#  Successfully updated.
 
 # Not a target:
 manual/use_case_23A.exe:
@@ -1234,23 +1020,17 @@ manual/use_case_23A.exe:
 #  Modification time never checked.
 #  File has not been updated.
 
-test/use_case_06.exe: use_cases/use_case_06.c build/s_CPU.o build/s_ST.o build/s_as.o build/s_dir.o build/s_disassemble.o build/s_edit.o build/s_edit_hex.o build/s_edit_txt.o build/s_exec.o build/s_exec_asm.o build/s_exec_cpu.o build/s_exec_mem.o build/s_exec_mon.o build/s_exec_screen.o build/s_file.o build/s_gui.o build/s_image_annot.o build/s_image_msa.o build/s_image_st.o build/s_line.o build/s_linea.o build/s_load.o build/s_mount.o build/s_renderer.o build/s_sector_analyze.o build/s_shifter.o build/s_tos.o build/s_trace.o build/p_win_D2D.o build/p_win_ 
-console.o build/p_win_gui.o build/p_win_platform.o
-#  Implicit rule search has been done.
-#  Implicit/static pattern stem: 'use_case_06'
-#  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:27
-#  File has been updated.
-#  Successfully updated.
-#  recipe to execute (from 'Makefile', line 131):
-	$(CC) $(CFLAGS) $< $(LIB_OBJS) -o $@ $(LDFLAGS)
-	@echo "  --> $@"
+# Not a target:
+test/use_case_06.exe:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not bee 
+n updated.
 
 # Not a target:
 src/renderer.c:
 #  Implicit rule search has been done.
-#  File is secondary (prerequisite of .SECONDAR 
-Y).
+#  File is secondary (prerequisite of .SECONDARY).
 #  Last modified 2026-06-11 19:26:36
 #  File has been updated.
 #  Successfully updated.
@@ -1259,18 +1039,18 @@ Y).
 use_cases/use_case_03_3.c:
 #  Implicit rule search has been done.
 #  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-05-31 21:43:51
+#  Last modified 2026-06-22 01:22:05
 #  File has been updated.
 #  Successfully updated.
 
 # Not a target:
 src/exec_mem.c:
-#  Implicit rule search has been done.
+#  Implicit rule search has been do 
+ne.
 #  File is secondary (prerequisite of .SECONDARY).
 #  Last modified 2026-06-11 07:25:48
 #  File has been updated.
-#  Successfu 
-lly updated.
+#  Successfully updated.
 
 # Not a target:
 manual/use_case_03_3.exe:
@@ -1284,131 +1064,108 @@ manual/use_case_29.exe:
 #  Modification time never checked.
 #  File has not been updated.
 
-test/use_case_21.exe: use_cases/use_case_21.c build/s_CPU.o build/s_ST.o build/s_as.o build/s_dir.o build/s_disassemble.o build/s_edit.o build/s_edit_hex.o build/s_edit_txt.o build/s_exec.o build/ 
-s_exec_asm.o build/s_exec_cpu.o build/s_exec_mem.o build/s_exec_mon.o build/s_exec_screen.o build/s_file.o build/s_gui.o build/s_image_annot.o build/s_image_msa.o build/s_image_st.o build/s_line.o build/s_linea.o build/s_load.o build/s_mount.o build/s_renderer.o build/s_sector_analyze.o build/s_shifter.o build/s_tos.o build/s_trace.o build/p_win_D2D.o build/p_win_console.o build/p_win_gui.o build/p_win_platform.o
-#  Implicit rule search has been done.
-#  Implicit/static pattern stem: 'use_case_21'
-#  File i 
-s secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:32
-#  File has been updated.
-#  Successfully updated.
-#  recipe to execute (from 'Makefile', line 131):
-	$(CC) $(CFLAGS) $< $(LIB_OBJS) -o $@ $(LDFLAGS)
-	@echo "  --> $@"
+# Not a target:
+test/use_case_21.exe:
+#  Implicit rule search has  
+not been done.
+#  Modification time never checked.
+#  File has not been updated.
 
-test/use_case_23A.exe: use_cases/use_case_23A.c build/s_CPU.o build/s_ST.o build/s_as.o build/s_dir.o build/s_disassemble.o build/s_edit.o build/s_edit_hex.o build/s_edit_txt.o build/s_exec.o build/s_exec_asm.o build/s_exec_cpu.o build/s_exec_mem.o build/s_exec_mo 
-n.o build/s_exec_screen.o build/s_file.o build/s_gui.o build/s_image_annot.o build/s_image_msa.o build/s_image_st.o build/s_line.o build/s_linea.o build/s_load.o build/s_mount.o build/s_renderer.o build/s_sector_analyze.o build/s_shifter.o build/s_tos.o build/s_trace.o build/p_win_D2D.o build/p_win_console.o build/p_win_gui.o build/p_win_platform.o
-#  Implicit rule search has been done.
-#  Implicit/static pattern stem: 'use_case_23A'
-#  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-0 
-6-17 18:55:32
-#  File has been updated.
-#  Successfully updated.
-#  recipe to execute (from 'Makefile', line 131):
-	$(CC) $(CFLAGS) $< $(LIB_OBJS) -o $@ $(LDFLAGS)
-	@echo "  --> $@"
+# Not a target:
+test/use_case_23A.exe:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
 
 clean:
 #  Phony target (prerequisite of .PHONY).
 #  Implicit rule search has not been done.
 #  File does not exist.
 #  File has not been updated.
-#  recipe to execute (from 'Makefile', line 220):
+#  recipe to execute (from 'Makefile', line 231):
 	rm -rf $(BUILD) $(RELEASE) $(TDIR) $(MDIR)
-	rm -f out.txt st4ever_trace.log uc44_*.txt
+	rm -f out.txt st4ever_trace.log uc44_*.t 
+xt
 
-test/use_case_27.exe: use_cases/use_case_27.c build/s_CPU.o build/s_ST.o build/s_as.o build/s_dir.o build/s_disassemble.o build/s_edit.o build/s_edit_hex.o build/s_edit_txt.o build/s_exec.o build/s_exec_asm.o build/s_exec_cpu.o build/s_exec_mem.o build/s_exec_mon.o build/s_exec_screen.o build/s_file.o build/s_gui.o build/s_image_annot.o build/s_image_msa.o build/s_image_st.o build/s_line.o build/s_linea.o build/s_load.o build/s_mount.o build/s_renderer.o build/s_sector_analyze.o build/s_shifter.o build/s_tos.o build/s_trace.o build/p_win_D2D.o build/ 
-p_win_console.o build/p_win_gui.o build/p_win_platform.o
-#  Implicit rule search has been done.
-#  Implicit/static pattern stem: 'use_case_27'
-#  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:36
-#  File has been updated.
-#  Successfully updated.
-#  recipe to execute (from 'Makefile', line 131):
-	$(CC) $(CFLAGS) $< $(LIB_OBJS) -o $@ $(LDFLAGS)
-	@echo "  --> $@"
+# Not a target:
+test/use_case_27.exe:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
 
-build/p_win_D2D.o: win/win_D2D.c win/win_D2D.c win/../src/renderer_backend.h win/../src/renderer.h win/../src/co 
-mmon.h win/../src/gui.h win/../src/gui_backend.h win/../src/trace.h
+build/p_win_D2D.o: win/win_D2D.c win/win_D2D.c win/../src/renderer_backend.h win/../src/renderer.h win/../src/common.h win/../src/gui.h win/../src/gui_backend.h win/../src/trace.h
 #  Implicit rule search has been done.
 #  Implicit/static pattern stem: 'win_D2D'
 #  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:23
-#  File has been updated.
+#  Last modified 2026-06-22 12:19:43
+#  File ha 
+s been updated.
 #  Successfully updated.
-#  recipe to execute (from 'Makefile', line 116):
+#  recipe to execute (from 'Makefile', line 122):
 	$(CC) $(CFLAGS) -c $< -o $@
 
-test/use_case_30E.exe: use_cases/use_case_30E.c build/s_CPU.o build/s_ST.o build/s_as.o build/s_dir.o build/s_disassemble.o build/s_edit.o buil 
-d/s_edit_hex.o build/s_edit_txt.o build/s_exec.o build/s_exec_asm.o build/s_exec_cpu.o build/s_exec_mem.o build/s_exec_mon.o build/s_exec_screen.o build/s_file.o build/s_gui.o build/s_image_annot.o build/s_image_msa.o build/s_image_st.o build/s_line.o build/s_linea.o build/s_load.o build/s_mount.o build/s_renderer.o build/s_sector_analyze.o build/s_shifter.o build/s_tos.o build/s_trace.o build/p_win_D2D.o build/p_win_console.o build/p_win_gui.o build/p_win_platform.o
+build/s_annotate.o: src/annotate.c src/annotate.c src/annotate.h src/common.h src/disassemble.h src/trace.h
 #  Implicit rule search has been done.
-# 
-  Implicit/static pattern stem: 'use_case_30E'
+#  Implicit/static pattern stem: 'annotate'
 #  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:38
+#  Last modified 2026-06-22 12:19:34
 #  File has been updated.
 #  Successfully updated.
-#  recipe to execute (from 'Makefile', line 131):
-	$(CC) $(CFLAGS) $< $(LIB_OBJS) -o $@ $(LDFLAGS)
-	@echo "  --> $@"
+#  recipe to execute (from 'Makefile', line 118):
+	$(CC) $(CF 
+LAGS) -c $< -o $@
+
+# Not a target:
+test/use_case_30E.exe:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
 
 # Not a target:
 build/s_file.d:
 #  Implicit rule search has been done.
 #  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:20
+#  Last modified 2026-06-22 12:19:39
 #  File has been updated.
-#  Successfully updated 
-.
+#  Successfully updated.
 
-build/s_mount.o: src/mount.c src/mount.c src/mount.h src/common.h src/gui.h src/renderer.h src/image_st.h src/line.h src/edit_hex.h src/disassemble.h src/sector_analyze.h src/image_annot.h src/image_msa.h src/file.h src/trace.h
+build/s_mount.o: src/mount.c src/mount.c src/mount.h src/common.h src/gui.h src/renderer.h src/image_st.h src/line.h src/edit_hex.h s 
+rc/disassemble.h src/sector_analyze.h src/image_annot.h src/image_msa.h src/file.h src/trace.h
 #  Implicit rule search has been done.
 #  Implicit/static pattern stem: 'mount'
 #  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:22
+#  Last modified 2026-06-22 12:19:41
 #  File has been updated.
 #  Successfully updated.
-#  recipe to execute (from 'Makefile', line 112):
-	$(CC) $(CFL 
-AGS) -c $< -o $@
-
-# Not a target:
-use_cases/use_case_24A.c:
-#  Implicit rule search has been done.
-#  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-08 19:24:17
-#  File has been updated.
-#  Successfully updated.
+#  recipe to execute (from 'Makefile', line 118):
+	$(CC) $(CFLAGS) -c $< -o $@
 
 # Not a target:
 build/s_exec.d:
 #  Implicit rule search has been done.
-#  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:20
+#  File is secondary (prerequisite of .SECONDAR 
+Y).
+#  Last modified 2026-06-22 12:19:38
 #  File has been updated.
 #  Successfully updated.
 
-build/s_shifter.o: src/shifter.c src/shifter.c src/shifter.h s 
-rc/common.h src/ST.h src/trace.h
+build/s_shifter.o: src/shifter.c src/shifter.c src/shifter.h src/common.h src/ST.h src/trace.h
 #  Implicit rule search has been done.
 #  Implicit/static pattern stem: 'shifter'
 #  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:22
+#  Last modified 2026-06-22 12:19:41
 #  File has been updated.
 #  Successfully updated.
-#  recipe to execute (from 'Makefile', line 112):
+#  recipe to execute (from 'Makefile', line 118):
 	$(CC) $(CFLAGS) -c $< -o $@
 
-src/renderer_backend.h:
+src/renderer_backend.h: 
+
 #  Implicit rule search has been done.
 #  File is secondary (prerequisite of .SECONDARY).
 #  Last modified 2026-06-11 19:26:27
 #  File has been updated.
-# 
-  Successfully updated.
+#  Successfully updated.
 
 # Not a target:
 src/linea.c:
@@ -1422,81 +1179,74 @@ src/linea.c:
 src/exec.c:
 #  Implicit rule search has been done.
 #  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-12 08:25:20
+#  Las 
+t modified 2026-06-12 08:25:20
 #  File has been updated.
 #  Successfully updated.
 
 src/line.h:
 #  Implicit rule search has been done.
-#  File is secondary  
-(prerequisite of .SECONDARY).
-#  Last modified 2026-06-10 13:49:04
+#  File is secondary (prerequisite of .SECONDARY).
+#  Last modified 2026-06-21 16:11:04
 #  File has been updated.
 #  Successfully updated.
 
-test/use_case_03_3.exe: use_cases/use_case_03_3.c build/s_CPU.o build/s_ST.o build/s_as.o build/s_dir.o build/s_disassemble.o build/s_edit.o build/s_edit_hex.o build/s_edit_txt.o build/s_exec.o build/s_exec_asm.o build/s_exec_cpu.o build/s_exec_mem.o build/s_exec_mon.o build/s_exec_screen.o build/s_file.o build/s_gui.o build/s_image_annot.o build/s_image_msa.o build/s_image_st.o build/s_lin 
-e.o build/s_linea.o build/s_load.o build/s_mount.o build/s_renderer.o build/s_sector_analyze.o build/s_shifter.o build/s_tos.o build/s_trace.o build/p_win_D2D.o build/p_win_console.o build/p_win_gui.o build/p_win_platform.o
+test/use_case_03_3.exe: use_cases/use_case_03_3.c build/s_CPU.o build/s_ST.o build/s_annotate.o build/s_as.o build/s_dir.o build/s_disassemble.o build/s_edit.o build/s_edit_hex.o build/s_edit_txt.o build/s_exec.o build/s_exec_asm.o build/ 
+s_exec_cpu.o build/s_exec_mem.o build/s_exec_mon.o build/s_exec_screen.o build/s_file.o build/s_gui.o build/s_image_annot.o build/s_image_msa.o build/s_image_st.o build/s_line.o build/s_linea.o build/s_load.o build/s_mount.o build/s_renderer.o build/s_sector_analyze.o build/s_shifter.o build/s_tos.o build/s_trace.o build/p_win_D2D.o build/p_win_console.o build/p_win_gui.o build/p_win_platform.o build/s_main_testing.o
 #  Implicit rule search has been done.
 #  Implicit/static pattern stem: 'use_case_03_3'
-#  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:26
+#   
+File is secondary (prerequisite of .SECONDARY).
+#  Last modified 2026-06-22 12:33:03
 #  File has been updated.
 #  Successfully updated.
-#  recipe to execute (from 'Makefile', line 131):
-	$(CC) $(CF 
-LAGS) $< $(LIB_OBJS) -o $@ $(LDFLAGS)
+#  recipe to execute (from 'Makefile', line 142):
+	$(CC) $(CFLAGS) $< $(TEST_MAIN_OBJ) $(LIB_OBJS) -o $@ $(LDFLAGS)
 	@echo "  --> $@"
 
 # Not a target:
-use_cases/use_case_21.c:
+src/annotate.c:
 #  Implicit rule search has been done.
 #  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-07 12:57:56
+#  Last modified 2026-06-18 01:25:53
 #  File has been updated.
 #  Successfully updated.
 
-test/use_case_02.exe: use_cases/use_case_02.c build/s_CPU.o build/s_ST.o build/s_as.o build/s_dir.o build/s_disassemble.o build/s_edit.o build/s_edit_hex.o build/s_edit_txt.o build/s_exec.o build/s_exec_asm.o build/s_exec_cpu.o build/s 
-_exec_mem.o build/s_exec_mon.o build/s_exec_screen.o build/s_file.o build/s_gui.o build/s_image_annot.o build/s_image_msa.o build/s_image_st.o build/s_line.o build/s_linea.o build/s_load.o build/s_mount.o build/s_renderer.o build/s_sector_analyze.o build/s_shifter.o build/s_tos.o build/s_trace.o build/p_win_D2D.o build/p_win_console.o build/p_win_gui.o build/p_win_platform.o
+test/use_case_02.exe: use_cases/use_case_02.c build/s_CPU.o build/s_ST.o build/s_annotate.o build/s_as.o build/s_dir.o build/s_disassemble.o build/s_edit.o build/s_edit_hex.o build/s_edit_txt.o build/s_exec.o build/s_exec_asm.o build/s_exec_cpu.o build/s_exec_mem.o build/s_exec_mon.o build/s_exec_screen.o build/s_file.o build/s_gui.o build/s_image_annot.o build/s_image_msa.o build/s_image_st.o build/s_line.o build/s_linea.o build/s_load.o build/s_mount.o build/s_renderer.o build/s_sector_analyze.o build/s_shifter.o build/s_tos.o build/s 
+_trace.o build/p_win_D2D.o build/p_win_console.o build/p_win_gui.o build/p_win_platform.o build/s_main_testing.o
 #  Implicit rule search has been done.
 #  Implicit/static pattern stem: 'use_case_02'
-#  File is secondary (prerequisite of .SECONDARY 
-).
-#  Last modified 2026-06-17 18:55:25
+#  File is secondary (prerequisite of .SECONDARY).
+#  Last modified 2026-06-22 12:33:03
 #  File has been updated.
 #  Successfully updated.
-#  recipe to execute (from 'Makefile', line 131):
-	$(CC) $(CFLAGS) $< $(LIB_OBJS) -o $@ $(LDFLAGS)
+#  recipe to execute (from 'Makefile', line 142):
+	$(CC) $(CFLAGS) $< $(TEST_MAIN_OBJ) $(LIB_OBJS) -o $@ $(LDFLAGS)
 	@echo "  --> $@"
 
-test/use_case_25B.exe: use_cases/use_case_25B.c build/s_CPU.o build/s_ST.o build/s_as.o build/s_dir.o build/s_disassemble.o build/s_edit.o build/s_edit_hex.o build/s_edit_txt.o build/s_exec.o build/s_exec_asm.o build/s_exec_cpu.o build/s_exec_mem.o build/s_exec_mon.o build/s_exec_screen.o build/s_file. 
-o build/s_gui.o build/s_image_annot.o build/s_image_msa.o build/s_image_st.o build/s_line.o build/s_linea.o build/s_load.o build/s_mount.o build/s_renderer.o build/s_sector_analyze.o build/s_shifter.o build/s_tos.o build/s_trace.o build/p_win_D2D.o build/p_win_console.o build/p_win_gui.o build/p_win_platform.o
-#  Implicit rule search has been done.
-#  Implicit/static pattern stem: 'use_case_25B'
-#  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:36
-#  File has been updated. 
-
-#  Successfully updated.
-#  recipe to execute (from 'Makefile', line 131):
-	$(CC) $(CFLAGS) $< $(LIB_OBJS) -o $@ $(LDFLAGS)
-	@echo "  --> $@"
+# Not a target:
+test/use_case_25B.exe:
+ 
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
 
 build/s_exec_mon.o: src/exec_mon.c src/exec_mon.c src/exec_mon.h src/common.h src/gui.h src/renderer.h src/exec.h src/CPU.h src/ST.h src/disassemble.h src/trace.h
 #  Implicit rule search has been done.
 #  Implicit/static pattern stem: 'exec_mon'
 #  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:20
+#  Last modified 2026-06-22 12:19:39
 #  File has been updated.
-#  Succe 
-ssfully updated.
-#  recipe to execute (from 'Makefile', line 112):
+#  Successfully updated.
+#  recipe to exec 
+ute (from 'Makefile', line 118):
 	$(CC) $(CFLAGS) -c $< -o $@
 
 # Not a target:
 build/s_exec_mem.d:
 #  Implicit rule search has been done.
 #  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:20
+#  Last modified 2026-06-22 12:19:38
 #  File has been updated.
 #  Successfully updated.
 
@@ -1504,21 +1254,21 @@ build/s_exec_mem.d:
 build/s_linea.d:
 #  Implicit rule search has been done.
 #  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:21
+#  Last modified 2026-06-22 12:19:40
 #  File has been updated.
-#  Successfull 
-y updated.
+#  Successfully updated.
 
-build/s_exec.o: src/exec.c src/exec.c src/exec.h src/common.h src/gui.h src/CPU.h src/ST.h src/disassemble.h src/exec_mon.h src/renderer.h src/exec_cpu.h src/exec_mem.h src/exec_asm.h src/exec_screen.h src/shifter.h src/linea.h src/load.h src/trace.h
+build/s_exec.o: src/ex 
+ec.c src/exec.c src/exec.h src/common.h src/gui.h src/CPU.h src/ST.h src/disassemble.h src/exec_mon.h src/renderer.h src/exec_cpu.h src/exec_mem.h src/exec_asm.h src/exec_screen.h src/shifter.h src/linea.h src/load.h src/trace.h
 #  Implicit rule search has been done.
 #  Implicit/static pattern stem: 'exec'
 #  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:20
+#  Last modified 2026-06-22 12:19:38
 #  File has been updated.
 #  Successfully updated.
-#  recipe to execute (from 'Mak 
-efile', line 112):
-	$(CC) $(CFLAGS) -c $< -o $@
+#  recipe to execute (from 'Makefile', line 118):
+	$(CC) $(CFLAGS 
+) -c $< -o $@
 
 # Not a target:
 manual/use_case_27.exe:
@@ -1526,18 +1276,9 @@ manual/use_case_27.exe:
 #  Modification time never checked.
 #  File has not been updated.
 
-# Not a target:
-use_cases/use_case_23A.c:
-#  Implicit rule search has been done.
-#  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-08 10:14:33
-#  File has been updated.
-#  Successfully updated.
-
 src/exec.h:
 #  Implicit rule search has been done.
-#  File is secondary (prerequisite of .SE 
-CONDARY).
+#  File is secondary (prerequisite of .SECONDARY).
 #  Last modified 2026-06-11 19:27:48
 #  File has been updated.
 #  Successfully updated.
@@ -1548,7 +1289,8 @@ manual/use_case_14B.exe:
 #  Modification time never checked.
 #  File has not been updated.
 
-# Not a target:
+# Not 
+ a target:
 manual/use_case_12.exe:
 #  Implicit rule search has not been done.
 #  Modification time never checked.
@@ -1557,17 +1299,8 @@ manual/use_case_12.exe:
 # Not a target:
 src/main.c:
 #  Implicit rule search has been done.
-#  File is secondary (prerequisite of .SECOND 
-ARY).
-#  Last modified 2026-06-10 23:53:18
-#  File has been updated.
-#  Successfully updated.
-
-# Not a target:
-use_cases/use_case_27.c:
-#  Implicit rule search has been done.
 #  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-11 19:29:51
+#  Last modified 2026-06-22 12:09:59
 #  File has been updated.
 #  Successfully updated.
 
@@ -1577,57 +1310,45 @@ manual/use_case_20A.exe:
 #  Modification time never checked.
 #  File has not been updated.
 
-src/dir.h:
-#  Implicit rule search has been do 
-ne.
+src/dir.h 
+:
+#  Implicit rule search has been done.
 #  File is secondary (prerequisite of .SECONDARY).
 #  Last modified 2026-06-06 17:13:42
 #  File has been updated.
 #  Successfully updated.
 
-test/use_case_18_1.exe: use_cases/use_case_18_1.c build/s_CPU.o build/s_ST.o build/s_as.o build/s_dir.o build/s_disassemble.o build/s_edit.o build/s_edit_hex.o build/s_edit_txt.o build/s_exec.o build/s_exec_asm.o build/s_exec_cpu.o build/s_exec_mem.o build/s_exec_mon.o build/s_exec_screen.o build/s_file.o build/s_gui.o build/s_image_annot.o build/s_image_msa.o build 
-/s_image_st.o build/s_line.o build/s_linea.o build/s_load.o build/s_mount.o build/s_renderer.o build/s_sector_analyze.o build/s_shifter.o build/s_tos.o build/s_trace.o build/p_win_D2D.o build/p_win_console.o build/p_win_gui.o build/p_win_platform.o
-#  Implicit rule search has been done.
-#  Implicit/static pattern stem: 'use_case_18_1'
-#  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:31
-#  File has been updated.
-#  Successfully updated.
-#  recipe to execute (from 'Makefile', line 131):
-	$(CC) $(CFLAGS) $< $(LIB_OBJS) -o $@ $(LDFLAGS)
-	@echo "  --> $@"
+# Not a target:
+test/use_case_18_1.exe:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
 
-test/use_case_24A.exe: use_cases/use_case_24A.c build/s_CPU.o build/s_ST.o build/s_as.o build/s_dir.o build/s_disassemble.o build/s_edit.o build/s_edit_hex.o build/s_edit_txt.o build/s_exec.o build/s_exec_asm.o build/s_exec_cpu.o build/s_exec_mem.o build/s_exec_mon.o build/s_exec_screen.o build/s_file.o build/s_gui.o build/s_image_annot.o build/s_image_msa.o build/s_image_st.o build/s_line.o build/s_linea.o build/s_load.o buil 
-d/s_mount.o build/s_renderer.o build/s_sector_analyze.o build/s_shifter.o build/s_tos.o build/s_trace.o build/p_win_D2D.o build/p_win_console.o build/p_win_gui.o build/p_win_platform.o
-#  Implicit rule search has been done.
-#  Implicit/static pattern stem: 'use_case_24A'
-#  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:33
-#  File has been updated.
-#  Successfully updated.
-#  recipe to execute (from 'Makefile', line 131):
-	$(CC) $(CFLAGS) $< $(LIB_OBJS) -o $@ $(LDFLAGS)
-	@echo "  --> $@"
+# Not a target:
+test/use_case_24A.exe:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
 
-test/use_case_04_3.exe: use_cases/use_case_04_3.c build/s_CPU.o build/s_ST.o build/s_as.o build/s_dir.o build/s_disassemble.o build/s_edit.o build/s_edit_hex.o build/s_edit_txt.o build/s_exec.o build/s_exec_asm.o build/s_exec_cpu.o build/s_exec_mem.o build/s_exec_mon.o build/s_exec_screen.o build/s_file.o build/s_gui.o build/s_image_annot.o build/s_image_msa.o build/s_image_st.o build/s_line.o build/s_linea.o build/s_load.o build/s_mount.o build/s_renderer.o build/s_sector_analyze.o build/s 
-_shifter.o build/s_tos.o build/s_trace.o build/p_win_D2D.o build/p_win_console.o build/p_win_gui.o build/p_win_platform.o
+test/use_case_04_3.exe: use_cases/use_case_04_3.c build/s_CPU.o build/s_ST.o build/s_annotate.o build/s_as.o build/s_dir.o build/s_disassemble.o build/s_edit.o build/s_edit_hex.o build/s_edit_txt.o build/s_exec.o build/s_exec_asm.o build/s_exec_cpu.o build/s_exec_mem.o build/s_exec_mon.o build/s_exec_screen.o build/s_file.o build/s_gui.o build/s_image_annot.o build/s_image_msa.o build/s_image_st.o build/s_line.o build/s_linea.o build/s_load.o build/s_mount.o build/s_renderer.o build/s_sector_analyze.o build/s_shifter.o build/s_tos.o build 
+/s_trace.o build/p_win_D2D.o build/p_win_console.o build/p_win_gui.o build/p_win_platform.o build/s_main_testing.o
 #  Implicit rule search has been done.
 #  Implicit/static pattern stem: 'use_case_04_3'
 #  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:26
+#  Last modified 2026-06-22 12:33:04
 #  File has been updated.
 #  Successfully updated.
-#  recipe to execute (from 'Makefile', line 131):
-	$(CC) $(CFLAGS) $< $(LIB_OBJS) -o $@ $(LDFLAGS)
+#  recipe to execute (from 'Makefile', line 142):
+	$(CC) $(CFLAGS) $< $(TEST_MAIN_OBJ) $(LIB_OBJS) -o $@ $(LDFLAGS)
 	@echo "  --> $@"
 
 tests: all
-#  Phony target (prerequisite of . 
-PHONY).
+#  Phony target (prerequ 
+isite of .PHONY).
 #  Implicit rule search has not been done.
 #  File does not exist.
 #  File has not been updated.
-#  recipe to execute (from 'Makefile', line 141):
+#  recipe to execute (from 'Makefile', line 152):
 	@echo ""
 	@echo "================================================================"
 	@echo " ST4Ever - Use Case Tests"
@@ -1637,8 +1358,8 @@ PHONY).
 	for t in $(UC_TARGETS); do \
 	    echo ""; \
 	    echo "  Running: $$t"; \
-	    echo "  ------ 
---"; \
+	    echo 
+ "  --------"; \
 	    $$t; STATUS=$$?; \
 	    if [ $$STATUS -ne 0 ]; then FAILS=$$((FAILS + 1)); fi; \
 	done; \
@@ -1653,8 +1374,8 @@ PHONY).
 build/s_exec_cpu.d:
 #  Implicit rule search has been done.
 #  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18: 
-55:20
+#  Last modified 2026 
+-06-22 12:19:38
 #  File has been updated.
 #  Successfully updated.
 
@@ -1673,9 +1394,9 @@ manual/use_case_15.exe:
 
 src/edit_txt.h:
 #  Implicit rule search has been done.
-#  File is secondary (prerequisite of .SECONDARY).
-#   
-Last modified 2026-06-11 09:00:40
+#  File is secondary (prerequisite of .SECON 
+DARY).
+#  Last modified 2026-06-11 09:00:40
 #  File has been updated.
 #  Successfully updated.
 
@@ -1689,16 +1410,16 @@ manual/use_case_30F.exe:
 build/s_exec_screen.d:
 #  Implicit rule search has been done.
 #  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:20
+#  Last modified 2026-06-22 12:19:39
 #  File has been updated.
 #  Successfully updated.
 
 # Not a target:
 build/s_image_annot.d:
-#  Implicit rule s 
-earch has been done.
+#  Impli 
+cit rule search has been done.
 #  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:20
+#  Last modified 2026-06-22 12:19:39
 #  File has been updated.
 #  Successfully updated.
 
@@ -1706,26 +1427,27 @@ earch has been done.
 build/s_line.d:
 #  Implicit rule search has been done.
 #  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:21
+#  Last modified 2026-06-22 12:19:40
 #  File has been updated.
 #  Successfully updated.
 
 # Not a target:
 use_cases/use_case_04_1.c:
 #  Implicit rule search has been done.
-#  File is secondary (prerequisite of .SECONDARY).
-#  Last 
- modified 2026-05-31 21:44:15
+#  File is secondary (prerequisite of .SECONDARY 
+).
+#  Last modified 2026-06-20 23:59:53
 #  File has been updated.
 #  Successfully updated.
 
-manual: all manual/use_case_01.exe manual/use_case_02.exe manual/use_case_03_1.exe manual/use_case_03_2.exe manual/use_case_03_3.exe manual/use_case_04_1.exe manual/use_case_04_2.exe manual/use_case_04_3.exe manual/use_case_04_4.exe manual/use_case_05.exe manual/use_case_06.exe manual/use_case_07.exe manual/use_case_08.exe manual/use_case_09.exe manual/use_case_10.exe manual/use_case_11.exe manual/use_case_12.exe manual/use_case_13.exe manual/use_case_14.exe manual/use_case_14A.exe manual/use_case_14B.exe manual/use_case_15.exe manual/use_case_15A.exe manual/use_case_16.exe manual/use_case_17.exe manual/use_case_18_1.exe manual/use_case_18_2.exe manual/use_case_19.exe manual/use_case_20.exe manual/use_case_20A.exe manual/use_case_21.exe manual/use_case_22.exe manual/use_case_23.exe manual/use_case_23A.exe manual/use_case_24.exe manual/use_case_24A.exe manual/use_case_24B.exe manual/use_case_24C.exe manual/use_case_24D.exe manual 
-/use_case_24E.exe manual/use_case_24F.exe manual/use_case_24G.exe manual/use_case_25.exe manual/use_case_25B.exe manual/use_case_26.exe manual/use_case_27.exe manual/use_case_28.exe manual/use_case_29.exe manual/use_case_30A.exe manual/use_case_30B.exe manual/use_case_30C.exe manual/use_case_30D.exe manual/use_case_30E.exe manual/use_case_30F.exe
+manual: all manual/use_case_00.exe manual/use_case_01.exe manual/use_case_02.exe manual/use_case_03_1.exe manual/use_case_03_2.exe manual/use_case_03_3.exe manual/use_case_04_1.exe manual/use_case_04_2.exe manual/use_case_04_3.exe manual/use_case_04_4.exe manual/use_case_05.exe manual/use_case_06.exe manual/use_case_07.exe manual/use_case_08.exe manual/use_case_09.exe manual/use_case_10.exe manual/use_case_11.exe manual/use_case_12.exe manual/use_case_13.exe manual/use_case_14.exe manual/use_case_14A.exe manual/use_case_14B.exe manual/use_case_15.exe manual/use_case_15A.exe manual/use_case_16.exe manual/use_case_17.exe manual/use_case_18_1.exe manual/use_case_18_2.exe manual/use_case_19.exe manual/use_case_20.exe manual/use_case_20A.exe manual/use_case_21.exe manual/use_case_22.exe manual/use_case_23.exe manual/use_case_23A.exe manual/use_case_24.exe manual/use_case_24A.exe manual/use_case_24B.exe manual/use_case_24C.e 
+xe manual/use_case_24D.exe manual/use_case_24E.exe manual/use_case_24F.exe manual/use_case_24G.exe manual/use_case_25.exe manual/use_case_25B.exe manual/use_case_26.exe manual/use_case_27.exe manual/use_case_28.exe manual/use_case_29.exe manual/use_case_30A.exe manual/use_case_30B.exe manual/use_case_30C.exe manual/use_case_30D.exe manual/use_case_30E.exe manual/use_case_30F.exe manual/use_case_30G.exe
 #  Phony target (prerequisite of .PHONY).
 #  Implicit rule search has not been done.
-#  File does not exist.
+#  File does not exis 
+t.
 #  File has not been updated.
-#  recipe to execute (from 'Makefile', line 169):
+#  recipe to execute (from 'Makefile', line 180):
 	@echo ""
 	@echo "================================================================"
 	@echo " ST4Ever - Manual Validation Tests"
@@ -1737,9 +1459,9 @@ manual: all manual/use_case_01.exe manual/use_case_02.exe manual/use_case_03_1.e
 	    echo ""; \
 	    echo "  Running: $$t"; \
 	    echo "  --------"; \
-	    $$t; STATUS=$$?; \
-	    if [ $$STATUS -ne 0 ]; then F 
-AILS=$$((FAILS + 1)); fi; \
+	 
+    $$t; STATUS=$$?; \
+	    if [ $$STATUS -ne 0 ]; then FAILS=$$((FAILS + 1)); fi; \
 	done; \
 	echo ""; \
 	echo "================================================================"; \
@@ -1749,107 +1471,73 @@ AILS=$$((FAILS + 1)); fi; \
 	exit $$FAILS
 
 # Not a target:
-use_cases/use_case_07.c:
-#  Implicit rule search has been done.
-#  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-02 08:22:12
-#  File has been updated.
-#  Successfully updated.
+test/use_case_30D.exe:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
 
-test/use_case_30D.exe: use_cases/use_case_30D.c build/s_CPU.o build/s_ST.o build/s_as.o build/s_dir.o build/s_disassemble.o build/s_edit.o build/s_edit_hex.o build/s_edit_txt.o build/s_exec.o build/s_exec_asm.o build/s_exec_cpu.o build/s_exec_mem.o build/s_exec_mon.o build/s_exec_screen.o build/s_file.o build/s_gui.o build/s_image_annot.o build/s_image_msa.o build/s_image_st.o build/s_line.o build/s_linea.o build/s_load.o build/s_mount.o build/s_renderer.o build/s_sector_analyze.o build/s_shifter.o bui 
-ld/s_tos.o build/s_trace.o build/p_win_D2D.o build/p_win_console.o build/p_win_gui.o build/p_win_platform.o
-#  Implicit rule search has been done.
-#  Implicit/static pattern stem: 'use_case_30D'
-#  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:38
-#  File has been updated.
-#  Successfully updated.
-#  recipe to execute (from 'Makefile', line 131):
-	$(CC) $(CFLAGS) $< $(LIB_OBJS) -o $@ $(LDFLAGS)
-	@echo "  --> $@"
-
-test/use_case_25.exe: use_cases/use_case_25.c build/s_CPU.o build/s_ST.o build/s_as.o build/s_dir.o build/s_disassemble.o build/s_edit.o build/s_edit_hex.o build/s_edit_txt.o build/s_exec.o build/s_exec_asm.o build/s_exec_cpu.o build/s_exec_mem.o build/s_exec_mon.o build/s_exec_screen.o build/s_file.o build/s_gui.o build/s_image_annot.o build/s_image_msa.o build/s_image_st.o build/s_line.o build/s_linea.o build/s_load.o build/s_mount.o build/s_renderer.o build/s_sector_analyze.o build/s_shifter.o build/s_tos.o build/s_trace.o build/p_win_D2D.o build/p_win_console.o  
-build/p_win_gui.o build/p_win_platform.o
-#  Implicit rule search has been done.
-#  Implicit/static pattern stem: 'use_case_25'
-#  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:36
-#  File has been updated.
-#  Successfully updated.
-#  recipe to execute (from 'Makefile', line 131):
-	$(CC) $(CFLAGS) $< $(LIB_OBJS) -o $@ $(LDFLAGS)
-	@echo "  --> $@"
+# Not a t 
+arget:
+test/use_case_25.exe:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
 
 # Not a target:
 src/gui.c:
 #  Implicit rule search has been done.
 #  File is secondary (prerequisite of .SECONDARY).
-#  Last mod 
-ified 2026-06-06 12:52:11
-#  File has been updated.
-#  Successfully updated.
-
-# Not a target:
-use_cases/use_case_20A.c:
-#  Implicit rule search has been done.
-#  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-07 11:55:45
+#  Last modified 2026-06-06 12:52:11
 #  File has been updated.
 #  Successfully updated.
 
 build/p_win_console.o: win/win_console.c win/win_console.c win/../src/common.h win/../src/trace.h win/../src/common.h win/../src/console.h
-#  Implicit rule search has been done.
-#  Implicit/static pattern stem: 'w 
-in_console'
+#  Implicit rule search has  
+been done.
+#  Implicit/static pattern stem: 'win_console'
 #  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:23
+#  Last modified 2026-06-22 12:19:43
 #  File has been updated.
 #  Successfully updated.
-#  recipe to execute (from 'Makefile', line 116):
+#  recipe to execute (from 'Makefile', line 122):
 	$(CC) $(CFLAGS) -c $< -o $@
 
-test/use_case_15A.exe: use_cases/use_case_15A.c build/s_CPU.o build/s_ST.o build/s_as.o build/s_dir.o build/s_disassemble.o build/s_edit.o build/s_edit_hex.o build/s_edit_txt.o build/s_exec.o build/s_exec_asm.o build/s_exec_cpu.o build/s_exec_mem.o build/s_exec_mon.o build/s_exec_ 
-screen.o build/s_file.o build/s_gui.o build/s_image_annot.o build/s_image_msa.o build/s_image_st.o build/s_line.o build/s_linea.o build/s_load.o build/s_mount.o build/s_renderer.o build/s_sector_analyze.o build/s_shifter.o build/s_tos.o build/s_trace.o build/p_win_D2D.o build/p_win_console.o build/p_win_gui.o build/p_win_platform.o
-#  Implicit rule search has been done.
-#  Implicit/static pattern stem: 'use_case_15A'
-#  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:30
-#   
-File has been updated.
-#  Successfully updated.
-#  recipe to execute (from 'Makefile', line 131):
-	$(CC) $(CFLAGS) $< $(LIB_OBJS) -o $@ $(LDFLAGS)
-	@echo "  --> $@"
+# Not a target:
+test/use_case_15A.exe:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
 
-build/s_main.o: src/main.c src/main.c src/common.h src/trace.h src/line.h src/gui.h src/ST.h src/load.h src/exec.h src/CPU.h src/disassemble.h
+build/s_main.o: src/main.c src/main.c src/common.h src/trace.h src/line.h src/gui.h sr 
+c/ST.h src/load.h src/exec.h src/CPU.h src/disassemble.h src/main.h
 #  Implicit rule search has been done.
 #  Implicit/static pattern stem: 'main'
 #  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:21
+#  Last modified 2026-06-22 12:19:41
 #  File has been updated.
-#  Success 
-fully updated.
-#  recipe to execute (from 'Makefile', line 112):
+#  Successfully updated.
+#  recipe to execute (from 'Makefile', line 118):
 	$(CC) $(CFLAGS) -c $< -o $@
 
 src/exec_mem.h:
 #  Implicit rule search has been done.
 #  File is secondary (prerequisite of .SECONDARY).
 #  Last modified 2026-06-11 07:24:50
-#  File has been updated.
+#   
+File has been updated.
 #  Successfully updated.
 
-test/use_case_03_1.exe: use_cases/use_case_03_1.c build/s_CPU.o build/s_ST.o build/s_as.o build/s_dir.o build/s_disassemble.o build/s_edit.o build/s_edit_hex.o build/s_edit_txt.o build/s_exec.o build/s_exec_asm.o build/s_e 
-xec_cpu.o build/s_exec_mem.o build/s_exec_mon.o build/s_exec_screen.o build/s_file.o build/s_gui.o build/s_image_annot.o build/s_image_msa.o build/s_image_st.o build/s_line.o build/s_linea.o build/s_load.o build/s_mount.o build/s_renderer.o build/s_sector_analyze.o build/s_shifter.o build/s_tos.o build/s_trace.o build/p_win_D2D.o build/p_win_console.o build/p_win_gui.o build/p_win_platform.o
+test/use_case_03_1.exe: use_cases/use_case_03_1.c build/s_CPU.o build/s_ST.o build/s_annotate.o build/s_as.o build/s_dir.o build/s_disassemble.o build/s_edit.o build/s_edit_hex.o build/s_edit_txt.o build/s_exec.o build/s_exec_asm.o build/s_exec_cpu.o build/s_exec_mem.o build/s_exec_mon.o build/s_exec_screen.o build/s_file.o build/s_gui.o build/s_image_annot.o build/s_image_msa.o build/s_image_st.o build/s_line.o build/s_linea.o build/s_load.o build/s_mount.o  
+build/s_renderer.o build/s_sector_analyze.o build/s_shifter.o build/s_tos.o build/s_trace.o build/p_win_D2D.o build/p_win_console.o build/p_win_gui.o build/p_win_platform.o build/s_main_testing.o
 #  Implicit rule search has been done.
 #  Implicit/static pattern stem: 'use_case_03_1'
-#  File is secondary (prerequ 
-isite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:25
+#  File is secondary (prerequisite of .SECONDARY).
+#  Last modified 2026-06-22 12:33:03
 #  File has been updated.
 #  Successfully updated.
-#  recipe to execute (from 'Makefile', line 131):
-	$(CC) $(CFLAGS) $< $(LIB_OBJS) -o $@ $(LDFLAGS)
+#  recipe to execute (from 'Makefile', line 142):
+	$(CC) $(CFLAGS) $< $(TEST_MAIN_OBJ) $( 
+LIB_OBJS) -o $@ $(LDFLAGS)
 	@echo "  --> $@"
 
 # Not a target:
@@ -1864,126 +1552,107 @@ manual/use_case_04_3.exe:
 #  Modification time never checked.
 #  File has not been updated.
 
-test/use_case_24G.exe: use_cases/use_case_24G.c build/s_CPU.o build/s_ST.o build/s_as.o build/s_dir.o build/s_disassemble.o build/s_edit.o build/s_edit_hex.o build/s_edit_txt.o build/s_exec.o build/s_exec_asm.o build/s_exec_cpu.o build/s_exec_mem.o build/s_exec_mon.o build/s_exec_screen.o build/s_file.o build/s_gui.o build/s_image_annot.o build/s_image_msa.o build/s_image_st.o build/s_line.o build/s_linea.o build/s_load.o build/s_mount.o build/s_renderer.o build/s_sector_analyze.o build/s 
-_shifter.o build/s_tos.o build/s_trace.o build/p_win_D2D.o build/p_win_console.o build/p_win_gui.o build/p_win_platform.o
-#  Implicit rule search has been done.
-#  Implicit/static pattern stem: 'use_case_24G'
-#  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:35
-#  File has been updated.
-#  Successfully updated.
-#  recipe to execute (from 'Makefile', line 131):
-	$(CC) $(CFLAGS) $< $(LIB_OBJS) -o $@ $(LDFLAGS)
-	@echo "  --> $@"
-
 # Not a target:
-use_cases/use_case_24B.c:
-#  I 
-mplicit rule search has been done.
-#  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-09 08:36:15
-#  File has been updated.
-#  Successfully updated.
+test/use_case_24G.exe:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
 
-# Not a target:
+# Not a target 
+:
 build/s_load.d:
 #  Implicit rule search has been done.
 #  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:21
+#  Last modified 2026-06-22 12:19:41
 #  File has been updated.
 #  Successfully updated.
 
 # Not a target:
 use_cases/use_case_01.c:
 #  Implicit rule search has been done.
-#  File is secondary (prerequisite of .SECONDA 
-RY).
-#  Last modified 2026-06-07 12:58:19
+#  File is secondary (prerequisite of .SECONDARY).
+#  Last modified 2026-06-22 01:01:15
 #  File has been updated.
 #  Successfully updated.
 
 # Not a target:
 manual/use_case_30B.exe:
 #  Implicit rule search has not been done.
-#  Modification time never checked.
+#  Modifica 
+tion time never checked.
 #  File has not been updated.
 
-test/use_case_04_1.exe: use_cases/use_case_04_1.c build/s_CPU.o build/s_ST.o build/s_as.o build/s_dir.o build/s_disassemble.o build/s_edit.o build/s_edit_hex.o build/s_edit_txt.o build/s_exec.o build/s_exec_asm.o build/s_exec_cpu.o build/s_exec_mem.o build/s_exec_mon 
-.o build/s_exec_screen.o build/s_file.o build/s_gui.o build/s_image_annot.o build/s_image_msa.o build/s_image_st.o build/s_line.o build/s_linea.o build/s_load.o build/s_mount.o build/s_renderer.o build/s_sector_analyze.o build/s_shifter.o build/s_tos.o build/s_trace.o build/p_win_D2D.o build/p_win_console.o build/p_win_gui.o build/p_win_platform.o
+test/use_case_04_1.exe: use_cases/use_case_04_1.c build/s_CPU.o build/s_ST.o build/s_annotate.o build/s_as.o build/s_dir.o build/s_disassemble.o build/s_edit.o build/s_edit_hex.o build/s_edit_txt.o build/s_exec.o build/s_exec_asm.o build/s_exec_cpu.o build/s_exec_mem.o build/s_exec_mon.o build/s_exec_screen.o build/s_file.o build/s_gui.o build/s_image_annot.o build/s_image_msa.o build/s_image_st.o build/s_line.o build/s_linea.o build/s_load.o build/s_m 
+ount.o build/s_renderer.o build/s_sector_analyze.o build/s_shifter.o build/s_tos.o build/s_trace.o build/p_win_D2D.o build/p_win_console.o build/p_win_gui.o build/p_win_platform.o build/s_main_testing.o
 #  Implicit rule search has been done.
 #  Implicit/static pattern stem: 'use_case_04_1'
 #  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-0 
-6-17 18:55:26
+#  Last modified 2026-06-22 12:33:04
 #  File has been updated.
 #  Successfully updated.
-#  recipe to execute (from 'Makefile', line 131):
-	$(CC) $(CFLAGS) $< $(LIB_OBJS) -o $@ $(LDFLAGS)
+#  recipe to execute (from 'Makefile', line 142):
+	$(CC) $(CFLAGS) $< $(TEST_MAIN_ 
+OBJ) $(LIB_OBJS) -o $@ $(LDFLAGS)
 	@echo "  --> $@"
 
 # Not a target:
-use_cases/use_case_30E.c:
-#  Implicit rule search has been done.
-#  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-14 20:20:55
-#  File has been updated.
-#  Successfully updated.
-
-test/use_case_24.exe: use_cases/use_case_24.c build/s_CPU.o build/s_ST.o build/s_as.o build/s_dir.o build/s_ 
-disassemble.o build/s_edit.o build/s_edit_hex.o build/s_edit_txt.o build/s_exec.o build/s_exec_asm.o build/s_exec_cpu.o build/s_exec_mem.o build/s_exec_mon.o build/s_exec_screen.o build/s_file.o build/s_gui.o build/s_image_annot.o build/s_image_msa.o build/s_image_st.o build/s_line.o build/s_linea.o build/s_load.o build/s_mount.o build/s_renderer.o build/s_sector_analyze.o build/s_shifter.o build/s_tos.o build/s_trace.o build/p_win_D2D.o build/p_win_console.o build/p_win_gui.o build/p_win_platform.o
-#  Impl 
-icit rule search has been done.
-#  Implicit/static pattern stem: 'use_case_24'
-#  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:33
-#  File has been updated.
-#  Successfully updated.
-#  recipe to execute (from 'Makefile', line 131):
-	$(CC) $(CFLAGS) $< $(LIB_OBJS) -o $@ $(LDFLAGS)
-	@echo "  --> $@"
+test/use_case_24.exe:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
 
 win/../src/gui_backend.h:
 #  Implicit rule search has been done.
 #  File is secondary (prerequisite of .SECONDARY).
 #  Last modified 2026-05-31 16:23:30
-#  File has been update 
-d.
+#  File has been updated.
 #  Successfully updated.
 
 # Not a target:
 manual/use_case_26.exe:
 #  Implicit rule search has not been done.
-#  Modification time never checked.
+#  Modification time ne 
+ver checked.
 #  File has not been updated.
-
-# Not a target:
-use_cases/use_case_06.c:
-#  Implicit rule search has been done.
-#  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-01 20:49:45
-#  File has been updated.
-#  Successfully updated.
 
 src/exec_asm.h:
 #  Implicit rule search has been done.
 #  File is secondary (prerequisite of .SECONDARY).
-#  Last 
- modified 2026-06-11 07:26:02
+#  Last modified 2026-06-11 07:26:02
 #  File has been updated.
 #  Successfully updated.
 
-test/use_case_05.exe: use_cases/use_case_05.c build/s_CPU.o build/s_ST.o build/s_as.o build/s_dir.o build/s_disassemble.o build/s_edit.o build/s_edit_hex.o build/s_edit_txt.o build/s_exec.o build/s_exec_asm.o build/s_exec_cpu.o build/s_exec_mem.o build/s_exec_mon.o build/s_exec_screen.o build/s_file.o build/s_gui.o build/s_image_annot.o build/s_image_msa.o build/s_image_st.o build/s_line.o build/s_linea.o build/s_load.o build/ 
-s_mount.o build/s_renderer.o build/s_sector_analyze.o build/s_shifter.o build/s_tos.o build/s_trace.o build/p_win_D2D.o build/p_win_console.o build/p_win_gui.o build/p_win_platform.o
+test/use_case_05.exe: use_cases/use_case_05.c build/s_CPU.o build/s_ST.o build/s_annotate.o build/s_as.o build/s_dir.o build/s_disassemble.o build/s_edit.o build/s_edit_hex.o build/s_edit_txt.o build/s_exec.o build/s_exec_asm.o build/s_exec_cpu.o build/s_exec_mem.o build/s 
+_exec_mon.o build/s_exec_screen.o build/s_file.o build/s_gui.o build/s_image_annot.o build/s_image_msa.o build/s_image_st.o build/s_line.o build/s_linea.o build/s_load.o build/s_mount.o build/s_renderer.o build/s_sector_analyze.o build/s_shifter.o build/s_tos.o build/s_trace.o build/p_win_D2D.o build/p_win_console.o build/p_win_gui.o build/p_win_platform.o build/s_main_testing.o
 #  Implicit rule search has been done.
 #  Implicit/static pattern stem: 'use_case_05'
-#  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:27
-#  File has been updated.
-#  Successfully updated.
-#  recipe to execute (from 'Makefile', line 131):
-	$(CC) $(CFLAGS) $< $(LIB_OBJS) -o $@ $(LDFLAGS)
-	@ech 
-o "  --> $@"
+#  File does not exist.
+#  File has been upd 
+ated.
+#  Needs to be updated (-q is set).
+# automatic
+# @ := test/use_case_05.exe
+# automatic
+# * := use_case_05
+# automatic
+# < := use_cases/use_case_05.c
+# automatic
+# + := use_cases/use_case_05.c build/s_CPU.o build/s_ST.o build/s_annotate.o build/s_as.o build/s_dir.o build/s_disassemble.o build/s_edit.o build/s_edit_hex.o build/s_edit_txt.o build/s_exec.o build/s_exec_asm.o build/s_exec_cpu.o build/s_exec_mem.o build/s_exec_mon.o build/s_exec_screen.o build/s_file.o build/s_gui.o build/s_image_annot.o b 
+uild/s_image_msa.o build/s_image_st.o build/s_line.o build/s_linea.o build/s_load.o build/s_mount.o build/s_renderer.o build/s_sector_analyze.o build/s_shifter.o build/s_tos.o build/s_trace.o build/p_win_D2D.o build/p_win_console.o build/p_win_gui.o build/p_win_platform.o build/s_main_testing.o
+# automatic
+# % := 
+# automatic
+# ^ := use_cases/use_case_05.c build/s_CPU.o build/s_ST.o build/s_annotate.o build/s_as.o build/s_dir.o build/s_disassemble.o build/s_edit.o build/s_edit_hex.o build/s_edit_txt.o build/s_exec.o build/s_exec_asm.o build/s_exec_cpu.o build/s_exec_mem.o build/s_exec_mon.o build/s_exec_screen.o build/s_file.o build/s_gui.o build/s_image_annot.o build/s_image_msa.o build/s_image_st.o build/s_line.o build/s_linea.o build/s_load.o build/s_mount.o build/s_renderer.o build/s_sector_analyze.o build/s_shifter.o build/s_tos.o build/s_trace.o build/p_win_D2D.o build/p_win_console.o build/p_win_gui.o build/p_win_platform.o build/s_main_testing.o
+# automatic
+# ? := use_cases/use_case_05.c build/s_CPU.o build/s_ST.o build/s_annotate.o build/s_as.o build/s_dir.o build/s_disassemble.o build/s_edit.o build/s_edit_hex.o build/s_edit_txt.o build/s_exec.o build/s_exec_asm.o build/s_exec_cpu.o build/s_exec_mem.o build/s_exec_mon.o build/s_exec_screen.o build/s_file.o build/s_gui.o build/s_image_annot.o build/s_image_msa.o build/s_image_st.o build/s_line.o build/s_linea.o build/s_load.o build/s_mount.o build/s_renderer.o build/s_sector_analyze.o build/s_shifter.o build/s_tos.o build/s_trace.o build/p_win_D2D.o bu 
+ild/p_win_console.o build/p_win_gui.o build/p_win_platform.o build/s_main_testing.o
+# automatic
+# | := 
+# variable set hash-table stats:
+# Load=8/32=25%, Rehash=0, Collisions=2/19=11%
+#  recipe to execute (from 'Makefile', line 142):
+	$(CC) $(CFLAGS) $< $(TEST_MAIN_OBJ) $(LIB_OBJS) -o $@ $(LDFLAGS)
+	@echo "  --> $@"
 
 # Not a target:
 manual/use_case_24E.exe:
@@ -1993,18 +1662,10 @@ manual/use_case_24E.exe:
 
 # Not a target:
 .DEFAULT:
-#  Implicit rule search has not been done.
+#  Implicit rule 
+ search has not been done.
 #  Modification time never checked.
 #  File has not been updated.
-
-# Not a target:
-use_cases/use_case_30C.c:
-#  Implicit rule search has been done.
-#  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-13 22:52:04
-#  File has been updated.
-#  Successfully  
-updated.
 
 # Not a target:
 manual/use_case_24D.exe:
@@ -2012,32 +1673,28 @@ manual/use_case_24D.exe:
 #  Modification time never checked.
 #  File has not been updated.
 
-test/use_case_20.exe: use_cases/use_case_20.c build/s_CPU.o build/s_ST.o build/s_as.o build/s_dir.o build/s_disassemble.o build/s_edit.o build/s_edit_hex.o build/s_edit_txt.o build/s_exec.o build/s_exec_asm.o build/s_exec_cpu.o build/s_exec_mem.o build/s_exec_mon.o build/s_exec_screen.o build/s_file.o build/s_gui.o build/s_image_annot.o build/s_imag 
-e_msa.o build/s_image_st.o build/s_line.o build/s_linea.o build/s_load.o build/s_mount.o build/s_renderer.o build/s_sector_analyze.o build/s_shifter.o build/s_tos.o build/s_trace.o build/p_win_D2D.o build/p_win_console.o build/p_win_gui.o build/p_win_platform.o
-#  Implicit rule search has been done.
-#  Implicit/static pattern stem: 'use_case_20'
-#  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:31
-#  File has been updated.
-#  Successfully updated.
-#  recipe to execute (from 'Makefile', line 131):
-	$(CC) $(CFLAGS) $< $(LIB_OBJS) -o $@ $(LDFLAGS)
-	@echo "  --> $@"
+# Not a target:
+test/use_case_20.exe:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
 
-all: build release test release/st4ever.exe test/use_case_01.exe test/use_case_02.exe test/use_case_03_1.exe test/use_case_03_2.exe test/use_case_03_3.exe test/use_case_04_1.exe test/use_case_04_2.exe test/use_case_04_3.exe test/use_case_04_4.exe test/use_case_05.exe test/use_case_06.exe test/use_case_07.exe test/use_case_08.exe test/use_case_09.exe test/use_case_10.exe test/use_case_11.exe test/use_case_12.exe test/use_case_13.exe test/use_case_14.exe test/use_case_14A.exe test/use_case_14B.exe test/use_case_15.exe test/use_case_15A.exe test/use_case_16.exe test/use_case_17.exe test/use_case_18_1.exe test/use_case_18_2.exe test/use_case_19.exe test/use_case_20.exe test/use_case_20A.exe test/use_case_21.exe test/use_case_22.exe test/use_case_23.exe test/use_case_23A.exe test/use_case_24.exe test/use_case_24A.exe test/use_case_24B.exe test/use_case_24C.exe test/use_case_24D.exe test/use_case_24E.exe test/use_case_24F.e 
-xe test/use_case_24G.exe test/use_case_25.exe test/use_case_25B.exe test/use_case_26.exe test/use_case_27.exe test/use_case_28.exe test/use_case_29.exe test/use_case_30A.exe test/use_case_30B.exe test/use_case_30C.exe test/use_case_30D.exe test/use_case_30E.exe test/use_case_30F.exe
+all: build release test release/st4ever.exe test/use_case_00.exe test/use_case_01.exe test/use_case_02.exe test/use_case_03_1.exe test/use_case_03_2.exe test/use_case_03_3.exe test/use_case_04_1.exe test/use_case_04_2.exe test/use_case_04_3.exe test/use_case_04_4.exe test/use_case_05.exe test/use_case_06.exe test/use_case_07.exe test/use_case_08.exe test/use_case_09.exe test/use_case_10.exe test/use_case_11.exe test/use_case_12.exe test/use_case_13.exe test/use_case_14.exe test/use_case_14A.exe test/use_case_14B.exe test/use_case_15.exe test/use_case_15A.exe test/use_case_16.exe test/use_case_17.exe test/use_case_18_1.exe test/use_case_18_2.exe test/use_case_19.exe test/use_case_20.exe test/use_case_20A.exe test/use_case_21.exe test/use_case_22.exe test/use_case_23.exe test/use_case_23A.exe test/use_case_24.exe test/use_case_24A.exe test/use_case_24B.exe test/use_case_24C.exe test/use_case_24D.exe test/use_case_24E.exe test/use_case_24F.exe test/use_case_24G.exe test/use_case_25.exe test/use_case_25B.exe test/use_case_26.exe test/use_case_27.exe test/use_case_28.exe test/use_case_29.exe test/use_case_30A.exe test/use_case_30B 
+.exe test/use_case_30C.exe test/use_case_30D.exe test/use_case_30E.exe test/use_case_30F.exe test/use_case_30G.exe
 #  Phony target (prerequisite of .PHONY).
 #  Command line target.
 #  Implicit rule search has not been done.
 #  File does not exist.
 #  File has been updated.
-#  Successfully updated.
+#  Needs to be updated (-q is set).
+# variable set hash-table stats:
+# Load=0/32=0%, Rehash=0, Collisions=0/8=0%
 
 src/disassemble.h:
-#  Implicit rule search  
-has been done.
+#  Implicit rule search has been done.
 #  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-08 10:17:54
+#  Last modifie 
+d 2026-06-08 10:17:54
 #  File has been updated.
 #  Successfully updated.
 
@@ -2053,59 +1710,45 @@ run: all
 #  Phony target (prerequisite of .PHONY).
 #  Implicit rule search has not been done.
 #  File does not exist.
-#  File has not been upda 
-ted.
-#  recipe to execute (from 'Makefile', line 138):
+#  File has not been updated.
+#  recipe to execute (from 'Makefile', line 149):
 	$(TARGET)
 
-# Not a target:
+# Not a target 
+:
 build/s_main.d:
 #  Implicit rule search has been done.
 #  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:21
+#  Last modified 2026-06-22 12:19:41
 #  File has been updated.
 #  Successfully updated.
 
-test/use_case_04_2.exe: use_cases/use_case_04_2.c build/s_CPU.o build/s_ST.o build/s_as.o build/s_dir.o build/s_disassemble.o build/s_edit.o build/s_edit_hex.o build/s_edit_txt.o build/s_exec.o build/s_exec_asm.o build/s_exec_cpu.o bu 
-ild/s_exec_mem.o build/s_exec_mon.o build/s_exec_screen.o build/s_file.o build/s_gui.o build/s_image_annot.o build/s_image_msa.o build/s_image_st.o build/s_line.o build/s_linea.o build/s_load.o build/s_mount.o build/s_renderer.o build/s_sector_analyze.o build/s_shifter.o build/s_tos.o build/s_trace.o build/p_win_D2D.o build/p_win_console.o build/p_win_gui.o build/p_win_platform.o
+test/use_case_04_2.exe: use_cases/use_case_04_2.c build/s_CPU.o build/s_ST.o build/s_annotate.o build/s_as.o build/s_dir.o build/s_disassemble.o build/s_edit.o build/s_edit_hex.o build/s_edit_txt.o build/s_exec.o build/s_exec_asm.o build/s_exec_cpu.o build/s_exec_mem.o build/s_exec_mon.o build/s_exec_screen.o buil 
+d/s_file.o build/s_gui.o build/s_image_annot.o build/s_image_msa.o build/s_image_st.o build/s_line.o build/s_linea.o build/s_load.o build/s_mount.o build/s_renderer.o build/s_sector_analyze.o build/s_shifter.o build/s_tos.o build/s_trace.o build/p_win_D2D.o build/p_win_console.o build/p_win_gui.o build/p_win_platform.o build/s_main_testing.o
 #  Implicit rule search has been done.
 #  Implicit/static pattern stem: 'use_case_04_2'
-#  File is secondary (prerequisite of .SE 
-CONDARY).
-#  Last modified 2026-06-17 18:55:26
+#  File is secondary (prerequisite of .SECONDARY).
+#  Last modified 2026-06-22 1 
+2:33:04
 #  File has been updated.
 #  Successfully updated.
-#  recipe to execute (from 'Makefile', line 131):
-	$(CC) $(CFLAGS) $< $(LIB_OBJS) -o $@ $(LDFLAGS)
+#  recipe to execute (from 'Makefile', line 142):
+	$(CC) $(CFLAGS) $< $(TEST_MAIN_OBJ) $(LIB_OBJS) -o $@ $(LDFLAGS)
 	@echo "  --> $@"
 
 # Not a target:
-use_cases/use_case_30F.c:
-#  Implicit rule search has been done.
-#  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-14 22:40:16
-#  File has been updated.
-#  Successfully updated.
-
-test/use_case_13.exe: use_cases/use_case_13.c build/s_CPU.o build/s_ST.o build/s_as.o build/s_dir.o build/s_disassemble.o build/s_edit.o build/s_edit_hex.o build/s_edit_txt.o build/s_exec.o build/s_exec_asm.o build/s_exec_cpu.o build/s_exec_mem.o build/s_exec_mon.o build/s_exec_screen.o build/s_file.o build/s_gui.o build/s_image_annot.o build/s_image_msa.o build/s_image_st.o build/s_line.o build/s_linea.o build/s_load.o build/s_mount.o build/s_renderer.o build/s_sector_analyze.o build/s_shifter.o build/s_tos.o build/s_trace.o build/p_win_D2D.o build/p_win_console.o build/p_win_gui 
-.o build/p_win_platform.o
-#  Implicit rule search has been done.
-#  Implicit/static pattern stem: 'use_case_13'
-#  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:29
-#  File has been updated.
-#  Successfully updated.
-#  recipe to execute (from 'Makefile', line 131):
-	$(CC) $(CFLAGS) $< $(LIB_OBJS) -o $@ $(LDFLAGS)
-	@echo "  --> $@"
+test/use_case_13.exe:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
 
 # Not a target:
 src/exec_mon.c:
 #  Implicit rule search has been done.
 #  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026 
--06-11 00:00:16
-#  File has been updated.
+#  Last modified 2026-06-11 00:00:16
+#  File has 
+ been updated.
 #  Successfully updated.
 
 src/load.h:
@@ -2122,25 +1765,25 @@ src/edit.h:
 #  File has been updated.
 #  Successfully updated.
 
-build/s_gui.o: src/gui.c src/gui.c src/gui_backend.h src/gui.h 
- src/common.h src/trace.h
-#  Implicit rule search has been done.
+build/s_gui.o: src/gui.c src/gui.c src/gui_backend.h src/gui.h src/common.h src/trace.h
+# 
+  Implicit rule search has been done.
 #  Implicit/static pattern stem: 'gui'
 #  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:20
+#  Last modified 2026-06-22 12:19:39
 #  File has been updated.
 #  Successfully updated.
-#  recipe to execute (from 'Makefile', line 112):
+#  recipe to execute (from 'Makefile', line 118):
 	$(CC) $(CFLAGS) -c $< -o $@
 
 build:
 #  Implicit rule search has not been done.
 #  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:56:08
+#  Last modified 2026-06-22 12:33:02
 #  File has been updated.
 #  Successfully updated.
- 
-#  recipe to execute (from 'Makefile', line 104):
+#  recipe to execute (from  
+'Makefile', line 110):
 	mkdir -p $@
 
 # Not a target:
@@ -2159,41 +1802,34 @@ manual/use_case_17.exe:
 build/s_trace.d:
 #  Implicit rule search has been done.
 #  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06 
--17 18:55:22
-#  File has been updated.
+#  Last modified 2026-06-22 12:19:42
+#  File has be 
+en updated.
 #  Successfully updated.
 
-test/use_case_23.exe: use_cases/use_case_23.c build/s_CPU.o build/s_ST.o build/s_as.o build/s_dir.o build/s_disassemble.o build/s_edit.o build/s_edit_hex.o build/s_edit_txt.o build/s_exec.o build/s_exec_asm.o build/s_exec_cpu.o build/s_exec_mem.o build/s_exec_mon.o build/s_exec_screen.o build/s_file.o build/s_gui.o build/s_image_annot.o build/s_image_msa.o build/s_image_st.o build/s_line.o build/s_linea.o build/s_load.o build/s_mount.o build/s 
-_renderer.o build/s_sector_analyze.o build/s_shifter.o build/s_tos.o build/s_trace.o build/p_win_D2D.o build/p_win_console.o build/p_win_gui.o build/p_win_platform.o
-#  Implicit rule search has been done.
-#  Implicit/static pattern stem: 'use_case_23'
-#  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:32
-#  File has been updated.
-#  Successfully updated.
-#  recipe to execute (from 'Makefile', line 131):
-	$(CC) $(CFLAGS) $< $(LIB_OBJS) -o $@ $(LDFLAGS)
-	@echo "  --> $@"
+# Not a target:
+test/use_case_23.exe:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
 
-# N 
-ot a target:
+# Not a target:
 manual/use_case_04_4.exe:
 #  Implicit rule search has not been done.
 #  Modification time never checked.
 #  File has not been updated.
 
-test/use_case_03_2.exe: use_cases/use_case_03_2.c build/s_CPU.o build/s_ST.o build/s_as.o build/s_dir.o build/s_disassemble.o build/s_edit.o build/s_edit_hex.o build/s_edit_txt.o build/s_exec.o build/s_exec_asm.o build/s_exec_cpu.o build/s_exec_mem.o build/s_exec_mon.o build/s_exec_screen.o build/s_file.o build/s_gui.o build/s_image_annot.o build/s_image_msa.o  
-build/s_image_st.o build/s_line.o build/s_linea.o build/s_load.o build/s_mount.o build/s_renderer.o build/s_sector_analyze.o build/s_shifter.o build/s_tos.o build/s_trace.o build/p_win_D2D.o build/p_win_console.o build/p_win_gui.o build/p_win_platform.o
-#  Implicit rule search has been done.
+test/use_case_03_2.exe: use_cases/use_case_03_2.c build/s_CPU.o build/s_ST.o build/s_annotate.o build/s_as.o build/s_dir.o build/s_disassemble.o build/s_edit.o build/s_edit_h 
+ex.o build/s_edit_txt.o build/s_exec.o build/s_exec_asm.o build/s_exec_cpu.o build/s_exec_mem.o build/s_exec_mon.o build/s_exec_screen.o build/s_file.o build/s_gui.o build/s_image_annot.o build/s_image_msa.o build/s_image_st.o build/s_line.o build/s_linea.o build/s_load.o build/s_mount.o build/s_renderer.o build/s_sector_analyze.o build/s_shifter.o build/s_tos.o build/s_trace.o build/p_win_D2D.o build/p_win_console.o build/p_win_gui.o build/p_win_platform.o build/s_main_testing.o
+#  Implicit rule search has 
+ been done.
 #  Implicit/static pattern stem: 'use_case_03_2'
 #  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:25
+#  Last modified 2026-06-22 12:33:03
 #  File has been updated.
 #  Successfully updated.
-#  recipe to execute (from 'Mak 
-efile', line 131):
-	$(CC) $(CFLAGS) $< $(LIB_OBJS) -o $@ $(LDFLAGS)
+#  recipe to execute (from 'Makefile', line 142):
+	$(CC) $(CFLAGS) $< $(TEST_MAIN_OBJ) $(LIB_OBJS) -o $@ $(LDFLAGS)
 	@echo "  --> $@"
 
 # Not a target:
@@ -2201,17 +1837,17 @@ use_cases/use_case_02.c:
 #  Implicit rule search has been done.
 #  File is secondary (prerequisite of .SECONDARY).
 #  Last modified 2026-05-31 22:19:00
-#  File has been updated.
+#  File h 
+as been updated.
 #  Successfully updated.
 
 # Not a target:
 build/s_exec_asm.d:
 #  Implicit rule search has been done.
 #  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:20
+#  Last modified 2026-06-22 12:19:38
 #  File has been updated.
-#  Successfully  
-updated.
+#  Successfully updated.
 
 # Not a target:
 manual/use_case_21.exe:
@@ -2222,7 +1858,8 @@ manual/use_case_21.exe:
 src/gui.h:
 #  Implicit rule search has been done.
 #  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-06 12:51:59
+#   
+Last modified 2026-06-06 12:51:59
 #  File has been updated.
 #  Successfully updated.
 
@@ -2230,125 +1867,108 @@ src/gui.h:
 src/dir.c:
 #  Implicit rule search has been done.
 #  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-10 23:17:27
-#  File  
-has been updated.
+#  Last modified 2026-06-20 23:54:53
+#  File has been updated.
 #  Successfully updated.
 
 # Not a target:
-use_cases/use_case_14A.c:
-#  Implicit rule search has been done.
-#  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 14:17:09
-#  File has been updated.
-#  Successfully updated.
-
-test/use_case_10.exe: use_cases/use_case_10.c build/s_CPU.o build/s_ST.o build/s_as.o build/s_dir.o build/s_disassemble.o build/s_edit.o build/s_edit_hex.o build/s_edit_txt.o build/s_exec.o build/s_exec_asm.o build/s_exec_cpu.o build/s_exec_mem.o  
-build/s_exec_mon.o build/s_exec_screen.o build/s_file.o build/s_gui.o build/s_image_annot.o build/s_image_msa.o build/s_image_st.o build/s_line.o build/s_linea.o build/s_load.o build/s_mount.o build/s_renderer.o build/s_sector_analyze.o build/s_shifter.o build/s_tos.o build/s_trace.o build/p_win_D2D.o build/p_win_console.o build/p_win_gui.o build/p_win_platform.o
-#  Implicit rule search has been done.
-#  Implicit/static pattern stem: 'use_case_10'
-#  File is secondary (prerequisite of .SECONDARY).
-#  Last m 
-odified 2026-06-17 18:55:28
-#  File has been updated.
-#  Successfully updated.
-#  recipe to execute (from 'Makefile', line 131):
-	$(CC) $(CFLAGS) $< $(LIB_OBJS) -o $@ $(LDFLAGS)
-	@echo "  --> $@"
+test/use_case_10.exe:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
 
 src/image_msa.h:
 #  Implicit rule search has been done.
-#  File is secondary (prerequisite of .SECONDARY).
+#  File is secon 
+dary (prerequisite of .SECONDARY).
 #  Last modified 2026-06-06 11:49:20
 #  File has been updated.
 #  Successfully updated.
 
-release/st4ever.exe: build/s_CPU.o build/s_ST.o build/s_as.o build/s_dir.o build/s_disassemble.o build/s_edit.o build/s 
-_edit_hex.o build/s_edit_txt.o build/s_exec.o build/s_exec_asm.o build/s_exec_cpu.o build/s_exec_mem.o build/s_exec_mon.o build/s_exec_screen.o build/s_file.o build/s_gui.o build/s_image_annot.o build/s_image_msa.o build/s_image_st.o build/s_line.o build/s_linea.o build/s_load.o build/s_main.o build/s_mount.o build/s_renderer.o build/s_sector_analyze.o build/s_shifter.o build/s_tos.o build/s_trace.o build/p_win_D2D.o build/p_win_console.o build/p_win_gui.o build/p_win_platform.o
-#  Implicit rule search has  
-not been done.
+release/st4ever.exe: build/s_CPU.o build/s_ST.o build/s_annotate.o build/s_as.o build/s_dir.o build/s_disassemble.o build/s_edit.o build/s_edit_hex.o build/s_edit_txt.o build/s_exec.o build/s_exec_asm.o build/s_exec_cpu.o build/s_exec_mem.o build/s_exec_mon.o build/s_exec_screen.o build/s_file.o build/s_gui.o build/s_image_annot.o build/s_image_msa.o build/s_image_st.o build/s_line.o b 
+uild/s_linea.o build/s_load.o build/s_main.o build/s_mount.o build/s_renderer.o build/s_sector_analyze.o build/s_shifter.o build/s_tos.o build/s_trace.o build/p_win_D2D.o build/p_win_console.o build/p_win_gui.o build/p_win_platform.o
+#  Implicit rule search has not been done.
 #  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:24
+#  Last modified 2026-06-22 12:19:45
 #  File has been updated.
 #  Successfully updated.
-#  recipe to execute (from 'Makefile', line 124):
+#  recipe to execute (from 'Makefile', line 135):
 	$(CC) $(ALL_OBJS) -o $@ $(LDFLAGS)
-	@echo "  --> $(TARGET)"
+	@echo "   
+--> $(TARGET)"
+
+src/main.h:
+#  Implicit rule search has been done.
+#  File is secondary (prerequisite of .SECONDARY).
+#  Last modified 2026-06-22 11:51:46
+#  File has been updated.
+#  Successfully updated.
 
 # Not a target:
 build/s_shifter.d:
 #  Implicit rule search has been done.
 #  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:22
+#  Last modified 2026-06-22 12:19:41
 #  File has been updated.
 #  Successfully updated.
 
 # Not a target:
-manual/use_case_ 
-14.exe:
+manual/use_case_14.exe:
+#  Implicit rule search has not been done.
+#  Modif 
+ication time never checked.
+#  File has not been updated.
+
+# Not a target:
+manual/use_case_30G.exe:
 #  Implicit rule search has not been done.
 #  Modification time never checked.
 #  File has not been updated.
 
-test/use_case_30B.exe: use_cases/use_case_30B.c build/s_CPU.o build/s_ST.o build/s_as.o build/s_dir.o build/s_disassemble.o build/s_edit.o build/s_edit_hex.o build/s_edit_txt.o build/s_exec.o build/s_exec_asm.o build/s_exec_cpu.o build/s_exec_mem.o build/s_exec_mon.o build/s_exec_screen.o build/s_file.o build/s_gui.o build/s_image_annot.o build/s_image_msa.o build/s_image_st.o build/s_line.o 
- build/s_linea.o build/s_load.o build/s_mount.o build/s_renderer.o build/s_sector_analyze.o build/s_shifter.o build/s_tos.o build/s_trace.o build/p_win_D2D.o build/p_win_console.o build/p_win_gui.o build/p_win_platform.o
-#  Implicit rule search has been done.
-#  Implicit/static pattern stem: 'use_case_30B'
-#  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:37
-#  File has been updated.
-#  Successfully updated.
-#  recipe to execute (from 'Makefile', line 131):
-	$(CC) $(CFLAGS 
-) $< $(LIB_OBJS) -o $@ $(LDFLAGS)
-	@echo "  --> $@"
+# Not a target:
+test/use_case_30B.exe:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
 
-build/s_exec_screen.o: src/exec_screen.c src/exec_screen.c src/exec_screen.h src/common.h src/gui.h src/renderer.h src/exec.h src/CPU.h src/ST.h src/disassemble.h src/shifter.h src/trace.h
+build/s_exec_screen.o: src/exec_screen.c src/exec_screen.c src/exec_screen.h src/common.h src/gui.h src/renderer.h src/exec.h src/CPU.h src/ST.h src/disa 
+ssemble.h src/shifter.h src/trace.h
 #  Implicit rule search has been done.
 #  Implicit/static pattern stem: 'exec_screen'
 #  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:20
+#  Last modified 2026-06-22 12:19:39
 #  File has been updated.
 #  Successfully updated.
-#  recipe to execute (from 'Makefile', line 1 
-12):
+#  recipe to execute (from 'Makefile', line 118):
 	$(CC) $(CFLAGS) -c $< -o $@
 
 test:
 #  Implicit rule search has not been done.
 #  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:38
+#  Last modified 2026-06-22 12:33:04
 #  File has been updated.
-#  Successfully updated.
-#  recipe to execute (from 'Makefile', line 104):
+#  Succe 
+ssfully updated.
+#  recipe to execute (from 'Makefile', line 110):
 	mkdir -p $@
 
 # Not a target:
 build/p_win_platform.d:
 #  Implicit rule search has been done.
 #  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:24
-#  File has been updated.
-#  Successfully updated.
-
-# Not  
-a target:
-use_cases/use_case_30A.c:
-#  Implicit rule search has been done.
-#  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-12 19:30:29
+#  Last modified 2026-06-22 12:19:45
 #  File has been updated.
 #  Successfully updated.
 
 build/s_exec_mem.o: src/exec_mem.c src/exec_mem.c src/exec_mem.h src/common.h src/gui.h src/renderer.h src/exec.h src/CPU.h src/ST.h src/disassemble.h src/trace.h
 #  Implicit rule search has been done.
-#  Implicit/static pattern stem: 'exec_mem'
+#  Implici 
+t/static pattern stem: 'exec_mem'
 #  File is secondary (prerequisite of .SECONDARY).
- 
-#  Last modified 2026-06-17 18:55:20
+#  Last modified 2026-06-22 12:19:38
 #  File has been updated.
 #  Successfully updated.
-#  recipe to execute (from 'Makefile', line 112):
+#  recipe to execute (from 'Makefile', line 118):
 	$(CC) $(CFLAGS) -c $< -o $@
 
 # Not a target:
@@ -2360,11 +1980,11 @@ manual/use_case_18_1.exe:
 # Not a target:
 build/s_image_msa.d:
 #  Implicit rule search has been done.
-#  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:20
+#  File is secondary (prerequis 
+ite of .SECONDARY).
+#  Last modified 2026-06-22 12:19:39
 #  File has been updated.
-#  
- Successfully updated.
+#  Successfully updated.
 
 # Not a target:
 manual/use_case_11.exe:
@@ -2373,49 +1993,24 @@ manual/use_case_11.exe:
 #  File has not been updated.
 
 # Not a target:
-use_cases/use_case_17.c:
-#  Implicit rule search has been done.
-#  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-06 11:56:29
-#  File has been updated.
-#  Successfully updated.
-
-# Not a target:
 src/shifter.c:
 #  Implicit rule search has been done.
-#  File is secondary (prerequisite of .SECONDARY 
-).
+#  File is secondary (prerequisite of .SECONDARY).
 #  Last modified 2026-06-11 18:36:16
 #  File has been updated.
 #  Successfully updated.
 
 # Not a target:
 manual/use_case_19.exe:
-#  Implicit rule search has not been done.
+#   
+Implicit rule search has not been done.
 #  Modification time never checked.
 #  File has not been updated.
 
-# Not a target:
-use_cases/use_case_25B.c:
-#  Implicit rule search has been done.
-#  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-11 07:55:04
-#  File has been updated.
-#  Successfully updated.
-
 src/gui_backend.h:
-#  Implicit rule search has be 
-en done.
+#  Implicit rule search has been done.
 #  File is secondary (prerequisite of .SECONDARY).
 #  Last modified 2026-05-31 16:23:30
-#  File has been updated.
-#  Successfully updated.
-
-# Not a target:
-use_cases/use_case_14B.c:
-#  Implicit rule search has been done.
-#  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:49:57
 #  File has been updated.
 #  Successfully updated.
 
@@ -2423,12 +2018,12 @@ use_cases/use_case_14B.c:
 manual/use_case_24.exe:
 #  Implicit rule search has not been done.
 #  Modification time never checked.
-#  File has not been up 
-dated.
+#  File has not been updated.
 
 # Not a target:
 src/image_msa.c:
-#  Implicit rule search has been done.
+#  Implicit rule search  
+has been done.
 #  File is secondary (prerequisite of .SECONDARY).
 #  Last modified 2026-06-08 13:00:02
 #  File has been updated.
@@ -2438,16 +2033,16 @@ src/image_msa.c:
 build/s_sector_analyze.d:
 #  Implicit rule search has been done.
 #  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:22
+#  Last modified 2026-06-22 12:19:41
 #  File has been updated.
 #  Successfully updated.
 
 # Not a target:
 win/win_console.c:
-#  Implicit rule search has been don 
-e.
+#  Implicit rule search has been done.
 #  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-01 12:08:48
+#  Last mod 
+ified 2026-06-01 12:08:48
 #  File has been updated.
 #  Successfully updated.
 
@@ -2459,22 +2054,22 @@ src/CPU.c:
 #  File has been updated.
 #  Successfully updated.
 
-build/s_line.o: src/line.c src/line.c src/line.h src/common.h src/console.h src/dir.h src/gui.h src/renderer.h src/edit_txt.h src/edit_hex.h src/disassemble.h src/ 
-sector_analyze.h src/image_annot.h src/load.h src/ST.h src/mount.h src/image_st.h src/image_msa.h src/file.h src/trace.h src/exec.h src/CPU.h
+build/s_line.o: src/line.c src/line.c src/line.h src/common.h src/console.h src/dir.h src/gui.h src/renderer.h src/edit_txt.h src/edit_hex.h src/disassemble.h src/sector_analyze.h src/image_annot.h src/load.h src/ST.h src/mount. 
+h src/image_st.h src/image_msa.h src/file.h src/trace.h src/exec.h src/CPU.h
 #  Implicit rule search has been done.
 #  Implicit/static pattern stem: 'line'
 #  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:21
+#  Last modified 2026-06-22 12:19:40
 #  File has been updated.
 #  Successfully updated.
-#  recipe to execute (from 'Makefile', line 112):
+#  recipe to execute (from 'Makefile', line 118):
 	$(CC) $(CFLAGS) -c $< -o $@
 
 src/file.h:
 #  Implicit rule search has been done.
-#  File is secondary  
-(prerequisite of .SECONDARY).
-#  Last modified 2026-06-01 20:21:39
+#  File is secondary (prerequisite of .SECONDARY).
+#  Last modified 2026-06-01 20:21:3 
+9
 #  File has been updated.
 #  Successfully updated.
 
@@ -2482,16 +2077,16 @@ build/s_linea.o: src/linea.c src/linea.c src/linea.h src/common.h src/ST.h src/C
 #  Implicit rule search has been done.
 #  Implicit/static pattern stem: 'linea'
 #  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:21
+#  Last modified 2026-06-22 12:19:41
 #  File has been updated.
 #  Successfully updated.
-#  recipe to execute (from 'Makefile', line 112):
-	$(CC) $(CFLAGS) -c $< -o $ 
-@
+#  recipe to execute (from 'Makefile', line 118):
+	$(CC) $(CFLAGS) -c $< -o $@
 
 # Not a target:
 manual/use_case_03_2.exe:
-#  Implicit rule search has not been done.
+#  Implicit rule sea 
+rch has not been done.
 #  Modification time never checked.
 #  File has not been updated.
 
@@ -2499,16 +2094,7 @@ manual/use_case_03_2.exe:
 build/s_edit_txt.d:
 #  Implicit rule search has been done.
 #  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:19
-#  File has been updated.
-#  Successfully updated.
-
-# Not a target:
-use_cases/use_case_24F.c:
-#  Implicit rule search has been done.
-#  File is secondary (prerequisite of .SECONDARY).
-#  Last mo 
-dified 2026-06-10 14:21:05
+#  Last modified 2026-06-22 12:19:38
 #  File has been updated.
 #  Successfully updated.
 
@@ -2518,22 +2104,14 @@ src/image_st.c:
 #  File is secondary (prerequisite of .SECONDARY).
 #  Last modified 2026-06-10 14:16:36
 #  File has been updated.
-#  Successfully updated.
+#  Successfully update 
+d.
 
 # Not a target:
-use_cases/use_case_24.c:
-#  Implicit rule search has been done.
-#  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-08 15:13:07
-#  File has been updated.
-#  Successfully updated.
-
-#  
-Not a target:
 build/s_CPU.d:
 #  Implicit rule search has been done.
 #  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:18
+#  Last modified 2026-06-22 12:19:34
 #  File has been updated.
 #  Successfully updated.
 
@@ -2541,47 +2119,32 @@ build/s_CPU.d:
 build/s_tos.d:
 #  Implicit rule search has been done.
 #  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:22
-#  File has been updated.
-#  Successfully updated.
-
-# Not a target:
-use_cases/use_case_24E.c:
-#  Implicit rule search has been done.
-#  File is se 
-condary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-10 14:04:04
+#  Last modified 2026-06-22 12:19:42
 #  File has been updated.
 #  Successfully updated.
 
 # Not a target:
 manual/use_case_25B.exe:
 #  Implicit rule search has not been done.
-#  Modification time never checked.
+#  M 
+odification time never checked.
 #  File has not been updated.
 
-test/use_case_17.exe: use_cases/use_case_17.c build/s_CPU.o build/s_ST.o build/s_as.o build/s_dir.o build/s_disassemble.o build/s_edit.o build/s_edit_hex.o build/s_edit_txt.o build/s_exec.o build/s_exec_asm.o build/s_exec_cpu.o build/ 
-s_exec_mem.o build/s_exec_mon.o build/s_exec_screen.o build/s_file.o build/s_gui.o build/s_image_annot.o build/s_image_msa.o build/s_image_st.o build/s_line.o build/s_linea.o build/s_load.o build/s_mount.o build/s_renderer.o build/s_sector_analyze.o build/s_shifter.o build/s_tos.o build/s_trace.o build/p_win_D2D.o build/p_win_console.o build/p_win_gui.o build/p_win_platform.o
-#  Implicit rule search has been done.
-#  Implicit/static pattern stem: 'use_case_17'
-#  File is secondary (prerequisite of .SECONDAR 
-Y).
-#  Last modified 2026-06-17 18:55:30
-#  File has been updated.
-#  Successfully updated.
-#  recipe to execute (from 'Makefile', line 131):
-	$(CC) $(CFLAGS) $< $(LIB_OBJS) -o $@ $(LDFLAGS)
-	@echo "  --> $@"
+# Not a target:
+test/use_case_17.exe:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
 
 build/p_win_gui.o: win/win_gui.c win/win_gui.c win/../src/gui_backend.h win/../src/gui.h win/../src/common.h win/../src/trace.h
 #  Implicit rule search has been done.
 #  Implicit/static pattern stem: 'win_gui'
 #  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:24
-#  F 
-ile has been updated.
+#  Last modified 2026-06-22 12:19:44
+#   
+File has been updated.
 #  Successfully updated.
-#  recipe to execute (from 'Makefile', line 116):
+#  recipe to execute (from 'Makefile', line 122):
 	$(CC) $(CFLAGS) -c $< -o $@
 
 src/exec_screen.h:
@@ -2598,8 +2161,8 @@ manual/use_case_20.exe:
 #  File has not been updated.
 
 # Not a target:
-manual/use_case_15A.e 
-xe:
+manual/use_case_15A. 
+exe:
 #  Implicit rule search has not been done.
 #  Modification time never checked.
 #  File has not been updated.
@@ -2608,7 +2171,7 @@ xe:
 build/s_disassemble.d:
 #  Implicit rule search has been done.
 #  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:19
+#  Last modified 2026-06-22 12:19:37
 #  File has been updated.
 #  Successfully updated.
 
@@ -2618,90 +2181,81 @@ manual/use_case_04_1.exe:
 #  Modification time never checked.
 #  File has not been updated.
 
-build/s_edit_hex.o: src/edit 
-_hex.c src/edit_hex.c src/edit_hex.h src/common.h src/gui.h src/renderer.h src/line.h src/disassemble.h src/sector_analyze.h src/image_annot.h src/file.h src/trace.h
+build/s_edit_hex.o: src/edi 
+t_hex.c src/edit_hex.c src/edit_hex.h src/common.h src/gui.h src/renderer.h src/line.h src/disassemble.h src/sector_analyze.h src/image_annot.h src/file.h src/trace.h
 #  Implicit rule search has been done.
 #  Implicit/static pattern stem: 'edit_hex'
 #  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:19
+#  Last modified 2026-06-22 12:19:38
 #  File has been updated.
 #  Successfully updated.
-#  recipe to execute (from 'Makefile', line 112):
+#  recipe to execute (from 'Makefile', line 118):
 	$(CC) $(CFLAGS) -c $< -o $@
 
 # Not a target:
-manual/use_case_04_2.exe:
-#  
- Implicit rule search has not been done.
+manual/use_case_00.exe:
+#   
+Implicit rule search has not been done.
 #  Modification time never checked.
 #  File has not been updated.
 
-test/use_case_14A.exe: use_cases/use_case_14A.c build/s_CPU.o build/s_ST.o build/s_as.o build/s_dir.o build/s_disassemble.o build/s_edit.o build/s_edit_hex.o build/s_edit_txt.o build/s_exec.o build/s_exec_asm.o build/s_exec_cpu.o build/s_exec_mem.o build/s_exec_mon.o build/s_exec_screen.o build/s_file.o build/s_gui.o build/s_image_annot.o build/s_image_msa.o build/s_image_st.o build/s_line.o build/s_l 
-inea.o build/s_load.o build/s_mount.o build/s_renderer.o build/s_sector_analyze.o build/s_shifter.o build/s_tos.o build/s_trace.o build/p_win_D2D.o build/p_win_console.o build/p_win_gui.o build/p_win_platform.o
-#  Implicit rule search has been done.
-#  Implicit/static pattern stem: 'use_case_14A'
-#  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:29
-#  File has been updated.
-#  Successfully updated.
-#  recipe to execute (from 'Makefile', line 131):
-	$(CC) $(CFLAGS) $< $(LIB 
-_OBJS) -o $@ $(LDFLAGS)
-	@echo "  --> $@"
+# Not a target:
+manual/use_case_04_2.exe:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
 
 # Not a target:
-use_cases/use_case_08.c:
-#  Implicit rule search has been done.
-#  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-11 09:24:07
-#  File has been updated.
-#  Successfully updated.
+test/use_case_14A.exe:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
 
 # Not a target:
 src/sector_analyze.c:
 #  Implicit rule search has been done.
-#  File is secondary (prerequisite of .SECONDARY).
+#  File is secondary (prere 
+quisite of .SECONDARY).
 #  Last modified 2026-06-08 18:32:52
 #  File has been updated.
 #  Successfully updated.
 
 # Not a target:
-build/p_win_D2D. 
-d:
+build/p_win_D2D.d:
 #  Implicit rule search has been done.
 #  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:23
+#  Last modified 2026-06-22 12:19:43
 #  File has been updated.
 #  Successfully updated.
 
-test/use_case_04_4.exe: use_cases/use_case_04_4.c build/s_CPU.o build/s_ST.o build/s_as.o build/s_dir.o build/s_disassemble.o build/s_edit.o build/s_edit_hex.o build/s_edit_txt.o build/s_exec.o build/s_exec_asm.o build/s_exec_cpu.o build/s_exec_mem.o build/s_exec_mon.o build/s_exec_screen.o build/s_file.o build/s_gui.o build/s_i 
-mage_annot.o build/s_image_msa.o build/s_image_st.o build/s_line.o build/s_linea.o build/s_load.o build/s_mount.o build/s_renderer.o build/s_sector_analyze.o build/s_shifter.o build/s_tos.o build/s_trace.o build/p_win_D2D.o build/p_win_console.o build/p_win_gui.o build/p_win_platform.o
-#  Implicit rule search has been done.
+test/use_case_04_4.exe: use_cases/use_case_04_4.c build/s_CPU.o build/s_ST.o build/s_annotate.o build/s_as.o build/s_dir.o build/s_disassemble.o build/s_edit.o build/s_edit_hex.o build/ 
+s_edit_txt.o build/s_exec.o build/s_exec_asm.o build/s_exec_cpu.o build/s_exec_mem.o build/s_exec_mon.o build/s_exec_screen.o build/s_file.o build/s_gui.o build/s_image_annot.o build/s_image_msa.o build/s_image_st.o build/s_line.o build/s_linea.o build/s_load.o build/s_mount.o build/s_renderer.o build/s_sector_analyze.o build/s_shifter.o build/s_tos.o build/s_trace.o build/p_win_D2D.o build/p_win_console.o build/p_win_gui.o build/p_win_platform.o build/s_main_testing.o
+#  Implicit rule search has been done. 
+
 #  Implicit/static pattern stem: 'use_case_04_4'
 #  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:26
-#  File has been updated.
-#  Successfully updated 
-.
-#  recipe to execute (from 'Makefile', line 131):
-	$(CC) $(CFLAGS) $< $(LIB_OBJS) -o $@ $(LDFLAGS)
-	@echo "  --> $@"
-
-# Not a target:
-use_cases/use_case_19.c:
-#  Implicit rule search has been done.
-#  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-07 01:01:40
+#  Last modified 2026-06-22 12:33:04
 #  File has been updated.
 #  Successfully updated.
+#  recipe to execute (from 'Makefile', line 142):
+	$(CC) $(CFLAGS) $< $(TEST_MAIN_OBJ) $(LIB_OBJS) -o $@ $(LDFLAGS)
+	@echo "  --> $@"
 
 # Not a target:
 win/win_gui.c:
 #  Implicit rule search has been done.
 #  File is secondary (prerequisite of .SECONDARY).
 #  Last modified 2026-06-02 08:36:57
-#  File has be 
-en updated.
+#  File has been updated.
+#  S 
+uccessfully updated.
+
+# Not a target:
+use_cases/use_case_00.c:
+#  Implicit rule search has been done.
+#  File is secondary (prerequisite of .SECONDARY).
+#  Last modified 2026-06-22 12:19:09
+#  File has been updated.
 #  Successfully updated.
 
 # Not a target:
@@ -2712,7 +2266,8 @@ manual/use_case_16.exe:
 
 win/../src/renderer_backend.h:
 #  Implicit rule search has been done.
-#  File is secondary (prerequisite of .SECONDARY).
+#  File is secondary (prerequisite of .SECONDARY). 
+
 #  Last modified 2026-06-11 19:26:27
 #  File has been updated.
 #  Successfully updated.
@@ -2720,8 +2275,7 @@ win/../src/renderer_backend.h:
 # Not a target:
 manual/use_case_24C.exe:
 #  Implicit rule search has not been done.
-#  Modification time never che 
-cked.
+#  Modification time never checked.
 #  File has not been updated.
 
 src/shifter.h:
@@ -2733,7 +2287,8 @@ src/shifter.h:
 
 # Not a target:
 use_cases/use_case_03_1.c:
-#  Implicit rule search has been done.
+#  Implicit rule search has been d 
+one.
 #  File is secondary (prerequisite of .SECONDARY).
 #  Last modified 2026-05-31 21:44:49
 #  File has been updated.
@@ -2741,51 +2296,16 @@ use_cases/use_case_03_1.c:
 
 # Not a target:
 win/win_D2D.c:
-#  Implicit rule search has  
-been done.
-#  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-11 19:26:50
-#  File has been updated.
-#  Successfully updated.
-
-# Not a target:
-use_cases/use_case_24D.c:
 #  Implicit rule search has been done.
 #  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-09 08:38:30
+#  Last modified 2026-06-11 19:26:50
 #  File has been updated.
 #  Successfully updated.
 
 src/exec_mon.h:
 #  Implicit rule search has been done.
 #  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-10 23:50: 
-15
-#  File has been updated.
-#  Successfully updated.
-
-# Not a target:
-use_cases/use_case_13.c:
-#  Implicit rule search has been done.
-#  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 17:29:52
-#  File has been updated.
-#  Successfully updated.
-
-# Not a target:
-use_cases/use_case_11.c:
-#  Implicit rule search has been done.
-#  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 14:11:06
-#  File has been updated.
-#  Successfully updated.
-
-# Not a target:
-u 
-se_cases/use_case_30D.c:
-#  Implicit rule search has been done.
-#  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-14 20:22:09
+#  Last modified 2026-06-10 23:50:15
 #  File has been updated.
 #  Successfully updated.
 
@@ -2793,46 +2313,37 @@ build/s_load.o: src/load.c src/load.c src/load.h src/common.h src/ST.h src/file.
 #  Implicit rule search has been done.
 #  Implicit/static pattern stem: 'load'
 #  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:21
+#  Last modified 2026-06-22 12:19:41
 #  File has been updated.
-#  Successfully updat 
-ed.
-#  recipe to execute (from 'Makefile', line 112):
+#  Successfully updated.
+#  recipe to execute (from 'Makefile', line 118):
 	$(CC) $(CFLAGS) -c $< -o $@
 
 build/s_as.o: src/as.c src/as.c src/as.h src/common.h src/trace.h
-#  Implicit rule search has been done.
+#  Implicit rule 
+ search has been done.
 #  Implicit/static pattern stem: 'as'
 #  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:18
+#  Last modified 2026-06-22 12:19:35
 #  File has been updated.
 #  Successfully updated.
-#  recipe to execute (from 'Makefile', line 112):
+#  recipe to execute (from 'Makefile', line 118):
 	$(CC) $(CFLAGS) -c $< -o $@
 
 # Not a target:
 src/load.c:
-#  Implicit rule search has been done. 
-
+#  Implicit rule search has been done.
 #  File is secondary (prerequisite of .SECONDARY).
 #  Last modified 2026-06-08 15:04:02
 #  File has been updated.
 #  Successfully updated.
 
 # Not a target:
-win/win_platform.c:
+win/win_p 
+latform.c:
 #  Implicit rule search has been done.
 #  File is secondary (prerequisite of .SECONDARY).
 #  Last modified 2026-06-01 15:00:46
-#  File has been updated.
-#  Successfully updated.
-
-# Not a target:
-use_cases/use_case_15.c:
-#  Implicit rule search has been done.
-#  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06- 
-03 14:15:30
 #  File has been updated.
 #  Successfully updated.
 
@@ -2844,35 +2355,42 @@ manual/use_case_07.exe:
 
 build/s_sector_analyze.o: src/sector_analyze.c src/sector_analyze.c src/sector_analyze.h src/common.h src/disassemble.h src/trace.h
 #  Implicit rule search has been done.
-#  Implicit/static pattern stem: 'sector_analyze'
+# 
+  Implicit/static pattern stem: 'sector_analyze'
 #  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-1 
-7 18:55:22
+#  Last modified 2026-06-22 12:19:41
 #  File has been updated.
 #  Successfully updated.
-#  recipe to execute (from 'Makefile', line 112):
+#  recipe to execute (from 'Makefile', line 118):
 	$(CC) $(CFLAGS) -c $< -o $@
 
 release:
 #  Implicit rule search has not been done.
 #  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:24
+#  Last modified 2026-06-22 12:19:45
 #  File has been updated.
 #  Successfully updated.
-#  recipe to execute (from 'Makefile', line 104):
-	mkdir -p $@
+#  recipe to execute (from 'Makefile', line 110):
+	mk 
+dir -p $@
 
-test/use_case_14.exe: use_cases/use_case_14.c build/s_CPU.o build/s_ST.o build/s_as.o build/s_dir.o build/s_disasse 
-mble.o build/s_edit.o build/s_edit_hex.o build/s_edit_txt.o build/s_exec.o build/s_exec_asm.o build/s_exec_cpu.o build/s_exec_mem.o build/s_exec_mon.o build/s_exec_screen.o build/s_file.o build/s_gui.o build/s_image_annot.o build/s_image_msa.o build/s_image_st.o build/s_line.o build/s_linea.o build/s_load.o build/s_mount.o build/s_renderer.o build/s_sector_analyze.o build/s_shifter.o build/s_tos.o build/s_trace.o build/p_win_D2D.o build/p_win_console.o build/p_win_gui.o build/p_win_platform.o
-#  Implicit ru 
-le search has been done.
-#  Implicit/static pattern stem: 'use_case_14'
+# Not a target:
+test/use_case_14.exe:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
+
+test/use_case_00.exe: use_cases/use_case_00.c build/s_CPU.o build/s_ST.o build/s_annotate.o build/s_as.o build/s_dir.o build/s_disassemble.o build/s_edit.o build/s_edit_hex.o build/s_edit_txt.o build/s_exec.o build/s_exec_asm.o build/s_exec_cpu.o build/s_exec_mem.o build/s_exec_mon.o build/s_exec_screen.o build/s_file.o build/s_gui.o build/s_image_ann 
+ot.o build/s_image_msa.o build/s_image_st.o build/s_line.o build/s_linea.o build/s_load.o build/s_mount.o build/s_renderer.o build/s_sector_analyze.o build/s_shifter.o build/s_tos.o build/s_trace.o build/p_win_D2D.o build/p_win_console.o build/p_win_gui.o build/p_win_platform.o build/s_main_testing.o
+#  Implicit rule search has been done.
+#  Implicit/static pattern stem: 'use_case_00'
 #  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:29
+#  Last modified 2026-06-22 12:33:02
 #  File has been updated.
-#  Successfully updated.
-#  recipe to execute (from 'Makefile', line 131):
-	$(CC) $(CFLAGS) $< $(LIB_OBJS) -o $@ $(LDFLAGS)
+#  Success 
+fully updated.
+#  recipe to execute (from 'Makefile', line 142):
+	$(CC) $(CFLAGS) $< $(TEST_MAIN_OBJ) $(LIB_OBJS) -o $@ $(LDFLAGS)
 	@echo "  --> $@"
 
 # Not a target:
@@ -2882,76 +2400,56 @@ manual/use_case_24F.exe:
 #  File has not been updated.
 
 # Not a target:
-use_cases/use_ca 
-se_04_3.c:
+use_cases/use_case_04_3.c:
 #  Implicit rule search has been done.
 #  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-01 14:05:50
+#  Last modified 2026-06-22 01:18:10
 #  File has been updated.
-#  Successfully updated.
+#  Successfully 
+ updated.
 
 # Not a target:
 build/s_as.d:
 #  Implicit rule search has been done.
 #  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:18
+#  Last modified 2026-06-22 12:19:34
 #  File has been updated.
 #  Successfully updated.
 
 src/image_annot.h:
 #  Implicit rule search has been done.
 #  File is secondary (prerequisite of .SECONDARY).
-#  L 
-ast modified 2026-06-08 23:53:27
+#  Last modified 2026-06-08 23:53:27
 #  File has been updated.
 #  Successfully updated.
 
-test/use_case_30F.exe: use_cases/use_case_30F.c build/s_CPU.o build/s_ST.o build/s_as.o build/s_dir.o build/s_disassemble.o build/s_edit.o build/s_edit_hex.o build/s_edit_txt.o build/s_exec.o build/s_exec_asm.o build/s_exec_cpu.o build/s_exec_mem.o build/s_exec_mon.o build/s_exec_screen.o build/s_file.o build/s_gui.o build/s_image_annot.o build/s_image_msa.o build/s_image_st.o build/s_line.o build/s_linea.o build/s_load.o b 
-uild/s_mount.o build/s_renderer.o build/s_sector_analyze.o build/s_shifter.o build/s_tos.o build/s_trace.o build/p_win_D2D.o build/p_win_console.o build/p_win_gui.o build/p_win_platform.o
-#  Implicit rule search has been done.
-#  Implicit/static pattern stem: 'use_case_30F'
-#  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:38
-#  File has been updated.
-#  Successfully updated.
-#  recipe to execute (from 'Makefile', line 131):
-	$(CC) $(CFLAGS) $< $(LIB_OBJS) -o $@ $(LDFLAGS) 
-
-	@echo "  --> $@"
+# Not a target:
+test/use_case_30F.exe:
+#  Implicit rule search has not been done.
+#  Modificat 
+ion time never checked.
+#  File has not been updated.
 
 # Not a target:
 build/p_win_console.d:
 #  Implicit rule search has been done.
 #  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:23
+#  Last modified 2026-06-22 12:19:43
 #  File has been updated.
 #  Successfully updated.
 
-test/use_case_07.exe: use_cases/use_case_07.c build/s_CPU.o build/s_ST.o build/s_as.o build/s_dir.o build/s_disassemble.o build/s_edit.o build/s_edit_hex.o build/s_edit_txt.o build/s_exec.o build/s_exec_asm.o build/s_exec_cpu.o build/s_exec_mem.o build/s_exec_mon.o build/s_ 
-exec_screen.o build/s_file.o build/s_gui.o build/s_image_annot.o build/s_image_msa.o build/s_image_st.o build/s_line.o build/s_linea.o build/s_load.o build/s_mount.o build/s_renderer.o build/s_sector_analyze.o build/s_shifter.o build/s_tos.o build/s_trace.o build/p_win_D2D.o build/p_win_console.o build/p_win_gui.o build/p_win_platform.o
-#  Implicit rule search has been done.
-#  Implicit/static pattern stem: 'use_case_07'
-#  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:27 
+# Not a target:
+test/use_case_07.exe:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
 
-#  File has been updated.
-#  Successfully updated.
-#  recipe to execute (from 'Makefile', line 131):
-	$(CC) $(CFLAGS) $< $(LIB_OBJS) -o $@ $(LDFLAGS)
-	@echo "  --> $@"
-
-test/use_case_28.exe: use_cases/use_case_28.c build/s_CPU.o build/s_ST.o build/s_as.o build/s_dir.o build/s_disassemble.o build/s_edit.o build/s_edit_hex.o build/s_edit_txt.o build/s_exec.o build/s_exec_asm.o build/s_exec_cpu.o build/s_exec_mem.o build/s_exec_mon.o build/s_exec_screen.o build/s_file.o build/s_gui.o build/s_image_annot.o bui 
-ld/s_image_msa.o build/s_image_st.o build/s_line.o build/s_linea.o build/s_load.o build/s_mount.o build/s_renderer.o build/s_sector_analyze.o build/s_shifter.o build/s_tos.o build/s_trace.o build/p_win_D2D.o build/p_win_console.o build/p_win_gui.o build/p_win_platform.o
-#  Implicit rule search has been done.
-#  Implicit/static pattern stem: 'use_case_28'
-#  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:36
-#  File has been updated.
-#  Successfully updated.
-#  recipe to exe 
-cute (from 'Makefile', line 131):
-	$(CC) $(CFLAGS) $< $(LIB_OBJS) -o $@ $(LDFLAGS)
-	@echo "  --> $@"
+# Not a target:
+test/use_case_28.exe:
+#  Implicit rule search has not been done.
+#  Modific 
+ation time never checked.
+#  File has not been updated.
 
 # Not a target:
 use_cases/use_case_04_4.c:
@@ -2961,19 +2459,18 @@ use_cases/use_case_04_4.c:
 #  File has been updated.
 #  Successfully updated.
 
+src/annotate.h:
+#  Implicit rule search has been done.
+#  File is secondary (prerequisite of .SECONDARY).
+#  Last modified 2026-06-18 01:20:28
+#  File has been updated.
+#  Successfully updated.
+
 .PHONY: all run tests manual clean dd
+ 
 #  Implicit rule search has not been done.
 #  Modification time never checked.
 #  File has not been updated.
-
-# Not a target:
-use_cases/use_case_14.c: 
-
-#  Implicit rule search has been done.
-#  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-03 08:48:42
-#  File has been updated.
-#  Successfully updated.
 
 # Not a target:
 manual/use_case_14A.exe:
@@ -2987,23 +2484,17 @@ manual/use_case_30D.exe:
 #  Modification time never checked.
 #  File has not been updated.
 
-test/use_case_22.exe: use_cases/use_case_22.c build/s_CPU.o build/s_ST.o build/s_as.o build/s_dir.o build/s_disassemble.o build/s_edit.o build/s_edit_hex.o build/s_edit_txt.o build/s_exec.o build/s_exec_asm.o build/s_exec_cpu.o build/s_exec_mem.o build/s_exec_mon.o build/s_exec_screen.o build/s_file.o build/s_gui.o build/s_image_annot.o build/s_image_msa.o build/s_image_st.o build/s_line.o build/s_linea.o build/s_load.o build/s_mount.o build/s_renderer.o build/s_sector_analyze.o build/s_shifter.o build/s_tos.o build/s_trace.o build/p_wi 
-n_D2D.o build/p_win_console.o build/p_win_gui.o build/p_win_platform.o
-#  Implicit rule search has been done.
-#  Implicit/static pattern stem: 'use_case_22'
-#  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:32
-#  File has been updated.
-#  Successfully updated.
-#  recipe to execute (from 'Makefile', line 131):
-	$(CC) $(CFLAGS) $< $(LIB_OBJS) -o $@ $(LDFLAGS)
-	@echo "  --> $@"
+# Not a target:
+test/use_case_22.exe:
+#  Implicit rule search has not been done.
+#  Modification tim 
+e never checked.
+#  File has not been updated.
 
 # Not a target:
 manual/use_case_01.exe:
 #  Implicit rule search has not been done.
-#  Modification 
- time never checked.
+#  Modification time never checked.
 #  File has not been updated.
 
 src/renderer.h:
@@ -3016,30 +2507,30 @@ src/renderer.h:
 src/common.h:
 #  Implicit rule search has been done.
 #  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 17:35:14
+#  Last modifie 
+d 2026-06-22 10:05:44
 #  File has been updated.
 #  Successfully updated.
 
+# Not a target:
+test/use_case_30G.exe:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
+
 src/image_st.h:
 #  Implicit rule search has been done.
-#  File is second 
-ary (prerequisite of .SECONDARY).
+#  File is secondary (prerequisite of .SECONDARY).
 #  Last modified 2026-06-10 14:16:55
 #  File has been updated.
 #  Successfully updated.
 
-test/use_case_16.exe: use_cases/use_case_16.c build/s_CPU.o build/s_ST.o build/s_as.o build/s_dir.o build/s_disassemble.o build/s_edit.o build/s_edit_hex.o build/s_edit_txt.o build/s_exec.o build/s_exec_asm.o build/s_exec_cpu.o build/s_exec_mem.o build/s_exec_mon.o build/s_exec_screen.o build/s_file.o build/s_gui.o build/s_image_annot.o build/s_image_msa.o build/s_image_st.o build/s_lin 
-e.o build/s_linea.o build/s_load.o build/s_mount.o build/s_renderer.o build/s_sector_analyze.o build/s_shifter.o build/s_tos.o build/s_trace.o build/p_win_D2D.o build/p_win_console.o build/p_win_gui.o build/p_win_platform.o
-#  Implicit rule search has been done.
-#  Implicit/static pattern stem: 'use_case_16'
-#  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:30
-#  File has been updated.
-#  Successfully updated.
-#  recipe to execute (from 'Makefile', line 131):
-	$(CC) $(CFLA 
-GS) $< $(LIB_OBJS) -o $@ $(LDFLAGS)
-	@echo "  --> $@"
+# Not a target:
+test/use_case_16.exe:
+#  Implicit rule search has not been done.
+#  Modificati 
+on time never checked.
+#  File has not been updated.
 
 win/../src/renderer.h:
 #  Implicit rule search has been done.
@@ -3048,74 +2539,54 @@ win/../src/renderer.h:
 #  File has been updated.
 #  Successfully updated.
 
-# Not a target:
-use_cases/use_case_25.c:
-#  Implicit rule search has been done.
-#  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-11 07:16:18
-#  File has been updated.
-#  Successfully updated.
-
-test/use_case_01.exe: use_cases/use_case_01.c build/s_CPU.o build/s_ST.o build/s_as.o build/s_dir.o build/s_disassemble.o build/s_edit.o build/s_edit_hex.o build/s_edit_txt.o build/s_exec.o build/s_exec_asm.o build/s_exec_cpu.o build/s_exec_mem.o build/s_exec_mon.o build/s_exec_screen.o build/s_file.o build/s_gui.o build/s_image_annot.o build/s_image_msa.o build/s_image_st.o build/s_line.o build/s_linea.o build/s_load.o build/s_mount.o build/s_renderer.o build/s_sector_analyze.o build/s_shifter.o build/s_tos.o build/s_trace.o build/p_win_D2D 
-.o build/p_win_console.o build/p_win_gui.o build/p_win_platform.o
+test/use_case_01.exe: use_cases/use_case_01.c build/s_CPU.o build/s_ST.o build/s_annotate.o build/s_as.o build/s_dir.o build/s_disassemble.o build/s_edit.o build/s_edit_hex.o build/s_edit_txt.o build/s_exec.o build/s_exec_asm.o build/s_exec_cpu.o build/s_e 
+xec_mem.o build/s_exec_mon.o build/s_exec_screen.o build/s_file.o build/s_gui.o build/s_image_annot.o build/s_image_msa.o build/s_image_st.o build/s_line.o build/s_linea.o build/s_load.o build/s_mount.o build/s_renderer.o build/s_sector_analyze.o build/s_shifter.o build/s_tos.o build/s_trace.o build/p_win_D2D.o build/p_win_console.o build/p_win_gui.o build/p_win_platform.o build/s_main_testing.o
 #  Implicit rule search has been done.
 #  Implicit/static pattern stem: 'use_case_01'
-#  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:25
+#  File is secondary (prere 
+quisite of .SECONDARY).
+#  Last modified 2026-06-22 12:33:02
 #  File has been updated.
 #  Successfully updated.
-#  recipe to execute (from 'Makefile', line 131):
-	$(CC) $(CFLAGS) $< $(LIB_OBJS) -o $@ $(LDFLAGS)
+#  recipe to execute (from 'Makefile', line 142):
+	$(CC) $(CFLAGS) $< $(TEST_MAIN_OBJ) $(LIB_OBJS) -o $@ $(LDFLAGS)
 	@echo "  --> $@"
 
 src/mount.h:
 #  Implicit rule search has been done.
 #  File is secondary (prerequisite of .SECONDARY).
- 
 #  Last modified 2026-06-10 23:03:00
 #  File has been updated.
 #  Successfully updated.
 
-test/use_case_29.exe: use_cases/use_case_29.c build/s_CPU.o build/s_ST.o build/s_as.o build/s_dir.o build/s_disassemble.o build/s_edit.o build/s_edit_hex.o build/s_edit_txt.o build/s_exec.o build/s_exec_asm.o build/s_exec_cpu.o build/s_exec_mem.o build/s_exec_mon.o build/s_exec_screen.o build/s_file.o build/s_gui.o build/s_image_annot.o build/s_image_msa.o build/s_image_st.o build/s_line.o build/s_linea.o build/s_load.o 
- build/s_mount.o build/s_renderer.o build/s_sector_analyze.o build/s_shifter.o build/s_tos.o build/s_trace.o build/p_win_D2D.o build/p_win_console.o build/p_win_gui.o build/p_win_platform.o
-#  Implicit rule search has been done.
-#  Implicit/static pattern stem: 'use_case_29'
-#  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:37
-#  File has been updated.
-#  Successfully updated.
-#  recipe to execute (from 'Makefile', line 131):
-	$(CC) $(CFLAGS) $< $(LIB_OBJS) -o $@ $(LDFLAGS)
-	@echo "  --> $@"
-
-test/use_case_24E.exe: use_cases/use_case_24E.c build/s_CPU.o build/s_ST.o build/s_as.o build/s_dir.o build/s_disassemble.o build/s_edit.o build/s_edit_hex.o build/s_edit_txt.o build/s_exec.o build/s_exec_asm.o build/s_exec_cpu.o build/s_exec_mem.o build/s_exec_mon.o build/s_exec_screen.o build/s_file.o build/s_gui.o build/s_image_annot.o build/s_image_msa.o build/s_image_st.o build/s_line.o build/s_linea.o build/s_load.o build/s_mount.o build/s_renderer.o build/s_sector_analyze.o build 
-/s_shifter.o build/s_tos.o build/s_trace.o build/p_win_D2D.o build/p_win_console.o build/p_win_gui.o build/p_win_platform.o
-#  Implicit rule search has been done.
-#  Implicit/static pattern stem: 'use_case_24E'
-#  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:35
-#  File has been updated.
-#  Successfully updated.
-#  recipe to execute (from 'Makefile', line 131):
-	$(CC) $(CFLAGS) $< $(LIB_OBJS) -o $@ $(LDFLAGS)
-	@echo "  --> $@"
-
 # Not a target:
-manual/use_case_30E.exe:
-#   
-Implicit rule search has not been done.
+test/use_case_29.exe:
+#  Implicit rule search has not bee 
+n done.
 #  Modification time never checked.
 #  File has not been updated.
 
-build/s_exec_cpu.o: src/exec_cpu.c src/exec_cpu.c src/exec_cpu.h src/common.h src/gui.h src/renderer.h src/exec.h src/CPU.h src/ST.h src/disassemble.h src/trace.h
+# Not a target:
+test/use_case_24E.exe:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
+
+# Not a target:
+manual/use_case_30E.exe:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
+
+build/s_exec_cpu.o: src/exec_cpu.c src/exec_cpu.c src/exec_cpu.h src/common.h src/gui.h src/renderer.h src/exec.h src/CPU.h src/ST.h src/ 
+disassemble.h src/trace.h
 #  Implicit rule search has been done.
 #  Implicit/static pattern stem: 'exec_cpu'
 #  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:20
+#  Last modified 2026-06-22 12:19:38
 #  File has been updated.
 #  Successfully updated.
-#  recipe to execute 
- (from 'Makefile', line 112):
+#  recipe to execute (from 'Makefile', line 118):
 	$(CC) $(CFLAGS) -c $< -o $@
 
 src/CPU.h:
@@ -3123,28 +2594,28 @@ src/CPU.h:
 #  File is secondary (prerequisite of .SECONDARY).
 #  Last modified 2026-06-08 11:29:17
 #  File has been updated.
-#  Successfully updated.
+#  Successfully upda 
+ted.
 
 build/s_edit.o: src/edit.c src/edit.c src/edit.h src/common.h src/gui.h src/renderer.h src/trace.h
 #  Implicit rule search has been done.
 #  Implicit/static pattern stem: 'edit'
 #  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55 
-:19
+#  Last modified 2026-06-22 12:19:37
 #  File has been updated.
 #  Successfully updated.
-#  recipe to execute (from 'Makefile', line 112):
+#  recipe to execute (from 'Makefile', line 118):
 	$(CC) $(CFLAGS) -c $< -o $@
 
-build/s_image_msa.o: src/image_msa.c src/image_msa.c src/image_msa.h src/common.h src/image_st.h src/file.h src/trace.h
+build/s_image_msa.o: src/image_msa.c src/image_msa.c src/image_msa.h src/common.h src/image_st.h src/file.h s 
+rc/trace.h
 #  Implicit rule search has been done.
 #  Implicit/static pattern stem: 'image_msa'
 #  File is secondary (prerequisite of .SECONDARY).
-#  Last modified 2026-06-17 18:55:20
+#  Last modified 2026-06-22 12:19:39
 #  File has been updated.
 #  Successfully updated.
-#  recipe to execute (from 'Makefi 
-le', line 112):
+#  recipe to execute (from 'Makefile', line 118):
 	$(CC) $(CFLAGS) -c $< -o $@
 
 # Not a target:
@@ -3154,22 +2625,20 @@ manual/use_case_10.exe:
 #  File has not been updated.
 
 # files hash-table stats:
-# Load=314/1024=31%, Rehash=0, Collisions=671/4735=14%
+# Load=281/1024=27%, R 
+ehash=0, Collisions=346/1887=18%
 # VPATH Search Paths
 
 # No 'vpath' search paths.
 
 # No general ('VPATH' variable) search path.
 
-# strcache buffers: 2 (1) / strings = 578 / storage = 8915 B / avg = 15 B
-# current buf: size = 8162 B / used = 761 B / count = 41 / avg =  
-18 B
-# other used: total = 8154 B / count = 537 / avg = 15 B
-# other free: total = 8 B / max = 8 B / min = 8 B / avg = 8 B
+# strcache buffers: 1 (0) / strings = 508 / storage = 7580 B / avg = 14 B
+# current buf: size = 8162 B / used = 7580 B / count = 508 / avg = 14 B
 
-# strcache performance: lookups = 4966 / hit rate = 88%
+# strcache performance: lookups = 2168 / hit rate = 76%
 # hash-table stats:
-# Load=578/8192=7%, Rehash=0, Collisions=186/4966=4%
-# Finished Make data base on Wed Jun 17 19:23:19 2026
+# Load=508/8192=6%, Rehash=0, Collisions=93/2168=4%
+# Finished Make data base on Mon Jun 22 12:34:28 2026
 
  

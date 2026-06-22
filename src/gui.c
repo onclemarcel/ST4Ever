@@ -37,12 +37,8 @@ struct gui_msg_queue_s
  * Window list (global registry of open windows)
  * ------------------------------------------------------------------ */
 
-#define GUI_MAX_WINDOWS  16
-
-static struct gui_window_s *g_gui_aptWnd[GUI_MAX_WINDOWS];
-static size_t               g_gui_uiWndCount = 0;
-static st_mutex_t          *g_gui_ptMutex    = NULL;
-static st_bool_t            g_gui_bInit      = ST_FALSE;
+static gui_context_t  g_gui_ptCtx = {.ulMagic = OBJ_MAGIC, 
+                                     .eObject = ST_GUI_CTX };
 
 /* ------------------------------------------------------------------
  * Internal helpers
@@ -52,29 +48,29 @@ static st_error_t gui_list_add(struct gui_window_s *ptWnd)
 {
     size_t uiIdx;
 
-    if (platform_mutex_lock(g_gui_ptMutex) != ST_NO_ERROR)
+    if (platform_mutex_lock(g_gui_ptCtx.ptMutex) != ST_NO_ERROR)
     {
         return ST_ERROR;
     }
 
-    if (g_gui_uiWndCount >= GUI_MAX_WINDOWS)
+    if (g_gui_ptCtx.uiWndCount >= GUI_MAX_WINDOWS)
     {
-        platform_mutex_unlock(g_gui_ptMutex);
+        platform_mutex_unlock(g_gui_ptCtx.ptMutex);
         LOG_ERROR("window list full (%d slots)", GUI_MAX_WINDOWS);
         return ST_ERROR;
     }
 
     for (uiIdx = 0; uiIdx < GUI_MAX_WINDOWS; uiIdx++)
     {
-        if (g_gui_aptWnd[uiIdx] == NULL)
+        if (g_gui_ptCtx.aptWnd[uiIdx] == NULL)
         {
-            g_gui_aptWnd[uiIdx] = ptWnd;
-            g_gui_uiWndCount++;
+            g_gui_ptCtx.aptWnd[uiIdx] = ptWnd;
+            g_gui_ptCtx.uiWndCount++;
             break;
         }
     }
 
-    platform_mutex_unlock(g_gui_ptMutex);
+    platform_mutex_unlock(g_gui_ptCtx.ptMutex);
     return ST_NO_ERROR;
 }
 
@@ -82,75 +78,72 @@ static void gui_list_remove(struct gui_window_s *ptWnd)
 {
     size_t uiIdx;
 
-    if (platform_mutex_lock(g_gui_ptMutex) != ST_NO_ERROR)
+    if (platform_mutex_lock(g_gui_ptCtx.ptMutex) != ST_NO_ERROR)
     {
         return;
     }
 
     for (uiIdx = 0; uiIdx < GUI_MAX_WINDOWS; uiIdx++)
     {
-        if (g_gui_aptWnd[uiIdx] == ptWnd)
+        if (g_gui_ptCtx.aptWnd[uiIdx] == ptWnd)
         {
-            g_gui_aptWnd[uiIdx] = NULL;
-            if (g_gui_uiWndCount > 0)
+            g_gui_ptCtx.aptWnd[uiIdx] = NULL;
+            if (g_gui_ptCtx.uiWndCount > 0)
             {
-                g_gui_uiWndCount--;
+                g_gui_ptCtx.uiWndCount--;
             }
             break;
         }
     }
 
-    platform_mutex_unlock(g_gui_ptMutex);
+    platform_mutex_unlock(g_gui_ptCtx.ptMutex);
 }
 
 /* ------------------------------------------------------------------
  * Public GUI API
  * ------------------------------------------------------------------ */
 
-st_error_t gui_init(void)
+st_u64_t gui_init(void)
 {
     size_t     uiIdx;
-    st_error_t eResult;
 
     LOG_TRACE("(void)");
 
-    if (g_gui_bInit == ST_TRUE)
+    if (g_gui_ptCtx.bInit == ST_TRUE)
     {
-        LOG_INFO("gui_init: already initialised");
-        return ST_NO_ERROR;
+        LOG_INFO("Already initialised");
+        return (st_u64_t)&g_gui_ptCtx;
     }
 
     /* Initialise window list */
     for (uiIdx = 0; uiIdx < GUI_MAX_WINDOWS; uiIdx++)
     {
-        g_gui_aptWnd[uiIdx] = NULL;
+        g_gui_ptCtx.aptWnd[uiIdx] = NULL;
     }
-    g_gui_uiWndCount = 0;
+    g_gui_ptCtx.uiWndCount = 0;
 
     /* Create list mutex */
-    eResult = platform_mutex_create(&g_gui_ptMutex);
-    if (eResult != ST_NO_ERROR)
+    if (platform_mutex_create(&g_gui_ptCtx.ptMutex) != ST_NO_ERROR)
     {
         LOG_ERROR("platform_mutex_create failed");
         return ST_ERROR;
     }
 
     /* Platform-specific init (Win32: RegisterClass, X11: XOpenDisplay) */
-    eResult = gui_platform_init();
-    if (eResult != ST_NO_ERROR)
+    if (gui_platform_init() != ST_NO_ERROR)
     {
-        platform_mutex_destroy(&g_gui_ptMutex);
+        platform_mutex_destroy(&g_gui_ptCtx.ptMutex);
         LOG_ERROR("gui_platform_init failed");
         return ST_ERROR;
     }
 
-    g_gui_bInit = ST_TRUE;
+    g_gui_ptCtx.bInit = ST_TRUE;
     LOG_INFO("GUI subsystem initialised");
-    return ST_NO_ERROR;
+    return (st_u64_t)&g_gui_ptCtx;
 }
 
 st_error_t gui_open_window(const gui_wnd_desc_t *ptDesc,
-                             gui_window_t         *phWnd)
+                                 gui_window_t   *phWnd)
 {
     struct gui_window_s *ptWnd;
     st_error_t           eResult;
@@ -164,7 +157,7 @@ st_error_t gui_open_window(const gui_wnd_desc_t *ptDesc,
         return ST_ERROR;
     }
 
-    if (g_gui_bInit == ST_FALSE)
+    if (g_gui_ptCtx.bInit == ST_FALSE)
     {
         LOG_ERROR("gui_open_window called before gui_init");
         return ST_ERROR;
@@ -278,15 +271,15 @@ st_error_t gui_find_window_by_type(gui_wnd_type_t  eType,
     }
     *phWnd = NULL;
 
-    if (g_gui_ptMutex == NULL)
+    if (g_gui_ptCtx.ptMutex == NULL)
         return ST_NO_ERROR;
 
-    if (platform_mutex_lock(g_gui_ptMutex) != ST_NO_ERROR)
+    if (platform_mutex_lock(g_gui_ptCtx.ptMutex) != ST_NO_ERROR)
         return ST_NO_ERROR;
 
     for (uiIdx = 0; uiIdx < GUI_MAX_WINDOWS; uiIdx++)
     {
-        ptWnd = g_gui_aptWnd[uiIdx];
+        ptWnd = g_gui_ptCtx.aptWnd[uiIdx];
         if (ptWnd != NULL && ptWnd->bOpen == ST_TRUE &&
             ptWnd->tDesc.eType == eType)
         {
@@ -295,7 +288,7 @@ st_error_t gui_find_window_by_type(gui_wnd_type_t  eType,
         }
     }
 
-    platform_mutex_unlock(g_gui_ptMutex);
+    platform_mutex_unlock(g_gui_ptCtx.ptMutex);
     return ST_NO_ERROR;
 }
 
@@ -336,7 +329,7 @@ st_error_t gui_shutdown(void)
 
     LOG_TRACE("(void)");
 
-    if (g_gui_bInit == ST_FALSE)
+    if (g_gui_ptCtx.bInit == ST_FALSE)
     {
         return ST_NO_ERROR;
     }
@@ -344,7 +337,7 @@ st_error_t gui_shutdown(void)
     /* Close all open windows */
     for (uiIdx = 0; uiIdx < GUI_MAX_WINDOWS; uiIdx++)
     {
-        ptWnd = g_gui_aptWnd[uiIdx];
+        ptWnd = g_gui_ptCtx.aptWnd[uiIdx];
         if (ptWnd != NULL)
         {
             if (ptWnd->bOpen == ST_TRUE)
@@ -356,20 +349,20 @@ st_error_t gui_shutdown(void)
                 platform_thread_join(ptWnd->ptThread);
                 platform_thread_destroy(&ptWnd->ptThread);
             }
-            g_gui_aptWnd[uiIdx] = NULL;
+            g_gui_ptCtx.aptWnd[uiIdx] = NULL;
             free(ptWnd);
         }
     }
-    g_gui_uiWndCount = 0;
+    g_gui_ptCtx.uiWndCount = 0;
 
     gui_platform_shutdown();
 
-    if (g_gui_ptMutex != NULL)
+    if (g_gui_ptCtx.ptMutex != NULL)
     {
-        platform_mutex_destroy(&g_gui_ptMutex);
+        platform_mutex_destroy(&g_gui_ptCtx.ptMutex);
     }
 
-    g_gui_bInit = ST_FALSE;
+    g_gui_ptCtx.bInit = ST_FALSE;
     LOG_INFO("GUI subsystem shutdown complete");
     return ST_NO_ERROR;
 }

@@ -41,7 +41,9 @@ typedef int64_t  st_i64_t;   /* Signed   64-bit */
 typedef enum st_error_s
 {
     ST_NO_ERROR = 0,   /* Operation completed successfully            */
-    ST_ERROR    = 1    /* Operation failed - see trace log for detail */
+    ST_ERROR    = 1,   /* Operation failed - see trace log for detail */
+    ST_QUIT     = 2,   /* Application shutdown request */
+    ST_RETURNS
 } st_error_t;
 
 /* ------------------------------------------------------------------
@@ -61,7 +63,9 @@ typedef enum st_bool_s
  typedef enum st_object_s
  {
     ST_UNKNOWN  = 0,
-    ST_LINE_CTX = 1
+    ST_MAIN_CTX = 1,
+    ST_LINE_CTX = 2,
+    ST_GUI_CTX  = 3
  } st_object_t;
 
  #define OBJ_MAGIC  0xCAFEDECA
