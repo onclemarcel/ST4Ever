@@ -21,6 +21,11 @@
 
 #include "use_cases.h"
 
+#ifdef ST_PLATFORM_WINDOWS
+#include <windows.h>
+extern st_error_t win_console_init(void);
+#endif
+
 /* Required by the UC_TEST / UC_CHECK macros in use_cases.h */
 int g_uc_fails = 0;
 
@@ -53,7 +58,8 @@ static char* g_uc00_szArgs_help_long[]       = {"Test.exe", "--trace",
  * Parameters:
  *   None
  *
- * Returns: ST_NO_ERROR on success.
+ * Returns: 
+ *   Void
  */
 static void uc00_manage_options()
 {
@@ -162,6 +168,93 @@ static void uc00_manage_options()
                 ((st_u64_t)ptCtx == ST_QUIT));
 }
 
+/*
+ * uc00_check_win_console() - Check win_console_init()
+ *
+ * Code Coverage:
+ *   main.c:
+ *   -- 2. Platform-specific console init --
+ * 
+ *   win_console.c:
+ *   -- 1. Set stdout in Virtual Terminal Processing Mode --
+ *   -- 2. Set stderr in Virtual Terminal Processing Mode --
+ *   -- 3. Set Console Input/Output to Code Page UTF8 -- 
+ *
+ * Parameters:
+ *   None
+ *
+ * Returns: 
+ *   Void
+ */
+static void uc00_check_win_console()
+{
+    DWORD    dwMode   = 0;
+    DWORD    dwBefore = 0;
+
+    printf("\n--- Test group 2: Platform-specific console init ---\n");
+    
+    /* -- 1. Set stdout in Virtual Terminal Processing Mode -- */
+    /* -- 2. Set stderr in Virtual Terminal Processing Mode -- */
+    /* INTENT[INT-WIN-001 → TC-WIN-001...002 → REQ-xxx-yyy → UFR-xxx-yyy]:
+     * Check that win_console_init() set stdout/stderr to ANSI terminal Mode */
+    void* hOut = GetStdHandle(STD_OUTPUT_HANDLE);
+    if (hOut != INVALID_HANDLE_VALUE)
+    {
+        GetConsoleMode(hOut, &dwMode);
+        dwMode &= ~ENABLE_VIRTUAL_TERMINAL_PROCESSING;
+        SetConsoleMode(hOut, dwMode);
+        dwBefore = dwMode;
+        win_console_init();
+        GetConsoleMode(hOut, &dwMode);
+        
+    }
+    UC_TEST("win_console_init() sets stdout to virtual terminal processing",
+                 (dwMode - dwBefore) == ENABLE_VIRTUAL_TERMINAL_PROCESSING);
+    
+    dwMode      = 0;
+    dwBefore    = 0;
+
+    void* hErr = GetStdHandle(STD_ERROR_HANDLE);
+    if (hErr != INVALID_HANDLE_VALUE)
+    {
+        GetConsoleMode(hErr, &dwMode);
+        dwMode &= ~ENABLE_VIRTUAL_TERMINAL_PROCESSING;
+        SetConsoleMode(hErr, dwMode);
+        dwBefore = dwMode;
+        win_console_init();
+        GetConsoleMode(hErr, &dwMode);
+    }
+        UC_TEST("win_console_init() sets stderr to virtual terminal processing",
+                 (dwMode - dwBefore) == ENABLE_VIRTUAL_TERMINAL_PROCESSING);
+
+    /* -- 3. Set Console Input/Output to Code Page UTF8 -- */
+    /* INTENT[INT-WIN-002 → TC-WIN-003...004 → REQ-xxx-yyy → UFR-xxx-yyy]:
+     * Check that win_console_init() sets Console Code page to UTF-8 */
+    dwMode      = 0;
+    dwBefore    = 0;
+
+    if (SetConsoleCP(CP_UTF7))
+    {
+        dwBefore = GetConsoleCP();      // UINT 65000
+        win_console_init();
+        dwMode   = GetConsoleCP();      // UINT 65001
+    }
+    UC_TEST("win_console_init() sets Console Input Code Page to UTF-8",
+                 (dwMode - dwBefore) == 1);
+    
+    dwMode      = 0;
+    dwBefore    = 0;
+
+    if (SetConsoleOutputCP(CP_UTF7))
+    {
+        dwBefore = GetConsoleOutputCP();      // UINT 65000
+        win_console_init();
+        dwMode   = GetConsoleOutputCP();      // UINT 65001
+    }
+    UC_TEST("win_console_init() sets Console Output Code Page to UTF-8",
+                 (dwMode - dwBefore) == 1);
+    
+}
 
 /* ------------------------------------------------------------------
  * main
@@ -176,8 +269,11 @@ int main(void)
     /* Init the log function */
     trace_init(ST_TRUE);
 
-    /* Launch main function */
+    /* Test the main init function */
     uc00_manage_options();
+#ifdef ST_PLATFORM_WINDOWS
+    uc00_check_win_console();
+#endif
     
     /* Close the log function */
     printf("\n--- Shutdown ---\n");

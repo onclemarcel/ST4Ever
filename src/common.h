@@ -64,8 +64,9 @@ typedef enum st_bool_s
  {
     ST_UNKNOWN  = 0,
     ST_MAIN_CTX = 1,
-    ST_LINE_CTX = 2,
-    ST_GUI_CTX  = 3
+    ST_LINE_CTX = 10,
+    ST_GUI_CTX  = 20,
+    ST_WIN_CONSOLE_CTX = 100
  } st_object_t;
 
  #define OBJ_MAGIC  0xCAFEDECA

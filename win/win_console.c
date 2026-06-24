@@ -31,6 +31,7 @@
 #include "../src/common.h"
 #include "../src/trace.h"
 #include "../src/console.h"
+#include "win.h"
 
 #ifdef ST_PLATFORM_WINDOWS
 
@@ -38,37 +39,40 @@
 #include <windows.h>
 #include <string.h>
 
-/* ------------------------------------------------------------------
- * Module-level raw-mode state
- * ------------------------------------------------------------------ */
-
-typedef enum win_stdin_type_e
-{
-    WIN_STDIN_UNKNOWN = 0,
-    WIN_STDIN_PIPE,     /* mintty / MSYS2 — pipe, VT100 byte stream   */
-    WIN_STDIN_CONSOLE   /* cmd.exe — Win32 console, VK event stream   */
-} win_stdin_type_t;
-
-static win_stdin_type_t g_eStdinType    = WIN_STDIN_UNKNOWN;
-static HANDLE           g_hStdin        = INVALID_HANDLE_VALUE;
-static DWORD            g_dwOrigConMode = 0;   /* cmd.exe path only   */
+static win_console_context_t g_win_console_ptCtx = {.ulMagic = 0xCAFEDECA, 
+                                            .eObject = ST_WIN_CONSOLE_CTX};
 
 /* ------------------------------------------------------------------
  * win_console_init() / win_console_shutdown()
  * ------------------------------------------------------------------ */
 
+/*
+ * win_console_init() - Sets the windows console to Virtual Terminal
+ *                      and UTF-8 Code Page
+ *
+ * Parameters:
+ *   None
+ * 
+ * Returns:
+ *   ST_NO_ERROR: errors raised are non-fatal
+ * 
+ * Global Variables:
+ *   None
+ * 
+ */
 st_error_t win_console_init(void)
 {
     HANDLE hOut;
     HANDLE hErr;
     DWORD  dwMode;
 
-    LOG_TRACE("(void)");
+    LOG_TRACE("Setting windows console modes");
 
+    /* -- 1. Set stdout in Virtual Terminal Processing Mode -- */
     hOut = GetStdHandle(STD_OUTPUT_HANDLE);
     if (hOut == INVALID_HANDLE_VALUE)
     {
-        LOG_ERROR("GetStdHandle(STD_OUTPUT_HANDLE) failed: %lu",
+        LOG_ERROR("[non-fatal] GetStdHandle(STD_OUTPUT_HANDLE) failed: %lu",
                   GetLastError());
         /* Non-fatal: mintty uses pipe handles */
     }
@@ -79,36 +83,73 @@ st_error_t win_console_init(void)
             dwMode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
             if (!SetConsoleMode(hOut, dwMode))
             {
-                LOG_INFO("SetConsoleMode(stdout) failed (%lu) "
-                         "- likely mintty, ANSI already supported",
-                         GetLastError());
+                LOG_ERROR("[non-fatal] SetConsoleMode(STD_OUTPUT_HANDLE) failed (%lu) "
+                          "- likely mintty, ANSI already supported",
+                          GetLastError());
             }
+            else
+            {
+                LOG_INFO("SetConsoleMode(STD_OUTPUT_HANDLE) with "
+                         "ENABLE_VIRTUAL_TERMINAL_PROCESSING");
+            }
+        }
+        else
+        {
+            LOG_ERROR("[non-fatal] GetConsoleMode(STD_OUTPUT_HANDLE) failed: %lu",
+                  GetLastError());
         }
     }
 
+    /* -- 2. Set stderr in Virtual Terminal Processing Mode -- */
     hErr = GetStdHandle(STD_ERROR_HANDLE);
-    if (hErr != INVALID_HANDLE_VALUE)
+    if (hErr == INVALID_HANDLE_VALUE)
+    {
+        LOG_ERROR("[non-fatal] GetStdHandle(STD_ERROR_HANDLE) failed: %lu",
+                  GetLastError());
+        /* Non-fatal: mintty uses pipe handles */
+    }
+    else
     {
         if (GetConsoleMode(hErr, &dwMode))
         {
             dwMode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
             if (!SetConsoleMode(hErr, dwMode))
             {
-                LOG_INFO("SetConsoleMode(stderr) failed (%lu)",
+                LOG_ERROR("[non-fatal] SetConsoleMode(STD_ERROR_HANDLE) failed (%lu)",
                          GetLastError());
             }
+            else
+            {
+                LOG_INFO("SetConsoleMode(STD_ERROR_HANDLE) with \
+                          ENABLE_VIRTUAL_TERMINAL_PROCESSING");
+            }
+        }
+        else
+        {
+            LOG_ERROR("[non-fatal] GetConsoleMode(STD_ERROR_HANDLE) failed: %lu",
+                  GetLastError());
         }
     }
 
+    /* -- 3. Set Console Input/Output to Code Page UTF8 -- */
     if (!SetConsoleOutputCP(CP_UTF8))
     {
-        LOG_INFO("SetConsoleOutputCP(UTF-8) failed: %lu",
+        LOG_ERROR("[non-fatal] SetConsoleOutputCP(UTF-8) failed: %lu",
                  GetLastError());
     }
+    else
+    {
+        LOG_INFO("SetConsoleOutputCP() with Code Page UTF8");
+    }
+
     if (!SetConsoleCP(CP_UTF8))
     {
-        LOG_INFO("SetConsoleCP(UTF-8) failed: %lu",
+        LOG_INFO("[non-fatal] SetConsoleCP(UTF-8) failed: %lu",
                  GetLastError());
+    }
+    else
+    {
+        LOG_INFO("SetConsoleCP() with Code Page UTF8");
     }
 
     LOG_INFO("win_console_init: ANSI + UTF-8 console ready");
@@ -117,7 +158,12 @@ st_error_t win_console_init(void)
 
 st_error_t win_console_shutdown(void)
 {
-    LOG_TRACE("(void)");
+    LOG_TRACE("Cleaning internal states");
+    
+    g_win_console_ptCtx.eStdinType    = WIN_STDIN_UNKNOWN;
+    g_win_console_ptCtx.hStdin        = INVALID_HANDLE_VALUE;
+    g_win_console_ptCtx.dwOrigConMode = 0;
+
     return ST_NO_ERROR;
 }
 
@@ -142,10 +188,10 @@ static int console_read_byte_timeout_pipe(unsigned char *pByte,
     iElapsed = 0;
     for (;;)
     {
-        if (PeekNamedPipe(g_hStdin, NULL, 0, NULL, &dwAvail, NULL)
+        if (PeekNamedPipe(g_win_console_ptCtx.hStdin, NULL, 0, NULL, &dwAvail, NULL)
         &&  dwAvail > 0)
         {
-            if (!ReadFile(g_hStdin, pByte, 1, &dwRead, NULL)
+            if (!ReadFile(g_win_console_ptCtx.hStdin, pByte, 1, &dwRead, NULL)
             ||  dwRead != 1)
             {
                 return -1;
@@ -293,7 +339,7 @@ static st_error_t console_read_key_win32(int *piKey)
     {
         /* Wait up to 200 ms — returns CON_KEY_TIMEOUT so that
          * line_read_rich() can refresh the contextual prompt. */
-        dwWait = WaitForSingleObject(g_hStdin, 200);
+        dwWait = WaitForSingleObject(g_win_console_ptCtx.hStdin, 200);
         if (dwWait == WAIT_TIMEOUT)
         {
             *piKey = CON_KEY_TIMEOUT;
@@ -307,7 +353,7 @@ static st_error_t console_read_key_win32(int *piKey)
             return ST_ERROR;
         }
 
-        bResult = ReadConsoleInputA(g_hStdin, &tRecord, 1, &dwRead);
+        bResult = ReadConsoleInputA(g_win_console_ptCtx.hStdin, &tRecord, 1, &dwRead);
         if (!bResult)
         {
             LOG_ERROR("ReadConsoleInputA failed: %lu", GetLastError());
@@ -377,7 +423,7 @@ st_error_t console_set_raw(void)
 
     LOG_TRACE("(void)");
 
-    if (g_eStdinType != WIN_STDIN_UNKNOWN)
+    if (g_win_console_ptCtx.eStdinType != WIN_STDIN_UNKNOWN)
     {
         LOG_INFO("console_set_raw: already active");
         return ST_NO_ERROR;
@@ -396,8 +442,8 @@ st_error_t console_set_raw(void)
     if (dwType == FILE_TYPE_PIPE)
     {
         /* mintty / MSYS2: pipe delivers VT100 bytes as typed */
-        g_hStdin       = hIn;
-        g_eStdinType   = WIN_STDIN_PIPE;
+        g_win_console_ptCtx.hStdin       = hIn;
+        g_win_console_ptCtx.eStdinType   = WIN_STDIN_PIPE;
         LOG_INFO("console_set_raw: pipe (mintty) — VT100 byte mode");
         return ST_NO_ERROR;
     }
@@ -410,7 +456,7 @@ st_error_t console_set_raw(void)
             LOG_ERROR("GetConsoleMode failed: %lu", GetLastError());
             return ST_ERROR;
         }
-        g_dwOrigConMode = dwMode;
+        g_win_console_ptCtx.dwOrigConMode = dwMode;
         dwMode &= ~(ENABLE_PROCESSED_INPUT
                     | ENABLE_LINE_INPUT
                     | ENABLE_ECHO_INPUT);
@@ -421,8 +467,8 @@ st_error_t console_set_raw(void)
                       GetLastError());
             return ST_ERROR;
         }
-        g_hStdin     = hIn;
-        g_eStdinType = WIN_STDIN_CONSOLE;
+        g_win_console_ptCtx.hStdin     = hIn;
+        g_win_console_ptCtx.eStdinType = WIN_STDIN_CONSOLE;
         LOG_INFO("console_set_raw: Win32 console raw mode (cmd.exe)");
         return ST_NO_ERROR;
     }
@@ -436,9 +482,9 @@ st_error_t console_restore(void)
 {
     LOG_TRACE("(void)");
 
-    if (g_eStdinType == WIN_STDIN_CONSOLE)
+    if (g_win_console_ptCtx.eStdinType == WIN_STDIN_CONSOLE)
     {
-        if (!SetConsoleMode(g_hStdin, g_dwOrigConMode))
+        if (!SetConsoleMode(g_win_console_ptCtx.hStdin, g_win_console_ptCtx.dwOrigConMode))
         {
             LOG_ERROR("SetConsoleMode(restore) failed: %lu",
                       GetLastError());
@@ -448,8 +494,8 @@ st_error_t console_restore(void)
     }
     /* Pipe path: no mode was changed, nothing to restore */
 
-    g_eStdinType = WIN_STDIN_UNKNOWN;
-    g_hStdin     = INVALID_HANDLE_VALUE;
+    g_win_console_ptCtx.eStdinType = WIN_STDIN_UNKNOWN;
+    g_win_console_ptCtx.hStdin     = INVALID_HANDLE_VALUE;
     return ST_NO_ERROR;
 }
 
@@ -461,12 +507,12 @@ st_error_t console_read_key(int *piKey)
         return ST_ERROR;
     }
 
-    if (g_eStdinType == WIN_STDIN_PIPE)
+    if (g_win_console_ptCtx.eStdinType == WIN_STDIN_PIPE)
     {
         return console_read_key_pipe(piKey);
     }
 
-    if (g_eStdinType == WIN_STDIN_CONSOLE)
+    if (g_win_console_ptCtx.eStdinType == WIN_STDIN_CONSOLE)
     {
         return console_read_key_win32(piKey);
     }

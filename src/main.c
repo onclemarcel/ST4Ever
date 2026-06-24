@@ -47,7 +47,7 @@ extern st_error_t win_console_shutdown(void);
  * ------------------------------------------------------------------ */
 
 /*
- * print_usage() - Print command-line usage to stdout.
+ * ST4Ever_print_usage() - Print command-line usage to stdout.
  *
  * Parameters:
  *   szArgv0 [in] : argv[0] (program name)
