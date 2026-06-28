@@ -38,8 +38,7 @@ static ST4Ever_context_t g_main_ptCtx = {.ulMagic = 0xCAFEDECA,
  * ------------------------------------------------------------------ */
 
 #ifdef ST_PLATFORM_WINDOWS
-extern st_error_t win_console_init(void);
-extern st_error_t win_console_shutdown(void);
+#include "../win/win.h"
 #endif
 
 /* ------------------------------------------------------------------
@@ -161,10 +160,10 @@ st_u64_t ST4Ever_init(int argc, char *argv[])
 {
     st_machine_t    tMachine;
 
-    /* -- 1. Parse command-line options -- */
+    /* -- [MAIN]1. Parse command-line options -- */
     if (ST4Ever_manage_options(argc, argv) == ST_QUIT) return ST_QUIT;
 
-    /* -- 2. Platform-specific console init -- */
+    /* -- [MAIN]2. Platform-specific console init -- */
 #ifdef ST_PLATFORM_WINDOWS
     g_main_ptCtx.ptWinConsoleCtx = win_console_init();
     if (g_main_ptCtx.ptWinConsoleCtx == ST_ERROR)
@@ -174,7 +173,7 @@ st_u64_t ST4Ever_init(int argc, char *argv[])
     }
 #endif
 
-    /* ---- 3. Trace subsystem -------------------------------------- */
+    /* -- [MAIN]3. Init Trace Module -- */
     g_main_ptCtx.ptTraceCtx = trace_init(g_main_ptCtx.bTraceAtStart);
     if (g_main_ptCtx.ptTraceCtx == ST_ERROR)
     {
@@ -182,6 +181,7 @@ st_u64_t ST4Ever_init(int argc, char *argv[])
         return ST_ERROR;
     }
 
+    /* First information message in trace file & trace window, if open */
     LOG_INFO("%s %s starting (argc=%d, -t=%s, --script=%s)",
              ST_APP_NAME, ST_APP_VERSION,
              argc,
@@ -189,7 +189,7 @@ st_u64_t ST4Ever_init(int argc, char *argv[])
              g_main_ptCtx.szScriptFile[0] == "\0"  ? "none":
              g_main_ptCtx.szScriptFile);
 
-    /* ---- 4. GUI subsystem (stubbed until UC3) -------------------- */
+    /* -- [MAIN]4. Init GUI Module -- */
     g_main_ptCtx.ptGUICtx = gui_init();
     if (g_main_ptCtx.ptGUICtx == ST_ERROR)
     {

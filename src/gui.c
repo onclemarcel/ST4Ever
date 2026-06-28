@@ -107,36 +107,40 @@ st_u64_t gui_init(void)
 {
     size_t     uiIdx;
 
-    LOG_TRACE("(void)");
+    LOG_TRACE("Init GUI module");
 
+    /* -- [GUI]1. Log Information if already initialised -- */
     if (g_gui_ptCtx.bInit == ST_TRUE)
     {
         LOG_INFO("Already initialised");
         return (st_u64_t)&g_gui_ptCtx;
     }
 
-    /* Initialise window list */
+    /* -- [GUI]2. Initialize windows list -- */
     for (uiIdx = 0; uiIdx < GUI_MAX_WINDOWS; uiIdx++)
     {
         g_gui_ptCtx.aptWnd[uiIdx] = NULL;
     }
     g_gui_ptCtx.uiWndCount = 0;
 
-    /* Create list mutex */
+    /* -- [GUI]3. Create mutex list -- */
     if (platform_mutex_create(&g_gui_ptCtx.ptMutex) != ST_NO_ERROR)
     {
         LOG_ERROR("platform_mutex_create failed");
         return ST_ERROR;
     }
 
-    /* Platform-specific init (Win32: RegisterClass, X11: XOpenDisplay) */
-    if (gui_platform_init() != ST_NO_ERROR)
+    /* -- [GUI]4. Platform-specific GUI init
+     * (Win32: RegisterClass, X11: XOpenDisplay) */
+    g_gui_ptCtx.eGUIPtfInit = gui_platform_init();
+    if (g_gui_ptCtx.eGUIPtfInit != ST_NO_ERROR)
     {
         platform_mutex_destroy(&g_gui_ptCtx.ptMutex);
         LOG_ERROR("gui_platform_init failed");
         return ST_ERROR;
     }
 
+    /* -- [GUI]5. Init returns context sructure -- */
     g_gui_ptCtx.bInit = ST_TRUE;
     LOG_INFO("GUI subsystem initialised");
     return (st_u64_t)&g_gui_ptCtx;

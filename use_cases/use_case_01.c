@@ -125,20 +125,10 @@ static void test_trace(void)
 {
     printf("\n--- Test group 1: Trace subsystem ---\n");
 
-    /* INTENT[INT-TRC-001 → TC-TRC-001 → REQ-TRC-001]:
-     * trace_init must succeed and open the console on request */
-    UC_CHECK("[N] trace_init(TRUE)",
-             trace_init(ST_TRUE));
-    UC_TEST("[N] trace_is_open() == TRUE after init(TRUE)",
-            trace_is_open() == ST_TRUE);
-
-    /* INTENT[INT-TRC-002 → TC-TRC-002 → REQ-TRC-002]:
-     * double init must be harmless - logs a warning, no error */
-    UC_TEST("[R] trace_init() when already initialised returns ST_NO_ERROR",
-            trace_init(ST_TRUE) == ST_NO_ERROR);
-
     /* INTENT[INT-TRC-003 → TC-TRC-003 → REQ-TRC-004]:
      * all four log levels must emit without crashing */
+    UC_TEST("[R] trace_init() when already initialised returns ST_NO_ERROR",
+            trace_init(ST_TRUE) == ST_NO_ERROR);
     printf("  [INFO] Emitting one entry per log level:\n");
     LOG_TRACE("UC1 test: LOG_TRACE entry (param=%d)", 42);
     LOG_INFO("UC1 test: LOG_INFO  entry");

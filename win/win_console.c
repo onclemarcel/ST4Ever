@@ -35,9 +35,6 @@
 
 #ifdef ST_PLATFORM_WINDOWS
 
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
-#include <string.h>
 
 static win_console_context_t g_win_console_ptCtx = {.ulMagic = 0xCAFEDECA, 
                                             .eObject = ST_WIN_CONSOLE_CTX};
@@ -60,7 +57,7 @@ static win_console_context_t g_win_console_ptCtx = {.ulMagic = 0xCAFEDECA,
  *   None
  * 
  */
-st_error_t win_console_init(void)
+st_u64_t win_console_init(void)
 {
     HANDLE hOut;
     HANDLE hErr;
@@ -68,7 +65,7 @@ st_error_t win_console_init(void)
 
     LOG_TRACE("Setting windows console modes");
 
-    /* -- 1. Set stdout in Virtual Terminal Processing Mode -- */
+    /* -- [WIN_CONSOLE]1. Set stdout in Virtual Terminal Processing Mode -- */
     hOut = GetStdHandle(STD_OUTPUT_HANDLE);
     if (hOut == INVALID_HANDLE_VALUE)
     {
@@ -100,7 +97,7 @@ st_error_t win_console_init(void)
         }
     }
 
-    /* -- 2. Set stderr in Virtual Terminal Processing Mode -- */
+    /* -- [WIN_CONSOLE]2. Set stderr in Virtual Terminal Processing Mode -- */
     hErr = GetStdHandle(STD_ERROR_HANDLE);
     if (hErr == INVALID_HANDLE_VALUE)
     {
@@ -131,7 +128,7 @@ st_error_t win_console_init(void)
         }
     }
 
-    /* -- 3. Set Console Input/Output to Code Page UTF8 -- */
+    /* -- [WIN_CONSOLE]3. Set Console Input/Output to Code Page UTF8 -- */
     if (!SetConsoleOutputCP(CP_UTF8))
     {
         LOG_ERROR("[non-fatal] SetConsoleOutputCP(UTF-8) failed: %lu",
@@ -152,8 +149,9 @@ st_error_t win_console_init(void)
         LOG_INFO("SetConsoleCP() with Code Page UTF8");
     }
 
+    /* -- [WIN_CONSOLE]4. Init returns context sructure -- */
     LOG_INFO("win_console_init: ANSI + UTF-8 console ready");
-    return ST_NO_ERROR;
+    return (st_u64_t)&g_win_console_ptCtx;
 }
 
 st_error_t win_console_shutdown(void)

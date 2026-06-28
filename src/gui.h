@@ -47,6 +47,7 @@ typedef struct gui_context_s
     struct gui_window_s *aptWnd[GUI_MAX_WINDOWS]; /* Open windows list  */
     size_t               uiWndCount;        /* Number of open windows   */ 
     st_mutex_t          *ptMutex;           /* Protects windows list    */
+    st_error_t           eGUIPtfInit;       /* Success of platform-init */
     st_bool_t            bInit;             /* Trace of initialization  */
 } gui_context_t;
 

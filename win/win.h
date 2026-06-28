@@ -11,6 +11,12 @@
 
 #include "../src/common.h"
 
+#ifdef ST_PLATFORM_WINDOWS
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#include <string.h>
+#endif /* ST_PLATFORM_WINDOWS */
+
 /* ------------------------------------------------------------------
  * Win Console Context - types & enums are 'translated' for ST4Ever
  * ------------------------------------------------------------------ */
@@ -32,5 +38,11 @@ typedef struct win_console_context_s
     st_u32_t         dwOrigConMode;   /* cmd.exe path only  */
 
 } win_console_context_t;
+
+/* ------------------------------------------------------------------
+ * Win Console API
+ * ------------------------------------------------------------------ */
+st_u64_t   win_console_init(void);
+st_error_t win_console_shutdown(void);
 
 #endif /* WIN_H */

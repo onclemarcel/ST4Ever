@@ -13,8 +13,6 @@
  */
 
 #include "trace.h"
-#include "gui.h"
-#include "renderer.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -23,44 +21,6 @@
 #include <time.h>
 
 
-/* ------------------------------------------------------------------
- * Internal constants
- * ------------------------------------------------------------------ */
-
-#define TRACE_COMPACT_FUNCLEN   80   /* max func name stored for compact */
-
-/* GUI trace window ring buffer.
- * LINE_LEN covers full formatted output: prefix (~60) + ST_MAX_MSG (2048).
- * 200 lines * ~2112 bytes = ~422 KB heap — acceptable for a debug view. */
-#define TRACE_VIEW_MAX_LINES    200
-#define TRACE_VIEW_LINE_LEN     (ST_MAX_MSG + 64)
-
-/* ------------------------------------------------------------------
- * GUI trace view types  (internal to trace.c)
- * ------------------------------------------------------------------ */
-
-typedef struct
-{
-    char        szText[TRACE_VIEW_LINE_LEN];
-    log_level_t eLevel;
-} trace_view_line_t;
-
-typedef struct
-{
-    gui_window_t        hWnd;
-    renderer_t          hRenderer;
-    trace_view_line_t   aLines[TRACE_VIEW_MAX_LINES]; /* ring buffer    */
-    int                 iHead;       /* index of oldest stored line      */
-    int                 iCount;      /* number of lines currently stored */
-    int                 iScrollOff;  /* index of first visible line      */
-    st_bool_t           bAutoScroll; /* ST_TRUE = follow newest line     */
-    int                 iWndWidth;
-    int                 iWndHeight;
-    int                 iCellW;
-    int                 iCellH;
-    st_mutex_t         *ptMutex;     /* protects aLines / iHead / iCount */
-    log_level_t         eViewMinLevel; /* P28: GUI display filter level  */
-} trace_view_t;
 
 /* D2D colour palette for the trace window */
 static const renderer_color_t g_tv_clrBg    = {0.09f, 0.09f, 0.14f, 1.0f};
@@ -71,28 +31,11 @@ static const renderer_color_t g_tv_clrTodo  = {0.85f, 0.00f, 0.85f, 1.0f};
 static const renderer_color_t g_tv_clrSel   = {0.20f, 0.20f, 0.35f, 1.0f};
 
 /* ------------------------------------------------------------------
- * Module globals  (g_trace_ prefix, static = module-private)
+ * Module global context
  * ------------------------------------------------------------------ */
 
-static st_bool_t   g_trace_bInitialised  = ST_FALSE;
-static st_bool_t   g_trace_bOpen         = ST_FALSE;
-static st_bool_t   g_trace_bTraceEnabled = ST_TRUE;
-static FILE       *g_trace_pFile         = NULL;
-
-/* Compaction state for consecutive LOG_TRACE from the same function */
-static char        g_trace_szLastFunc[TRACE_COMPACT_FUNCLEN] = {'\0'};
-static int         g_trace_iCompactCount                     = 0;
-
-/* GUI trace window state */
-static trace_view_t *g_trace_ptView       = NULL;
-static gui_window_t  g_trace_hWnd         = NULL;
-
-/* P28: persistent display filter — survives close/reopen cycles */
-static log_level_t   g_trace_eViewMinLevel = LOG_LEVEL_TRACE;
-
-/* Re-entrancy guard: prevents gui_invalidate → LOG_TRACE → gui_invalidate
- * infinite loop.  Only blocks the invalidate call, not the append. */
-static int           g_trace_bInNotify    = 0;
+ static trace_context_t g_trace_ptCtx = {.ulMagic = 0xCAFEDECA, 
+                                         .eObject = ST_TRACE_CTX};
 
 /* ------------------------------------------------------------------
  * Internal helpers
@@ -150,10 +93,10 @@ static void trace_flush_compact(void)
 {
     char szTime[16];
 
-    if (g_trace_iCompactCount <= 1)
+    if (g_trace_ptCtx.iCompactCount <= 1)
     {
-        g_trace_iCompactCount = 0;
-        g_trace_szLastFunc[0] = '\0';
+        g_trace_ptCtx.iCompactCount = 0;
+        g_trace_ptCtx.szLastFunc[0] = '\0';
         return;
     }
 
@@ -161,19 +104,19 @@ static void trace_flush_compact(void)
 
     /* stderr omitted — same rationale as trace_log(). */
 
-    if (g_trace_pFile != NULL)
+    if (g_trace_ptCtx.pFile != NULL)
     {
-        fprintf(g_trace_pFile,
+        fprintf(g_trace_ptCtx.pFile,
                 "%s [%s] %s [x%d]\n",
                 szTime,
                 trace_level_label(LOG_LEVEL_TRACE),
-                g_trace_szLastFunc,
-                g_trace_iCompactCount);
-        fflush(g_trace_pFile);
+                g_trace_ptCtx.szLastFunc,
+                g_trace_ptCtx.iCompactCount);
+        fflush(g_trace_ptCtx.pFile);
     }
 
-    g_trace_iCompactCount = 0;
-    g_trace_szLastFunc[0] = '\0';
+    g_trace_ptCtx.iCompactCount = 0;
+    g_trace_ptCtx.szLastFunc[0] = '\0';
 }
 
 /* ------------------------------------------------------------------
@@ -478,35 +421,39 @@ static void trace_event_callback(gui_window_t  hWnd,
  * Public API
  * ------------------------------------------------------------------ */
 
-st_error_t trace_init(st_bool_t bOpen)
+st_u64_t trace_init(st_bool_t bOpen)
 {
-    
-    if (g_trace_bInitialised == ST_TRUE)
+    /* -- [TRACE]1. Log Information if already initialised -- */
+    if (g_trace_ptCtx.bInitialised == ST_TRUE)
     {
         LOG_INFO("Already initialized");
-        return ST_NO_ERROR;
+        return (st_u64_t)&g_trace_ptCtx;
     }
 
-    g_trace_pFile = fopen(TRACE_LOGFILE, "w");
-    if (g_trace_pFile == NULL)
+    /* -- [TRACE]2. If not initialized, open TRACE_LOG file for writing -- */
+    g_trace_ptCtx.pFile = fopen(TRACE_LOGFILE, "w");
+    if (g_trace_ptCtx.pFile == NULL)
     {
         fprintf(stderr,
                 "[trace_init] WARNING: cannot open '%s' - "
                 "file logging disabled\n",
                 TRACE_LOGFILE);
+        return (st_u64_t)&g_trace_ptCtx;
     }
 
-    g_trace_bInitialised  = ST_TRUE;
-    g_trace_bTraceEnabled = ST_TRUE;
-    g_trace_iCompactCount = 0;
-    g_trace_szLastFunc[0] = '\0';
-
+    /* -- [TRACE]3. Init trace context structure -- */
+    g_trace_ptCtx.bInitialised  = ST_TRUE;
+    g_trace_ptCtx.bTraceEnabled = ST_TRUE;
+    
+    /* -- [TRACE]4. If input parameter is TRUE, open the GUI console -- */
     if (bOpen == ST_TRUE)
     {
-        return trace_open();
+        trace_open();
+        return (st_u64_t)&g_trace_ptCtx;
     }
 
-    return ST_NO_ERROR;
+    /* -- [TRACE]5. Init returns context sructure -- */
+    return (st_u64_t)&g_trace_ptCtx;
 }
 
 st_error_t trace_open(void)
@@ -515,7 +462,7 @@ st_error_t trace_open(void)
     gui_wnd_desc_t tDesc;
     st_error_t     eResult;
 
-    if (g_trace_bInitialised == ST_FALSE)
+    if (g_trace_ptCtx.bInitialised == ST_FALSE)
     {
         fprintf(stderr,
                 "[trace_open] ERROR: trace not initialised\n");
@@ -523,12 +470,12 @@ st_error_t trace_open(void)
     }
 
     /* Idempotent: already open */
-    if (g_trace_bOpen == ST_TRUE)
+    if (g_trace_ptCtx.bOpen == ST_TRUE)
     {
         return ST_NO_ERROR;
     }
 
-    g_trace_bOpen = ST_TRUE;
+    g_trace_ptCtx.bOpen = ST_TRUE;
 
     /* Allocate and initialise the GUI view */
     ptView = (trace_view_t *)malloc(sizeof(trace_view_t));
@@ -540,7 +487,7 @@ st_error_t trace_open(void)
     }
     memset(ptView, 0, sizeof(trace_view_t));
     ptView->bAutoScroll   = ST_TRUE;
-    ptView->eViewMinLevel = g_trace_eViewMinLevel; /* P28: persistent filter */
+    ptView->eViewMinLevel = g_trace_ptCtx.eViewMinLevel; /* P28: persistent filter */
 
     eResult = platform_mutex_create(&ptView->ptMutex);
     if (eResult != ST_NO_ERROR)
@@ -570,8 +517,8 @@ st_error_t trace_open(void)
         ptView = NULL;
     }
 
-    g_trace_ptView = ptView;
-    g_trace_hWnd   = (ptView != NULL) ? ptView->hWnd : NULL;
+    g_trace_ptCtx.ptView = ptView;
+    g_trace_ptCtx.hWnd   = (ptView != NULL) ? ptView->hWnd : NULL;
 
     LOG_INFO("Trace console opened");
     return ST_NO_ERROR;
@@ -579,7 +526,7 @@ st_error_t trace_open(void)
 
 st_error_t trace_close(void)
 {
-    if (g_trace_bInitialised == ST_FALSE)
+    if (g_trace_ptCtx.bInitialised == ST_FALSE)
     {
         return ST_NO_ERROR;
     }
@@ -587,20 +534,20 @@ st_error_t trace_close(void)
     trace_flush_compact();
 
     LOG_INFO("Trace console closed");
-    g_trace_bOpen = ST_FALSE;
+    g_trace_ptCtx.bOpen = ST_FALSE;
 
     /* Close the GUI window and free the view */
-    if (g_trace_hWnd != NULL)
+    if (g_trace_ptCtx.hWnd != NULL)
     {
-        gui_close_window(g_trace_hWnd);
-        g_trace_hWnd = NULL;
+        gui_close_window(g_trace_ptCtx.hWnd);
+        g_trace_ptCtx.hWnd = NULL;
     }
 
-    if (g_trace_ptView != NULL)
+    if (g_trace_ptCtx.ptView != NULL)
     {
-        platform_mutex_destroy(&g_trace_ptView->ptMutex);
-        free(g_trace_ptView);
-        g_trace_ptView = NULL;
+        platform_mutex_destroy(&g_trace_ptCtx.ptView->ptMutex);
+        free(g_trace_ptCtx.ptView);
+        g_trace_ptCtx.ptView = NULL;
     }
 
     return ST_NO_ERROR;
@@ -609,19 +556,19 @@ st_error_t trace_close(void)
 st_error_t trace_set_trace_enabled(st_bool_t bEnabled)
 {
     trace_flush_compact();
-    g_trace_bTraceEnabled = bEnabled;
+    g_trace_ptCtx.bTraceEnabled = bEnabled;
     LOG_INFO("LOG_TRACE %s", bEnabled == ST_TRUE ? "enabled" : "disabled");
     return ST_NO_ERROR;
 }
 
 st_bool_t trace_is_trace_enabled(void)
 {
-    return g_trace_bTraceEnabled;
+    return g_trace_ptCtx.bTraceEnabled;
 }
 
 st_bool_t trace_is_open(void)
 {
-    return g_trace_bOpen;
+    return g_trace_ptCtx.bOpen;
 }
 
 void trace_log(log_level_t  eLevel,
@@ -636,18 +583,18 @@ void trace_log(log_level_t  eLevel,
     va_list vaArgs;
     int     bCompacted;
 
-    if (g_trace_bInitialised == ST_FALSE)
+    if (g_trace_ptCtx.bInitialised == ST_FALSE)
     {
         return;
     }
 
     if (eLevel == LOG_LEVEL_TRACE
-    &&  g_trace_bTraceEnabled == ST_FALSE)
+    &&  g_trace_ptCtx.bTraceEnabled == ST_FALSE)
     {
         return;
     }
 
-    if (g_trace_bOpen == ST_FALSE && g_trace_pFile == NULL)
+    if (g_trace_ptCtx.bOpen == ST_FALSE && g_trace_ptCtx.pFile == NULL)
     {
         return;
     }
@@ -657,22 +604,22 @@ void trace_log(log_level_t  eLevel,
 
     if (eLevel == LOG_LEVEL_TRACE && szFunc != NULL)
     {
-        if (g_trace_szLastFunc[0] != '\0'
-        &&  strncmp(g_trace_szLastFunc,
+        if (g_trace_ptCtx.szLastFunc[0] != '\0'
+        &&  strncmp(g_trace_ptCtx.szLastFunc,
                     szFunc,
                     TRACE_COMPACT_FUNCLEN - 1) == 0)
         {
-            g_trace_iCompactCount++;
+            g_trace_ptCtx.iCompactCount++;
             bCompacted = 1;
         }
         else
         {
             trace_flush_compact();
-            strncpy(g_trace_szLastFunc,
+            strncpy(g_trace_ptCtx.szLastFunc,
                     szFunc,
                     TRACE_COMPACT_FUNCLEN - 1);
-            g_trace_szLastFunc[TRACE_COMPACT_FUNCLEN - 1] = '\0';
-            g_trace_iCompactCount = 1;
+            g_trace_ptCtx.szLastFunc[TRACE_COMPACT_FUNCLEN - 1] = '\0';
+            g_trace_ptCtx.iCompactCount = 1;
         }
     }
     else
@@ -699,16 +646,16 @@ void trace_log(log_level_t  eLevel,
      * directly in trace_open()/trace_init(), bypassing this path. */
 
     /* ---- Write to log file (plain text) ---- */
-    if (g_trace_pFile != NULL)
+    if (g_trace_ptCtx.pFile != NULL)
     {
-        fprintf(g_trace_pFile,
+        fprintf(g_trace_ptCtx.pFile,
                 "%s [%s] %s:%d  %s\n",
                 szTime,
                 trace_level_label(eLevel),
                 szFunc != NULL ? szFunc : "?",
                 iLine,
                 szMsg);
-        fflush(g_trace_pFile);
+        fflush(g_trace_ptCtx.pFile);
     }
 
     /* ---- Append to GUI trace view (thread-safe) ---- */
@@ -716,10 +663,10 @@ void trace_log(log_level_t  eLevel,
      * LOG_TRACE which re-enters trace_log.  Without this guard the
      * chain trace_log → mutex_lock → LOG_TRACE → trace_log → mutex_lock
      * recurses infinitely and overflows the stack. */
-    if (g_trace_ptView != NULL && g_trace_hWnd != NULL
-    &&  !g_trace_bInNotify)
+    if (g_trace_ptCtx.ptView != NULL && g_trace_ptCtx.hWnd != NULL
+    &&  !g_trace_ptCtx.bInNotify)
     {
-        g_trace_bInNotify = 1;
+        g_trace_ptCtx.bInNotify = 1;
 
         snprintf(szLine, sizeof(szLine),
                  "%s [%s] %s:%d  %s",
@@ -729,38 +676,38 @@ void trace_log(log_level_t  eLevel,
                  iLine,
                  szMsg);
 
-        if (platform_mutex_lock(g_trace_ptView->ptMutex) == ST_NO_ERROR)
+        if (platform_mutex_lock(g_trace_ptCtx.ptView->ptMutex) == ST_NO_ERROR)
         {
-            trace_view_append_locked(g_trace_ptView, eLevel, szLine);
-            platform_mutex_unlock(g_trace_ptView->ptMutex);
+            trace_view_append_locked(g_trace_ptCtx.ptView, eLevel, szLine);
+            platform_mutex_unlock(g_trace_ptCtx.ptView->ptMutex);
         }
 
-        gui_invalidate(g_trace_hWnd);
+        gui_invalidate(g_trace_ptCtx.hWnd);
 
-        g_trace_bInNotify = 0;
+        g_trace_ptCtx.bInNotify = 0;
     }
 }
 
 st_error_t trace_clear(void)
 {
-    if (g_trace_ptView == NULL)
+    if (g_trace_ptCtx.ptView == NULL)
     {
         return ST_NO_ERROR; /* no window open — no-op */
     }
 
-    if (platform_mutex_lock(g_trace_ptView->ptMutex) == ST_NO_ERROR)
+    if (platform_mutex_lock(g_trace_ptCtx.ptView->ptMutex) == ST_NO_ERROR)
     {
-        g_trace_ptView->iHead      = 0;
-        g_trace_ptView->iCount     = 0;
-        g_trace_ptView->iScrollOff = 0;
-        platform_mutex_unlock(g_trace_ptView->ptMutex);
+        g_trace_ptCtx.ptView->iHead      = 0;
+        g_trace_ptCtx.ptView->iCount     = 0;
+        g_trace_ptCtx.ptView->iScrollOff = 0;
+        platform_mutex_unlock(g_trace_ptCtx.ptView->ptMutex);
     }
 
-    if (g_trace_hWnd != NULL && !g_trace_bInNotify)
+    if (g_trace_ptCtx.hWnd != NULL && !g_trace_ptCtx.bInNotify)
     {
-        g_trace_bInNotify = 1;
-        gui_invalidate(g_trace_hWnd);
-        g_trace_bInNotify = 0;
+        g_trace_ptCtx.bInNotify = 1;
+        gui_invalidate(g_trace_ptCtx.hWnd);
+        g_trace_ptCtx.bInNotify = 0;
     }
 
     LOG_INFO("trace: buffer cleared");
@@ -769,16 +716,16 @@ st_error_t trace_clear(void)
 
 st_error_t trace_set_view_level(log_level_t eMinLevel)
 {
-    g_trace_eViewMinLevel = eMinLevel;
+    g_trace_ptCtx.eViewMinLevel = eMinLevel;
 
-    if (g_trace_ptView != NULL)
+    if (g_trace_ptCtx.ptView != NULL)
     {
-        g_trace_ptView->eViewMinLevel = eMinLevel;
-        if (g_trace_hWnd != NULL && !g_trace_bInNotify)
+        g_trace_ptCtx.ptView->eViewMinLevel = eMinLevel;
+        if (g_trace_ptCtx.hWnd != NULL && !g_trace_ptCtx.bInNotify)
         {
-            g_trace_bInNotify = 1;
-            gui_invalidate(g_trace_hWnd);
-            g_trace_bInNotify = 0;
+            g_trace_ptCtx.bInNotify = 1;
+            gui_invalidate(g_trace_ptCtx.hWnd);
+            g_trace_ptCtx.bInNotify = 0;
         }
     }
 
@@ -788,14 +735,14 @@ st_error_t trace_set_view_level(log_level_t eMinLevel)
 
 log_level_t trace_get_view_level(void)
 {
-    return g_trace_eViewMinLevel;
+    return g_trace_ptCtx.eViewMinLevel;
 }
 
 st_error_t trace_shutdown(void)
 {
     st_error_t eResult;
 
-    if (g_trace_bInitialised == ST_FALSE)
+    if (g_trace_ptCtx.bInitialised == ST_FALSE)
     {
         return ST_NO_ERROR;
     }
@@ -805,29 +752,29 @@ st_error_t trace_shutdown(void)
     trace_flush_compact();
 
     /* Close GUI window if still open */
-    if (g_trace_bOpen == ST_TRUE)
+    if (g_trace_ptCtx.bOpen == ST_TRUE)
     {
         trace_close();
     }
 
     eResult = ST_NO_ERROR;
 
-    if (g_trace_pFile != NULL)
+    if (g_trace_ptCtx.pFile != NULL)
     {
-        if (fclose(g_trace_pFile) != 0)
+        if (fclose(g_trace_ptCtx.pFile) != 0)
         {
             fprintf(stderr,
                     "[trace_shutdown] ERROR: fclose() failed\n");
             eResult = ST_ERROR;
         }
-        g_trace_pFile = NULL;
+        g_trace_ptCtx.pFile = NULL;
     }
 
-    g_trace_bInitialised  = ST_FALSE;
-    g_trace_bOpen         = ST_FALSE;
-    g_trace_bTraceEnabled = ST_TRUE;
-    g_trace_iCompactCount = 0;
-    g_trace_szLastFunc[0] = '\0';
+    g_trace_ptCtx.bInitialised  = ST_FALSE;
+    g_trace_ptCtx.bOpen         = ST_FALSE;
+    g_trace_ptCtx.bTraceEnabled = ST_TRUE;
+    g_trace_ptCtx.iCompactCount = 0;
+    g_trace_ptCtx.szLastFunc[0] = '\0';
 
     return eResult;
 }

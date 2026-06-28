@@ -62,10 +62,12 @@ typedef enum st_bool_s
 
  typedef enum st_object_s
  {
-    ST_UNKNOWN  = 0,
-    ST_MAIN_CTX = 1,
-    ST_LINE_CTX = 10,
-    ST_GUI_CTX  = 20,
+    ST_UNKNOWN      = 0,
+    ST_MAIN_CTX     = 1,
+    ST_TRACE_CTX    = 2,
+    ST_LINE_CTX     = 10,
+    ST_GUI_CTX      = 20,
+    ST_GUI_PTF_CTX  = 21,
     ST_WIN_CONSOLE_CTX = 100
  } st_object_t;
 

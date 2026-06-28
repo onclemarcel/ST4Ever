@@ -32,6 +32,8 @@
 #define TRACE_H
 
 #include "common.h"
+#include "gui.h"
+#include "renderer.h"
 
 #define TRACE_LOGFILE           "st4ever_trace.log"
 
@@ -45,6 +47,45 @@ typedef enum log_level_s
     LOG_LEVEL_ERROR = 2,  /* Internal error with source location     */
     LOG_LEVEL_TODO  = 3   /* Stub / future implementation marker     */
 } log_level_t;
+
+/* ------------------------------------------------------------------
+ * Internal constants
+ * ------------------------------------------------------------------ */
+
+#define TRACE_COMPACT_FUNCLEN   80   /* max func name stored for compact */
+
+/* GUI trace window ring buffer.
+ * LINE_LEN covers full formatted output: prefix (~60) + ST_MAX_MSG (2048).
+ * 200 lines * ~2112 bytes = ~422 KB heap — acceptable for a debug view. */
+#define TRACE_VIEW_MAX_LINES    200
+#define TRACE_VIEW_LINE_LEN     (ST_MAX_MSG + 64)
+
+/* ------------------------------------------------------------------
+ * GUI trace view types  (internal to trace.c)
+ * ------------------------------------------------------------------ */
+
+typedef struct
+{
+    char        szText[TRACE_VIEW_LINE_LEN];
+    log_level_t eLevel;
+} trace_view_line_t;
+
+typedef struct
+{
+    gui_window_t        hWnd;
+    renderer_t          hRenderer;
+    trace_view_line_t   aLines[TRACE_VIEW_MAX_LINES]; /* ring buffer    */
+    int                 iHead;       /* index of oldest stored line      */
+    int                 iCount;      /* number of lines currently stored */
+    int                 iScrollOff;  /* index of first visible line      */
+    st_bool_t           bAutoScroll; /* ST_TRUE = follow newest line     */
+    int                 iWndWidth;
+    int                 iWndHeight;
+    int                 iCellW;
+    int                 iCellH;
+    st_mutex_t         *ptMutex;     /* protects aLines / iHead / iCount */
+    log_level_t         eViewMinLevel; /* P28: GUI display filter level  */
+} trace_view_t;
 
 /* ------------------------------------------------------------------
  * Log macros  (always use these, never call trace_log() directly)
@@ -63,6 +104,36 @@ typedef enum log_level_s
     trace_log(LOG_LEVEL_TODO,  __func__, __LINE__, fmt, ##__VA_ARGS__)
 
 /* ------------------------------------------------------------------
+ * Trace Context
+ * ------------------------------------------------------------------ */
+
+typedef struct trace_context_s
+{
+    st_u32_t      ulMagic;                 /* Magic ST4Ever OO-like tag */
+    st_object_t   eObject;                 /* Object type for tests     */
+    
+    st_bool_t     bInitialised;
+    st_bool_t     bOpen;
+    st_bool_t     bTraceEnabled;
+    FILE         *pFile;
+
+/* Compaction state for consecutive LOG_TRACE from the same function */
+    char          szLastFunc[TRACE_COMPACT_FUNCLEN];
+    int           iCompactCount;
+
+/* GUI trace window state */
+    trace_view_t *ptView;
+    gui_window_t  hWnd;
+    log_level_t   eViewMinLevel;   /* Persistent view level     */
+
+/* Re-entrancy guard: prevents gui_invalidate → LOG_TRACE → gui_invalidate
+ * infinite loop.  Only blocks the invalidate call, not the append. */
+    int           bInNotify; 
+ 
+} trace_context_t;
+
+
+/* ------------------------------------------------------------------
  * API
  * ------------------------------------------------------------------ */
 
@@ -76,11 +147,10 @@ typedef enum log_level_s
  *   bOpen [in] : ST_TRUE to open the trace console immediately.
  *
  * Returns:
- *   ST_NO_ERROR on success.
- *   ST_NO_ERROR if already initialised (idempotent - logs a warning to
- *               stderr, leaves the subsystem unchanged).
+ *   Value of the global trace_context_t structure pointer on success.
+ * 
  */
-st_error_t trace_init(st_bool_t bOpen);
+st_u64_t trace_init(st_bool_t bOpen);
 
 /*
  * trace_open() - Open / show the trace console.

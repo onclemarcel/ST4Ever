@@ -84,7 +84,7 @@
 #define UC_CHECK_OBJ(pt, type) \
     do { \
         st_obj_generic_t* obj = (void*)pt;  \
-        if (pt < ST_RETURNS)                \
+        if ((st_u64_t)pt < ST_RETURNS)      \
         {                                   \
             printf("  [FAIL] Value %p is a returned enum (not a pointer)\n", (void*)pt);    \
             g_uc_fails++;                   \
@@ -96,7 +96,7 @@
         }                                   \
         else if (obj->eObject != type)      \
         {                                   \
-            printf("  [FAIL] Incorrect pointer type (%d)\n", (void*)obj->eObject);    \
+            printf("  [FAIL] Incorrect pointer type (%d)\n", obj->eObject);    \
             g_uc_fails++;                   \
         }                                   \
     } while(0)
