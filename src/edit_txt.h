@@ -41,7 +41,6 @@
 #include "common.h"
 #include "gui.h"
 #include "renderer.h"
-#include "line.h"
 #include <time.h>
 
 /* ------------------------------------------------------------------
@@ -111,7 +110,6 @@ typedef struct edit_txt_view_s
     int             iCellH;             /* Monospace cell height (px)   */
     int             iGutterW;           /* Line-number gutter width (px)*/
 
-    line_context_t *ptLineCtx;
 } edit_txt_view_t;
 
 /* ------------------------------------------------------------------
@@ -126,7 +124,6 @@ typedef struct edit_txt_view_s
  *
  * Parameters:
  *   szPath     [in]  : Absolute or relative path to the file.
- *   ptLineCtx  [in]  : Console context (trace feedback on save/close).
  *   pptView    [out] : Receives the allocated view context.
  *
  * Returns:
@@ -135,7 +132,6 @@ typedef struct edit_txt_view_s
  *               or the window thread fails to start.
  */
 st_error_t edit_txt_open(const char       *szPath,
-                          line_context_t   *ptLineCtx,
                           edit_txt_view_t **pptView);
 
 /*

@@ -18,41 +18,13 @@
  * Internal helpers
  * ------------------------------------------------------------------ */
 
-/* Write a big-endian 16-bit word into ST RAM at a byte address.
- * Used to populate the Line-A parameter block.                        */
-static void write_be16(st_machine_t *ptMachine,
-                        st_u32_t      uiAddr,
-                        st_u16_t      uiVal)
-{
-    if (uiAddr + 1u < ST_RAM_SIZE)
-    {
-        ptMachine->aRam[uiAddr]      = (st_u8_t)(uiVal >> 8);
-        ptMachine->aRam[uiAddr + 1u] = (st_u8_t)(uiVal & 0xFFu);
-    }
-}
-
-/* Write a big-endian 32-bit long into ST RAM at a byte address.       */
-static void write_be32(st_machine_t *ptMachine,
-                        st_u32_t      uiAddr,
-                        st_u32_t      uiVal)
-{
-    if (uiAddr + 3u < ST_RAM_SIZE)
-    {
-        ptMachine->aRam[uiAddr]      = (st_u8_t)(uiVal >> 24);
-        ptMachine->aRam[uiAddr + 1u] = (st_u8_t)((uiVal >> 16) & 0xFFu);
-        ptMachine->aRam[uiAddr + 2u] = (st_u8_t)((uiVal >> 8)  & 0xFFu);
-        ptMachine->aRam[uiAddr + 3u] = (st_u8_t)(uiVal & 0xFFu);
-    }
-}
-
 /* Return geometry for the current resolution stored in ptMachine.     */
-static void get_resolution_params(const st_machine_t *ptMachine,
-                                   int                *piWidth,
+static void get_resolution_params( int                *piWidth,
                                    int                *piHeight,
                                    int                *piPlanes,
                                    int                *piLinWr)
 {
-    switch (ptMachine->uiResolution)
+    switch (st_get_resolution())
     {
         case ST_RES_MED:
             *piWidth  = 640;
@@ -79,7 +51,7 @@ static void get_resolution_params(const st_machine_t *ptMachine,
  * linea_init
  * ------------------------------------------------------------------ */
 
-st_error_t linea_init(st_machine_t *ptMachine)
+st_error_t linea_init()
 {
     int       iWidth;
     int       iHeight;
@@ -90,20 +62,14 @@ st_error_t linea_init(st_machine_t *ptMachine)
     int       iRowsMinus1;
     int       iCelWr;
     st_u32_t  uiBase;
-    st_u32_t  uiBlockStart;
+    void*     ptSTRam;
 
-    LOG_TRACE("ptMachine=%p", (void *)ptMachine);
-
-    if (ptMachine == NULL)
-    {
-        LOG_ERROR("NULL ptMachine");
-        return ST_ERROR;
-    }
+    LOG_TRACE("Initialization of line A");
 
     /* Validate that the block area is within RAM */
-    uiBlockStart = LINEA_PARAM_ADDR - LINEA_PARAM_NEG_SIZE;
+    ptSTRam = (void*)st_get_ram_pointer(LINEA_PARAM_ADDR - LINEA_PARAM_NEG_SIZE);
     if (LINEA_PARAM_ADDR + 32u > ST_RAM_SIZE
-        || uiBlockStart >= ST_RAM_SIZE)
+        || ptSTRam == NULL)
     {
         LOG_ERROR("LINEA_PARAM_ADDR 0x%04X out of RAM bounds",
                   LINEA_PARAM_ADDR);
@@ -111,13 +77,10 @@ st_error_t linea_init(st_machine_t *ptMachine)
     }
 
     /* Zero the entire block first */
-    memset(&ptMachine->aRam[uiBlockStart],
-           0,
-           LINEA_BLOCK_SIZE);
+    memset(ptSTRam, 0, LINEA_BLOCK_SIZE);
 
     /* Derive geometry from current resolution */
-    get_resolution_params(ptMachine,
-                          &iWidth, &iHeight, &iPlanes, &iLinWr);
+    get_resolution_params(&iWidth, &iHeight, &iPlanes, &iLinWr);
 
     /* Character cell: 8x8 font (fixed for this emulator stub) */
     iCelHt       = 8;
@@ -126,35 +89,28 @@ st_error_t linea_init(st_machine_t *ptMachine)
     iCelWr       = iLinWr * iCelHt;    /* bytes per text row      */
 
     /* Screen base from machine state */
-    uiBase = ptMachine->uiScreenBase;
+    uiBase = st_get_screen_base();
 
     /* Write negative-offset fields (at LINEA_PARAM_ADDR - offset)   */
-    write_be16(ptMachine,
-               LINEA_PARAM_ADDR - LINEA_V_CEL_MX_OFF,
+    st_write_word(LINEA_PARAM_ADDR - LINEA_V_CEL_MX_OFF,
                (st_u16_t)iColsMinus1);
-    write_be16(ptMachine,
-               LINEA_PARAM_ADDR - LINEA_V_CEL_MY_OFF,
+    st_write_word(LINEA_PARAM_ADDR - LINEA_V_CEL_MY_OFF,
                (st_u16_t)iRowsMinus1);
-    write_be16(ptMachine,
-               LINEA_PARAM_ADDR - LINEA_V_CEL_WR_OFF,
+    st_write_word(LINEA_PARAM_ADDR - LINEA_V_CEL_WR_OFF,
                (st_u16_t)iCelWr);
-    write_be16(ptMachine,
-               LINEA_PARAM_ADDR - LINEA_V_CEL_HT_OFF,
+    st_write_word(LINEA_PARAM_ADDR - LINEA_V_CEL_HT_OFF,
                (st_u16_t)iCelHt);
-    write_be16(ptMachine,
-               LINEA_PARAM_ADDR - LINEA_V_PLANES_OFF,
+    st_write_word(LINEA_PARAM_ADDR - LINEA_V_PLANES_OFF,
                (st_u16_t)iPlanes);
-    write_be16(ptMachine,
-               LINEA_PARAM_ADDR - LINEA_V_LIN_WR_OFF,
+    st_write_word(LINEA_PARAM_ADDR - LINEA_V_LIN_WR_OFF,
                (st_u16_t)iLinWr);
-    write_be32(ptMachine,
-               LINEA_PARAM_ADDR - LINEA_V_BAS_AD_OFF,
+    st_write_long(LINEA_PARAM_ADDR - LINEA_V_BAS_AD_OFF,
                uiBase);
 
     LOG_INFO("linea param block at 0x%04X: res=%u planes=%d linwr=%d "
              "base=0x%06X",
              LINEA_PARAM_ADDR,
-             (unsigned)ptMachine->uiResolution,
+             (unsigned)st_get_resolution(),
              iPlanes, iLinWr, (unsigned)uiBase);
 
     return ST_NO_ERROR;
@@ -167,8 +123,7 @@ st_error_t linea_init(st_machine_t *ptMachine)
  * Clamps out-of-bounds coordinates silently (no error).
  * ------------------------------------------------------------------ */
 
-static st_error_t linea_do_put_pixel(cpu68k_t     *ptCpu,
-                                      st_machine_t *ptMachine)
+static st_error_t linea_do_put_pixel(cpu68k_t     *ptCpu)
 {
     int      iX;
     int      iY;
@@ -186,8 +141,6 @@ static st_error_t linea_do_put_pixel(cpu68k_t     *ptCpu,
     st_u32_t uiGroupOff;
     st_u32_t uiWordAddr;
     st_u32_t uiBytesPerGroup;
-    st_u8_t  uiHi;
-    st_u8_t  uiLo;
     st_u16_t uiWord;
 
     /* Coordinates and color from data registers */
@@ -195,13 +148,13 @@ static st_error_t linea_do_put_pixel(cpu68k_t     *ptCpu,
     iY     = (int)(st_i16_t)(st_u16_t)(ptCpu->auDn[1] & 0xFFFFu);
     iX     = (int)(st_i16_t)(st_u16_t)(ptCpu->auDn[2] & 0xFFFFu);
 
-    get_resolution_params(ptMachine, &iWidth, &iHeight, &iPlanes, &iLinWr);
+    get_resolution_params(&iWidth, &iHeight, &iPlanes, &iLinWr);
 
     /* Clamp — out-of-range pixel is silently ignored */
     if (iX < 0 || iX >= iWidth || iY < 0 || iY >= iHeight)
         return ST_NO_ERROR;
 
-    uiBase       = ptMachine->uiScreenBase;
+    uiBase       = st_get_screen_base();
     iWordGroup   = iX / 16;
     iBitPos      = 15 - (iX % 16);   /* MSB = leftmost pixel */
     uiLineOff    = (st_u32_t)(iY * iLinWr);
@@ -217,17 +170,14 @@ static st_error_t linea_do_put_pixel(cpu68k_t     *ptCpu,
         if (uiWordAddr + 1u >= ST_RAM_SIZE)
             continue;
 
-        uiHi  = ptMachine->aRam[uiWordAddr];
-        uiLo  = ptMachine->aRam[uiWordAddr + 1u];
-        uiWord = (st_u16_t)(((st_u16_t)uiHi << 8) | uiLo);
+        st_read_word(uiWordAddr, &uiWord);
 
         if (iPlaneBit)
             uiWord |=  (st_u16_t)(1u << iBitPos);
         else
             uiWord &= (st_u16_t)~(st_u16_t)(1u << iBitPos);
 
-        ptMachine->aRam[uiWordAddr]      = (st_u8_t)(uiWord >> 8);
-        ptMachine->aRam[uiWordAddr + 1u] = (st_u8_t)(uiWord & 0xFFu);
+        st_write_word(uiWordAddr, uiWord);
     }
 
     return ST_NO_ERROR;
@@ -238,12 +188,11 @@ static st_error_t linea_do_put_pixel(cpu68k_t     *ptCpu,
  * Sets A0 = LINEA_PARAM_ADDR and refreshes the parameter block.
  * ------------------------------------------------------------------ */
 
-static st_error_t linea_do_init(cpu68k_t     *ptCpu,
-                                 st_machine_t *ptMachine)
+static st_error_t linea_do_init(cpu68k_t     *ptCpu)
 {
     st_error_t eResult;
 
-    eResult = linea_init(ptMachine);
+    eResult = linea_init();
     if (eResult != ST_NO_ERROR)
     {
         return eResult;
@@ -261,15 +210,14 @@ static st_error_t linea_do_init(cpu68k_t     *ptCpu,
  * ------------------------------------------------------------------ */
 
 st_error_t linea_dispatch(cpu68k_t     *ptCpu,
-                           st_machine_t *ptMachine,
                            st_u16_t      uiOpcode)
 {
     unsigned int uiFn;
 
-    if (ptCpu == NULL || ptMachine == NULL)
+    if (ptCpu == NULL)
     {
-        LOG_ERROR("NULL parameter: ptCpu=%p ptMachine=%p",
-                  (void *)ptCpu, (void *)ptMachine);
+        LOG_ERROR("NULL parameter: ptCpu=%p",
+                  (void *)ptCpu);
         return ST_ERROR;
     }
 
@@ -279,10 +227,10 @@ st_error_t linea_dispatch(cpu68k_t     *ptCpu,
     switch (uiFn)
     {
         case 0x00: /* LINEA_INIT */
-            return linea_do_init(ptCpu, ptMachine);
+            return linea_do_init(ptCpu);
 
         case 0x01: /* PUT_PIXEL - D0=color, D1=y, D2=x */
-            return linea_do_put_pixel(ptCpu, ptMachine);
+            return linea_do_put_pixel(ptCpu);
 
         case 0x02: /* GET_PIXEL */
             LOG_TODO("LINEA GET_PIXEL at PC=0x%06X", (unsigned)ptCpu->uiPC);

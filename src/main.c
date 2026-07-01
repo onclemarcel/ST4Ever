@@ -113,9 +113,11 @@ static st_error_t ST4Ever_manage_options(int argc, char* argv[])
             /* ---- 1.2.1 --script option needs with a file name ---- */
             if (iArg + 1 >= argc)
             {
+#ifndef ST_TEST_FWK
                 fprintf(stderr, "%s: --script requires a file argument\n",
                                 ST_APP_NAME);
                 ST4Ever_print_usage(argv[0]);
+#endif
                 return ST_QUIT;
             }
 
@@ -123,9 +125,11 @@ static st_error_t ST4Ever_manage_options(int argc, char* argv[])
             iArg++;
             if (argv[iArg][0] == '-')
             {
+#ifndef ST_TEST_FWK
                 fprintf(stderr, "%s: --script requires a file argument\n",
                                 ST_APP_NAME);
                 ST4Ever_print_usage(argv[0]);
+#endif
                 return ST_QUIT;
             }
 
@@ -158,8 +162,6 @@ static st_error_t ST4Ever_manage_options(int argc, char* argv[])
 
 st_u64_t ST4Ever_init(int argc, char *argv[])
 {
-    st_machine_t    tMachine;
-
     /* -- [MAIN]1. Parse command-line options -- */
     if (ST4Ever_manage_options(argc, argv) == ST_QUIT) return ST_QUIT;
 
@@ -197,29 +199,33 @@ st_u64_t ST4Ever_init(int argc, char *argv[])
         return ST_ERROR;
     }
 
-    /* ---- 5. ST machine + load module ----------------------------- */
-    g_main_ptCtx.ptSTMachineCtx = st_init(&tMachine, NULL);
+    /* -- [MAIN]5. Init Virtual ST machine -- */
+    /* TODO: Implement ROM upload function - see if ROM is uploaded at st_init() 
+     *      or if a dedicated st_rom_load() function is better after st_init() */
+    g_main_ptCtx.ptSTMachineCtx = st_init(NULL);
     if (g_main_ptCtx.ptSTMachineCtx == ST_ERROR)
     {
         LOG_ERROR("st_init() failed");
         return ST_ERROR;
     }
 
-    g_main_ptCtx.ptSTLoadCtx = load_init(&tMachine);
+    /* -- [MAIN]6. Init 'load' command -- */
+    g_main_ptCtx.ptSTLoadCtx = load_init(g_main_ptCtx.ptSTMachineCtx);
     if (g_main_ptCtx.ptSTLoadCtx == ST_ERROR)
     {
         LOG_ERROR("load_init() failed");
         return ST_ERROR;
     }
 
-    g_main_ptCtx.ptSTExecCtx = exec_init(&tMachine);
+    /* -- [MAIN]7. Init 'exec' command -- */
+    g_main_ptCtx.ptSTExecCtx = exec_init(g_main_ptCtx.ptSTMachineCtx);
     if (g_main_ptCtx.ptSTExecCtx == ST_ERROR)
     {
         LOG_ERROR("exec_init() failed");
         return ST_ERROR;
     }
 
-    /* ---- 6. Console init & run ----------------------------------- */
+    /* -- [MAIN]8. Init Main Console -- */
     g_main_ptCtx.ptConsoleCtx = line_init(g_main_ptCtx.szScriptFile);
     if (g_main_ptCtx.ptConsoleCtx == ST_ERROR)
     {
@@ -238,9 +244,10 @@ void ST4Ever_run()
 st_error_t ST4Ever_shutdown()
 {
     st_error_t eExitCode;
+    st_bool_t  bIsCorrectObject;
 
-    if ((g_main_ptCtx.ptConsoleCtx != ST_ERROR) &&
-       ( g_main_ptCtx.ptConsoleCtx != ST_NO_ERROR))
+    CHECK_OBJ(g_main_ptCtx.ptConsoleCtx, ST_LINE_CTX, bIsCorrectObject);
+    if (bIsCorrectObject)
        {
             if (line_shutdown() == ST_ERROR)
             {
@@ -249,8 +256,8 @@ st_error_t ST4Ever_shutdown()
             } 
        }
 
-    if ((g_main_ptCtx.ptSTExecCtx != ST_ERROR) &&
-       ( g_main_ptCtx.ptSTExecCtx != ST_NO_ERROR))
+    CHECK_OBJ(g_main_ptCtx.ptSTExecCtx, ST_EXEC_CTX, bIsCorrectObject);
+    if (bIsCorrectObject)
        {
             if (exec_shutdown() == ST_ERROR)
             {
@@ -259,8 +266,8 @@ st_error_t ST4Ever_shutdown()
             } 
        }
 
-    if ((g_main_ptCtx.ptSTLoadCtx != ST_ERROR) &&
-       ( g_main_ptCtx.ptSTLoadCtx != ST_NO_ERROR))
+    CHECK_OBJ(g_main_ptCtx.ptSTLoadCtx, ST_LOAD_CTX, bIsCorrectObject);
+    if (bIsCorrectObject)
        {
             if (load_shutdown() == ST_ERROR)
             {
@@ -269,8 +276,8 @@ st_error_t ST4Ever_shutdown()
             } 
        }
 
-    if ((g_main_ptCtx.ptSTMachineCtx != ST_ERROR) &&
-       ( g_main_ptCtx.ptSTMachineCtx != ST_NO_ERROR))
+    CHECK_OBJ(g_main_ptCtx.ptSTMachineCtx, ST_MACHINE_CTX, bIsCorrectObject);
+    if (bIsCorrectObject)
        {
             if (st_shutdown(NULL) == ST_ERROR)
             {
@@ -279,8 +286,8 @@ st_error_t ST4Ever_shutdown()
             } 
        }
 
-    if ((g_main_ptCtx.ptGUICtx != ST_ERROR) &&
-       ( g_main_ptCtx.ptGUICtx != ST_NO_ERROR))
+    CHECK_OBJ(g_main_ptCtx.ptGUICtx, ST_GUI_CTX, bIsCorrectObject);
+    if (bIsCorrectObject)
        {
             if (gui_shutdown() == ST_ERROR)
             {
@@ -292,8 +299,8 @@ st_error_t ST4Ever_shutdown()
     LOG_INFO("%s shutdown complete (exit code %d)",
              ST_APP_NAME, eExitCode);
 
-    if ((g_main_ptCtx.ptTraceCtx != ST_ERROR) &&
-       ( g_main_ptCtx.ptTraceCtx != ST_NO_ERROR))
+    CHECK_OBJ(g_main_ptCtx.ptTraceCtx, ST_TRACE_CTX, bIsCorrectObject);
+    if (bIsCorrectObject)
        {
             if (trace_shutdown() == ST_ERROR)
             {
@@ -303,8 +310,8 @@ st_error_t ST4Ever_shutdown()
        }
 
 #ifdef ST_PLATFORM_WINDOWS
-        if ((g_main_ptCtx.ptWinConsoleCtx != ST_ERROR) &&
-       ( g_main_ptCtx.ptWinConsoleCtx != ST_NO_ERROR))
+    CHECK_OBJ(g_main_ptCtx.ptWinConsoleCtx, ST_WIN_CONSOLE_CTX, bIsCorrectObject);
+    if (bIsCorrectObject)
        {
             if (win_console_shutdown() == ST_ERROR)
             {

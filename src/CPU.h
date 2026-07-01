@@ -140,7 +140,7 @@ typedef struct cpu_step_result_s
  *
  * Returns: ST_NO_ERROR on success, ST_ERROR if either pointer is NULL.
  */
-st_error_t cpu_init(cpu68k_t *ptCpu, const st_machine_t *ptMachine);
+st_error_t cpu_init(cpu68k_t *ptCpu);
 
 /*
  * cpu_reset() - Perform a CPU reset (re-read reset vectors).
@@ -153,7 +153,7 @@ st_error_t cpu_init(cpu68k_t *ptCpu, const st_machine_t *ptMachine);
  *
  * Returns: ST_NO_ERROR on success, ST_ERROR if either pointer is NULL.
  */
-st_error_t cpu_reset(cpu68k_t *ptCpu, const st_machine_t *ptMachine);
+st_error_t cpu_reset(cpu68k_t *ptCpu);
 
 /*
  * cpu_step() - Fetch, decode and execute one instruction.
@@ -169,7 +169,6 @@ st_error_t cpu_reset(cpu68k_t *ptCpu, const st_machine_t *ptMachine);
  * Returns: ST_NO_ERROR on success, ST_ERROR on fatal emulation error.
  */
 st_error_t cpu_step(cpu68k_t           *ptCpu,
-                     st_machine_t       *ptMachine,
                      cpu_step_result_t  *ptResult);
 
 /*
@@ -185,7 +184,6 @@ st_error_t cpu_step(cpu68k_t           *ptCpu,
  * Returns: ST_NO_ERROR on success, ST_ERROR on stack overflow.
  */
 st_error_t cpu_raise_exception(cpu68k_t     *ptCpu,
-                                 st_machine_t *ptMachine,
                                  st_u32_t      uiVector);
 
 #endif /* CPU_H */

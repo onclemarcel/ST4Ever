@@ -61,7 +61,6 @@
 #include "common.h"
 #include "gui.h"
 #include "renderer.h"
-#include "line.h"
 #include "disassemble.h"
 #include "sector_analyze.h"
 #include "image_annot.h"
@@ -204,7 +203,6 @@ typedef struct edit_hex_view_s
     char              aszBandLabelText[HEXED_BAND_MAX_LABELS][12]; /* txt */
     int               iBandLabelCount;    /* active clickable labels     */
 
-    line_context_t   *ptLineCtx;
 } edit_hex_view_t;
 
 /* ------------------------------------------------------------------
@@ -219,9 +217,8 @@ typedef struct edit_hex_view_s
  * A disassembly panel is shown by default (F2 to toggle).
  *
  * Parameters:
- *   szPath     [in]  : Absolute or relative path to the file.
- *   ptLineCtx  [in]  : Console context (trace feedback on save/close).
- *   pptView    [out] : Receives the allocated view context.
+ *   szPath     [in]      : Absolute or relative path to the file.
+ *   pptView    [out]     : Receives the allocated view context.
  *
  * Returns:
  *   ST_NO_ERROR on success.
@@ -229,7 +226,6 @@ typedef struct edit_hex_view_s
  *               file exceeds EDIT_HEX_MAX_SIZE, or window fails.
  */
 st_error_t edit_hex_open(const char       *szPath,
-                          line_context_t   *ptLineCtx,
                           edit_hex_view_t **pptView);
 
 /*

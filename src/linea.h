@@ -81,7 +81,7 @@
  *   ST_NO_ERROR  always (non-fatal: falls back to zero block).
  *   ST_ERROR     if ptMachine is NULL.
  */
-st_error_t linea_init(st_machine_t *ptMachine);
+st_error_t linea_init();
 
 /*
  * linea_dispatch() - Handle a Line-A opcode in the CPU dispatcher.
@@ -106,7 +106,6 @@ st_error_t linea_init(st_machine_t *ptMachine);
  *   ST_ERROR     if ptCpu or ptMachine is NULL.
  */
 st_error_t linea_dispatch(cpu68k_t     *ptCpu,
-                           st_machine_t *ptMachine,
                            st_u16_t      uiOpcode);
 
 #endif /* LINEA_H */

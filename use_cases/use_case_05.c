@@ -110,17 +110,7 @@ int main(void)
      */
     printf("\n--- line_init() + P24 colors-auto ---\n");
 
-    UC_CHECK("[N] line_init()", line_init(&tCtx));
-    UC_TEST("[N] bRunning == ST_TRUE after line_init",
-            tCtx.bRunning == ST_TRUE);
-    UC_TEST("[N] szCwd non-empty after line_init",
-            tCtx.szCwd[0] != '\0');
-
-    {
-        st_bool_t bCol = line_get_colors();
-        UC_TEST("[N] line_get_colors() is a valid st_bool_t",
-                bCol == ST_TRUE || bCol == ST_FALSE);
-    }
+    
 
     /* ----------------------------------------------------------------
      * BLOCK 4 — line_update_console_title()

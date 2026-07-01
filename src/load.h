@@ -42,6 +42,9 @@
  *
  * TODO(UC24): Memory map-aware load address allocation (first free
  *             block above TOS variable area).
+ * 
+ * TODO : Manage several files in ST Emulated memory and keep track of them
+ *        (see how exec module manage a multiple files application)
  */
 
 #ifndef LOAD_H
@@ -76,8 +79,12 @@ typedef enum load_type_e
  * Load state (read-only via load_get_state)
  * ------------------------------------------------------------------ */
 
-typedef struct load_state_s
+typedef struct load_context_s
 {
+    st_u32_t    ulMagic;                 /*  Magic ST4Ever OO-like tag  */
+    st_object_t eObject;                 /*  Object type for tests      */
+    
+    st_bool_t    bIsMachineOn;           /* ST_TRUE if machine is on    */
     st_bool_t    bLoaded;                /* ST_TRUE if a file is loaded */
     load_type_t  eType;                  /* File type discriminant      */
     char         szPath[ST_MAX_PATH];    /* Full path of loaded file    */
@@ -89,7 +96,7 @@ typedef struct load_state_s
     st_u32_t     uiDataSize;             /* .data section size (bytes)  */
     st_u32_t     uiBssSize;              /* .bss  section size (bytes)  */
     st_u32_t     uiFixupCount;           /* Number of fixups applied    */
-} load_state_t;
+} load_context_t;
 
 /* ------------------------------------------------------------------
  * API — lifecycle
@@ -105,10 +112,10 @@ typedef struct load_state_s
  *   ptMachine [in] : Initialised ST machine (must not be NULL).
  *
  * Returns:
- *   ST_NO_ERROR on success.
- *   ST_ERROR    if ptMachine is NULL.
+ *   Value of the global load_context_t structure pointer on success.
+ *   ST_ERROR is ST Machine context is not initialized
  */
-st_error_t load_init(st_machine_t *ptMachine);
+st_u64_t load_init(st_u64_t ulSTMachineCtx);
 
 /*
  * load_shutdown() - Detach the load module and reset state.
@@ -160,6 +167,6 @@ st_error_t load_file(const char *szPath);
  * Returns:
  *   Read-only pointer to the internal load_state_t.
  */
-const load_state_t *load_get_state(void);
+const load_context_t *load_get_context(void);
 
 #endif /* LOAD_H */

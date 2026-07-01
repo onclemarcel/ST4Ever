@@ -32,11 +32,11 @@
 #include <stdlib.h>
 
 /* ------------------------------------------------------------------
- * Module globals
+ * Load Context global structure
  * ------------------------------------------------------------------ */
 
-static st_machine_t *g_load_ptMachine = NULL;
-static load_state_t  g_load_tState;
+static load_context_t  g_load_ptCtx = {.ulMagic = 0xCAFEDECA, 
+                                       .eObject = ST_LOAD_CTX};
 
 /* ------------------------------------------------------------------
  * Internal helpers
@@ -173,7 +173,7 @@ static st_error_t load_apply_fixups(file_t     *ptFile,
         }
 
         /* Relocate: longword at ST_LOAD_BASE + uiOffset += ST_LOAD_BASE */
-        pRam  = &g_load_ptMachine->aRam[ST_LOAD_BASE + uiOffset];
+        pRam  = st_get_ram_pointer(ST_LOAD_BASE + uiOffset);
         uiOld = load_u32be(pRam);
         uiNew = uiOld + ST_LOAD_BASE;
         pRam[0] = (st_u8_t)(uiNew >> 24);
@@ -247,7 +247,7 @@ static st_error_t load_do_raw(const char        *szPath,
             LOG_ERROR("'%s': data exceeds RAM during streaming", szPath);
             return ST_ERROR;
         }
-        memcpy(&g_load_ptMachine->aRam[ST_LOAD_BASE + uiTotal],
+        memcpy(st_get_ram_pointer(ST_LOAD_BASE + uiTotal),
                aBuf, uiRead);
         uiTotal += uiRead;
     }
@@ -255,12 +255,15 @@ static st_error_t load_do_raw(const char        *szPath,
 
     file_close(&ptFile);
 
-    memset(&g_load_tState, 0, sizeof(g_load_tState));
-    g_load_tState.bLoaded    = ST_TRUE;
-    g_load_tState.eType      = eType;
-    strncpy(g_load_tState.szPath, szPath, ST_MAX_PATH - 1);
-    g_load_tState.uiLoadAddr = ST_LOAD_BASE;
-    g_load_tState.uiSize     = (st_u32_t)uiTotal;
+    g_load_ptCtx.bLoaded      = ST_TRUE;
+    g_load_ptCtx.eType        = eType;
+    strncpy(g_load_ptCtx.szPath, szPath, ST_MAX_PATH - 1);
+    g_load_ptCtx.uiLoadAddr   = ST_LOAD_BASE;
+    g_load_ptCtx.uiSize       = (st_u32_t)uiTotal;
+    g_load_ptCtx.uiTextSize   = 0;
+    g_load_ptCtx.uiDataSize   = 0;
+    g_load_ptCtx.uiBssSize    = 0;
+    g_load_ptCtx.uiFixupCount = 0;
 
     LOG_INFO("loaded '%s' at ST:0x%06X (%u bytes, binary)",
              szPath, ST_LOAD_BASE, (unsigned)uiTotal);
@@ -341,7 +344,7 @@ static st_error_t load_do_prg(const char *szPath)
     {
         uiRead = 0;
         if (file_read(ptFile,
-                      &g_load_ptMachine->aRam[ST_LOAD_BASE],
+                      st_get_ram_pointer(ST_LOAD_BASE),
                       uiContentSize, &uiRead) != ST_NO_ERROR
             || uiRead < uiContentSize)
         {
@@ -359,7 +362,7 @@ static st_error_t load_do_prg(const char *szPath)
      * ---------------------------------------------------------------- */
     if (uiBssSize > 0)
     {
-        memset(&g_load_ptMachine->aRam[ST_LOAD_BASE + uiContentSize],
+        memset(st_get_ram_pointer(ST_LOAD_BASE + uiContentSize),
                0, (size_t)uiBssSize);
     }
 
@@ -400,16 +403,15 @@ static st_error_t load_do_prg(const char *szPath)
     /* ----------------------------------------------------------------
      * 6. Update load state
      * ---------------------------------------------------------------- */
-    memset(&g_load_tState, 0, sizeof(g_load_tState));
-    g_load_tState.bLoaded      = ST_TRUE;
-    g_load_tState.eType        = LOAD_TYPE_PRG;
-    strncpy(g_load_tState.szPath, szPath, ST_MAX_PATH - 1);
-    g_load_tState.uiLoadAddr   = ST_LOAD_BASE;
-    g_load_tState.uiSize       = uiTotalSize;
-    g_load_tState.uiTextSize   = uiTextSize;
-    g_load_tState.uiDataSize   = uiDataSize;
-    g_load_tState.uiBssSize    = uiBssSize;
-    g_load_tState.uiFixupCount = uiFixupCount;
+    g_load_ptCtx.bLoaded      = ST_TRUE;
+    g_load_ptCtx.eType        = LOAD_TYPE_PRG;
+    strncpy(g_load_ptCtx.szPath, szPath, ST_MAX_PATH - 1);
+    g_load_ptCtx.uiLoadAddr   = ST_LOAD_BASE;
+    g_load_ptCtx.uiSize       = uiTotalSize;
+    g_load_ptCtx.uiTextSize   = uiTextSize;
+    g_load_ptCtx.uiDataSize   = uiDataSize;
+    g_load_ptCtx.uiBssSize    = uiBssSize;
+    g_load_ptCtx.uiFixupCount = uiFixupCount;
 
     LOG_INFO("loaded PRG '%s' at ST:0x%06X (.text=%u .data=%u .bss=%u "
              "%u fixup(s))",
@@ -423,27 +425,33 @@ static st_error_t load_do_prg(const char *szPath)
  * Public API
  * ------------------------------------------------------------------ */
 
-st_error_t load_init(st_machine_t *ptMachine)
+st_u64_t load_init(st_u64_t ulSTMachineCtx)
 {
-    LOG_TRACE("ptMachine=%p", (void *)ptMachine);
+    st_bool_t             bIsMachine = ST_FALSE;
+    st_machine_context_t* ptMachine  = NULL;
 
-    if (ptMachine == NULL)
+    LOG_TRACE("Init load module - attach %p ST Machine",
+                (void*)ulSTMachineCtx);
+
+    /* -- [LOAD]1. Attach an existing ST machine -- */
+    CHECK_OBJ(ulSTMachineCtx, ST_MACHINE_CTX, bIsMachine);
+    if (!bIsMachine)
     {
-        LOG_ERROR("NULL ptMachine");
+        LOG_ERROR("ST Machine is invalid (%llu)", ulSTMachineCtx);
         return ST_ERROR;
     }
-
-    g_load_ptMachine = ptMachine;
-    memset(&g_load_tState, 0, sizeof(g_load_tState));
-    LOG_INFO("load module initialised");
-    return ST_NO_ERROR;
+    ptMachine = (st_machine_context_t*)ulSTMachineCtx;
+    g_load_ptCtx.bIsMachineOn = ptMachine->bPoweredOn;
+    
+    /* -- [LOAD]2. Init returns context sructure -- */
+    LOG_INFO("Load module initialised");
+    return (st_u64_t)&g_load_ptCtx;
 }
 
 st_error_t load_shutdown(void)
 {
     LOG_TRACE("shutdown");
-    g_load_ptMachine = NULL;
-    memset(&g_load_tState, 0, sizeof(g_load_tState));
+    memset(&g_load_ptCtx, 0, sizeof(g_load_ptCtx));
     LOG_INFO("load module shutdown");
     return ST_NO_ERROR;
 }
@@ -460,7 +468,7 @@ st_error_t load_file(const char *szPath)
         return ST_ERROR;
     }
 
-    if (g_load_ptMachine == NULL)
+    if (g_load_ptCtx.bIsMachineOn == ST_FALSE)
     {
         LOG_ERROR("load_init() not called");
         return ST_ERROR;
@@ -494,7 +502,7 @@ st_error_t load_file(const char *szPath)
     return load_do_raw(szPath, &tStat, LOAD_TYPE_BINARY);
 }
 
-const load_state_t *load_get_state(void)
+const load_context_t *load_get_context(void)
 {
-    return &g_load_tState;
+    return &g_load_ptCtx;
 }

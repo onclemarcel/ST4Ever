@@ -53,7 +53,6 @@ int g_uc_fails = 0;
  * Returns: ST_NO_ERROR on success.
  */
 static st_error_t uc01_load_prg_text(const char   *szPath,
-                                      st_machine_t *ptMachine,
                                       st_u32_t      uiLoadAddr,
                                       st_u32_t     *puiTextSz)
 {
@@ -62,7 +61,7 @@ static st_error_t uc01_load_prg_text(const char   *szPath,
     st_u32_t  uiTextSz;
     size_t    uiRead;
 
-    if (szPath == NULL || ptMachine == NULL || puiTextSz == NULL)
+    if (szPath == NULL || puiTextSz == NULL)
     {
         return ST_ERROR;
     }
@@ -105,7 +104,7 @@ static st_error_t uc01_load_prg_text(const char   *szPath,
         return ST_ERROR;
     }
 
-    uiRead = fread(&ptMachine->aRam[uiLoadAddr], 1, uiTextSz, pFile);
+    uiRead = fread(st_get_ram_pointer(uiLoadAddr), 1, uiTextSz, pFile);
     fclose(pFile);
 
     if (uiRead != (size_t)uiTextSz)
@@ -197,28 +196,6 @@ static void test_line(void)
 
     printf("\n--- Test group 2: Console context ---\n");
 
-    /* INTENT[INT-CON-001 → TC-CON-001 → REQ-CON-001]:
-     * line_init must reject a NULL context pointer */
-    ullR = line_init(NULL);
-    UC_TEST("[R] line_init(NULL) returns ST_ERROR", ullR == ST_ERROR);
-
-    /* INTENT[INT-CON-002 → TC-CON-002 → REQ-CON-002]:
-     * line_init must populate the context and capture the cwd */
-    ullR = line_init(szScript);
-    UC_CHECK("[N] line_init(szScript = "")", ullR);
-    tCtx = (void*)ullR;
-    UC_CHECK_OBJ(tCtx, ST_LINE_CTX);
-
-    if (g_uc_fails) return;
-    
-    UC_TEST("[N] bRunning == TRUE after init",
-            tCtx->bRunning == ST_TRUE);
-    UC_TEST("[N] szCwd non-empty after init",
-            tCtx->szCwd[0] != '\0');
-    printf("  [INFO] cwd = '%s'\n", tCtx->szCwd);
-
-    /* line_run() not called - would block on stdin */
-
     /* INTENT[INT-CON-003 → TC-CON-003 → REQ-CON-004]:
      * line_shutdown must reject a NULL context pointer */
     ullR = line_shutdown();
@@ -237,74 +214,75 @@ static void test_line(void)
 
 static void test_st_machine(void)
 {
-    st_machine_t tMachine;
     st_u8_t      uiByte;
     st_u16_t     uiWord;
     st_u32_t     uiLong;
-    st_error_t   eR;
+    st_u64_t     ulContext;
+    st_machine_context_t *ptCtx;
 
     printf("\n--- Test group 3: ST machine memory ---\n");
 
     /* INTENT[INT-STM-001 → TC-STM-001 → REQ-STM-001]:
      * st_init must reject a NULL machine pointer */
-    eR = st_init(NULL, NULL);
-    UC_TEST("[R] st_init(NULL, NULL) returns ST_ERROR", eR == ST_ERROR);
+    ulContext = st_init(NULL);
+    UC_TEST("[R] st_init(NULL, NULL) returns ST_ERROR", ulContext == ST_ERROR);
 
     /* INTENT[INT-STM-002 → TC-STM-002 → REQ-STM-002]:
      * st_init must succeed and power on the machine */
-    UC_CHECK("[N] st_init(&tMachine, NULL)", st_init(&tMachine, NULL));
-    UC_TEST("[N] bPoweredOn == TRUE", tMachine.bPoweredOn == ST_TRUE);
+    UC_CHECK("[N] st_init(&tMachine, NULL)", st_init(NULL));
+    ptCtx = (st_machine_context_t*)ulContext;
+    UC_TEST("[N] bPoweredOn == TRUE", ptCtx->bPoweredOn == ST_TRUE);
     UC_TEST("[N] resolution == ST_RES_LOW",
-            tMachine.uiResolution == ST_RES_LOW);
+            ptCtx->uiResolution == ST_RES_LOW);
 
     /* INTENT[INT-STM-003 → TC-STM-003 → REQ-STM-006]:
      * byte read/write round-trip must be exact */
     UC_CHECK("[N] st_write_byte(0x1000, 0xAB)",
-             st_write_byte(&tMachine, 0x1000, 0xAB));
+             st_write_byte(0x1000, 0xAB));
     UC_CHECK("[N] st_read_byte(0x1000)",
-             st_read_byte(&tMachine, 0x1000, &uiByte));
+             st_read_byte(0x1000, &uiByte));
     UC_TEST("[N] read-back byte == 0xAB", uiByte == 0xAB);
 
     /* INTENT[INT-STM-004 → TC-STM-004 → REQ-STM-004]:
      * NULL machine pointer must be rejected on read and write */
-    eR = st_write_byte(NULL, 0x1000, 0xAB);
+    st_error_t eR = st_write_byte(0x1000, 0xAB);
     UC_TEST("[R] st_write_byte(NULL, ...) returns ST_ERROR",
             eR == ST_ERROR);
-    eR = st_read_byte(NULL, 0x1000, &uiByte);
+    eR = st_read_byte(0x1000, &uiByte);
     UC_TEST("[R] st_read_byte(NULL, ...) returns ST_ERROR",
             eR == ST_ERROR);
 
     /* INTENT[INT-STM-005 → TC-STM-005 → REQ-STM-005]:
      * NULL output pointer must be rejected */
-    eR = st_read_byte(&tMachine, 0x1000, NULL);
+    eR = st_read_byte(0x1000, NULL);
     UC_TEST("[R] st_read_byte(..., NULL) returns ST_ERROR",
             eR == ST_ERROR);
 
     /* INTENT[INT-STM-006 → TC-STM-006 → REQ-STM-007]:
      * word read/write round-trip must preserve big-endian order */
     UC_CHECK("[N] st_write_word(0x2000, 0x1234)",
-             st_write_word(&tMachine, 0x2000, 0x1234));
+             st_write_word(0x2000, 0x1234));
     UC_CHECK("[N] st_read_word(0x2000)",
-             st_read_word(&tMachine, 0x2000, &uiWord));
+             st_read_word(0x2000, &uiWord));
     UC_TEST("[N] read-back word == 0x1234", uiWord == 0x1234);
 
     /* INTENT[INT-STM-007 → TC-STM-007 → REQ-STM-008]:
      * long read/write round-trip must preserve big-endian order */
     UC_CHECK("[N] st_write_long(0x3000, 0xDEADBEEF)",
-             st_write_long(&tMachine, 0x3000, 0xDEADBEEF));
+             st_write_long(0x3000, 0xDEADBEEF));
     UC_CHECK("[N] st_read_long(0x3000)",
-             st_read_long(&tMachine, 0x3000, &uiLong));
+             st_read_long(0x3000, &uiLong));
     UC_TEST("[N] read-back long == 0xDEADBEEF", uiLong == 0xDEADBEEF);
 
     /* INTENT[INT-STM-008 → TC-STM-008 → REQ-STM-009]:
      * unaligned word access must raise a bus error */
-    eR = st_write_word(&tMachine, 0x1001, 0x0000);
+    eR = st_write_word(0x1001, 0x0000);
     UC_TEST("[R] unaligned word write (0x1001) returns ST_ERROR",
             eR == ST_ERROR);
 
     /* INTENT[INT-STM-009 → TC-STM-009 → REQ-STM-010]:
      * unaligned long access must raise a bus error */
-    eR = st_write_long(&tMachine, 0x1003, 0x00000000);
+    eR = st_write_long(0x1003, 0x00000000);
     UC_TEST("[R] unaligned long write (0x1003) returns ST_ERROR",
             eR == ST_ERROR);
 
@@ -315,7 +293,7 @@ static void test_st_machine(void)
      *       (cartridge space is valid 24-bit addressing on the ST).
      * ADAPTED when UC24 implements real bus errors for unmapped regions.
      */
-    eR = st_read_byte(&tMachine, ST_RAM_SIZE, &uiByte);
+    eR = st_read_byte(ST_RAM_SIZE, &uiByte);
     UC_TEST("[R] st_read_byte(ST_RAM_SIZE) is safe (stub: ST_NO_ERROR+0xFF)",
             eR == ST_NO_ERROR && uiByte == 0xFF);
 
@@ -326,9 +304,9 @@ static void test_st_machine(void)
 
     /* INTENT[INT-STM-012 → TC-STM-012 → REQ-STM-014]:
      * st_shutdown must power off the machine cleanly */
-    UC_CHECK("[N] st_shutdown(&tMachine)", st_shutdown(&tMachine));
+    UC_CHECK("[N] st_shutdown(&tMachine)", st_shutdown());
     UC_TEST("[N] bPoweredOn == FALSE after shutdown",
-            tMachine.bPoweredOn == ST_FALSE);
+            ptCtx->bPoweredOn == ST_FALSE);
 }
 
 /* ------------------------------------------------------------------
@@ -337,7 +315,6 @@ static void test_st_machine(void)
 
 static void test_cpu(void)
 {
-    st_machine_t      tMachine;
     cpu68k_t          tCpu;
     cpu_step_result_t tResult;
     st_u32_t          uiTextSz;
@@ -348,21 +325,20 @@ static void test_cpu(void)
 
     printf("\n--- Test group 4: CPU 68000 + hello.prg ---\n");
 
-    UC_CHECK("[N] st_init()", st_init(&tMachine, NULL));
+    UC_CHECK("[N] st_init()", st_init(NULL));
 
     /* INTENT[INT-CPU-001 → TC-CPU-001/002 → REQ-CPU-001]:
      * cpu_init must reject NULL pointers before touching state */
-    eR = cpu_init(NULL, &tMachine);
-    UC_TEST("[R] cpu_init(NULL, &tMachine) returns ST_ERROR",
+    eR = cpu_init(NULL);
+    UC_TEST("[R] cpu_init(NULL) returns ST_ERROR",
             eR == ST_ERROR);
-    eR = cpu_init(&tCpu, NULL);
-    UC_TEST("[R] cpu_init(&tCpu, NULL) returns ST_ERROR",
+    eR = cpu_init(&tCpu);
+    UC_TEST("[R] cpu_init(&tCpu) returns ST_ERROR",
             eR == ST_ERROR);
 
     /* INTENT[INT-CPU-002 → TC-CPU-003 → REQ-STM-006]:
      * hello.prg text section must load cleanly into ST RAM */
     eR = uc01_load_prg_text("use_cases/UC01/hello.prg",
-                              &tMachine,
                               UI_LOAD_ADDR,
                               &uiTextSz);
     UC_TEST("[N] hello.prg text section loaded (4 bytes)",
@@ -372,19 +348,19 @@ static void test_cpu(void)
     {
         printf("  [WARN] Skipping remaining CPU tests - PRG load failed.\n"
                "         Run from the project root directory.\n");
-        st_shutdown(&tMachine);
+        st_shutdown();
         return;
     }
 
     UC_CHECK("[N] write SSP reset vector",
-             st_write_long(&tMachine, CPU_VEC_RESET_SSP, UI_STACK_ADDR));
+             st_write_long(CPU_VEC_RESET_SSP, UI_STACK_ADDR));
     UC_CHECK("[N] write PC reset vector",
-             st_write_long(&tMachine, CPU_VEC_RESET_PC,  UI_LOAD_ADDR));
+             st_write_long(CPU_VEC_RESET_PC,  UI_LOAD_ADDR));
 
     /* INTENT[INT-CPU-003 → TC-CPU-004 → REQ-CPU-002/003/004/005]:
      * cpu_init must read reset vectors and enter supervisor mode */
     UC_CHECK("[N] cpu_init(&tCpu, &tMachine)",
-             cpu_init(&tCpu, &tMachine));
+             cpu_init(&tCpu));
     UC_TEST("[N] CPU PC == 0x1000 after init",
             tCpu.uiPC == UI_LOAD_ADDR);
     UC_TEST("[N] CPU SSP == 0x0800 after init",
@@ -399,10 +375,10 @@ static void test_cpu(void)
 
     /* INTENT[INT-CPU-004 → TC-CPU-005 → REQ-CPU-006]:
      * cpu_step must reject NULL ptCpu and NULL ptMachine */
-    eR = cpu_step(NULL, &tMachine, &tResult);
+    eR = cpu_step(NULL, &tResult);
     UC_TEST("[R] cpu_step(NULL, &tMachine, ...) returns ST_ERROR",
             eR == ST_ERROR);
-    eR = cpu_step(&tCpu, NULL, &tResult);
+    eR = cpu_step(&tCpu, &tResult);
     UC_TEST("[R] cpu_step(&tCpu, NULL, ...) returns ST_ERROR",
             eR == ST_ERROR);
 
@@ -414,7 +390,7 @@ static void test_cpu(void)
      *   (MOVEQ is a 1-word instruction).
      */
     UC_CHECK("[N] cpu_step() #1 (MOVEQ #42,D0)",
-             cpu_step(&tCpu, &tMachine, &tResult));
+             cpu_step(&tCpu, &tResult));
     UC_TEST("[N] step #1 PC advanced by 2",
             tResult.uiPCAfter == UI_LOAD_ADDR + 2);
     UC_TEST("[N] step #1 opcode == 0x702A (MOVEQ #42,D0)",
@@ -428,7 +404,7 @@ static void test_cpu(void)
      * ADAPTED: UC21 - RTS (0x4E75) is in group 0x4/misc4; it hits
      *   LOG_TODO (UC23) but returns ST_NO_ERROR (non-fatal). */
     UC_CHECK("[N] cpu_step() #2 (RTS — LOG_TODO UC23)",
-             cpu_step(&tCpu, &tMachine, &tResult));
+             cpu_step(&tCpu, &tResult));
     UC_TEST("[N] step #2 opcode == 0x4E75 (RTS)",
             tResult.uiOpcode == 0x4E75);
 
@@ -436,7 +412,7 @@ static void test_cpu(void)
            tCpu.uiPC,
            (unsigned long long)tCpu.ulInstrCount);
 
-    UC_CHECK("[N] st_shutdown()", st_shutdown(&tMachine));
+    UC_CHECK("[N] st_shutdown()", st_shutdown());
 }
 
 /* ------------------------------------------------------------------

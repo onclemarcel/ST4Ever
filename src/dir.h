@@ -47,7 +47,7 @@
 #include "common.h"
 #include "gui.h"
 #include "renderer.h"
-#include "line.h"
+//#include "line.h"
 
 /* ------------------------------------------------------------------
  * Flat list capacity
@@ -112,15 +112,15 @@ typedef struct dir_view_s
     gui_window_t      hWnd;                  /* GUI window handle      */
     renderer_t        hRenderer;             /* Renderer (created lazy)*/
     dir_node_t       *ptRoot;                /* Tree root (depth = -1) */
-    line_context_t   *ptLineCtx;             /* Back-ref for selection */
+    st_bool_t         bIsLineRunning;      /* Assess line context init */
     dir_flat_entry_t *aptFlat;               /* Heap-allocated flat arr*/
     int               iFlatCount;            /* Entries in aptFlat     */
     int               iScrollOffset;         /* First visible row index*/
     int               iSelectedFlat;         /* -2=none,-1="..",>=0=idx*/
     int               iWndWidth;             /* Client area width (px) */
     int               iWndHeight;            /* Client area height (px)*/
-    int               iCellW;               /* Monospace cell width   */
-    int               iCellH;               /* Monospace cell height  */
+    int               iCellW;                /* Monospace cell width   */
+    int               iCellH;                /* Monospace cell height  */
     st_bool_t         bShowHidden;           /* Show '.*' entries (P15)*/
     char              szRootPath[ST_MAX_PATH];
     char              szLastSelected[ST_MAX_PATH]; /* P11: last file   */
@@ -160,9 +160,9 @@ typedef struct dir_view_s
  *   ST_ERROR    if ptLineCtx or pptView is NULL, or window fails.
  */
 st_error_t dir_open(const char     *szPath,
-                     line_context_t *ptLineCtx,
-                     st_bool_t       bShowHidden,
-                     dir_view_t    **pptView);
+                     st_bool_t      bIsLineRunning,
+                     st_bool_t      bShowHidden,
+                     dir_view_t   **pptView);
 
 /*
  * dir_close() - Close the view window and release all resources.

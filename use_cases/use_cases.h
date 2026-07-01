@@ -47,6 +47,7 @@
 #include "../src/image_annot.h"
 #include "../src/load.h"
 
+extern st_bool_t gIsObject;
 
 /* ------------------------------------------------------------------
  * Test helper macros
@@ -84,20 +85,24 @@
 #define UC_CHECK_OBJ(pt, type) \
     do { \
         st_obj_generic_t* obj = (void*)pt;  \
-        if ((st_u64_t)pt < ST_RETURNS)      \
+        gIsObject = ST_TRUE;                \
+        if ((st_u64_t)pt < 0xFFFFFFFF)      \
         {                                   \
-            printf("  [FAIL] Value %p is a returned enum (not a pointer)\n", (void*)pt);    \
+            printf("  [FAIL] Value %p is not a 64-bits pointer\n", (void*)pt);    \
             g_uc_fails++;                   \
+            gIsObject = ST_FALSE;           \
         }                                   \
-        else if (obj->ulMagic != 0xCAFEDECA)     \
+        else if (obj->ulMagic != 0xCAFEDECA)\
         {                                   \
             printf("  [FAIL] Not a ST4Ever structure %p\n", (void*)obj);    \
             g_uc_fails++;                   \
+            gIsObject = ST_FALSE;           \
         }                                   \
         else if (obj->eObject != type)      \
         {                                   \
             printf("  [FAIL] Incorrect pointer type (%d)\n", obj->eObject);    \
             g_uc_fails++;                   \
+            gIsObject = ST_FALSE;           \
         }                                   \
     } while(0)
 

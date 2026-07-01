@@ -89,12 +89,30 @@ typedef struct exec_state_s
     gui_window_t hScrWnd;   /* screen emulation view (UC27)          */
 
     /* ST machine (read-only after exec_open; no mutex needed) */
-    st_machine_t *ptMachine;
+    st_machine_context_t *ptMachine;
 
     /* Program info (set once in exec_open, never modified after) */
     st_u32_t uiLoadAddr;
     char     szProgName[ST_MAX_PATH];
 } exec_state_t;
+
+/* ------------------------------------------------------------------
+ * Exec command context
+ * ------------------------------------------------------------------ */
+
+typedef struct exec_context_s
+{
+    st_u32_t    ulMagic;                   /* Magic ST4Ever OO-like tag */
+    st_object_t eObject;                   /* Object type for tests     */
+    
+    st_bool_t               bInitOK;
+    st_bool_t               bOpen;
+    st_bool_t               bIsMachineOn;
+    st_machine_context_t   *ptMachine;
+    st_thread_t            *ptThread;  
+    exec_state_t            tState;
+    cpu68k_t                tCpu;   /* owned exclusively by exec thread */
+} exec_context_t;
 
 /* ------------------------------------------------------------------
  * Lifecycle
@@ -109,10 +127,10 @@ typedef struct exec_state_s
  *   ptMachine [in] : Initialised ST machine (must not be NULL).
  *
  * Returns:
- *   ST_NO_ERROR on success.
- *   ST_ERROR    if ptMachine is NULL.
+ *   Value of the global load_context_t structure pointer on success.
+ *   ST_ERROR is ST Machine context is not initialized
  */
-st_error_t exec_init(st_machine_t *ptMachine);
+st_u64_t exec_init(st_u64_t ulSTMachineCtx);
 
 /*
  * exec_shutdown() - Release execution engine resources.

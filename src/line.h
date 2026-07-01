@@ -33,6 +33,10 @@
 #define LINE_H
 
 #include "common.h"
+#include "dir.h"
+#include "mount.h"
+#include "edit_txt.h"
+#include "edit_hex.h"
 
 /* ------------------------------------------------------------------
  * Command identifiers
@@ -82,7 +86,6 @@ typedef struct parsed_cmd_s
 /* ------------------------------------------------------------------
  * Console context
  * ------------------------------------------------------------------ */
-
 typedef struct line_context_s
 {
     st_u32_t    ulMagic;                   /* Magic ST4Ever OO-like tag */
@@ -92,7 +95,18 @@ typedef struct line_context_s
     char        szSelected[ST_MAX_PATH];   /* Path selected via `dir`   */
     st_mutex_t *ptSelectedMutex;           /* Protects szSelected       */
     char        szScriptFile[ST_MAX_PATH]; /* --script path (UC4.3)     */
+    st_bool_t   bColors;                   /* Console shows ANSI colors */
     st_bool_t   bRunning;                  /* ST_FALSE = shutdown       */
+
+    dir_view_t      *ptDirView;     /* Pointer to the dir view   */
+    edit_txt_view_t *ptEditTxtView; /* Pointer to the text view  */
+    edit_hex_view_t *ptEditHexView; /* Pointer to the hex view   */
+    mount_view_t    *ptMountView;   /* Pointer to the monut view */
+
+    char aHistory[LINE_HISTORY_MAX][ST_MAX_CMD];
+    int  iHistCount;   /* valid entries, 0..LINE_HISTORY_MAX */
+    int  iHistHead;    /* next write slot                    */
+
 } line_context_t;
 
 /* ------------------------------------------------------------------
@@ -330,5 +344,7 @@ void line_set_colors(st_bool_t bColors);
  * line_get_colors() - Return the current colour output state.
  */
 st_bool_t line_get_colors(void);
+
+char* line_get_current_dir();
 
 #endif /* LINE_H */

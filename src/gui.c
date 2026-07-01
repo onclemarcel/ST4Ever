@@ -142,7 +142,7 @@ st_u64_t gui_init(void)
 
     /* -- [GUI]5. Init returns context sructure -- */
     g_gui_ptCtx.bInit = ST_TRUE;
-    LOG_INFO("GUI subsystem initialised");
+    LOG_INFO("GUI Module initialised");
     return (st_u64_t)&g_gui_ptCtx;
 }
 

@@ -62,13 +62,16 @@ typedef enum st_bool_s
 
  typedef enum st_object_s
  {
-    ST_UNKNOWN      = 0,
-    ST_MAIN_CTX     = 1,
-    ST_TRACE_CTX    = 2,
-    ST_LINE_CTX     = 10,
-    ST_GUI_CTX      = 20,
-    ST_GUI_PTF_CTX  = 21,
-    ST_WIN_CONSOLE_CTX = 100
+    ST_UNKNOWN         = 0x00u,
+    ST_MAIN_CTX        = 0x01u,
+    ST_TRACE_CTX       = 0x02u,
+    ST_LINE_CTX        = 0x10u,
+    ST_GUI_CTX         = 0x20u,
+    ST_GUI_PTF_CTX     = 0x21u,
+    ST_MACHINE_CTX     = 0x50u,
+    ST_LOAD_CTX        = 0x51u,
+    ST_EXEC_CTX        = 0x60u,
+    ST_WIN_CONSOLE_CTX = 0x80u
  } st_object_t;
 
  #define OBJ_MAGIC  0xCAFEDECA
@@ -78,6 +81,16 @@ typedef struct st_obj_generic_s
     st_u32_t    ulMagic;                   /* Magic ST4Ever OO-like tag */
     st_object_t eObject;                   /* Object type for tests     */
 } st_obj_generic_t;
+
+/* Check if the pointer is a registered ST4Ever structure */
+#define CHECK_OBJ(pt, type, bOK) \
+    do { \
+        st_obj_generic_t* obj = (void*)pt;                  \
+        bOK = ST_TRUE;                                      \
+        if ((st_u64_t)pt < 0xFFFFFFFFu) bOK = ST_FALSE;     \
+        else if (obj->ulMagic != 0xCAFEDECA) bOK = ST_FALSE;\
+        else if (obj->eObject != type) bOK = ST_FALSE;      \
+    } while(0)
 
 /* ------------------------------------------------------------------
  * Platform detection

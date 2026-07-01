@@ -70,8 +70,7 @@
  *   ST_NO_ERROR  Trap handled (including stubs and unknown functions).
  *   ST_ERROR     ptCpu or ptMachine is NULL, or stack read fails.
  */
-st_error_t tos_gemdos(cpu68k_t     *ptCpu,
-                       st_machine_t *ptMachine);
+st_error_t tos_gemdos(cpu68k_t     *ptCpu);
 
 /*
  * tos_xbios() - Handle a TRAP #14 (XBIOS) call.
@@ -88,7 +87,6 @@ st_error_t tos_gemdos(cpu68k_t     *ptCpu,
  *   ST_NO_ERROR  Trap handled.
  *   ST_ERROR     ptCpu or ptMachine is NULL, or stack read fails.
  */
-st_error_t tos_xbios(cpu68k_t     *ptCpu,
-                      st_machine_t *ptMachine);
+st_error_t tos_xbios(cpu68k_t     *ptCpu);
 
 #endif /* TOS_H */

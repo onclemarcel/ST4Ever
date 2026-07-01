@@ -79,8 +79,7 @@ static void exec_screen_render(exec_screen_view_t *ptView)
      * Race with exec thread is benign: worst case = slightly torn frame. */
     iSrcW   = 0;
     iSrcH   = 0;
-    eResult = shifter_render(ptState->ptMachine,
-                             ptView->auPixels,
+    eResult = shifter_render(ptView->auPixels,
                              SHIFTER_MAX_PIXELS,
                              &iSrcW,
                              &iSrcH);

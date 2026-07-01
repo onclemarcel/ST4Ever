@@ -15,45 +15,42 @@
 
 /* Read a word (16-bit) from the program stack at SP + uiOff.
  * Returns ST_ERROR on out-of-bounds access.                          */
-static st_error_t stack_read_word(const st_machine_t *ptMachine,
-                                   st_u32_t            uiSP,
+static st_error_t stack_read_word( st_u32_t            uiSP,
                                    st_u32_t            uiOff,
                                    st_u16_t           *puiWord)
 {
-    return st_read_word(ptMachine, uiSP + uiOff, puiWord);
+    return st_read_word(uiSP + uiOff, puiWord);
 }
 
 /* Read a longword (32-bit) from the program stack at SP + uiOff.
  * Returns ST_ERROR on out-of-bounds access.                          */
-static st_error_t stack_read_long(const st_machine_t *ptMachine,
-                                   st_u32_t            uiSP,
+static st_error_t stack_read_long( st_u32_t            uiSP,
                                    st_u32_t            uiOff,
                                    st_u32_t           *puiLong)
 {
-    return st_read_long(ptMachine, uiSP + uiOff, puiLong);
+    return st_read_long(uiSP + uiOff, puiLong);
 }
 
 /* ------------------------------------------------------------------
  * tos_gemdos - TRAP #1 handler
  * ------------------------------------------------------------------ */
 
-st_error_t tos_gemdos(cpu68k_t     *ptCpu,
-                       st_machine_t *ptMachine)
+st_error_t tos_gemdos(cpu68k_t     *ptCpu)
 {
     st_u16_t    uiFn;
     st_u16_t    uiRetCode;
     st_error_t  eR;
 
-    LOG_TRACE("ptCpu=%p ptMachine=%p", (void *)ptCpu, (void *)ptMachine);
+    LOG_TRACE("ptCpu=%p", (void *)ptCpu);
 
-    if (ptCpu == NULL || ptMachine == NULL)
+    if (ptCpu == NULL)
     {
-        LOG_ERROR("NULL parameter: ptCpu=%p ptMachine=%p",
-                  (void *)ptCpu, (void *)ptMachine);
+        LOG_ERROR("NULL parameter: ptCpu=%p",
+                  (void *)ptCpu);
         return ST_ERROR;
     }
 
-    eR = stack_read_word(ptMachine, ptCpu->auAn[7], 0u, &uiFn);
+    eR = stack_read_word(ptCpu->auAn[7], 0u, &uiFn);
     if (eR != ST_NO_ERROR)
     {
         LOG_ERROR("GEMDOS: failed to read function number from SP=0x%06X",
@@ -80,7 +77,7 @@ st_error_t tos_gemdos(cpu68k_t     *ptCpu,
 
         case TOS_GEMDOS_PTERM:
             /* Terminate process with exit code from stack */
-            eR = stack_read_word(ptMachine, ptCpu->auAn[7], 2u, &uiRetCode);
+            eR = stack_read_word(ptCpu->auAn[7], 2u, &uiRetCode);
             if (eR != ST_NO_ERROR)
             {
                 uiRetCode = 0;
@@ -103,8 +100,7 @@ st_error_t tos_gemdos(cpu68k_t     *ptCpu,
  * tos_xbios - TRAP #14 handler
  * ------------------------------------------------------------------ */
 
-st_error_t tos_xbios(cpu68k_t     *ptCpu,
-                      st_machine_t *ptMachine)
+st_error_t tos_xbios(cpu68k_t     *ptCpu)
 {
     st_u16_t   uiFn;
     st_u32_t   uiPhysBase;
@@ -116,16 +112,16 @@ st_error_t tos_xbios(cpu68k_t     *ptCpu,
     unsigned   uiI;
     st_error_t eR;
 
-    LOG_TRACE("ptCpu=%p ptMachine=%p", (void *)ptCpu, (void *)ptMachine);
+    LOG_TRACE("ptCpu=%p", (void *)ptCpu);
 
-    if (ptCpu == NULL || ptMachine == NULL)
+    if (ptCpu == NULL)
     {
-        LOG_ERROR("NULL parameter: ptCpu=%p ptMachine=%p",
-                  (void *)ptCpu, (void *)ptMachine);
+        LOG_ERROR("NULL parameter: ptCpu=%p",
+                  (void *)ptCpu);
         return ST_ERROR;
     }
 
-    eR = stack_read_word(ptMachine, ptCpu->auAn[7], 0u, &uiFn);
+    eR = stack_read_word(ptCpu->auAn[7], 0u, &uiFn);
     if (eR != ST_NO_ERROR)
     {
         LOG_ERROR("XBIOS: failed to read function number from SP=0x%06X",
@@ -145,7 +141,7 @@ st_error_t tos_xbios(cpu68k_t     *ptCpu,
              * Setpalette(palette_ptr): SP+2 = long ptr to 16 ST words.
              * Copy all 16 colour entries to the HW palette registers.
              */
-            eR = stack_read_long(ptMachine, ptCpu->auAn[7], 2u, &uiPalPtr);
+            eR = stack_read_long(ptCpu->auAn[7], 2u, &uiPalPtr);
             if (eR != ST_NO_ERROR)
             {
                 LOG_ERROR("XBIOS Setpalette: failed to read palptr from "
@@ -154,13 +150,11 @@ st_error_t tos_xbios(cpu68k_t     *ptCpu,
             }
             for (uiI = 0u; uiI < (unsigned)ST_PALETTE_COLORS; uiI++)
             {
-                eR = st_read_word(ptMachine,
-                                  uiPalPtr + (st_u32_t)(uiI * 2u),
+                eR = st_read_word(uiPalPtr + (st_u32_t)(uiI * 2u),
                                   &uiPalWord);
                 if (eR == ST_NO_ERROR)
                 {
-                    (void)st_write_word(ptMachine,
-                                        0xFF8240u + (st_u32_t)(uiI * 2u),
+                    (void)st_write_word(0xFF8240u + (st_u32_t)(uiI * 2u),
                                         uiPalWord);
                 }
             }
@@ -173,13 +167,13 @@ st_error_t tos_xbios(cpu68k_t     *ptCpu,
              * Setcolor(index, color): SP+2 = word index, SP+4 = word color.
              * Sets one palette entry.  Returns the old colour value in D0.
              */
-            eR = stack_read_word(ptMachine, ptCpu->auAn[7], 2u, &uiColIdx);
+            eR = stack_read_word(ptCpu->auAn[7], 2u, &uiColIdx);
             if (eR != ST_NO_ERROR)
             {
                 LOG_ERROR("XBIOS Setcolor: failed to read index from SP+2");
                 return ST_ERROR;
             }
-            eR = stack_read_word(ptMachine, ptCpu->auAn[7], 4u, &uiColVal);
+            eR = stack_read_word(ptCpu->auAn[7], 4u, &uiColVal);
             if (eR != ST_NO_ERROR)
             {
                 LOG_ERROR("XBIOS Setcolor: failed to read value from SP+4");
@@ -187,10 +181,9 @@ st_error_t tos_xbios(cpu68k_t     *ptCpu,
             }
             if (uiColIdx < (st_u16_t)ST_PALETTE_COLORS)
             {
-                ptCpu->auDn[0] = (st_u32_t)
-                    ptMachine->auPalette[(unsigned)uiColIdx];
-                (void)st_write_word(ptMachine,
-                                    0xFF8240u + (st_u32_t)(uiColIdx * 2u),
+                ptCpu->auDn[0] = (st_u32_t)st_get_palette(uiColIdx);
+                    
+                (void)st_write_word(0xFF8240u + (st_u32_t)(uiColIdx * 2u),
                                     uiColVal);
                 LOG_INFO("XBIOS Setcolor: idx=%u val=0x%04X",
                          (unsigned)uiColIdx, (unsigned)uiColVal);
@@ -211,13 +204,13 @@ st_error_t tos_xbios(cpu68k_t     *ptCpu,
              *   SP+10 rez      (word): resolution 0-2       (-1 = unchanged)
              * Only physbase and rez are handled; logbase is ignored.
              */
-            eR = stack_read_long(ptMachine, ptCpu->auAn[7], 2u, &uiPhysBase);
+            eR = stack_read_long(ptCpu->auAn[7], 2u, &uiPhysBase);
             if (eR != ST_NO_ERROR)
             {
                 LOG_ERROR("XBIOS Setscreen: failed to read physbase");
                 return ST_ERROR;
             }
-            eR = stack_read_word(ptMachine, ptCpu->auAn[7], 10u, &uiRez);
+            eR = stack_read_word(ptCpu->auAn[7], 10u, &uiRez);
             if (eR != ST_NO_ERROR)
             {
                 LOG_ERROR("XBIOS Setscreen: failed to read rez");
@@ -226,22 +219,18 @@ st_error_t tos_xbios(cpu68k_t     *ptCpu,
 
             if (uiPhysBase != 0xFFFFFFFFu)
             {
-                (void)st_write_byte(ptMachine,
-                                    0xFF8201u,
+                (void)st_write_byte(0xFF8201u,
                                     (st_u8_t)((uiPhysBase >> 16) & 0xFFu));
-                (void)st_write_byte(ptMachine,
-                                    0xFF8203u,
+                (void)st_write_byte(0xFF8203u,
                                     (st_u8_t)((uiPhysBase >>  8) & 0xFFu));
-                (void)st_write_byte(ptMachine,
-                                    0xFF820Du,
+                (void)st_write_byte(0xFF820Du,
                                     (st_u8_t)(uiPhysBase & 0xFFu));
                 LOG_INFO("XBIOS Setscreen: physbase=0x%06X",
                          (unsigned)uiPhysBase);
             }
             if (uiRez != 0xFFFFu)
             {
-                (void)st_write_byte(ptMachine,
-                                    0xFF8260u,
+                (void)st_write_byte(0xFF8260u,
                                     (st_u8_t)(uiRez & 0x03u));
                 LOG_INFO("XBIOS Setscreen: rez=%u", (unsigned)(uiRez & 3u));
             }

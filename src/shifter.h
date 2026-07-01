@@ -92,8 +92,7 @@ st_u32_t shifter_palette_to_rgb(st_u16_t uiColor);
  *   ST_ERROR     NULL parameter, unknown resolution, buffer too small,
  *                or frame buffer extends beyond ST RAM bounds.
  */
-st_error_t shifter_render(const st_machine_t *ptMachine,
-                           st_u32_t           *auPixels,
+st_error_t shifter_render(st_u32_t           *auPixels,
                            size_t              uiPixelCount,
                            int                *piWidth,
                            int                *piHeight);

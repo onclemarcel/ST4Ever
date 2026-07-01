@@ -20,7 +20,7 @@
  *        P23bis: TAB inserts longest common prefix before cycling.
  *        P24: g_line_bColors = isatty(stdout) at line_init().
  *        trace clear (P27), trace level <lvl> (P28) sub-commands.
- * UC18.1: line_cmd_mount() / line_cmd_umount() + g_line_ptMountView.
+ * UC18.1: line_cmd_mount() / line_cmd_umount() + g_line_ptCtx.ptMountView.
  * UC19:   line_cmd_umount() interactive save dialog (P35).
  *         --st / --msa / --dir flags bypass dialog.
  * UC20:   line_cmd_image() — create .st/.msa from mounted content or dir.
@@ -30,11 +30,7 @@
 
 #include "line.h"
 #include "console.h"
-#include "dir.h"
-#include "edit_txt.h"
-#include "edit_hex.h"
 #include "load.h"
-#include "mount.h"
 #include "image_msa.h"
 #include "file.h"
 #include "trace.h"
@@ -66,46 +62,44 @@
  * ------------------------------------------------------------------ */
 
 static line_context_t  g_line_ptCtx = {.ulMagic = OBJ_MAGIC, 
-                                       .eObject = ST_LINE_CTX };
+                                       .eObject = ST_LINE_CTX,
+                                       .iHistCount = -1};
 
 /* ------------------------------------------------------------------
  * ANSI colour helpers — runtime-toggled via g_line_bColors
  * ------------------------------------------------------------------ */
 
-/* P24: initialised to ST_FALSE; line_init() sets it via isatty(). */
-static st_bool_t g_line_bColors = ST_FALSE;
-
 static inline const char *c_reset(void)
 {
-    return g_line_bColors ? "\033[0m"  : "";
+    return g_line_ptCtx.bColors ? "\033[0m"  : "";
 }
 static inline const char *c_bold(void)
 {
-    return g_line_bColors ? "\033[1m"  : "";
+    return g_line_ptCtx.bColors ? "\033[1m"  : "";
 }
 static inline const char *c_dim(void)
 {
-    return g_line_bColors ? "\033[2m"  : "";
+    return g_line_ptCtx.bColors ? "\033[2m"  : "";
 }
 static inline const char *c_green(void)
 {
-    return g_line_bColors ? "\033[92m" : "";
+    return g_line_ptCtx.bColors ? "\033[92m" : "";
 }
 static inline const char *c_yellow(void)
 {
-    return g_line_bColors ? "\033[93m" : "";
+    return g_line_ptCtx.bColors ? "\033[93m" : "";
 }
 static inline const char *c_red(void)
 {
-    return g_line_bColors ? "\033[91m" : "";
+    return g_line_ptCtx.bColors ? "\033[91m" : "";
 }
 static inline const char *c_cyan(void)
 {
-    return g_line_bColors ? "\033[96m" : "";
+    return g_line_ptCtx.bColors ? "\033[96m" : "";
 }
 static inline const char *c_gray(void)
 {
-    return g_line_bColors ? "\033[90m" : "";
+    return g_line_ptCtx.bColors ? "\033[90m" : "";
 }
 
 /* Forward declaration — defined in the string helpers section below */
@@ -171,10 +165,6 @@ st_error_t line_update_console_title()
  * Module-level state
  * ------------------------------------------------------------------ */
 
-static dir_view_t      *g_line_ptDirView     = NULL;
-static edit_txt_view_t *g_line_ptEditTxtView = NULL;
-static edit_hex_view_t *g_line_ptEditHexView = NULL;
-static mount_view_t    *g_line_ptMountView   = NULL;
 
 /* BUG-09: dir navigation history persisted across dir command sessions */
 static char g_line_aDirNavHist[DIR_NAV_HIST_MAX][ST_MAX_PATH];
@@ -185,14 +175,11 @@ static int  g_line_iDirNavHistCount = 0;
  * History ring buffer
  * ------------------------------------------------------------------ */
 
-static char g_line_aHistory[LINE_HISTORY_MAX][ST_MAX_CMD];
-static int  g_line_iHistCount = 0;   /* valid entries, 0..LINE_HISTORY_MAX */
-static int  g_line_iHistHead  = 0;   /* next write slot                    */
 
 /* Map virtual index (0=oldest, count-1=newest) to physical slot. */
 static int line_hist_phys(int iVirt)
 {
-    return (g_line_iHistHead - g_line_iHistCount + iVirt
+    return (g_line_ptCtx.iHistHead - g_line_ptCtx.iHistCount + iVirt
             + LINE_HISTORY_MAX) % LINE_HISTORY_MAX;
 }
 
@@ -528,22 +515,22 @@ st_error_t line_history_add(const char *szCmd)
     }
 
     /* Skip duplicate of most recent entry */
-    if (g_line_iHistCount > 0)
+    if (g_line_ptCtx.iHistCount > 0)
     {
-        iLastPhys = line_hist_phys(g_line_iHistCount - 1);
-        if (strcmp(g_line_aHistory[iLastPhys], szCmd) == 0)
+        iLastPhys = line_hist_phys(g_line_ptCtx.iHistCount - 1);
+        if (strcmp(g_line_ptCtx.aHistory[iLastPhys], szCmd) == 0)
         {
             return ST_NO_ERROR;
         }
     }
 
-    strncpy(g_line_aHistory[g_line_iHistHead], szCmd, ST_MAX_CMD - 1);
-    g_line_aHistory[g_line_iHistHead][ST_MAX_CMD - 1] = '\0';
+    strncpy(g_line_ptCtx.aHistory[g_line_ptCtx.iHistHead], szCmd, ST_MAX_CMD - 1);
+    g_line_ptCtx.aHistory[g_line_ptCtx.iHistHead][ST_MAX_CMD - 1] = '\0';
 
-    g_line_iHistHead = (g_line_iHistHead + 1) % LINE_HISTORY_MAX;
-    if (g_line_iHistCount < LINE_HISTORY_MAX)
+    g_line_ptCtx.iHistHead = (g_line_ptCtx.iHistHead + 1) % LINE_HISTORY_MAX;
+    if (g_line_ptCtx.iHistCount < LINE_HISTORY_MAX)
     {
-        g_line_iHistCount++;
+        g_line_ptCtx.iHistCount++;
     }
 
     return ST_NO_ERROR;
@@ -551,7 +538,7 @@ st_error_t line_history_add(const char *szCmd)
 
 int line_history_count(void)
 {
-    return g_line_iHistCount;
+    return g_line_ptCtx.iHistCount;
 }
 
 st_error_t line_history_get(int iVirtIdx, char *szBuf, size_t uiLen)
@@ -562,13 +549,13 @@ st_error_t line_history_get(int iVirtIdx, char *szBuf, size_t uiLen)
     {
         return ST_ERROR;
     }
-    if (iVirtIdx < 0 || iVirtIdx >= g_line_iHistCount)
+    if (iVirtIdx < 0 || iVirtIdx >= g_line_ptCtx.iHistCount)
     {
         return ST_ERROR;
     }
 
     iPhys = line_hist_phys(iVirtIdx);
-    strncpy(szBuf, g_line_aHistory[iPhys], uiLen - 1);
+    strncpy(szBuf, g_line_ptCtx.aHistory[iPhys], uiLen - 1);
     szBuf[uiLen - 1] = '\0';
 
     return ST_NO_ERROR;
@@ -576,8 +563,8 @@ st_error_t line_history_get(int iVirtIdx, char *szBuf, size_t uiLen)
 
 void line_history_clear(void)
 {
-    g_line_iHistCount = 0;
-    g_line_iHistHead  = 0;
+    g_line_ptCtx.iHistCount = 0;
+    g_line_ptCtx.iHistHead  = 0;
 }
 
 st_error_t line_history_save(const char *szPath)
@@ -605,15 +592,15 @@ st_error_t line_history_save(const char *szPath)
         return ST_ERROR;
     }
 
-    for (iVirt = 0; iVirt < g_line_iHistCount; iVirt++)
+    for (iVirt = 0; iVirt < g_line_ptCtx.iHistCount; iVirt++)
     {
         iPhys = line_hist_phys(iVirt);
-        fprintf(pFile, "%s\n", g_line_aHistory[iPhys]);
+        fprintf(pFile, "%s\n", g_line_ptCtx.aHistory[iPhys]);
     }
 
     fclose(pFile);
     LOG_INFO("history saved to '%s' (%d entries)",
-             szPath, g_line_iHistCount);
+             szPath, g_line_ptCtx.iHistCount);
     return ST_NO_ERROR;
 }
 
@@ -659,7 +646,7 @@ st_error_t line_history_load(const char *szPath)
 
     fclose(pFile);
     LOG_INFO("history loaded from '%s' (%d entries)",
-             szPath, g_line_iHistCount);
+             szPath, g_line_ptCtx.iHistCount);
     return ST_NO_ERROR;
 }
 
@@ -907,12 +894,12 @@ int line_complete_path_query(const char *szPrefix,
 
 void line_set_colors(st_bool_t bColors)
 {
-    g_line_bColors = bColors;
+    g_line_ptCtx.bColors = bColors;
 }
 
 st_bool_t line_get_colors(void)
 {
-    return g_line_bColors;
+    return g_line_ptCtx.bColors;
 }
 
 /* ------------------------------------------------------------------
@@ -1327,24 +1314,24 @@ static st_error_t line_cmd_dir(const parsed_cmd_t *ptParsed)
         return ST_NO_ERROR;
     }
 
-    if (g_line_ptDirView != NULL)
+    if (g_line_ptCtx.ptDirView != NULL)
     {
         /* BUG-09: save history before closing so ALT+← works across
          * successive dir commands. */
-        memcpy(g_line_aDirNavHist, g_line_ptDirView->aszNavHistory,
+        memcpy(g_line_aDirNavHist, g_line_ptCtx.ptDirView->aszNavHistory,
                sizeof(g_line_aDirNavHist));
-        g_line_iDirNavHistHead  = g_line_ptDirView->iNavHistHead;
-        g_line_iDirNavHistCount = g_line_ptDirView->iNavHistCount;
+        g_line_iDirNavHistHead  = g_line_ptCtx.ptDirView->iNavHistHead;
+        g_line_iDirNavHistCount = g_line_ptCtx.ptDirView->iNavHistCount;
 
-        eResult = dir_close(&g_line_ptDirView);
+        eResult = dir_close(&g_line_ptCtx.ptDirView);
         if (eResult != ST_NO_ERROR)
         {
             line_print_warning("dir: could not close previous view");
         }
-        g_line_ptDirView = NULL;
+        g_line_ptCtx.ptDirView = NULL;
     }
 
-    eResult = dir_open(szPath, &g_line_ptCtx, bShowHidden, &g_line_ptDirView);
+    eResult = dir_open(szPath, (st_u64_t)&g_line_ptCtx, bShowHidden, &g_line_ptCtx.ptDirView);
     if (eResult != ST_NO_ERROR)
     {
         line_print_error("dir: failed to open view for '%s'",
@@ -1362,7 +1349,7 @@ static st_error_t line_cmd_dir(const parsed_cmd_t *ptParsed)
         int i;
         char szNewRoot[ST_MAX_PATH];
 
-        strncpy(szNewRoot, g_line_ptDirView->aszNavHistory[0],
+        strncpy(szNewRoot, g_line_ptCtx.ptDirView->aszNavHistory[0],
                 ST_MAX_PATH - 1);
         szNewRoot[ST_MAX_PATH - 1] = '\0';
 
@@ -1372,15 +1359,15 @@ static st_error_t line_cmd_dir(const parsed_cmd_t *ptParsed)
 
         for (i = 0; i <= g_line_iDirNavHistHead && i < iNewHead; i++)
         {
-            strncpy(g_line_ptDirView->aszNavHistory[i],
+            strncpy(g_line_ptCtx.ptDirView->aszNavHistory[i],
                     g_line_aDirNavHist[i], ST_MAX_PATH - 1);
-            g_line_ptDirView->aszNavHistory[i][ST_MAX_PATH - 1] = '\0';
+            g_line_ptCtx.ptDirView->aszNavHistory[i][ST_MAX_PATH - 1] = '\0';
         }
-        strncpy(g_line_ptDirView->aszNavHistory[iNewHead], szNewRoot,
+        strncpy(g_line_ptCtx.ptDirView->aszNavHistory[iNewHead], szNewRoot,
                 ST_MAX_PATH - 1);
-        g_line_ptDirView->aszNavHistory[iNewHead][ST_MAX_PATH - 1] = '\0';
-        g_line_ptDirView->iNavHistHead  = iNewHead;
-        g_line_ptDirView->iNavHistCount = iNewHead + 1;
+        g_line_ptCtx.ptDirView->aszNavHistory[iNewHead][ST_MAX_PATH - 1] = '\0';
+        g_line_ptCtx.ptDirView->iNavHistHead  = iNewHead;
+        g_line_ptCtx.ptDirView->iNavHistCount = iNewHead + 1;
     }
 
     line_print_msg("Directory view opened%s%s%s.",
@@ -1412,10 +1399,10 @@ static st_error_t line_cmd_colors(const parsed_cmd_t *ptParsed)
     if (ptParsed->iArgc == 1)
     {
         /* Toggle */
-        g_line_bColors = (g_line_bColors == ST_TRUE)
+        g_line_ptCtx.bColors = (g_line_ptCtx.bColors == ST_TRUE)
                          ? ST_FALSE : ST_TRUE;
         line_print_msg("Colors: %s",
-                       g_line_bColors == ST_TRUE ? "ON" : "OFF");
+                       g_line_ptCtx.bColors == ST_TRUE ? "ON" : "OFF");
         return ST_NO_ERROR;
     }
 
@@ -1429,12 +1416,12 @@ static st_error_t line_cmd_colors(const parsed_cmd_t *ptParsed)
 
     if (strcmp(szArg, "on") == 0)
     {
-        g_line_bColors = ST_TRUE;
+        g_line_ptCtx.bColors = ST_TRUE;
         line_print_msg("Colors: ON");
     }
     else if (strcmp(szArg, "off") == 0)
     {
-        g_line_bColors = ST_FALSE;
+        g_line_ptCtx.bColors = ST_FALSE;
         line_print_msg("Colors: OFF");
     }
     else
@@ -1455,7 +1442,7 @@ static st_error_t line_cmd_load(const parsed_cmd_t *ptParsed)
     file_stat_t tStat;
     st_error_t  eResult;
     int         i;
-    const load_state_t *ptState;
+    const load_context_t *ptLoadCtx;
 
     LOG_TRACE("ptParsed=%p", (void *)ptParsed);
 
@@ -1544,24 +1531,24 @@ static st_error_t line_cmd_load(const parsed_cmd_t *ptParsed)
         return ST_NO_ERROR;
     }
 
-    ptState = load_get_state();
-    if (ptState->eType == LOAD_TYPE_PRG)
+    ptLoadCtx = load_get_context();
+    if (ptLoadCtx->eType == LOAD_TYPE_PRG)
     {
         line_print_msg("Loaded PRG '%s' at ST:0x%06X "
                        "(.text=%u .data=%u .bss=%u, %u fixup(s)).",
                        szPath,
-                       (unsigned)ptState->uiLoadAddr,
-                       (unsigned)ptState->uiTextSize,
-                       (unsigned)ptState->uiDataSize,
-                       (unsigned)ptState->uiBssSize,
-                       (unsigned)ptState->uiFixupCount);
+                       (unsigned)ptLoadCtx->uiLoadAddr,
+                       (unsigned)ptLoadCtx->uiTextSize,
+                       (unsigned)ptLoadCtx->uiDataSize,
+                       (unsigned)ptLoadCtx->uiBssSize,
+                       (unsigned)ptLoadCtx->uiFixupCount);
     }
     else
     {
         line_print_msg("Loaded '%s' at ST:0x%06X (%u bytes).",
                        szPath,
-                       (unsigned)ptState->uiLoadAddr,
-                       (unsigned)ptState->uiSize);
+                       (unsigned)ptLoadCtx->uiLoadAddr,
+                       (unsigned)ptLoadCtx->uiSize);
     }
 
     line_update_console_title();
@@ -1687,16 +1674,15 @@ static st_error_t line_cmd_edit(const parsed_cmd_t *ptParsed)
      || strcmp(tStat.szExt, "msa") == 0
      || strcmp(tStat.szExt, "stx") == 0)
     {
-        if (g_line_ptEditHexView != NULL)
+        if (g_line_ptCtx.ptEditHexView != NULL)
         {
-            eResult = edit_hex_close(&g_line_ptEditHexView);
+            eResult = edit_hex_close(&g_line_ptCtx.ptEditHexView);
             if (eResult != ST_NO_ERROR)
                 line_print_warning(
                     "edit: could not close previous hex view");
-            g_line_ptEditHexView = NULL;
+            g_line_ptCtx.ptEditHexView = NULL;
         }
-        eResult = edit_hex_open(szPath, &g_line_ptCtx,
-                                 &g_line_ptEditHexView);
+        eResult = edit_hex_open(szPath, &g_line_ptCtx.ptEditHexView);
         if (eResult != ST_NO_ERROR)
         {
             line_print_error("edit: failed to open '%s'.", szPath);
@@ -1704,22 +1690,22 @@ static st_error_t line_cmd_edit(const parsed_cmd_t *ptParsed)
         }
         line_print_msg("Hex-editing '%s' (%zu bytes).",
                        szPath,
-                       g_line_ptEditHexView
-                       ? g_line_ptEditHexView->uiSize : (size_t)0);
+                       g_line_ptCtx.ptEditHexView
+                       ? g_line_ptCtx.ptEditHexView->uiSize : (size_t)0);
         line_update_console_title();
         return ST_NO_ERROR;
     }
 
     /* All other files → text editor */
-    if (g_line_ptEditTxtView != NULL)
+    if (g_line_ptCtx.ptEditTxtView != NULL)
     {
-        eResult = edit_txt_close(&g_line_ptEditTxtView);
+        eResult = edit_txt_close(&g_line_ptCtx.ptEditTxtView);
         if (eResult != ST_NO_ERROR)
             line_print_warning("edit: could not close previous view");
-        g_line_ptEditTxtView = NULL;
+        g_line_ptCtx.ptEditTxtView = NULL;
     }
 
-    eResult = edit_txt_open(szPath, &g_line_ptCtx, &g_line_ptEditTxtView);
+    eResult = edit_txt_open(szPath, &g_line_ptCtx.ptEditTxtView);
     if (eResult != ST_NO_ERROR)
     {
         line_print_error("edit: failed to open '%s'.", szPath);
@@ -1728,8 +1714,8 @@ static st_error_t line_cmd_edit(const parsed_cmd_t *ptParsed)
 
     line_print_msg("Editing '%s' (%d lines).",
                    szPath,
-                   g_line_ptEditTxtView
-                   ? g_line_ptEditTxtView->iLineCount : 0);
+                   g_line_ptCtx.ptEditTxtView
+                   ? g_line_ptCtx.ptEditTxtView->iLineCount : 0);
     line_update_console_title();
     return ST_NO_ERROR;
 }
@@ -1835,8 +1821,8 @@ static st_error_t line_cmd_info(const parsed_cmd_t *ptParsed)
                    c_reset());
 
     line_print_msg("Colors       : %s%s%s",
-                   g_line_bColors ? c_green() : c_gray(),
-                   g_line_bColors ? "on" : "off",
+                   g_line_ptCtx.bColors ? c_green() : c_gray(),
+                   g_line_ptCtx.bColors ? "on" : "off",
                    c_reset());
 
     line_print_msg("History      : %d entr%s",
@@ -1847,31 +1833,31 @@ static st_error_t line_cmd_info(const parsed_cmd_t *ptParsed)
     line_print_msg("Disk mounted : %s(none)%s", c_gray(), c_reset());
 
     {
-        const load_state_t *ptLoadState = load_get_state();
-        if (ptLoadState->bLoaded)
+        const load_context_t *ptLoadCtx = load_get_context();
+        if (ptLoadCtx->bLoaded)
         {
-            if (ptLoadState->eType == LOAD_TYPE_PRG)
+            if (ptLoadCtx->eType == LOAD_TYPE_PRG)
             {
                 line_print_msg("Binary       : %s%s%s (PRG, ST:0x%06X, "
                                ".text=%u .data=%u .bss=%u, %u fixup(s))",
                                c_green(),
-                               line_path_basename(ptLoadState->szPath),
+                               line_path_basename(ptLoadCtx->szPath),
                                c_reset(),
-                               (unsigned)ptLoadState->uiLoadAddr,
-                               (unsigned)ptLoadState->uiTextSize,
-                               (unsigned)ptLoadState->uiDataSize,
-                               (unsigned)ptLoadState->uiBssSize,
-                               (unsigned)ptLoadState->uiFixupCount);
+                               (unsigned)ptLoadCtx->uiLoadAddr,
+                               (unsigned)ptLoadCtx->uiTextSize,
+                               (unsigned)ptLoadCtx->uiDataSize,
+                               (unsigned)ptLoadCtx->uiBssSize,
+                               (unsigned)ptLoadCtx->uiFixupCount);
             }
             else
             {
                 line_print_msg("Binary       : %s%s%s (binary, ST:0x%06X, "
                                "%u bytes)",
                                c_green(),
-                               line_path_basename(ptLoadState->szPath),
+                               line_path_basename(ptLoadCtx->szPath),
                                c_reset(),
-                               (unsigned)ptLoadState->uiLoadAddr,
-                               (unsigned)ptLoadState->uiSize);
+                               (unsigned)ptLoadCtx->uiLoadAddr,
+                               (unsigned)ptLoadCtx->uiSize);
             }
         }
         else
@@ -1958,7 +1944,7 @@ static st_error_t line_cmd_history(const parsed_cmd_t *ptParsed)
 
 static st_error_t line_cmd_execute(const parsed_cmd_t *ptParsed)
 {
-    const load_state_t *ptLoad;
+    const load_context_t *ptLoadCtx;
     char                szSelected[ST_MAX_PATH];
     st_error_t          eResult;
 
@@ -2013,14 +1999,14 @@ static st_error_t line_cmd_execute(const parsed_cmd_t *ptParsed)
     }
 
     /* Check that a PRG is now loaded */
-    ptLoad = load_get_state();
-    if (!ptLoad->bLoaded)
+    ptLoadCtx = load_get_context();
+    if (!ptLoadCtx->bLoaded)
     {
         line_print_error(
             "execute: no program loaded — use 'load <file>' first");
         return ST_NO_ERROR;
     }
-    if (ptLoad->eType != LOAD_TYPE_PRG)
+    if (ptLoadCtx->eType != LOAD_TYPE_PRG)
     {
         line_print_error(
             "execute: loaded file is not an Atari ST PRG");
@@ -2028,7 +2014,7 @@ static st_error_t line_cmd_execute(const parsed_cmd_t *ptParsed)
     }
 
     /* Open the execution session */
-    eResult = exec_open(ptLoad->szPath, ptLoad->uiLoadAddr);
+    eResult = exec_open(ptLoadCtx->szPath, ptLoadCtx->uiLoadAddr);
     if (eResult != ST_NO_ERROR)
     {
         line_print_error("execute: failed to open execution session");
@@ -2123,20 +2109,20 @@ static st_error_t line_cmd_mount(const parsed_cmd_t *ptParsed)
     }
 
     /* Close any existing mount view first */
-    if (g_line_ptMountView != NULL)
+    if (g_line_ptCtx.ptMountView != NULL)
     {
-        mount_view_close(&g_line_ptMountView);
-        g_line_ptMountView = NULL;
+        mount_view_close(&g_line_ptCtx.ptMountView);
+        g_line_ptCtx.ptMountView = NULL;
     }
 
-    if (mount_view_open(szPath, &g_line_ptCtx, &g_line_ptMountView) != ST_NO_ERROR)
+    if (mount_view_open(szPath, g_line_ptCtx.bRunning, &g_line_ptCtx.ptMountView) != ST_NO_ERROR)
     {
         line_print_error("mount failed for '%s'.", szPath);
         return ST_NO_ERROR;
     }
 
     line_print_msg("Mounted '%s' — %d file(s) on A:\\.",
-                   szPath, g_line_ptMountView->iEntryCount);
+                   szPath, g_line_ptCtx.ptMountView->iEntryCount);
     line_update_console_title();
     return ST_NO_ERROR;
 }
@@ -2146,7 +2132,7 @@ static st_error_t line_cmd_mount(const parsed_cmd_t *ptParsed)
  *
  * Source resolution priority:
  *   1. --in <path>         explicit source
- *   2. mounted view        if g_line_ptMountView != NULL and no --in
+ *   2. mounted view        if g_line_ptCtx.ptMountView != NULL and no --in
  *   3. selected file/dir   from console context
  *   4. cwd                 last fallback (directory→image only)
  *
@@ -2306,7 +2292,7 @@ static st_error_t line_cmd_image(const parsed_cmd_t *ptParsed)
     /* Priority: --in > mounted view > selected */
     if (!bHaveIn)
     {
-        if (g_line_ptMountView == NULL)
+        if (g_line_ptCtx.ptMountView == NULL)
         {
             /* No --in and no mounted view: fall back to selected */
             line_get_selected(szIn, ST_MAX_PATH);
@@ -2314,7 +2300,7 @@ static st_error_t line_cmd_image(const parsed_cmd_t *ptParsed)
                 bHaveIn = ST_TRUE;
         }
         /* else: mounted view is the implicit source — szIn stays empty,
-         * g_line_ptMountView is used directly below.                   */
+         * g_line_ptCtx.ptMountView is used directly below.                   */
     }
 
     /* ---- Case: --dir extraction ------------------------------------ */
@@ -2355,7 +2341,7 @@ static st_error_t line_cmd_image(const parsed_cmd_t *ptParsed)
                 line_print_error("image --dir: source not found: '%s'", szIn);
                 return ST_NO_ERROR;
             }
-            eResult = mount_view_open(szIn, &g_line_ptCtx, &ptTmpView);
+            eResult = mount_view_open(szIn, g_line_ptCtx.bRunning, &ptTmpView);
             if (eResult != ST_NO_ERROR || ptTmpView == NULL)
             {
                 line_print_error("image --dir: failed to open disk '%s'",
@@ -2365,10 +2351,10 @@ static st_error_t line_cmd_image(const parsed_cmd_t *ptParsed)
             eResult = mount_save_image(ptTmpView, MOUNT_SAVE_DIR, szAutoDst);
             mount_view_close(&ptTmpView);
         }
-        else if (!bHaveIn && g_line_ptMountView != NULL)
+        else if (!bHaveIn && g_line_ptCtx.ptMountView != NULL)
         {
             /* Source: currently mounted image */
-            eResult = mount_save_image(g_line_ptMountView,
+            eResult = mount_save_image(g_line_ptCtx.ptMountView,
                                        MOUNT_SAVE_DIR, szAutoDst);
         }
         else
@@ -2388,14 +2374,14 @@ static st_error_t line_cmd_image(const parsed_cmd_t *ptParsed)
 
     /* ---- Case: save / convert / pack ------------------------------- */
     /* Sub-case A: mounted view is the source */
-    if (!bHaveIn && g_line_ptMountView != NULL)
+    if (!bHaveIn && g_line_ptCtx.ptMountView != NULL)
     {
         if (!bHaveOut)
             snprintf(szOut, sizeof(szOut), "%.*sdisk.%s",
                      (int)(sizeof(szOut) - 9), szCwdBuf, szExt);
         if (bBootable)
-            mount_make_bootable(g_line_ptMountView->ptImg);
-        eResult = mount_save_image(g_line_ptMountView, eFmt, szOut);
+            mount_make_bootable(g_line_ptCtx.ptMountView->ptImg);
+        eResult = mount_save_image(g_line_ptCtx.ptMountView, eFmt, szOut);
         if (eResult == ST_NO_ERROR)
             line_print_msg("Image saved: %s", szOut);
         else
@@ -2491,7 +2477,7 @@ static st_error_t line_cmd_image(const parsed_cmd_t *ptParsed)
             snprintf(szOut, sizeof(szOut), "%.*sdisk.%s",
                      (int)(sizeof(szOut) - 9), szCwdBuf, szExt);
 
-        eResult = mount_view_open(szSrcDir, &g_line_ptCtx, &ptTmpView);
+        eResult = mount_view_open(szSrcDir, g_line_ptCtx.bRunning, &ptTmpView);
         if (eResult != ST_NO_ERROR || ptTmpView == NULL)
         {
             line_print_error("image: failed to pack '%s'", szSrcDir);
@@ -3054,7 +3040,7 @@ static void line_redraw( const char           *szBuf,
 
     /* Ghost text at cursor (dim) */
     uiGhostLen = 0;
-    if (szGhost != NULL && szGhost[0] != '\0' && g_line_bColors)
+    if (szGhost != NULL && szGhost[0] != '\0' && g_line_ptCtx.bColors)
     {
         uiGhostLen = strlen(szGhost);
         printf("%s%s%s", c_dim(), szGhost, c_reset());
@@ -3699,30 +3685,33 @@ st_u64_t line_init(const char* szScriptFile)
     char       *pCwd;
     st_error_t  eResult;
 
-    LOG_TRACE("g_line_ptCtx=%p - szScriptFile=%p",
-              (void*)&g_line_ptCtx, szScriptFile);
+    LOG_TRACE("Init console line context -- szScriptFile=%p", szScriptFile);
 
-    if (g_line_ptCtx.bRunning == ST_TRUE)
-    {
-        LOG_INFO("Already initialised");
-        return (st_u64_t)&g_line_ptCtx;
-    }
-    
+    /* -- [LINE]1. Reject any NULL incoming parameter -- */
     if (szScriptFile == NULL)
     {
         LOG_ERROR("NULL parameter");
         return ST_ERROR;
     }
 
+    /* -- [LINE]2. Log Information if already initialised -- */
+    if (g_line_ptCtx.bRunning == ST_TRUE)
+    {
+        LOG_INFO("Already initialised");
+        return (st_u64_t)&g_line_ptCtx;
+    }
+    
     g_line_ptCtx.bRunning = ST_TRUE;
 
     /* P24: auto-detect ANSI capability based on stdout TTY status */
+    /* -- [LINE]3. Auto-detect ANSI capability -- */
 #ifdef ST_PLATFORM_WINDOWS
-    g_line_bColors = _isatty(_fileno(stdout)) ? ST_TRUE : ST_FALSE;
+    g_line_ptCtx.bColors = _isatty(_fileno(stdout)) ? ST_TRUE : ST_FALSE;
 #else
-    g_line_bColors = isatty(STDOUT_FILENO) ? ST_TRUE : ST_FALSE;
+    g_line_ptCtx.bColors = isatty(STDOUT_FILENO) ? ST_TRUE : ST_FALSE;
 #endif
 
+    /* -- [LINE]4. get current working directory -- */
     pCwd = getcwd(g_line_ptCtx.szCwd, ST_MAX_PATH);
     if (pCwd == NULL)
     {
@@ -3731,6 +3720,7 @@ st_u64_t line_init(const char* szScriptFile)
         g_line_ptCtx.szCwd[ST_MAX_PATH - 1] = '\0';
     }
 
+    /* -- [LINE]5. Fills context struture fields -- */
     /* Create the mutex protecting szSelected */
     eResult = platform_mutex_create(&g_line_ptCtx.ptSelectedMutex);
     if (eResult != ST_NO_ERROR)
@@ -3747,7 +3737,7 @@ st_u64_t line_init(const char* szScriptFile)
         g_line_ptCtx.szScriptFile[ST_MAX_PATH - 1] = '\0';
     }
 
-
+    /* -- [LINE]6. Load console commands history -- */
     /* Load command history from the default history file */
     line_history_load(NULL);
 
@@ -3885,31 +3875,31 @@ st_error_t line_shutdown()
     LOG_TRACE("Shutdown requested");
 
     /* Close any open dir view */
-    if (g_line_ptDirView != NULL)
+    if (g_line_ptCtx.ptDirView != NULL)
     {
-        dir_close(&g_line_ptDirView);
-        g_line_ptDirView = NULL;
+        dir_close(&g_line_ptCtx.ptDirView);
+        g_line_ptCtx.ptDirView = NULL;
     }
 
     /* Close any open text edit view */
-    if (g_line_ptEditTxtView != NULL)
+    if (g_line_ptCtx.ptEditTxtView != NULL)
     {
-        edit_txt_close(&g_line_ptEditTxtView);
-        g_line_ptEditTxtView = NULL;
+        edit_txt_close(&g_line_ptCtx.ptEditTxtView);
+        g_line_ptCtx.ptEditTxtView = NULL;
     }
 
     /* Close any open hex edit view */
-    if (g_line_ptEditHexView != NULL)
+    if (g_line_ptCtx.ptEditHexView != NULL)
     {
-        edit_hex_close(&g_line_ptEditHexView);
-        g_line_ptEditHexView = NULL;
+        edit_hex_close(&g_line_ptCtx.ptEditHexView);
+        g_line_ptCtx.ptEditHexView = NULL;
     }
 
     /* Close any open mount view */
-    if (g_line_ptMountView != NULL)
+    if (g_line_ptCtx.ptMountView != NULL)
     {
-        mount_view_close(&g_line_ptMountView);
-        g_line_ptMountView = NULL;
+        mount_view_close(&g_line_ptCtx.ptMountView);
+        g_line_ptCtx.ptMountView = NULL;
     }
 
     /* Close any open execution session */
@@ -3983,4 +3973,9 @@ void line_print_error(const char *szFmt, ...)
     vprintf(szFmt, vaArgs);
     va_end(vaArgs);
     printf("%s\n", c_reset());
+}
+
+char* line_get_current_dir()
+{
+    return g_line_ptCtx.szCwd;
 }

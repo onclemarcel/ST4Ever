@@ -46,7 +46,6 @@
 #include "gui.h"
 #include "renderer.h"
 #include "image_st.h"
-#include "line.h"
 
 /* ------------------------------------------------------------------
  * Window geometry
@@ -97,8 +96,8 @@ typedef struct mount_view_s
     void              *ptBootHexView;
     /* P41: selected-file hex viewer (edit_hex_view_t* stored as void*) */
     void              *ptFileHexView;
-    /* Back-ref to console context for P38/P41 edit_hex_open             */
-    line_context_t    *ptLineCtx;
+    /* Assess if main console is running                                */
+    st_bool_t          bIsLineRunning;
 
     /* UC24F: in-image directory navigation                              */
     char               szCurDir[IST_NAME_MAX]; /* "" = root dir         */
@@ -123,9 +122,9 @@ typedef struct mount_view_s
  *   NULL / ""      -> uses ptLineCtx->szCwd.
  *
  * Parameters:
- *   szPath    [in]  : Source path (NULL = current working directory).
- *   ptLineCtx [in]  : Console context (provides szCwd).
- *   pptView   [out] : Receives the allocated view on success.
+ *   szPath         [in] : Source path (NULL = current working directory).
+ *   bIsLineRunning [in] : Console context is initialized (global to line.c)
+ *   pptView       [out] : Receives the allocated view on success.
  *
  * Returns:
  *   ST_NO_ERROR on success.
@@ -134,8 +133,8 @@ typedef struct mount_view_s
  *               window cannot be opened.
  */
 st_error_t mount_view_open(const char     *szPath,
-                             line_context_t *ptLineCtx,
-                             mount_view_t  **pptView);
+                           st_bool_t       bIsLineRunning,
+                           mount_view_t  **pptView);
 
 /*
  * mount_view_close() - Close the view and release all resources.

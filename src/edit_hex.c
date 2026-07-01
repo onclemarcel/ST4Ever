@@ -1990,21 +1990,19 @@ static void ehex_jump_to_lba(edit_hex_view_t *ptV, int iLba)
  * ------------------------------------------------------------------ */
 
 st_error_t edit_hex_open(const char       *szPath,
-                          line_context_t   *ptLineCtx,
                           edit_hex_view_t **pptView)
 {
     edit_hex_view_t *ptV = NULL;
     gui_wnd_desc_t   tDesc;
     st_error_t       eRet = ST_ERROR;
 
-    LOG_TRACE("szPath=%s ptLineCtx=%p pptView=%p",
-              szPath ? szPath : "(null)",
-              (void *)ptLineCtx, (void *)pptView);
+    LOG_TRACE("szPath=%s pptView=%p",
+              szPath ? szPath : "(null)", (void *)pptView);
 
-    if (szPath == NULL || ptLineCtx == NULL || pptView == NULL)
+    if (szPath == NULL || pptView == NULL)
     {
-        LOG_ERROR("NULL parameter: szPath=%p ptLineCtx=%p pptView=%p",
-                  (void *)szPath, (void *)ptLineCtx,
+        LOG_ERROR("NULL parameter: szPath=%p pptView=%p",
+                  (void *)szPath, 
                   (void *)pptView);
         return ST_ERROR;
     }
@@ -2021,7 +2019,6 @@ st_error_t edit_hex_open(const char       *szPath,
 
     strncpy(ptV->szPath, szPath, ST_MAX_PATH - 1);
     ptV->szPath[ST_MAX_PATH - 1] = '\0';
-    ptV->ptLineCtx    = ptLineCtx;
     ptV->eZone        = HEX_ZONE_HEX;
 
     /* Initialise BPB cache and band state (UC24C) */

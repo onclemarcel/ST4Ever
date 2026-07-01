@@ -200,8 +200,7 @@ st_u32_t shifter_palette_to_rgb(st_u16_t uiColor)
          |  (st_u32_t)uiB;
 }
 
-st_error_t shifter_render(const st_machine_t *ptMachine,
-                           st_u32_t           *auPixels,
+st_error_t shifter_render( st_u32_t           *auPixels,
                            size_t              uiPixelCount,
                            int                *piWidth,
                            int                *piHeight)
@@ -212,23 +211,22 @@ st_error_t shifter_render(const st_machine_t *ptMachine,
     int            iH;
     int            i;
 
-    if (   ptMachine == NULL
-        || auPixels  == NULL
+    if (auPixels  == NULL
         || piWidth   == NULL
         || piHeight  == NULL)
     {
-        LOG_ERROR("NULL parameter: ptMachine=%p auPixels=%p "
+        LOG_ERROR("NULL parameter: auPixels=%p "
                   "piWidth=%p piHeight=%p",
-                  (void *)ptMachine, (void *)auPixels,
+                  (void *)auPixels,
                   (void *)piWidth,   (void *)piHeight);
         return ST_ERROR;
     }
 
-    shifter_screen_size(ptMachine->uiResolution, &iW, &iH);
+    shifter_screen_size(st_get_resolution(), &iW, &iH);
     if (iW == 0)
     {
         LOG_ERROR("unknown resolution %u",
-                  (unsigned)ptMachine->uiResolution);
+                  st_get_resolution());
         return ST_ERROR;
     }
     if (uiPixelCount < (size_t)(iW * iH))
@@ -237,22 +235,22 @@ st_error_t shifter_render(const st_machine_t *ptMachine,
                   iW * iH, uiPixelCount);
         return ST_ERROR;
     }
-    if (ptMachine->uiScreenBase + SHIFTER_FB_SIZE
+    if (st_get_screen_base() + SHIFTER_FB_SIZE
             > (st_u32_t)ST_RAM_SIZE)
     {
         LOG_ERROR("screen base 0x%06X out of RAM",
-                  (unsigned)ptMachine->uiScreenBase);
+                  st_get_screen_base());
         return ST_ERROR;
     }
 
-    pFB = ptMachine->aRam + ptMachine->uiScreenBase;
+    pFB = st_get_ram_pointer(0) + st_get_screen_base();
 
     for (i = 0; i < ST_PALETTE_COLORS; ++i)
     {
-        auRGB[i] = shifter_palette_to_rgb(ptMachine->auPalette[i]);
+        auRGB[i] = shifter_palette_to_rgb(st_get_palette(i));
     }
 
-    switch (ptMachine->uiResolution)
+    switch (st_get_resolution())
     {
         case ST_RES_LOW:  render_low( pFB, auPixels, auRGB); break;
         case ST_RES_MED:  render_med( pFB, auPixels, auRGB); break;
@@ -264,7 +262,7 @@ st_error_t shifter_render(const st_machine_t *ptMachine,
     *piHeight = iH;
     LOG_INFO("rendered %dx%d res=%u screen_base=0x%06X",
              iW, iH,
-             (unsigned)ptMachine->uiResolution,
-             (unsigned)ptMachine->uiScreenBase);
+             st_get_resolution(),
+             st_get_screen_base());
     return ST_NO_ERROR;
 }

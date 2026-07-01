@@ -25,6 +25,7 @@
  */
 
 #include "dir.h"
+#include "line.h"
 #include "gui.h"
 #include "trace.h"
 
@@ -883,7 +884,7 @@ static void dir_activate_sel(dir_view_t *ptView, gui_window_t hWnd)
     else
     {
         /* File: update console selection (mutex-safe, UC4.3) */
-        if (ptView->ptLineCtx != NULL)
+        if (ptView->bIsLineRunning)
         {
             line_set_selected(ptNode->szPath);
             /* P11: record last-selected for secondary visual indicator */
@@ -1125,7 +1126,7 @@ static void dir_handle_key(dir_view_t  *ptView,
                     if (ptView->szLastSelected[0] != '\0')
                     {
                         ptView->szLastSelected[0] = '\0';
-                        if (ptView->ptLineCtx != NULL)
+                        if (ptView->bIsLineRunning)
                             line_set_selected("");
                     }
                     dir_toggle_multi_sel(ptView, ptNode->szPath);
@@ -1145,7 +1146,7 @@ static void dir_handle_key(dir_view_t  *ptView,
                     ptView->iMultiSelCount = 0;
                     LOG_INFO("dir: multi-sel cleared on single SPACE");
                 }
-                if (ptView->ptLineCtx != NULL)
+                if (ptView->bIsLineRunning)
                 {
                     line_set_selected(ptNode->szPath);
                     /* P11: record last-selected for secondary indicator */
@@ -1425,30 +1426,37 @@ static void dir_event_callback(gui_window_t  hWnd,
  * ================================================================== */
 
 st_error_t dir_open(const char     *szPath,
-                     line_context_t *ptLineCtx,
-                     st_bool_t       bShowHidden,
-                     dir_view_t    **pptView)
+                     st_bool_t      bIsLineRunning,
+                     st_bool_t      bShowHidden,
+                     dir_view_t   **pptView)
 {
     dir_view_t    *ptView;
     gui_wnd_desc_t tDesc;
+    st_bool_t      bIsLineCtx;
     st_error_t     eResult;
     char           szCwd[ST_MAX_PATH];
     char           szTitle[ST_MAX_PATH + 32];
     const char    *szRoot;
 
-    LOG_TRACE("szPath=%p ptLineCtx=%p bShowHidden=%d pptView=%p",
-              (void *)szPath, (void *)ptLineCtx,
+    LOG_TRACE("szPath=%p bIsLineRunning=%d bShowHidden=%d pptView=%p",
+              (void *)szPath, (int)bIsLineRunning, 
               (int)bShowHidden, (void *)pptView);
 
-    if (ptLineCtx == NULL || pptView == NULL)
+    if (pptView == NULL)
     {
-        LOG_ERROR("NULL parameter: ptLineCtx=%p pptView=%p",
-                  (void *)ptLineCtx, (void *)pptView);
+        LOG_ERROR("NULL parameter: pptView=%p", (void *)pptView);
         return ST_ERROR;
     }
 
     *pptView = NULL;
 
+    if (!bIsLineRunning)
+    {
+        LOG_ERROR("Line context not initialized - call line_init() first");
+        return ST_ERROR;
+    }
+
+    
     /* Resolve root path */
     if (szPath == NULL || szPath[0] == '\0')
     {
@@ -1484,7 +1492,7 @@ st_error_t dir_open(const char     *szPath,
 
     strncpy(ptView->szRootPath, szRoot, ST_MAX_PATH - 1);
     ptView->szRootPath[ST_MAX_PATH - 1] = '\0';
-    ptView->ptLineCtx     = ptLineCtx;
+    ptView->bIsLineRunning= bIsLineRunning;
     ptView->bShowHidden   = bShowHidden;
     ptView->iSelectedFlat = -1;   /* ".." selected by default */
     ptView->iCellH        = 20;   /* overridden on first PAINT */

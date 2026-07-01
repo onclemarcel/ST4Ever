@@ -20,6 +20,7 @@
 #include "image_msa.h"
 #include "file.h"
 #include "trace.h"
+#include "line.h"
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -135,10 +136,9 @@ static void mount_open_bootsector(mount_view_t *ptView)
                         / 1024u),
              bBoot ? "bootable" : "not bootable");
 
-    if (ptView->ptLineCtx != NULL)
+    if (ptView->bIsLineRunning)
     {
-        if (edit_hex_open(MOUNT_BOOT_TMP, ptView->ptLineCtx,
-                          (edit_hex_view_t **)&ptView->ptBootHexView)
+        if (edit_hex_open(MOUNT_BOOT_TMP, (edit_hex_view_t **)&ptView->ptBootHexView)
             != ST_NO_ERROR)
         {
             LOG_ERROR("mount: edit_hex_open bootsector failed");
@@ -230,10 +230,9 @@ static void mount_open_file_hex(mount_view_t *ptView)
              "A:\\ %s  [%u bytes]", ptEntry->szName,
              (unsigned)ptEntry->uiSize);
 
-    if (ptView->ptLineCtx != NULL)
+    if (ptView->bIsLineRunning)
     {
-        if (edit_hex_open(MOUNT_FILE_TMP, ptView->ptLineCtx,
-                          (edit_hex_view_t **)&ptView->ptFileHexView)
+        if (edit_hex_open(MOUNT_FILE_TMP, (edit_hex_view_t **)&ptView->ptFileHexView)
             != ST_NO_ERROR)
         {
             LOG_ERROR("mount_open_file_hex: edit_hex_open failed");
@@ -1193,7 +1192,7 @@ st_error_t mount_save_image(mount_view_t    *ptView,
 }
 
 st_error_t mount_view_open(const char     *szPath,
-                             line_context_t *ptLineCtx,
+                             st_bool_t     bIsLineRunning,
                              mount_view_t  **pptView)
 {
     mount_view_t    *ptView = NULL;
@@ -1207,17 +1206,22 @@ st_error_t mount_view_open(const char     *szPath,
     LOG_TRACE("szPath=%s pptView=%p",
               szPath ? szPath : "NULL", (void *)pptView);
 
-    if (ptLineCtx == NULL || pptView == NULL)
+    if (pptView == NULL)
     {
-        LOG_ERROR("NULL parameter: ptLineCtx=%p pptView=%p",
-                  (void *)ptLineCtx, (void *)pptView);
+        LOG_ERROR("NULL parameter: pptView=%p", (void *)pptView);
         return ST_ERROR;
     }
     *pptView = NULL;
 
+    if (!bIsLineRunning)
+    {
+        LOG_ERROR("Line context not initialized - call line_init() first");
+        return ST_ERROR;
+    }
+
     /* Resolve effective path */
     if (szPath == NULL || szPath[0] == '\0')
-        strncpy(szEffPath, ptLineCtx->szCwd, ST_MAX_PATH - 1);
+        strncpy(szEffPath, line_get_current_dir(), ST_MAX_PATH - 1);
     else
         strncpy(szEffPath, szPath, ST_MAX_PATH - 1);
     szEffPath[ST_MAX_PATH - 1] = '\0';
@@ -1239,7 +1243,7 @@ st_error_t mount_view_open(const char     *szPath,
     }
     memset(ptView, 0, sizeof(mount_view_t));
     ptView->iSelectedEntry = -1;
-    ptView->ptLineCtx      = ptLineCtx;
+    ptView->bIsLineRunning = bIsLineRunning;
     ptView->szCurDir[0]    = '\0';
     ptView->iNavDepth      = 0;
     strncpy(ptView->szSrcPath, szEffPath, ST_MAX_PATH - 1);

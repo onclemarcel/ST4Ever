@@ -30,12 +30,12 @@
 #include "common.h"
 
 /* ------------------------------------------------------------------
- * Memory size constants
+ * Memory constants
  * ------------------------------------------------------------------ */
 
 #define ST_RAM_SIZE         (512 * 1024)    /* 512 KB standard RAM   */
 #define ST_ROM_SIZE         (192 * 1024)    /* 192 KB TOS ROM        */
-#define ST_ADDR_SPACE       (16 * 1024 * 1024) /* 24-bit = 16 MB    */
+#define ST_ADDR_SPACE       (16 * 1024 * 1024) /* 24-bit = 16 MB     */
 
 /* ------------------------------------------------------------------
  * Hardware register base addresses
@@ -71,11 +71,18 @@
 #define ST_RES_HIGH         2   /* 640x400,  2 colours (mono)      */
 
 /* ------------------------------------------------------------------
- * Machine state
+ * ROM constants
  * ------------------------------------------------------------------ */
 
-typedef struct st_machine_s
+/* ------------------------------------------------------------------
+ * ST Machine context
+ * ------------------------------------------------------------------ */
+
+typedef struct st_machine_context_s
 {
+    st_u32_t    ulMagic;                   /* Magic ST4Ever OO-like tag */
+    st_object_t eObject;                   /* Object type for tests     */
+
     st_u8_t  aRam[ST_RAM_SIZE];         /* Main RAM (0x000000+)      */
     st_u8_t  aRom[ST_ROM_SIZE];         /* TOS ROM image             */
     st_bool_t bRomLoaded;               /* TOS ROM present           */
@@ -100,7 +107,7 @@ typedef struct st_machine_s
 
     /* Misc */
     st_bool_t bPoweredOn;               /* Machine is running        */
-} st_machine_t;
+} st_machine_context_t;
 
 /* ------------------------------------------------------------------
  * API
@@ -116,9 +123,10 @@ typedef struct st_machine_s
  *   ptMachine [out] : Machine state to initialise.
  *   szRomPath [in]  : Path to TOS ROM image file (may be NULL).
  *
- * Returns: ST_NO_ERROR on success, ST_ERROR on ROM load failure.
- */
-st_error_t st_init(st_machine_t *ptMachine, const char *szRomPath);
+ * Returns:
+ *   Value of the global st_machine_context_t structure pointer on success.
+*/
+st_u64_t st_init(const char *szRomPath);
 
 /*
  * st_read_byte() - Read one byte from the emulated address space.
@@ -130,8 +138,7 @@ st_error_t st_init(st_machine_t *ptMachine, const char *szRomPath);
  *
  * Returns: ST_NO_ERROR on success, ST_ERROR on bus error.
  */
-st_error_t st_read_byte(const st_machine_t *ptMachine,
-                          st_u32_t            uiAddr,
+st_error_t st_read_byte( st_u32_t            uiAddr,
                           st_u8_t            *puiByte);
 
 /*
@@ -145,8 +152,7 @@ st_error_t st_read_byte(const st_machine_t *ptMachine,
  *
  * Returns: ST_NO_ERROR on success, ST_ERROR on bus/alignment error.
  */
-st_error_t st_read_word(const st_machine_t *ptMachine,
-                          st_u32_t            uiAddr,
+st_error_t st_read_word( st_u32_t            uiAddr,
                           st_u16_t           *puiWord);
 
 /*
@@ -159,8 +165,7 @@ st_error_t st_read_word(const st_machine_t *ptMachine,
  *
  * Returns: ST_NO_ERROR on success, ST_ERROR on bus/alignment error.
  */
-st_error_t st_read_long(const st_machine_t *ptMachine,
-                          st_u32_t            uiAddr,
+st_error_t st_read_long( st_u32_t            uiAddr,
                           st_u32_t           *puiLong);
 
 /*
@@ -173,8 +178,7 @@ st_error_t st_read_long(const st_machine_t *ptMachine,
  *
  * Returns: ST_NO_ERROR on success, ST_ERROR on bus error.
  */
-st_error_t st_write_byte(st_machine_t *ptMachine,
-                           st_u32_t      uiAddr,
+st_error_t st_write_byte( st_u32_t      uiAddr,
                            st_u8_t       uiByte);
 
 /*
@@ -187,8 +191,7 @@ st_error_t st_write_byte(st_machine_t *ptMachine,
  *
  * Returns: ST_NO_ERROR on success, ST_ERROR on bus/alignment error.
  */
-st_error_t st_write_word(st_machine_t *ptMachine,
-                           st_u32_t      uiAddr,
+st_error_t st_write_word( st_u32_t      uiAddr,
                            st_u16_t      uiWord);
 
 /*
@@ -201,8 +204,7 @@ st_error_t st_write_word(st_machine_t *ptMachine,
  *
  * Returns: ST_NO_ERROR on success, ST_ERROR on bus/alignment error.
  */
-st_error_t st_write_long(st_machine_t *ptMachine,
-                           st_u32_t      uiAddr,
+st_error_t st_write_long(  st_u32_t      uiAddr,
                            st_u32_t      uiLong);
 
 /*
@@ -213,6 +215,11 @@ st_error_t st_write_long(st_machine_t *ptMachine,
  *
  * Returns: ST_NO_ERROR.
  */
-st_error_t st_shutdown(st_machine_t *ptMachine);
+st_error_t st_shutdown();
+
+st_u16_t st_get_palette(st_u16_t uiColIdx);
+st_u32_t st_get_screen_base();
+st_u32_t st_get_resolution();
+void*    st_get_ram_pointer(st_u32_t uiAddr);
 
 #endif /* ST_H */
