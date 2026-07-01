@@ -44,7 +44,6 @@ int g_uc_fails = 0;
 int main(void)
 {
     dir_view_t     *ptView;
-    line_context_t  tCtx;
     st_error_t      eResult;
     int             iFlatHidden;
     int             iFlatVisible;
@@ -67,7 +66,7 @@ int main(void)
     /* INTENT[INT-DIR-011 → TC-DIR4-002..004 → REQ-DIR-016 → UFR-DIR-004]:
      * dir_open with bShowHidden=ST_FALSE does not include '.*' entries */
     ptView  = NULL;
-    eResult = dir_open(TEST_DATA_PATH, &tCtx, ST_FALSE, &ptView);
+    eResult = dir_open(TEST_DATA_PATH, ST_TRUE, ST_FALSE, &ptView);
     UC_TEST("[N] TC-DIR4-002 dir_open(bShowHidden=F) -> ST_NO_ERROR",
             eResult == ST_NO_ERROR);
 
@@ -89,7 +88,7 @@ int main(void)
     /* INTENT[INT-DIR-012 → TC-DIR4-005..006 → REQ-DIR-016 → UFR-DIR-004]:
      * dir_open with bShowHidden=ST_TRUE includes '.*' entries */
     ptView  = NULL;
-    eResult = dir_open(TEST_DATA_PATH, &tCtx, ST_TRUE, &ptView);
+    eResult = dir_open(TEST_DATA_PATH, ST_TRUE, ST_TRUE, &ptView);
     UC_TEST("[N] TC-DIR4-004 dir_open(bShowHidden=T) -> ST_NO_ERROR",
             eResult == ST_NO_ERROR);
 
@@ -118,7 +117,7 @@ int main(void)
     /* INTENT[INT-DIR-014 → TC-DIR4-007 → REQ-DIR-001 → UFR-DIR-001]:
      * bShowHidden=ST_TRUE with NULL ptLineCtx is still rejected */
     ptView  = NULL;
-    eResult = dir_open(TEST_DATA_PATH, NULL, ST_TRUE, &ptView);
+    eResult = dir_open(TEST_DATA_PATH, ST_FALSE, ST_TRUE, &ptView);
     UC_TEST("[R] TC-DIR4-007 dir_open(bShowHidden=T, NULL ptLineCtx) "
             "-> ST_ERROR",
             eResult == ST_ERROR);
@@ -135,7 +134,7 @@ int main(void)
     /* INTENT[INT-DIR-015 -> TC-DIR4-009 -> REQ-DIR-017 -> UFR-DIR-005]:
      * ESC key closes the dir window without console thread action */
     ptView = NULL;
-    dir_open("use_cases", &tCtx, ST_FALSE, &ptView);
+    dir_open("use_cases", ST_TRUE, ST_FALSE, &ptView);
     platform_sleep_ms(400);
     TEST_MANUAL("[S] TC-DIR4-009 ESC closes the dir window",
                 "Press ESC in the open window. Did it close?");
@@ -144,7 +143,7 @@ int main(void)
     /* INTENT[INT-DIR-016 -> TC-DIR4-010 -> REQ-DIR-018 -> UFR-DIR-005]:
      * LEFT collapses an expanded directory */
     ptView = NULL;
-    dir_open("use_cases", &tCtx, ST_FALSE, &ptView);
+    dir_open("use_cases", ST_TRUE, ST_FALSE, &ptView);
     platform_sleep_ms(400);
     TEST_MANUAL("[S] TC-DIR4-010 LEFT collapses expanded directory",
                 "Press RIGHT to expand a dir, then LEFT. Did it collapse?");
@@ -153,7 +152,7 @@ int main(void)
     /* INTENT[INT-DIR-017 -> TC-DIR4-011 -> REQ-DIR-018 -> UFR-DIR-005]:
      * RIGHT expands a collapsed directory */
     ptView = NULL;
-    dir_open("use_cases", &tCtx, ST_FALSE, &ptView);
+    dir_open("use_cases", ST_TRUE, ST_FALSE, &ptView);
     platform_sleep_ms(400);
     TEST_MANUAL("[S] TC-DIR4-011 RIGHT expands collapsed directory",
                 "Select a collapsed dir, press RIGHT. Did it expand?");
@@ -162,7 +161,7 @@ int main(void)
     /* INTENT[INT-DIR-018 -> TC-DIR4-012 -> REQ-DIR-019 -> UFR-DIR-005]:
      * SPACE selects a file/dir without triggering expand or navigate */
     ptView = NULL;
-    dir_open("use_cases", &tCtx, ST_FALSE, &ptView);
+    dir_open("use_cases", ST_TRUE, ST_FALSE, &ptView);
     platform_sleep_ms(400);
     TEST_MANUAL("[S] TC-DIR4-012 SPACE selects without expand",
                 "Press SPACE on a collapsed directory. Did it stay "
@@ -172,7 +171,7 @@ int main(void)
     /* INTENT[INT-DIR-019 -> TC-DIR4-013 -> REQ-DIR-008 -> UFR-DIR-003]:
      * ENTER still triggers expand/collapse and navigation */
     ptView = NULL;
-    dir_open("use_cases", &tCtx, ST_FALSE, &ptView);
+    dir_open("use_cases", ST_TRUE, ST_FALSE, &ptView);
     platform_sleep_ms(400);
     TEST_MANUAL("[S] TC-DIR4-013 ENTER triggers expand/collapse/navigate",
                 "Press ENTER on a collapsed dir. Did it expand?");
@@ -181,7 +180,7 @@ int main(void)
     /* INTENT[INT-DIR-020 -> TC-DIR4-014 -> REQ-DIR-020 -> UFR-DIR-005]:
      * window receives keyboard focus on open without requiring alt-tab */
     ptView = NULL;
-    dir_open("use_cases", &tCtx, ST_FALSE, &ptView);
+    dir_open("use_cases", ST_TRUE, ST_FALSE, &ptView);
     platform_sleep_ms(200);
     TEST_MANUAL("[S] TC-DIR4-014 Window focused on open (no alt-tab needed)",
                 "Try arrow keys in the window immediately after it opened. "
@@ -189,7 +188,7 @@ int main(void)
     if (ptView != NULL) dir_close(&ptView);
 
     /* ---- Teardown ------------------------------------------------- */
-    line_shutdown(&tCtx);
+    line_shutdown();
     gui_shutdown();
     trace_shutdown();
 

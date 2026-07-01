@@ -418,7 +418,7 @@ static void trace_event_callback(gui_window_t  hWnd,
 }
 
 /* ------------------------------------------------------------------
- * Public API
+ * Public API (see description in trace.h)
  * ------------------------------------------------------------------ */
 
 st_u64_t trace_init(st_bool_t bOpen)
@@ -583,6 +583,7 @@ void trace_log(log_level_t  eLevel,
     va_list vaArgs;
     int     bCompacted;
 
+    /* -- [TRACE]6. Trace Context must be initialized before logging -- */
     if (g_trace_ptCtx.bInitialised == ST_FALSE)
     {
         return;

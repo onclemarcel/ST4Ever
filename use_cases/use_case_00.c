@@ -5,15 +5,15 @@
  *   INTENT[INT-xxx-NNN → TC-xxx-NNN → REQ-xxx-NNN -> UFR-xxx-NNN]
  *
  * TEST MATRIX:
- *   [N] Nominal    : xx tests  - all public functions & statis functions
- *   [R] Robustness : xx tests  - NULL params, out-of-bounds addresses,
+ *   [N] Nominal    : 44 tests  - all public functions & static functions
+ *   [R] Robustness : 7  tests  - NULL params, out-of-bounds addresses,
  *                                double init/close, alignment errors
  *   [S] Skipped    : xx tests  - Manual test to complete coverage
  *
  * Test groups:
  *   Group 1: Management of ST4Ever application options
  * 
- *   Group 2: Initialization functions chain & capture of the context
+ *   Group 2-8: Initialization functions chain & capture of the context
  *            structures
  *
  * Exit code: ST_NO_ERROR = all tests passed, ST_ERROR = one or more failures.
@@ -33,6 +33,7 @@ st_bool_t   gIsObject  = ST_FALSE;
 /* ------------------------------------------------------------------
  *   Group 1: Management of ST4Ever application options
  * ------------------------------------------------------------------ */
+
 static char* g_uc00_szArgs_none[]            = {"Test.exe"};
 static char* g_uc00_szArgs_trace_short[]     = {"Test.exe", "-t"};
 static char* g_uc00_szArgs_trace_long[]      = {"Test.exe", "--trace"};
@@ -171,7 +172,12 @@ static void uc00_manage_options()
                 ((st_u64_t)ptCtx == ST_QUIT));
 }
 
-/*
+/* ------------------------------------------------------------------
+ *   Group 2-8: Initialization functions chain & capture of the context
+ *            structures
+ * ------------------------------------------------------------------ */
+
+ /*
  * uc00_check_win_console() - Check win_console_init()
  *
  * Code Coverage:
@@ -550,7 +556,7 @@ static void uc00_load_module()
      * input parameter is not a valid ST Machine context pointer */
     ptMachineCtx = (st_machine_context_t*)st_init("test.rom");
     ptCtx = (load_context_t*)load_init((st_u64_t)ptMachineCtx);
-    UC_CHECK("(INT-LOD-001) [Chk] Launch laod_init(ptMachineCtx)", (st_u64_t)ptCtx);
+    UC_CHECK("(INT-LOD-001) [Chk] Launch load_init(ptMachineCtx)", (st_u64_t)ptCtx);
     UC_CHECK_OBJ(ptCtx, ST_LOAD_CTX);
     if (gIsObject) 
     {
@@ -655,17 +661,17 @@ static void uc00_console_module()
     if (gIsObject) 
     {
         UC_TEST("[N] (TC-CON-001) Console init is OK", 
-                (st_u64_t)ptCtx->bRunning == ST_TRUE);
+                ptCtx->bRunning == ST_TRUE);
         UC_TEST("[N] (TC-CON-002) Console ANSI colors is OK", 
-                (st_u64_t)ptCtx->bColors == ST_TRUE);
+                ptCtx->bColors == ST_TRUE);
         UC_TEST("[N] (TC-CON-003) szCwd is set", 
-                (st_u64_t)ptCtx->szCwd[0] != '\0');
+                ptCtx->szCwd[0] != '\0');
         UC_TEST("[N] (TC-CON-004) Mutex is initialized", 
-                (st_u64_t)ptCtx->ptSelectedMutex != NULL);
+                ptCtx->ptSelectedMutex != NULL);
         UC_TEST("[N] (TC-CON-005) Script name is the one provided as input", 
-                (st_u64_t)ptCtx->szScriptFile[0] == '\0');
+                ptCtx->szScriptFile[0] == '\0');
         UC_TEST("[N] (TC-CON-006) History is initialized", 
-                (st_u64_t)ptCtx->iHistCount >= 0);
+                ptCtx->iHistCount >= 0);
 
         // Forcing bRunning to ST_FALSE for subsequent tests
         ptCtx->bColors = ST_FALSE;
@@ -686,9 +692,9 @@ static void uc00_console_module()
     if (gIsObject) 
     {
         UC_TEST("[N] (TC-CON-008) bColors is unchanged after a second call", 
-                (ptCtx->bColors == ST_FALSE));
+                ptCtx->bColors == ST_FALSE);
         UC_TEST("[N] (TC-CON-009) Script name is not updated", 
-                (st_u64_t)ptCtx->szScriptFile[0] == '\0');
+                ptCtx->szScriptFile[0] == '\0');
 
         // Forcing bRunning to ST_FALSE for subsequent tests
         ptCtx->bRunning = ST_FALSE;

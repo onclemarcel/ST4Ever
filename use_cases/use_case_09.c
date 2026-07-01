@@ -55,12 +55,6 @@ static void uc09_build_hex_row(const st_u8_t *pData, size_t uiSize,
     }
 }
 
-/* ------------------------------------------------------------------
- * Dummy line_context_t for headless tests
- * ------------------------------------------------------------------ */
-
-static line_context_t g_uc09_ctx;
-
 /* ==================================================================
  * main
  * ================================================================== */
@@ -85,22 +79,22 @@ int main(void)
      * edit_hex_open/close must reject NULL params before any side
      * effect; close(&NULL) must be idempotent. */
 
-    eRet = edit_hex_open(NULL, &g_uc09_ctx, &ptView);
+    eRet = edit_hex_open(NULL, &ptView);
     UC_TEST("[R] edit_hex_open(NULL path) → ST_ERROR",
             eRet == ST_ERROR);
     UC_TEST("[R] edit_hex_open(NULL path) → *pptView = NULL",
             ptView == NULL);
 
-    eRet = edit_hex_open(UC09_BIN_PATH, NULL, &ptView);
+    eRet = edit_hex_open(UC09_BIN_PATH, &ptView);
     UC_TEST("[R] edit_hex_open(NULL ctx) → ST_ERROR",
             eRet == ST_ERROR);
 
-    eRet = edit_hex_open(UC09_BIN_PATH, &g_uc09_ctx, NULL);
+    eRet = edit_hex_open(UC09_BIN_PATH, NULL);
     UC_TEST("[R] edit_hex_open(NULL pptView) → ST_ERROR",
             eRet == ST_ERROR);
 
     eRet = edit_hex_open("use_cases/UC09/no_such.bin",
-                          &g_uc09_ctx, &ptView);
+                          &ptView);
     UC_TEST("[R] edit_hex_open(missing file) → ST_ERROR",
             eRet == ST_ERROR);
     UC_TEST("[R] edit_hex_open(missing file) → *pptView = NULL",

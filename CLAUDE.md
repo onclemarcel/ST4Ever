@@ -433,6 +433,78 @@ Sur Linux, `termios` reste la stratégie unique (dans `linux/lx_console.c`). Cet
 
 **Règle d'application pour les UCs futurs** : avant d'ajouter `LOG_TRACE` dans une nouvelle fonction, vérifier si elle peut être appelée plus d'une fois par action utilisateur (paint loop, mutex, query) — si oui, omettre le LOG_TRACE.
 
+**R23 — Modèle de test `use_case_NN.c` : `UC_TEST` / `UC_CHECK` / `INTENT`** *(établie 2026-07-01)*
+
+`use_case_00.c` est le modèle de référence à appliquer progressivement dans tous les `use_case_NN.c`. Structure canonique :
+
+1. **En-tête TEST MATRIX** en haut du fichier : nombre de tests `[N]`/`[R]`/`[S]` et liste des groupes.
+
+2. **Variables globales obligatoires** au début du `.c` :
+   ```c
+   int       g_uc_fails = 0;
+   st_bool_t gIsObject  = ST_FALSE;
+   ```
+
+3. **Initialisation** dans `main()` : `trace_init(ST_TRUE)` puis `ST4Ever_init()` avant tout test. Toutes les fonctions `xxx_init()` retournent `st_u64_t` (valeur pointeur de leur structure globale statique).
+
+4. **Obtenir un contexte de module** via cast :
+   ```c
+   trace_context_t *ptCtx = (trace_context_t*)trace_init(ST_FALSE);
+   ```
+   `trace_init(ST_FALSE)` est idempotent quand déjà initialisé — retourne le contexte existant.
+
+5. **Vérification de structure** : `UC_CHECK_OBJ(ptCtx, ST_TRACE_CTX)` vérifie magic + type et positionne `gIsObject`. Protéger tout accès aux champs par `if (gIsObject) { ... }`.
+
+6. **Blocs INTENT** : chaque groupe de tests commence par :
+   ```c
+   /* INTENT[INT-xxx-NNN → TC-xxx-NNN → REQ-xxx-NNN → UFR-xxx-NNN]:
+    * description du comportement attendu */
+   ```
+   `xxx` = acronyme module (TRC, GUI, STM, CON, CPU, DIS…). Les INT sont continus entre fichiers (use_case_00.c définit INT-TRC-001..003, use_case_01.c commence à INT-TRC-004).
+
+7. **Macros de test** :
+   - `UC_TEST("[N] (TC-xxx-NNN) texte", condition)` — test nominal ou robustesse `[R]`
+   - `UC_CHECK("[N] texte", appel)` — vérifie retour ≠ `ST_ERROR`
+   - `UC_CHECK_OBJ(ptr, TYPE)` — vérifie magic + type d'une structure ST4Ever
+
+8. **Helpers locaux** préfixés `ucNN_` (ex: `uc01_load_prg_text()`, `uc01_check_log_entry()`). Utilisés pour vérifier des effets de bord non accessibles via les macros (fichier de log, état RAM, etc.).
+
+9. **Fonctions de test** : une fonction `static void ucNN_groupe()` par groupe fonctionnel, appelée depuis `main()`, avec commentaire docstring standard.
+
+10. **Traçabilité** TC↔REQ↔UFR correcte en Phase 2 — les numéros TC sont séquentiels et continus entre fichiers. La traçabilité incomplète est acceptable en Phase 1 et annotée `REQ-xxx-yyy` en attente.
+
+**R24 — Couverture par tags source : approche progressive** *(établie 2026-07-01)*
+
+Les fichiers `.c` contiennent des tags commentaires de la forme `/* -- [MODULE]N. Description -- */` qui balisent les blocs de code à couvrir. Chaque fonction de test dans `use_case_NN.c` documente dans son docstring (section `Code Coverage`) les tags qu'elle est censée couvrir. Tonton Marcel transmet les tags un par un — une nouvelle discussion peut reprendre en lisant les `Code Coverage` des docstrings pour identifier les tags déjà couverts.
+
+**Template d'un bloc de test couvrant un tag source** : le tag est recopié tel quel juste avant le commentaire INTENT — cela établit un lien visuel direct entre la portion de code source et le test :
+
+```c
+/* -- [TRACE]6. Trace Context must be initialized before logging -- */
+/* INTENT[INT-TRC-005 → TC-TRC-012 → REQ-TRC-001 → UFR-xxx-yyy]:
+ * trace_log() must silently return without writing anything when
+ * bInitialised is FALSE */
+ptTrcCtx = (trace_context_t *)ptCtx->ptTraceCtx;
+...
+```
+
+**Accès aux contextes de modules dans `use_case_NN.c` (NN ≥ 01) :**
+
+`main()` appelle `ST4Ever_init()` et stocke le résultat dans la globale `static ST4Ever_context_t *ptCtx`. La vérification objet `UC_CHECK_OBJ(ptCtx, ST_MAIN_CTX)` est faite une seule fois dans `main()`. Chaque contexte de sous-module est accessible directement via le champ correspondant sans nouvelle vérification d'objet :
+
+```c
+trace_context_t *ptTrcCtx = (trace_context_t *)ptCtx->ptTraceCtx;
+gui_context_t   *ptGUICtx = (gui_context_t   *)ptCtx->ptGUICtx;
+/* etc. pour ptSTMachineCtx, ptConsoleCtx, ptSTLoadCtx, ptSTExecCtx */
+```
+
+La vérification de chaque contexte de module (`UC_CHECK_OBJ + if (gIsObject)`) est faite dans `use_case_00.c` — ne pas la répéter dans les `use_case_NN.c` suivants.
+
+**Technique boîte blanche pour tester un chemin interne :**
+1. Récupérer le contexte du module via `ptCtx->ptXxxCtx`, caster en `xxx_context_t *`.
+2. Forcer le champ interne à la valeur cible → appeler la fonction → vérifier l'effet (via helper `ucNN_check_log_entry()` ou assertion directe) → **restaurer impérativement** le champ à sa valeur d'origine.
+3. Utiliser des marqueurs textuels uniques et explicites (e.g. `"TRC6_INIT_GUARD"`) dans les `LOG_xxx` de test pour que `uc01_check_log_entry()` ne produise pas de faux positif sur d'autres lignes du log.
+
 
 ## 6. Use Cases
 

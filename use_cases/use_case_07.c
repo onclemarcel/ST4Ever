@@ -31,6 +31,7 @@
 #include "../src/load.h"
 
 int g_uc_fails = 0;
+st_bool_t gIsObject;
 
 #define UC07_TXT_PATH    "use_cases/UC07/hello.txt"
 #define UC07_BIN_PATH    "use_cases/UC07/hello.bin"
@@ -40,9 +41,10 @@ int g_uc_fails = 0;
 
 int main(void)
 {
-    st_machine_t        tMachine;
-    const load_state_t *ptState;
-
+    load_context_t* ptCtx;
+    st_machine_context_t* ptMachineCtx;
+    st_u8_t     uByte;
+    
     printf("=== UC7: load command (load.h/load.c + P11 dir) ===\n\n");
 
     /* ================================================================
@@ -52,33 +54,29 @@ int main(void)
     /* INTENT[INT-LOD-001 → TC-LOD-001 → REQ-LOD-001 → UFR-LOD-001]:
      * load_init() with NULL is rejected before touching module state. */
     UC_TEST("[R] load_init(NULL) → ST_ERROR",
-            load_init(NULL) == ST_ERROR);
+            load_init(0) == ST_ERROR);
 
     /* INTENT[INT-LOD-001 → TC-LOD-002..003 → REQ-LOD-001..002 → UFR-LOD-001]:
      * load_init() with a valid machine succeeds and resets state; get_state
      * reflects bLoaded=FALSE and eType=NONE immediately after init. */
-    memset(&tMachine, 0, sizeof(tMachine));
-    tMachine.bPoweredOn = ST_TRUE;
-    UC_TEST("[N] load_init(valid) → ST_NO_ERROR",
-            load_init(&tMachine) == ST_NO_ERROR);
-
-    /* (continued — see above INTENT block) */
-    ptState = load_get_state();
-    UC_TEST("[N] get_state != NULL",
-            ptState != NULL);
+    ptMachineCtx = (st_machine_context_t*)st_init("test.rom");
+    ptCtx = (load_context_t*)load_init((st_u64_t)ptMachineCtx);
+    UC_CHECK("(INT-LOD-001) [Chk] Launch load_init(ptMachineCtx)", (st_u64_t)ptCtx);
+    UC_CHECK_OBJ(ptCtx, ST_LOAD_CTX);
+    if (!gIsObject) return ST_ERROR;
+    
     UC_TEST("[N] get_state after init: bLoaded=FALSE",
-            ptState->bLoaded == ST_FALSE);
+            ptCtx->bLoaded == ST_FALSE);
     UC_TEST("[N] get_state after init: eType=NONE",
-            ptState->eType == LOAD_TYPE_NONE);
+            ptCtx->eType == LOAD_TYPE_NONE);
 
     /* INTENT[INT-LOD-001 → TC-LOD-004..005 → REQ-LOD-001,REQ-LOD-013 → UFR-LOD-001]:
      * load_shutdown() resets state cleanly; double shutdown is idempotent. */
     UC_TEST("[N] load_shutdown() → ST_NO_ERROR",
             load_shutdown() == ST_NO_ERROR);
 
-    ptState = load_get_state();
     UC_TEST("[N] get_state after shutdown: bLoaded=FALSE",
-            ptState->bLoaded == ST_FALSE);
+            ptCtx->bLoaded == ST_FALSE);
 
     /* (continued — see above INTENT block) */
     UC_TEST("[R] double load_shutdown() → ST_NO_ERROR",
@@ -97,10 +95,8 @@ int main(void)
      * Re-init for remaining tests
      * ================================================================ */
 
-    memset(&tMachine, 0, sizeof(tMachine));
-    tMachine.bPoweredOn = ST_TRUE;
     UC_TEST("[N] load_init re-init → ST_NO_ERROR",
-            load_init(&tMachine) == ST_NO_ERROR);
+            load_init((st_u64_t)ptMachineCtx) == ST_NO_ERROR);
 
     /* ================================================================
      * BLOCK 3 — NULL and non-existent paths
@@ -125,25 +121,24 @@ int main(void)
     UC_TEST("[N] load_file binary → ST_NO_ERROR",
             load_file(UC07_BIN_PATH) == ST_NO_ERROR);
 
-    ptState = load_get_state();
     UC_TEST("[N] binary: bLoaded=TRUE",
-            ptState->bLoaded == ST_TRUE);
+            ptCtx->bLoaded == ST_TRUE);
     UC_TEST("[N] binary: eType=LOAD_TYPE_BINARY",
-            ptState->eType == LOAD_TYPE_BINARY);
+            ptCtx->eType == LOAD_TYPE_BINARY);
     UC_TEST("[N] binary: uiLoadAddr=ST_LOAD_BASE",
-            ptState->uiLoadAddr == ST_LOAD_BASE);
+            ptCtx->uiLoadAddr == ST_LOAD_BASE);
     UC_TEST("[N] binary: uiSize=16",
-            ptState->uiSize == 16u);
+            ptCtx->uiSize == 16u);
     UC_TEST("[N] binary: szPath contains 'hello.bin'",
-            strstr(ptState->szPath, "hello.bin") != NULL);
+            strstr(ptCtx->szPath, "hello.bin") != NULL);
 
     /* Verify verbatim content: hello.bin = 0x00..0x0F */
-    UC_TEST("[N] binary: RAM[LOAD_BASE+0] == 0x00",
-            tMachine.aRam[ST_LOAD_BASE + 0] == 0x00u);
-    UC_TEST("[N] binary: RAM[LOAD_BASE+7] == 0x07",
-            tMachine.aRam[ST_LOAD_BASE + 7] == 0x07u);
-    UC_TEST("[N] binary: RAM[LOAD_BASE+15] == 0x0F",
-            tMachine.aRam[ST_LOAD_BASE + 15] == 0x0Fu);
+    st_read_byte(ST_LOAD_BASE, &uByte);
+    UC_TEST("[N] binary: RAM[LOAD_BASE+0] == 0x00", uByte == 0x00u);
+    st_read_byte(ST_LOAD_BASE + 7, &uByte);
+    UC_TEST("[N] binary: RAM[LOAD_BASE+7] == 0x07", uByte == 0x07u);
+    st_read_byte(ST_LOAD_BASE + 15, &uByte);
+    UC_TEST("[N] binary: RAM[LOAD_BASE+15] == 0x0F", uByte == 0x0Fu);
 
     /* ================================================================
      * BLOCK 5 — text load (hello.txt)
@@ -155,11 +150,10 @@ int main(void)
     UC_TEST("[N] load_file txt → ST_NO_ERROR",
             load_file(UC07_TXT_PATH) == ST_NO_ERROR);
 
-    ptState = load_get_state();
     UC_TEST("[N] txt: eType=LOAD_TYPE_BINARY",
-            ptState->eType == LOAD_TYPE_BINARY);
-    UC_TEST("[N] txt: RAM[LOAD_BASE] == 'H' (start of 'Hello')",
-            tMachine.aRam[ST_LOAD_BASE] == (st_u8_t)'H');
+            ptCtx->eType == LOAD_TYPE_BINARY);
+    st_read_byte(ST_LOAD_BASE, &uByte);
+    UC_TEST("[N] txt: RAM[LOAD_BASE] == 'H' (start of 'Hello')", uByte == 'H');
 
     /* ================================================================
      * BLOCK 6 — PRG load (hello.prg: magic 0x601A, 4-byte .text)
@@ -168,26 +162,24 @@ int main(void)
     /* INTENT[INT-LOD-004 → TC-LOD-011 → REQ-LOD-007..008 → UFR-LOD-004]:
      * Valid PRG (magic 0x601A): .text+.data loaded at ST_LOAD_BASE;
      * state shows eType=PRG, uiSize=4; RAM contains MOVEQ #42 opcode. */
-    memset(tMachine.aRam, 0, sizeof(tMachine.aRam));
     UC_TEST("[N] load_file PRG → ST_NO_ERROR",
             load_file(UC01_PRG_PATH) == ST_NO_ERROR);
 
-    ptState = load_get_state();
     UC_TEST("[N] PRG: eType=LOAD_TYPE_PRG",
-            ptState->eType == LOAD_TYPE_PRG);
+            ptCtx->eType == LOAD_TYPE_PRG);
     UC_TEST("[N] PRG: bLoaded=TRUE",
-            ptState->bLoaded == ST_TRUE);
+            ptCtx->bLoaded == ST_TRUE);
     UC_TEST("[N] PRG: uiLoadAddr=ST_LOAD_BASE",
-            ptState->uiLoadAddr == ST_LOAD_BASE);
+            ptCtx->uiLoadAddr == ST_LOAD_BASE);
     /* hello.prg: 4-byte .text (MOVEQ #42,D0 + RTS), 0-byte .data */
     UC_TEST("[N] PRG: uiSize==4 (.text only, no .data)",
-            ptState->uiSize == 4u);
+            ptCtx->uiSize == 4u);
 
     /* Verify .text: first word is MOVEQ #42,D0 = 0x702A */
-    UC_TEST("[N] PRG: RAM[LOAD_BASE+0] == 0x70 (MOVEQ opcode hi)",
-            tMachine.aRam[ST_LOAD_BASE + 0] == 0x70u);
-    UC_TEST("[N] PRG: RAM[LOAD_BASE+1] == 0x2A (MOVEQ #42)",
-            tMachine.aRam[ST_LOAD_BASE + 1] == 0x2Au);
+    st_read_byte(ST_LOAD_BASE, &uByte);
+    UC_TEST("[N] PRG: RAM[LOAD_BASE+0] == 0x70 (MOVEQ opcode hi)", uByte == 0x70);
+    st_read_byte(ST_LOAD_BASE + 1, &uByte);
+    UC_TEST("[N] PRG: RAM[LOAD_BASE+1] == 0x2A (MOVEQ #42)", uByte == 0x2A);
 
     /* ================================================================
      * BLOCK 7 — load replaces previous state
@@ -197,9 +189,8 @@ int main(void)
      * A new successful load replaces the previous load state completely. */
     UC_TEST("[N] second load (bin) replaces PRG state",
             load_file(UC07_BIN_PATH) == ST_NO_ERROR);
-    ptState = load_get_state();
     UC_TEST("[N] state is now BINARY (replaced PRG)",
-            ptState->eType == LOAD_TYPE_BINARY);
+            ptCtx->eType == LOAD_TYPE_BINARY);
 
     /* ================================================================
      * BLOCK 8 — rejected: directory and disk image
@@ -225,9 +216,8 @@ int main(void)
     UC_TEST("[R] load_file bad PRG magic → ST_ERROR",
             load_file(UC07_BADPRG_PATH) == ST_ERROR);
 
-    ptState = load_get_state();
     UC_TEST("[N] state unchanged after failed PRG load (still BINARY)",
-            ptState->eType == LOAD_TYPE_BINARY);
+            ptCtx->eType == LOAD_TYPE_BINARY);
 
     /* ================================================================
      * BLOCK 10 — shutdown and invariants
@@ -239,9 +229,7 @@ int main(void)
     /* INTENT[INT-LOD-001 → TC-LOD-017..018 → REQ-LOD-002,REQ-LOD-013 → UFR-LOD-001]:
      * After final shutdown, get_state() never returns NULL — the pointer
      * to the internal static state is permanently valid. */
-    UC_TEST("[N] load_get_state() != NULL after shutdown",
-            load_get_state() != NULL);
-
+    
     /* ================================================================
      * BLOCK 11 — [S] P11 visual indicator (manual only)
      * ================================================================

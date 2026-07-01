@@ -27,6 +27,7 @@
 #include "use_cases.h"
 
 int g_uc_fails = 0;
+st_bool_t gIsObject;
 
 /* Dummy valid dir: use the use_cases directory itself */
 #define TEST_DIR_PATH  "use_cases"
@@ -54,7 +55,7 @@ int main(void)
      * dir_open with valid path returns ST_NO_ERROR and a non-NULL view */
     ptView  = NULL;
     /* ADAPTED: UC4.1 - dir_open() gained bShowHidden parameter */
-    eResult = dir_open(TEST_DIR_PATH, tCtx, ST_FALSE, &ptView);
+    eResult = dir_open(TEST_DIR_PATH, tCtx->bRunning, ST_FALSE, &ptView);
     UC_TEST("[N] TC-DIR-001 dir_open(valid path) -> ST_NO_ERROR",
             eResult == ST_NO_ERROR);
     UC_TEST("[N] TC-DIR-002 dir_open: *pptView != NULL",
@@ -93,7 +94,7 @@ int main(void)
      * dir_open can be called again on the same path after a close */
     ptView  = NULL;
     /* ADAPTED: UC4.1 - dir_open() gained bShowHidden parameter */
-    eResult = dir_open(TEST_DIR_PATH, tCtx, ST_FALSE, &ptView);
+    eResult = dir_open(TEST_DIR_PATH, tCtx->bRunning, ST_FALSE, &ptView);
     UC_TEST("[N] TC-DIR-008 dir_open second time -> ST_NO_ERROR",
             eResult == ST_NO_ERROR);
     if (ptView != NULL)
@@ -107,7 +108,7 @@ int main(void)
      * NULL ptLineCtx must be rejected before any side effect */
     ptView  = NULL;
     /* ADAPTED: UC4.1 - bShowHidden parameter added */
-    eResult = dir_open(TEST_DIR_PATH, NULL, ST_FALSE, &ptView);
+    eResult = dir_open(TEST_DIR_PATH, ST_FALSE, ST_FALSE, &ptView);
     UC_TEST("[R] TC-DIR-009 dir_open(NULL ptLineCtx) -> ST_ERROR",
             eResult == ST_ERROR);
     UC_TEST("[R] TC-DIR-010 dir_open(NULL ptLineCtx): *pptView unchanged (NULL)",
@@ -116,14 +117,14 @@ int main(void)
     /* INTENT[INT-DIR-006 → TC-DIR-011 → REQ-DIR-001 → UFR-DIR-001]:
      * NULL pptView must be rejected before any side effect */
     /* ADAPTED: UC4.1 - bShowHidden parameter added */
-    eResult = dir_open(TEST_DIR_PATH, tCtx, ST_FALSE, NULL);
+    eResult = dir_open(TEST_DIR_PATH, tCtx->bRunning, ST_FALSE, NULL);
     UC_TEST("[R] TC-DIR-011 dir_open(NULL pptView) -> ST_ERROR",
             eResult == ST_ERROR);
 
     /* INTENT[INT-DIR-007 → TC-DIR-012 → REQ-DIR-001 → UFR-DIR-001]:
      * both NULL parameters must be rejected */
     /* ADAPTED: UC4.1 - bShowHidden parameter added */
-    eResult = dir_open(TEST_DIR_PATH, NULL, ST_FALSE, NULL);
+    eResult = dir_open(TEST_DIR_PATH, ST_FALSE, ST_FALSE, NULL);
     UC_TEST("[R] TC-DIR-012 dir_open(NULL, NULL) -> ST_ERROR",
             eResult == ST_ERROR);
 
@@ -144,7 +145,7 @@ int main(void)
      * non-existent path opens with an empty tree (non-fatal scan failure) */
     ptView  = NULL;
     /* ADAPTED: UC4.1 - bShowHidden parameter added */
-    eResult = dir_open("nonexistent_path_xyz_st4ever", tCtx, ST_FALSE,
+    eResult = dir_open("nonexistent_path_xyz_st4ever", tCtx->bRunning, ST_FALSE,
                        &ptView);
     UC_TEST("[R] TC-DIR-015 dir_open(non-existent path) -> ST_NO_ERROR",
             eResult == ST_NO_ERROR);

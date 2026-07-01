@@ -75,11 +75,6 @@ static int uc08_byte_col_from_disp(const char *szLine, int iDisp)
     return i;
 }
 
-/* ------------------------------------------------------------------
- * Dummy line_context_t for headless tests
- * ------------------------------------------------------------------ */
-
-static line_context_t g_uc08_ctx;
 
 /* ==================================================================
  * main
@@ -103,25 +98,25 @@ int main(void)
      * side effect; close(&NULL) must be a safe idempotent no-op. */
 
     /* INTENT[INT-EDT-001 → TC-EDT-001]: NULL szPath → ST_ERROR */
-    eRet = edit_txt_open(NULL, &g_uc08_ctx, &ptView);
+    eRet = edit_txt_open(NULL, &ptView);
     UC_TEST("[R] edit_txt_open(NULL path) → ST_ERROR",
             eRet == ST_ERROR);
     UC_TEST("[R] edit_txt_open(NULL path) → *pptView = NULL",
             ptView == NULL);
 
     /* INTENT[INT-EDT-001 → TC-EDT-002]: NULL ptLineCtx → ST_ERROR */
-    eRet = edit_txt_open(UC08_TXT_PATH, NULL, &ptView);
+    eRet = edit_txt_open(UC08_TXT_PATH, &ptView);
     UC_TEST("[R] edit_txt_open(NULL ctx) → ST_ERROR",
             eRet == ST_ERROR);
 
     /* INTENT[INT-EDT-001 → TC-EDT-003]: NULL pptView → ST_ERROR */
-    eRet = edit_txt_open(UC08_TXT_PATH, &g_uc08_ctx, NULL);
+    eRet = edit_txt_open(UC08_TXT_PATH, NULL);
     UC_TEST("[R] edit_txt_open(NULL pptView) → ST_ERROR",
             eRet == ST_ERROR);
 
     /* INTENT[INT-EDT-001 → TC-EDT-004]: missing file → ST_ERROR */
     eRet = edit_txt_open("use_cases/UC08/no_such.txt",
-                          &g_uc08_ctx, &ptView);
+                           &ptView);
     UC_TEST("[R] edit_txt_open(missing file) → ST_ERROR",
             eRet == ST_ERROR);
     UC_TEST("[R] edit_txt_open(missing file) → *pptView = NULL",

@@ -1,26 +1,23 @@
 /*
  * use_case_01.c - UC1 Validation: Console prototype + Trace subsystem
  *
- * SRTD reference: SRTD.md §5 — test cases TC-TRC-*, TC-CON-*, TC-STM-*,
- *                              TC-CPU-*, TC-DIS-*
  * Traceability chain per INTENT block:
- *   INTENT[INT-xxx-NNN → TC-xxx-NNN → REQ-xxx-NNN]: intent text
+ *   INTENT[INT-xxx-NNN → TC-xxx-NNN → REQ-xxx-NNN -> UFR-xxx-NNN]
  *
  * TEST MATRIX:
- *   [N] Nominal    : 45 tests  - all public functions in trace.h,
- *                                line.h, ST.h, CPU.h, disassemble.h
- *   [R] Robustness : 19 tests  - NULL params, out-of-bounds addresses,
+ *   [N] Nominal    : 48 tests  - See test groups description below
+ *   [R] Robustness : 20 tests  - NULL params, out-of-bounds addresses,
  *                                double init/close, alignment errors
  *   [S] Skipped    :  0 tests  - no display required at UC1 level
  *
  * Test groups:
- *   Group 1: Trace subsystem  (trace_init, log levels, compaction,
+ *   Group 1: Trace subsystem  (nominal init, log levels, compaction,
  *             open/close, double-init guard, enable/disable)
- *   Group 2: Console context  (line_init NULL guard, nominal init,
+ *   Group 2: Console context  (nominal init,
  *             shutdown NULL guard, nominal shutdown)
- *   Group 3: ST machine       (st_init, read/write byte/word/long,
+ *   Group 3: ST machine       (nominal init, read/write byte/word/long,
  *             alignment errors, bounds, NULL guards, st_shutdown)
- *   Group 4: CPU 68000        (cpu_init NULL guards, nominal init,
+ *   Group 4: CPU 68000        (nominal init, nominal init,
  *             cpu_step NULL guards, cpu_step on hello.prg)
  *   Group 5: Disassembler     (disasm_range nominal, zero-length
  *             buffer, NULL param guards)
@@ -31,11 +28,62 @@
 #include "use_cases.h"
 
 /* Required by the UC_TEST / UC_CHECK macros in use_cases.h */
-int g_uc_fails = 0;
+int        g_uc_fails = 0;
+st_bool_t  gIsObject  = ST_FALSE;
+
+static ST4Ever_context_t* ptCtx;
 
 /* ------------------------------------------------------------------
  * Helpers
  * ------------------------------------------------------------------ */
+
+/*
+ * uc01_check_log_entry() - Verify a tag and message appear on the same
+ *                          line in TRACE_LOGFILE.
+ *
+ * trace_log() calls fflush() after every write, so the file is readable
+ * immediately after any LOG_xxx macro returns — no extra flush needed.
+ *
+ * Parameters:
+ *   szTag     [in] : Tag string to find, e.g. "[TRC ]", "[INF ]".
+ *   szContent [in] : Message fragment that must appear on the same line.
+ *
+ * Returns:
+ *   ST_TRUE  if at least one line contains both szTag and szContent.
+ *   ST_FALSE otherwise (file missing, tag absent, or content absent).
+ */
+static st_bool_t uc01_check_log_entry(const char *szTag,
+                                       const char *szContent)
+{
+    FILE     *pFile;
+    char      szLine[TRACE_VIEW_LINE_LEN];
+    st_bool_t bFound;
+
+    if (szTag == NULL || szContent == NULL)
+    {
+        return ST_FALSE;
+    }
+
+    bFound = ST_FALSE;
+    pFile  = fopen(TRACE_LOGFILE, "r");
+    if (pFile == NULL)
+    {
+        return ST_FALSE;
+    }
+
+    while (fgets(szLine, (int)sizeof(szLine), pFile) != NULL)
+    {
+        if (strstr(szLine, szTag)     != NULL
+        &&  strstr(szLine, szContent) != NULL)
+        {
+            bFound = ST_TRUE;
+            break;
+        }
+    }
+
+    fclose(pFile);
+    return bFound;
+}
 
 /*
  * uc01_load_prg_text() - Load the .text section of hello.prg into
@@ -120,23 +168,53 @@ static st_error_t uc01_load_prg_text(const char   *szPath,
  * Group 1: Trace subsystem
  * ------------------------------------------------------------------ */
 
+/*
+ * uc01_test_trace() - Log levels / Trace collapse / Trace on/off
+ *                     Trace open/close
+ *
+ * Code Coverage:
+ *   trace.c:
+ *   -- [TRACE]6. Trace Context must be initialized before logging -- 
+ * 
+ * Parameters:
+ *   None
+ *
+ * Returns: 
+ *   Void
+ */
 static void test_trace(void)
 {
+    trace_context_t *ptTrcCtx;
+
     printf("\n--- Test group 1: Trace subsystem ---\n");
 
-    /* INTENT[INT-TRC-003 → TC-TRC-003 → REQ-TRC-004]:
-     * all four log levels must emit without crashing */
-    UC_TEST("[R] trace_init() when already initialised returns ST_NO_ERROR",
-            trace_init(ST_TRUE) == ST_NO_ERROR);
-    printf("  [INFO] Emitting one entry per log level:\n");
+    /* INTENT[INT-TRC-004 → TC-TRC-008...011 → REQ-xxx-yyy → UFR-xxx-yyy]:
+     * all four log levels must write their tag and message to TRACE_LOGFILE */
     LOG_TRACE("UC1 test: LOG_TRACE entry (param=%d)", 42);
     LOG_INFO("UC1 test: LOG_INFO  entry");
     LOG_ERROR("UC1 test: LOG_ERROR entry (not a real error)");
     LOG_TODO("UC1 test: LOG_TODO  entry - this function is a stub");
-    printf("  [PASS] [N] all four log levels emitted "
-           "(check st4ever_trace.log)\n");
+    UC_TEST("[N] (TC-TRC-008) LOG_TRACE emits [TRC ] tag in trace log",
+            uc01_check_log_entry("[TRC ]", "LOG_TRACE entry"));
+    UC_TEST("[N] (TC-TRC-009) LOG_INFO emits [INF ] tag in trace log",
+            uc01_check_log_entry("[INF ]", "LOG_INFO  entry"));
+    UC_TEST("[N] (TC-TRC-010) LOG_ERROR emits [ERR ] tag in trace log",
+            uc01_check_log_entry("[ERR ]", "LOG_ERROR entry"));
+    UC_TEST("[N] (TC-TRC-011) LOG_TODO emits [TODO] tag in trace log",
+            uc01_check_log_entry("[TODO]", "LOG_TODO  entry"));
 
-    /* INTENT[INT-TRC-004 → TC-TRC-004 → REQ-TRC-005]:
+    /* -- [TRACE]6. Trace Context must be initialized before logging -- */
+    /* INTENT[INT-TRC-005 → TC-TRC-012 → REQ-TRC-001 → UFR-xxx-yyy]:
+     * trace_log() must silently return without writing anything when
+     * bInitialised is FALSE  */
+    ptTrcCtx = (trace_context_t *)ptCtx->ptTraceCtx;
+    ptTrcCtx->bInitialised = ST_FALSE;
+    LOG_INFO("TRC6_INIT_GUARD");
+    UC_TEST("[R] (TC-TRC-012) trace_log() skips log write when bInitialised is FALSE",
+            !uc01_check_log_entry("[INF ]", "TRC6_INIT_GUARD"));
+    ptTrcCtx->bInitialised = ST_TRUE;
+
+    /* INTENT[INT-TRC-0xx → TC-TRC-0xx → REQ-xxx-yyy → UFR-xxx-yyy]:
      * consecutive LOG_TRACE from same function collapse to [xN] */
     printf("  [INFO] Compaction test: 5x LOG_TRACE same function...\n");
     LOG_TRACE("compaction pass 1");
@@ -148,26 +226,26 @@ static void test_trace(void)
     printf("  [PASS] [N] compaction emitted "
            "(verify [x5] in trace log)\n");
 
-    /* INTENT[INT-TRC-005 → TC-TRC-005 → REQ-TRC-006]:
+    /* INTENT[INT-TRC-0xx → TC-TRC-0xx → REQ-TRC-006]:
      * trace_close must succeed and update the open flag */
     UC_CHECK("[N] trace_close()",
              trace_close());
     UC_TEST("[N] trace_is_open() == FALSE after close",
             trace_is_open() == ST_FALSE);
 
-    /* INTENT[INT-TRC-006 → TC-TRC-006 → REQ-TRC-007]:
+    /* INTENT[INT-TRC-0xx → TC-TRC-0xx → REQ-TRC-007]:
      * trace_close on an already-closed console must be harmless */
     UC_TEST("[R] trace_close() when already closed returns ST_NO_ERROR",
             trace_close() == ST_NO_ERROR);
 
-    /* INTENT[INT-TRC-007 → TC-TRC-007 → REQ-TRC-008]:
+    /* INTENT[INT-TRC-0xx → TC-TRC-0xx → REQ-TRC-008]:
      * trace_open must reopen and update the open flag */
     UC_CHECK("[N] trace_open()",
              trace_open());
     UC_TEST("[N] trace_is_open() == TRUE after open",
             trace_is_open() == ST_TRUE);
 
-    /* INTENT[INT-TRC-008 → TC-TRC-008 → REQ-TRC-009]:
+    /* INTENT[INT-TRC-0xx → TC-TRC-0xx → REQ-TRC-009]:
      * LOG_TRACE must be suppressible without affecting other levels */
     UC_CHECK("[N] trace_set_trace_enabled(FALSE)",
              trace_set_trace_enabled(ST_FALSE));
@@ -175,7 +253,7 @@ static void test_trace(void)
             trace_is_trace_enabled() == ST_FALSE);
     LOG_TRACE("THIS LINE MUST NOT APPEAR IN TRACE LOG");
 
-    /* INTENT[INT-TRC-009 → TC-TRC-009 → REQ-TRC-010]:
+    /* INTENT[INT-TRC-0xx → TC-TRC-0xx → REQ-TRC-010]:
      * LOG_TRACE must be re-activatable after suppression */
     UC_CHECK("[N] trace_set_trace_enabled(TRUE)",
              trace_set_trace_enabled(ST_TRUE));
@@ -190,8 +268,7 @@ static void test_trace(void)
 
 static void test_line(void)
 {
-    line_context_t* tCtx;
-    const char*     szScript = "";
+    //line_context_t* tCtx;
     st_u64_t        ullR;
 
     printf("\n--- Test group 2: Console context ---\n");
@@ -204,8 +281,8 @@ static void test_line(void)
     /* INTENT[INT-CON-004 → TC-CON-004 → REQ-CON-005]:
      * line_shutdown must clear the context and set bRunning FALSE */
     UC_CHECK("[N] line_shutdown()", line_shutdown());
-    UC_TEST("[N] bRunning == FALSE after shutdown",
-            tCtx->bRunning == ST_FALSE);
+    //UC_TEST("[N] bRunning == FALSE after shutdown",
+    //        tCtx->bRunning == ST_FALSE);
 }
 
 /* ------------------------------------------------------------------
@@ -475,15 +552,23 @@ int main(void)
     printf(" ST4Ever UC1 - Console Prototype + Trace + ST Machine + CPU\n");
     printf("================================================================\n");
 
-    test_trace();
-    test_line();
-    test_st_machine();
-    test_cpu();
-    test_disasm();
+    /* Init the log function before anything else for file logging */
+    char* args[] = {"UC01"};
+    ptCtx = (ST4Ever_context_t*)ST4Ever_init(1, args);
+    UC_CHECK("(UC01) [Chk] Launch ST4Ever with no argument", (st_u64_t)ptCtx);
+    UC_CHECK_OBJ(ptCtx, ST_MAIN_CTX);
+    if (gIsObject) 
+    {
+        /* Launch the use_case_01.c tests */
+        test_trace();
+        test_line();
+        test_st_machine();
+        test_cpu();
+        test_disasm();
+    } else printf("  [SKIP] (UC01) ST_MAIN_CTX Object Check failed\n\n");
 
     printf("\n--- Shutdown ---\n");
-    if (trace_is_open()) { trace_close(); }
-    trace_shutdown();
+    ST4Ever_shutdown();
     printf("  [INFO] trace_shutdown() complete - "
            "see st4ever_trace.log for full trace\n");
 

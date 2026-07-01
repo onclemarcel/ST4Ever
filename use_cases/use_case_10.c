@@ -27,11 +27,6 @@ int g_uc_fails = 0;
 
 #define UC07_PRG_PATH  "use_cases/UC07/hello.prg"
 
-/* ------------------------------------------------------------------
- * Dummy line_context_t for headless tests
- * ------------------------------------------------------------------ */
-
-static line_context_t g_uc10_ctx;
 
 /* ==================================================================
  * main
@@ -147,18 +142,18 @@ int main(void)
 
     /* INTENT[INT-HEX-023 → TC-HEX-049..054 → REQ-HEX-001]:
      * edit_hex_open() rejects NULL parameters individually. */
-    eRet = edit_hex_open(NULL, &g_uc10_ctx, &ptView);
+    eRet = edit_hex_open(NULL,  &ptView);
     UC_TEST("[R] open(NULL path) → ST_ERROR", eRet == ST_ERROR);
     UC_TEST("[R] open(NULL path) → *pptView untouched (NULL)",
             ptView == NULL);
 
-    eRet = edit_hex_open(UC07_PRG_PATH, NULL, &ptView);
+    eRet = edit_hex_open(UC07_PRG_PATH,  &ptView);
     UC_TEST("[R] open(NULL ctx) → ST_ERROR", eRet == ST_ERROR);
 
-    eRet = edit_hex_open(UC07_PRG_PATH, &g_uc10_ctx, NULL);
+    eRet = edit_hex_open(UC07_PRG_PATH,  NULL);
     UC_TEST("[R] open(NULL pptView) → ST_ERROR", eRet == ST_ERROR);
 
-    eRet = edit_hex_open("no_such_file.bin", &g_uc10_ctx, &ptView);
+    eRet = edit_hex_open("no_such_file.bin",  &ptView);
     UC_TEST("[R] open(missing file) → ST_ERROR", eRet == ST_ERROR);
     UC_TEST("[R] open(missing file) → *pptView == NULL",
             ptView == NULL);
