@@ -589,17 +589,22 @@ void trace_log(log_level_t  eLevel,
         return;
     }
 
+    /* -- [TRACE]7. LOG_TRACE is filtered in case of trace off command -- */
     if (eLevel == LOG_LEVEL_TRACE
     &&  g_trace_ptCtx.bTraceEnabled == ST_FALSE)
     {
         return;
     }
 
+    /* -- [TRACE]8. Log function does nothing when GUI is open and
+     *              log file is NULL  -- */
     if (g_trace_ptCtx.bOpen == ST_FALSE && g_trace_ptCtx.pFile == NULL)
     {
         return;
     }
 
+    /* -- [TRACE]9. LOG_TRACE is compacted when called consecutively from
+     *              form the same function -- */
     /* ---- Compaction logic for LOG_TRACE ---- */
     bCompacted = 0;
 
@@ -633,6 +638,8 @@ void trace_log(log_level_t  eLevel,
         return;
     }
 
+    /* -- [TRACE]10. Format logging messages with :
+     *               timestamp [TAG] function:line Message -- */
     /* ---- Format the message ---- */
     va_start(vaArgs, szFmt);
     vsnprintf(szMsg, sizeof(szMsg), szFmt, vaArgs);
@@ -646,6 +653,7 @@ void trace_log(log_level_t  eLevel,
      * startup go to the log file only.  Real init errors use fprintf()
      * directly in trace_open()/trace_init(), bypassing this path. */
 
+    /* -- [TRACE]11. Log in file -- */
     /* ---- Write to log file (plain text) ---- */
     if (g_trace_ptCtx.pFile != NULL)
     {
@@ -659,6 +667,7 @@ void trace_log(log_level_t  eLevel,
         fflush(g_trace_ptCtx.pFile);
     }
 
+    /* -- [TRACE]12. Log in GUI when available -- */
     /* ---- Append to GUI trace view (thread-safe) ---- */
     /* Guard covers the entire GUI section: platform_mutex_lock calls
      * LOG_TRACE which re-enters trace_log.  Without this guard the

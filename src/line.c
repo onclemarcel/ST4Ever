@@ -3738,7 +3738,9 @@ st_u64_t line_init(const char* szScriptFile)
     }
 
     /* -- [LINE]6. Load console commands history -- */
-    /* Load command history from the default history file */
+    /* Reset count before load: -1 is the uninitialised sentinel; 0 means
+     * "no entries yet" and is the correct baseline for line_hist_add(). */
+    g_line_ptCtx.iHistCount = 0;
     line_history_load(NULL);
 
     LOG_INFO("console initialised, cwd='%s'", g_line_ptCtx.szCwd);

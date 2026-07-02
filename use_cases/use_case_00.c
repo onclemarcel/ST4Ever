@@ -23,6 +23,7 @@
 
 #ifdef ST_PLATFORM_WINDOWS
 #include <windows.h>
+#include <io.h>      /* _isatty, _fileno */
 #include "../win/win.h"
 #endif
 
@@ -221,9 +222,18 @@ static void uc00_check_win_console()
     }
     UC_CHECK("(INT-WIN-001) [Chk] win_console_init() has initialized Virtual Terminal",
                 (st_u64_t)ptCtx);
-    UC_TEST("[N] (TC-WIN-001) win_console_init() sets stdout to virtual terminal processing",
-                 (dwMode - dwBefore) == ENABLE_VIRTUAL_TERMINAL_PROCESSING);
-    
+    /* TC-WIN-001/002: GetConsoleMode() fails on pipe handles (mintty/MSYS2).
+     * Skip the mode-delta assertion when stdout is not a real console handle. */
+    if (GetFileType(GetStdHandle(STD_OUTPUT_HANDLE)) == FILE_TYPE_CHAR)
+    {
+        UC_TEST("[N] (TC-WIN-001) win_console_init() sets stdout to virtual terminal processing",
+                     (dwMode - dwBefore) == ENABLE_VIRTUAL_TERMINAL_PROCESSING);
+    }
+    else
+    {
+        TEST_SKIP("[N] (TC-WIN-001) win_console_init() stdout VTP (pipe handle - mintty env)");
+    }
+
     dwMode      = 0;
     dwBefore    = 0;
 
@@ -237,8 +247,15 @@ static void uc00_check_win_console()
         win_console_init();
         GetConsoleMode(hErr, &dwMode);
     }
-     UC_TEST("[N] (TC-WIN-002) win_console_init() sets stderr to virtual terminal processing",
-                 (dwMode - dwBefore) == ENABLE_VIRTUAL_TERMINAL_PROCESSING);
+    if (GetFileType(GetStdHandle(STD_ERROR_HANDLE)) == FILE_TYPE_CHAR)
+    {
+        UC_TEST("[N] (TC-WIN-002) win_console_init() sets stderr to virtual terminal processing",
+                     (dwMode - dwBefore) == ENABLE_VIRTUAL_TERMINAL_PROCESSING);
+    }
+    else
+    {
+        TEST_SKIP("[N] (TC-WIN-002) win_console_init() stderr VTP (pipe handle - mintty env)");
+    }
 
     /* -- [WIN_CONSOLE]3. Set Console Input/Output to Code Page UTF8 -- */
     /* INTENT[INT-WIN-002 → TC-WIN-003...004 → REQ-xxx-yyy → UFR-xxx-yyy]:
@@ -643,6 +660,7 @@ static void uc00_exec_module()
 static void uc00_console_module()
 {
     line_context_t* ptCtx;
+    st_bool_t       bExpectedColors;
 
     printf("\n--- Test group 8: Init Main Console ---\n");
     
@@ -662,8 +680,14 @@ static void uc00_console_module()
     {
         UC_TEST("[N] (TC-CON-001) Console init is OK", 
                 ptCtx->bRunning == ST_TRUE);
-        UC_TEST("[N] (TC-CON-002) Console ANSI colors is OK", 
-                ptCtx->bColors == ST_TRUE);
+        /* bColors = isatty(stdout): TRUE in a TTY, FALSE under make/pipe */
+#ifdef ST_PLATFORM_WINDOWS
+        bExpectedColors = _isatty(_fileno(stdout)) ? ST_TRUE : ST_FALSE;
+#else
+        bExpectedColors = isatty(STDOUT_FILENO) ? ST_TRUE : ST_FALSE;
+#endif
+        UC_TEST("[N] (TC-CON-002) Console ANSI colors matches isatty(stdout)",
+                ptCtx->bColors == bExpectedColors);
         UC_TEST("[N] (TC-CON-003) szCwd is set", 
                 ptCtx->szCwd[0] != '\0');
         UC_TEST("[N] (TC-CON-004) Mutex is initialized", 
