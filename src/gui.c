@@ -130,8 +130,8 @@ st_u64_t gui_init(void)
         return ST_ERROR;
     }
 
-    /* -- [GUI]4. Platform-specific GUI init
-     * (Win32: RegisterClass, X11: XOpenDisplay) */
+    /* -- [GUI]4. Platform-specific GUI init -- */
+    /* (Win32: RegisterClass, X11: XOpenDisplay) */
     g_gui_ptCtx.eGUIPtfInit = gui_platform_init();
     if (g_gui_ptCtx.eGUIPtfInit != ST_NO_ERROR)
     {
@@ -209,6 +209,12 @@ st_error_t gui_close_window(gui_window_t hWnd)
     struct gui_window_s *ptWnd;
 
     LOG_TRACE("hWnd=%p", (void *)hWnd);
+
+    if (!g_gui_ptCtx.bInit)
+    {
+        LOG_INFO("Calling gui_close_window() while gui has been shut down");
+        return ST_ERROR;
+    }
 
     if (hWnd == NULL)
     {
@@ -366,7 +372,9 @@ st_error_t gui_shutdown(void)
         platform_mutex_destroy(&g_gui_ptCtx.ptMutex);
     }
 
-    g_gui_ptCtx.bInit = ST_FALSE;
+    memset(&g_gui_ptCtx, 0, sizeof(g_gui_ptCtx));
+    g_gui_ptCtx.ulMagic = OBJ_MAGIC;
+    g_gui_ptCtx.eObject = ST_GUI_CTX;
     LOG_INFO("GUI subsystem shutdown complete");
     return ST_NO_ERROR;
 }
@@ -559,4 +567,9 @@ st_error_t gui_msg_destroy(gui_msg_queue_t *pphQueue)
     *pphQueue = NULL;
 
     return ST_NO_ERROR;
+}
+
+st_bool_t gui_is_initialized()
+{
+    return g_gui_ptCtx.bInit;
 }

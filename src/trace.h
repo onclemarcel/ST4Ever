@@ -22,7 +22,7 @@
  *   - stderr with ANSI colours (always, as a fallback / CI-friendly copy)
  *   - the GUI trace window (GUI_WND_TRACE, UC4.4): D2D append-only scroll
  *     view with per-level colours.  Opened via gui_open_window() from
- *     trace_open(); closed via gui_close_window() from trace_close().
+ *     trace_gui_open(); closed via gui_close_window() from trace_close().
  *
  * Threading: trace_log() is called from any thread.  The GUI window
  * notification (gui_invalidate) is guarded against re-entrancy.
@@ -114,7 +114,7 @@ typedef struct trace_context_s
     
     st_bool_t     bInitialised;
     st_bool_t     bOpen;
-    st_bool_t     bTraceEnabled;
+    st_bool_t     bGUITraceEnabled;
     FILE         *pFile;
 
 /* Compaction state for consecutive LOG_TRACE from the same function */
@@ -123,13 +123,8 @@ typedef struct trace_context_s
 
 /* GUI trace window state */
     trace_view_t *ptView;
-    gui_window_t  hWnd;
     log_level_t   eViewMinLevel;   /* Persistent view level     */
 
-/* Re-entrancy guard: prevents gui_invalidate → LOG_TRACE → gui_invalidate
- * infinite loop.  Only blocks the invalidate call, not the append. */
-    int           bInNotify; 
- 
 } trace_context_t;
 
 
@@ -150,16 +145,16 @@ typedef struct trace_context_s
  *   Value of the global trace_context_t structure pointer on success.
  * 
  */
-st_u64_t trace_init(st_bool_t bOpen);
+st_u64_t trace_init();
 
 /*
- * trace_open() - Open / show the trace console.
+ * trace_gui_open() - Open / show the trace console.
  *
  * Returns:
  *   ST_NO_ERROR on success.
  *   ST_ERROR    if not initialised.
  */
-st_error_t trace_open(void);
+st_error_t trace_gui_open(void);
 
 /*
  * trace_close() - Close / hide the trace console.
@@ -167,7 +162,7 @@ st_error_t trace_open(void);
  * Returns:
  *   ST_NO_ERROR always (safe to call when already closed).
  */
-st_error_t trace_close(void);
+st_error_t trace_gui_close(void);
 
 /*
  * trace_set_trace_enabled() - Enable or disable LOG_TRACE output.

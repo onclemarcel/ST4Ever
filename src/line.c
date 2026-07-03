@@ -611,6 +611,8 @@ st_error_t line_history_load(const char *szPath)
     FILE  *pFile;
     size_t uiLen;
 
+    g_line_ptCtx.iHistCount = 0;
+    
     if (szPath == NULL)
     {
         if (line_history_default_path(szDefaultPath,
@@ -1092,7 +1094,7 @@ static st_error_t line_cmd_trace(const parsed_cmd_t *ptParsed)
     {
         if (trace_is_open() == ST_TRUE)
         {
-            eResult = trace_close();
+            eResult = trace_gui_close();
             if (eResult != ST_NO_ERROR)
             {
                 line_print_error("trace: close failed");
@@ -1102,7 +1104,7 @@ static st_error_t line_cmd_trace(const parsed_cmd_t *ptParsed)
         }
         else
         {
-            eResult = trace_open();
+            eResult = trace_gui_open();
             if (eResult != ST_NO_ERROR)
             {
                 line_print_error("trace: open failed");
@@ -1129,7 +1131,7 @@ static st_error_t line_cmd_trace(const parsed_cmd_t *ptParsed)
 
     if (strcmp(szArg, "on") == 0)
     {
-        eResult = trace_open();
+        eResult = trace_gui_open();
         if (eResult != ST_NO_ERROR)
         {
             line_print_error("trace on: open failed");
@@ -3740,7 +3742,6 @@ st_u64_t line_init(const char* szScriptFile)
     /* -- [LINE]6. Load console commands history -- */
     /* Reset count before load: -1 is the uninitialised sentinel; 0 means
      * "no entries yet" and is the correct baseline for line_hist_add(). */
-    g_line_ptCtx.iHistCount = 0;
     line_history_load(NULL);
 
     LOG_INFO("console initialised, cwd='%s'", g_line_ptCtx.szCwd);
@@ -3921,6 +3922,8 @@ st_error_t line_shutdown()
     }
 
     memset(&g_line_ptCtx, 0, sizeof(line_context_t));
+    g_line_ptCtx.ulMagic  = OBJ_MAGIC;
+    g_line_ptCtx.eObject  = ST_LINE_CTX;
     LOG_INFO("console shutdown complete");
     return ST_NO_ERROR;
 }

@@ -62,7 +62,7 @@ static void ST4Ever_print_usage(const char *szArgv0)
 {
     LOG_TRACE("szArgv0=%p", szArgv0);
 
-    /* -- 1.3 Show the help message (only in release mode) -- */
+    /* -- [MAIN]23. Show the help message (only in release mode) -- */
     const char *szName;
 
     szName = (szArgv0 != NULL) ? szArgv0 : ST_APP_NAME;
@@ -98,19 +98,21 @@ static st_error_t ST4Ever_manage_options(int argc, char* argv[])
 {
     LOG_TRACE("argc=%d - argv=%p", argc, argv);
 
-    /* -- 1. Parse command-line options -- */
+    /* -- Parse command-line options -- */
     for (int iArg = 1; iArg < argc; iArg++)
     {
-        /* --- 1.1 Manage the Trace Console option --- */
+        /* -- [MAIN]10. Recognize -t/--trace and set bTraceAtStart -- */
         if ((strcmp(argv[iArg], "-t") == 0)
             || (strcmp(argv[iArg], "--trace") == 0))
         {
             g_main_ptCtx.bTraceAtStart = ST_TRUE;
         }
-        /* --- 1.2 Manage the input script option --- */
+        
+        /* --- Manage the input script option --- */
         else if (strcmp(argv[iArg], "--script") == 0)
         {
-            /* ---- 1.2.1 --script option needs with a file name ---- */
+            /* -- [MAIN]11. Reject --script if it has no following
+             *              argument -- */
             if (iArg + 1 >= argc)
             {
 #ifndef ST_TEST_FWK
@@ -121,7 +123,8 @@ static st_error_t ST4Ever_manage_options(int argc, char* argv[])
                 return ST_QUIT;
             }
 
-            /* ---- 1.2.2 Check that next argument is not an option ---- */
+            /* -- [MAIN]12. Reject --script if the next token looks
+             *              like another option -- */
             iArg++;
             if (argv[iArg][0] == '-')
             {
@@ -133,11 +136,12 @@ static st_error_t ST4Ever_manage_options(int argc, char* argv[])
                 return ST_QUIT;
             }
 
-            /* ---- 1.2.3 Copy the argument into the script string ---- */
+            /* -- [MAIN]13. Store the script file name -- */
             strncpy(g_main_ptCtx.szScriptFile, argv[iArg], ST_MAX_PATH - 1);
             g_main_ptCtx.szScriptFile[ST_MAX_PATH - 1] = '\0';
         }
-        /* --- 1.3 Manage the help option --- */
+        
+        /* -- [MAIN]14. Recognize -h/--help, print usage and quit -- */
         else if (strcmp(argv[iArg], "-h")     == 0
               || strcmp(argv[iArg], "--help") == 0)
         {
@@ -145,7 +149,8 @@ static st_error_t ST4Ever_manage_options(int argc, char* argv[])
             return ST_QUIT;
         }
         else
-        /* --- 1.4 Manage unknown options --- */
+        
+        /* -- [MAIN]15. Reject any unrecognized option -- */
         {
             LOG_ERROR("%s: unknown option '%s'\n", ST_APP_NAME, argv[iArg]);
             ST4Ever_print_usage(argv[0]);
@@ -176,7 +181,7 @@ st_u64_t ST4Ever_init(int argc, char *argv[])
 #endif
 
     /* -- [MAIN]3. Init Trace Module -- */
-    g_main_ptCtx.ptTraceCtx = trace_init(g_main_ptCtx.bTraceAtStart);
+    g_main_ptCtx.ptTraceCtx = trace_init();
     if (g_main_ptCtx.ptTraceCtx == ST_ERROR)
     {
         LOG_ERROR("[FATAL] trace_init() failed");
@@ -199,6 +204,10 @@ st_u64_t ST4Ever_init(int argc, char *argv[])
         return ST_ERROR;
     }
 
+    /* -- [MAIN]9. If requested on command line, open the Trace GUI view -- */
+#ifndef ST_TEST_FWK
+    if (g_main_ptCtx.bTraceAtStart) trace_gui_open();
+#endif
     /* -- [MAIN]5. Init Virtual ST machine -- */
     /* TODO: Implement ROM upload function - see if ROM is uploaded at st_init() 
      *      or if a dedicated st_rom_load() function is better after st_init() */
@@ -243,9 +252,12 @@ void ST4Ever_run()
 
 st_error_t ST4Ever_shutdown()
 {
-    st_error_t eExitCode;
+    st_error_t eExitCode = ST_NO_ERROR;
     st_bool_t  bIsCorrectObject;
 
+    LOG_TRACE("Starting the complete shutdown sequence");
+
+    /* -- [MAIN]16. Shutdown Main Console -- */
     CHECK_OBJ(g_main_ptCtx.ptConsoleCtx, ST_LINE_CTX, bIsCorrectObject);
     if (bIsCorrectObject)
        {
@@ -253,9 +265,10 @@ st_error_t ST4Ever_shutdown()
             {
                 LOG_ERROR("line_shutdown() failed");
                 eExitCode = ST_ERROR;
-            } 
+            }
        }
 
+    /* -- [MAIN]17. Shutdown 'exec' command -- */
     CHECK_OBJ(g_main_ptCtx.ptSTExecCtx, ST_EXEC_CTX, bIsCorrectObject);
     if (bIsCorrectObject)
        {
@@ -263,9 +276,10 @@ st_error_t ST4Ever_shutdown()
             {
                 LOG_ERROR("exec_shutdown() failed");
                 eExitCode = ST_ERROR;
-            } 
+            }
        }
 
+    /* -- [MAIN]18. Shutdown 'load' command -- */
     CHECK_OBJ(g_main_ptCtx.ptSTLoadCtx, ST_LOAD_CTX, bIsCorrectObject);
     if (bIsCorrectObject)
        {
@@ -273,9 +287,10 @@ st_error_t ST4Ever_shutdown()
             {
                 LOG_ERROR("load_shutdown() failed");
                 eExitCode = ST_ERROR;
-            } 
+            }
        }
 
+    /* -- [MAIN]19. Shutdown Virtual ST machine -- */
     CHECK_OBJ(g_main_ptCtx.ptSTMachineCtx, ST_MACHINE_CTX, bIsCorrectObject);
     if (bIsCorrectObject)
        {
@@ -283,9 +298,10 @@ st_error_t ST4Ever_shutdown()
             {
                 LOG_ERROR("st_shutdown() failed");
                 eExitCode = ST_ERROR;
-            } 
+            }
        }
 
+    /* -- [MAIN]20. Shutdown GUI Module -- */
     CHECK_OBJ(g_main_ptCtx.ptGUICtx, ST_GUI_CTX, bIsCorrectObject);
     if (bIsCorrectObject)
        {
@@ -293,12 +309,13 @@ st_error_t ST4Ever_shutdown()
             {
                 LOG_ERROR("gui_shutdown() failed");
                 eExitCode = ST_ERROR;
-            } 
+            }
        }
 
     LOG_INFO("%s shutdown complete (exit code %d)",
              ST_APP_NAME, eExitCode);
 
+    /* -- [MAIN]21. Shutdown Trace Module -- */
     CHECK_OBJ(g_main_ptCtx.ptTraceCtx, ST_TRACE_CTX, bIsCorrectObject);
     if (bIsCorrectObject)
        {
@@ -306,10 +323,11 @@ st_error_t ST4Ever_shutdown()
             {
                 LOG_ERROR("trace_shutdown() failed");
                 eExitCode = ST_ERROR;
-            } 
+            }
        }
 
 #ifdef ST_PLATFORM_WINDOWS
+    /* -- [MAIN]22. Platform-specific console shutdown -- */
     CHECK_OBJ(g_main_ptCtx.ptWinConsoleCtx, ST_WIN_CONSOLE_CTX, bIsCorrectObject);
     if (bIsCorrectObject)
        {

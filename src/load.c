@@ -452,6 +452,8 @@ st_error_t load_shutdown(void)
 {
     LOG_TRACE("shutdown");
     memset(&g_load_ptCtx, 0, sizeof(g_load_ptCtx));
+    g_load_ptCtx.ulMagic = 0xCAFEDECA;
+    g_load_ptCtx.eObject = ST_LOAD_CTX;
     LOG_INFO("load module shutdown");
     return ST_NO_ERROR;
 }

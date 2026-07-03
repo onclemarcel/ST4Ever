@@ -5,21 +5,19 @@
  *   INTENT[INT-xxx-NNN → TC-xxx-NNN → REQ-xxx-NNN -> UFR-xxx-NNN]
  *
  * TEST MATRIX:
- *   [N] Nominal    : 48 tests  - See test groups description below
+ *   [N] Nominal    : 50 tests  - See test groups description below
  *   [R] Robustness : 20 tests  - NULL params, out-of-bounds addresses,
  *                                double init/close, alignment errors
  *   [S] Skipped    :  0 tests  - no display required at UC1 level
  *
  * Test groups:
  *   Group 1: Trace subsystem  (nominal init, log levels, compaction,
- *             open/close, double-init guard, enable/disable)
- *   Group 2: Console context  (nominal init,
- *             shutdown NULL guard, nominal shutdown)
- *   Group 3: ST machine       (nominal init, read/write byte/word/long,
- *             alignment errors, bounds, NULL guards, st_shutdown)
- *   Group 4: CPU 68000        (nominal init, nominal init,
+ *                              GUI open/close)
+ *   Group 2: ST machine       (nominal init, read/write byte/word/long,
+ *             alignment errors, bounds, NULL guards)
+ *   Group 3: CPU 68000        (nominal init, nominal init,
  *             cpu_step NULL guards, cpu_step on hello.prg)
- *   Group 5: Disassembler     (disasm_range nominal, zero-length
+ *   Group 4: Disassembler     (disasm_range nominal, zero-length
  *             buffer, NULL param guards)
  *
  * Exit code: 0 = all tests passed, 1 = one or more failures.
@@ -174,7 +172,16 @@ static st_error_t uc01_load_prg_text(const char   *szPath,
  *
  * Code Coverage:
  *   trace.c:
- *   -- [TRACE]6. Trace Context must be initialized before logging -- 
+ *   -- [TRACE]5. Trace Context must be initialized before logging -- 
+ *   -- [TRACE]6. LOG_TRACE is compacted when called consecutively -- 
+ *   -- [TRACE]7. Format logging messages --
+ *   -- [TRACE]8. Log in file --
+ *   -- [TRACE]11. GUI must not be open when trace module is not initialized --
+ *   -- [TRACE]12. Calling trace_gui_open() when GUI is open is harmless --
+ *   -- [TRACE]13. Allocate a new trace_view structure --
+ *   -- [TRACE]14. Open the GUI window --
+ *   -- [TRACE]15. Do not close if trace module is not initialized -- 
+ *   -- [TRACE]16. Close the GUI window --
  * 
  * Parameters:
  *   None
@@ -182,212 +189,327 @@ static st_error_t uc01_load_prg_text(const char   *szPath,
  * Returns: 
  *   Void
  */
-static void test_trace(void)
+static void uc01_test_trace(void)
 {
     trace_context_t *ptTrcCtx;
 
     printf("\n--- Test group 1: Trace subsystem ---\n");
 
-    /* INTENT[INT-TRC-004 → TC-TRC-008...011 → REQ-xxx-yyy → UFR-xxx-yyy]:
+    /* -- [TRACE]7. Format logging messages -- */
+    /* -- [TRACE]8. Log in file -- */
+    /* INTENT[INT-TRC-003 → TC-TRC-006...009 → REQ-xxx-yyy → UFR-xxx-yyy]:
      * all four log levels must write their tag and message to TRACE_LOGFILE */
+    UC_INFO("(INT-TRC-003) Log TRC, INF, ERR and TODO messages");
     LOG_TRACE("UC1 test: LOG_TRACE entry (param=%d)", 42);
     LOG_INFO("UC1 test: LOG_INFO  entry");
     LOG_ERROR("UC1 test: LOG_ERROR entry (not a real error)");
     LOG_TODO("UC1 test: LOG_TODO  entry - this function is a stub");
-    UC_TEST("[N] (TC-TRC-008) LOG_TRACE emits [TRC ] tag in trace log",
+    UC_TEST("[N] (TC-TRC-006) LOG_TRACE emits [TRC ] tag in trace log",
             uc01_check_log_entry("[TRC ]", "LOG_TRACE entry"));
-    UC_TEST("[N] (TC-TRC-009) LOG_INFO emits [INF ] tag in trace log",
+    UC_TEST("[N] (TC-TRC-007) LOG_INFO emits [INF ] tag in trace log",
             uc01_check_log_entry("[INF ]", "LOG_INFO  entry"));
-    UC_TEST("[N] (TC-TRC-010) LOG_ERROR emits [ERR ] tag in trace log",
+    UC_TEST("[N] (TC-TRC-008) LOG_ERROR emits [ERR ] tag in trace log",
             uc01_check_log_entry("[ERR ]", "LOG_ERROR entry"));
-    UC_TEST("[N] (TC-TRC-011) LOG_TODO emits [TODO] tag in trace log",
+    UC_TEST("[N] (TC-TRC-009) LOG_TODO emits [TODO] tag in trace log",
             uc01_check_log_entry("[TODO]", "LOG_TODO  entry"));
 
-    /* -- [TRACE]6. Trace Context must be initialized before logging -- */
-    /* INTENT[INT-TRC-005 → TC-TRC-012 → REQ-TRC-001 → UFR-xxx-yyy]:
+    /* -- [TRACE]5. Trace Context must be initialized before logging -- */
+    /* INTENT[INT-TRC-004 → TC-TRC-010 → REQ-TRC-001 → UFR-xxx-yyy]:
      * trace_log() must silently return without writing anything when
      * bInitialised is FALSE  */
+    UC_INFO("(INT-TRC-004) Do not log if trace module is not initialized");
     ptTrcCtx = (trace_context_t *)ptCtx->ptTraceCtx;
     ptTrcCtx->bInitialised = ST_FALSE;
     LOG_INFO("TRC6_INIT_GUARD");
-    UC_TEST("[R] (TC-TRC-012) trace_log() skips log write when bInitialised is FALSE",
+    UC_TEST("[R] (TC-TRC-010) trace_log() skips log write when bInitialised is FALSE",
             !uc01_check_log_entry("[INF ]", "TRC6_INIT_GUARD"));
     ptTrcCtx->bInitialised = ST_TRUE;
 
-    /* INTENT[INT-TRC-0xx → TC-TRC-0xx → REQ-xxx-yyy → UFR-xxx-yyy]:
-     * consecutive LOG_TRACE from same function collapse to [xN] */
-    printf("  [INFO] Compaction test: 5x LOG_TRACE same function...\n");
-    LOG_TRACE("compaction pass 1");
-    LOG_TRACE("compaction pass 2");
-    LOG_TRACE("compaction pass 3");
-    LOG_TRACE("compaction pass 4");
-    LOG_TRACE("compaction pass 5");
-    LOG_INFO("compaction flush trigger - above 5 should appear as [x5]");
-    printf("  [PASS] [N] compaction emitted "
-           "(verify [x5] in trace log)\n");
+    /* -- [TRACE]6. LOG_TRACE is compacted when called consecutively -- */
+    /* INTENT[INT-TRC-005 → TC-TRC-011..012 → REQ-xxx-yyy → UFR-xxx-yyy]:
+     * 5 consecutive LOG_TRACE from the same function collapse to a single
+     * [xN] compaction summary in the log; intermediate calls (passes 2-5)
+     * are not individually written to the log file */
+    UC_INFO("(INT-TRC-005) Compaction: 5x LOG_TRACE from same function");
+    ptTrcCtx->szLastFunc[0] = '\0';   /* reset compaction state for clean baseline */
+    ptTrcCtx->iCompactCount = 0;
+    LOG_TRACE("TRC7_COMPACT_P1");
+    LOG_TRACE("TRC7_COMPACT_P2");
+    LOG_TRACE("TRC7_COMPACT_P3");
+    LOG_TRACE("TRC7_COMPACT_P4");
+    LOG_TRACE("TRC7_COMPACT_P5");
+    LOG_INFO("TRC7_COMPACT_FLUSH");
+    UC_TEST("[N] (TC-TRC-011) 5 consecutive LOG_TRACE compact to [x5] in log",
+            uc01_check_log_entry("[TRC ]", "[x5]"));
+    UC_TEST("[N] (TC-TRC-012) intermediate LOG_TRACE calls not written individually",
+            !uc01_check_log_entry("[TRC ]", "TRC7_COMPACT_P2"));
 
-    /* INTENT[INT-TRC-0xx → TC-TRC-0xx → REQ-TRC-006]:
-     * trace_close must succeed and update the open flag */
-    UC_CHECK("[N] trace_close()",
-             trace_close());
-    UC_TEST("[N] trace_is_open() == FALSE after close",
-            trace_is_open() == ST_FALSE);
+    /* -- [TRACE]13. Allocate a new trace_view structure -- */
+    /* -- [TRACE]14. Open the GUI window -- */
+    /* -- [TRACE]12. Calling trace_gui_open() when GUI is open is harmless -- */
+    /* -- [TRACE]11. GUI must not be open when trace module is not initialized -- */
+    /* INTENT[INT-TRC-006 → TC-TRC-013...018 → REQ-xxx-yyy → UFR-xxx-yyy]:
+     * trace_gui_open initialise the trace_view_t context and open the GUI */
+    UC_TEST("(INT-TRC-006) [Chk] ptView is NULL (GUI not created)", 
+                ptTrcCtx->ptView == NULL);
 
-    /* INTENT[INT-TRC-0xx → TC-TRC-0xx → REQ-TRC-007]:
-     * trace_close on an already-closed console must be harmless */
-    UC_TEST("[R] trace_close() when already closed returns ST_NO_ERROR",
-            trace_close() == ST_NO_ERROR);
-
-    /* INTENT[INT-TRC-0xx → TC-TRC-0xx → REQ-TRC-008]:
-     * trace_open must reopen and update the open flag */
-    UC_CHECK("[N] trace_open()",
-             trace_open());
-    UC_TEST("[N] trace_is_open() == TRUE after open",
-            trace_is_open() == ST_TRUE);
-
-    /* INTENT[INT-TRC-0xx → TC-TRC-0xx → REQ-TRC-009]:
-     * LOG_TRACE must be suppressible without affecting other levels */
-    UC_CHECK("[N] trace_set_trace_enabled(FALSE)",
-             trace_set_trace_enabled(ST_FALSE));
-    UC_TEST("[N] trace_is_trace_enabled() == FALSE",
-            trace_is_trace_enabled() == ST_FALSE);
-    LOG_TRACE("THIS LINE MUST NOT APPEAR IN TRACE LOG");
-
-    /* INTENT[INT-TRC-0xx → TC-TRC-0xx → REQ-TRC-010]:
-     * LOG_TRACE must be re-activatable after suppression */
-    UC_CHECK("[N] trace_set_trace_enabled(TRUE)",
-             trace_set_trace_enabled(ST_TRUE));
-    UC_TEST("[N] trace_is_trace_enabled() == TRUE",
-            trace_is_trace_enabled() == ST_TRUE);
-    LOG_TRACE("This line SHOULD appear in trace log after re-enable");
+    ptTrcCtx->bInitialised = ST_FALSE;   /* Forcing trace module to "not initialized" */
+    ptTrcCtx->bOpen = ST_FALSE;          /* Force bOpen as sentinel */
+    st_error_t result = trace_gui_open();   /* Function returns straight ST_ERROR */
+    UC_TEST("[N] (TC-TRC-013) ptView is not set ", ptTrcCtx->ptView == NULL);
+    UC_TEST("[R] (TC-TRC-014) bOpen is unchanged ", ptTrcCtx->bOpen == ST_FALSE);
+    UC_TEST("[N] (TC-TRC-015) Trace_gui_open() returns ST_ERROR ", result == ST_ERROR);
+    
+    ptTrcCtx->bInitialised = ST_TRUE;   /* Forcing trace module to "initialized" */
+    
+    UC_CHECK("(INT-TRC-006) [Chk] trace_gui_open()", trace_gui_open());
+    UC_TEST("[N] (TC-TRC-016) bOpen is set to ST_TRUE", ptTrcCtx->bOpen == ST_TRUE);
+    UC_TEST("[N] (TC-TRC-017) ptView is set ", ptTrcCtx->ptView != NULL);
+    trace_view_t *p = ptTrcCtx->ptView;
+    UC_CHECK("(INT-TRC-006) [Chk] Re-launch trace_gui_open()", trace_gui_open());
+    UC_TEST("[N] (TC-TRC-018) ptView is unchanged ", ptTrcCtx->ptView == p);
+    
+    
+    /* -- [TRACE]15. Do not close if trace module is not initialized -- */
+    /* -- [TRACE]16. Close the GUI window -- */
+    /* INTENT[INT-TRC-007 → TC-TRC-019...023 → REQ-xxx-yyy → UFR-xxx-yyy]:
+     * trace_gui_close must succeed and update the open flag, if trace module
+     * is initialized */
+    ptTrcCtx->bInitialised = ST_FALSE;   /* Forcing trace module to "not initialized" */
+    UC_CHECK("(INT-TRC-007) [Chk] trace_gui_close()", trace_gui_close());
+    UC_TEST("[R] (TC-TRC-019) bOpen is unchanged ", ptTrcCtx->bOpen == ST_TRUE);
+    ptTrcCtx->bInitialised = ST_TRUE;   /* Forcing trace module to "initialized" */
+    UC_CHECK("(INT-TRC-007) [Chk] trace_gui_close()", trace_gui_close());
+    UC_TEST("[N] (TC-TRC-020) bOpen is set ", ptTrcCtx->bOpen == ST_FALSE);
+    UC_TEST("[N] (TC-TRC-021) ptView is set ", ptTrcCtx->ptView == NULL);
+    UC_CHECK("(INT-TRC-007) [Chk] Re-launch trace_gui_close()", trace_gui_close());
+    UC_TEST("[N] (TC-TRC-022) bOpen is unchanged ", ptTrcCtx->bOpen == ST_FALSE);
+    UC_TEST("[N] (TC-TRC-023) ptView is unchanged ", ptTrcCtx->ptView == NULL);
 }
 
 /* ------------------------------------------------------------------
- * Group 2: Console context
+ * Group 2: ST machine memory
  * ------------------------------------------------------------------ */
 
-static void test_line(void)
-{
-    //line_context_t* tCtx;
-    st_u64_t        ullR;
-
-    printf("\n--- Test group 2: Console context ---\n");
-
-    /* INTENT[INT-CON-003 → TC-CON-003 → REQ-CON-004]:
-     * line_shutdown must reject a NULL context pointer */
-    ullR = line_shutdown();
-    UC_TEST("[R] line_shutdown(NULL) returns ST_ERROR", ullR == ST_NO_ERROR);
-
-    /* INTENT[INT-CON-004 → TC-CON-004 → REQ-CON-005]:
-     * line_shutdown must clear the context and set bRunning FALSE */
-    UC_CHECK("[N] line_shutdown()", line_shutdown());
-    //UC_TEST("[N] bRunning == FALSE after shutdown",
-    //        tCtx->bRunning == ST_FALSE);
-}
-
-/* ------------------------------------------------------------------
- * Group 3: ST machine memory
- * ------------------------------------------------------------------ */
-
-static void test_st_machine(void)
+/*
+ * uc01_test_st_machine() - Read/Write memory
+ *
+ * Code Coverage:
+ *   ST.c:
+ *  -- [ST]4. Reject any NULL parameter with an error --
+ *  -- [ST]5. Returns 0xFF if machine is not powered on --
+ *  -- [ST]6. If address is in RAM, return the RAM Value --
+ *  -- [ST]12. If address is in unknown area, returns 0xFF --
+ *  -- [ST]13. Reject any NULL parameter with an error --
+ *  -- [ST]14. Reject unaligned address with an error --
+ *  -- [ST]15. Read word, based on read bytes function --
+ *  -- [ST]16. Reject any NULL parameter with an error --
+ *  -- [ST]17. Read long, based on read word function --
+ *  -- [ST]18. If address is in RAM, write the RAM Value --
+ *  -- [ST]19. If address is in ROM, reject with an error --
+ *  -- [ST]24. Log an error, if address is in unknown area --
+ *  -- [ST]25. Reject unaligned address with an error --
+ *  -- [ST]26. Write word, based on write byte function --
+ *  -- [ST]27. Write long, based on write word function --
+ *  -- [ST]28. Do not write in memory if machine is not powered on --
+ *  -- [ST]29. Reject the write if any of the 4 bytes is not writable,
+ *             before touching any word (atomic long write) --
+ *
+ * Parameters:
+ *   None
+ *
+ * Returns: 
+ *   Void
+ */
+static void uc01_test_st_machine(void)
 {
     st_u8_t      uiByte;
     st_u16_t     uiWord;
     st_u32_t     uiLong;
-    st_u64_t     ulContext;
-    st_machine_context_t *ptCtx;
+    
+    st_machine_context_t *ptSTCtx = (st_machine_context_t*)ptCtx->ptSTMachineCtx;
+    st_error_t   result;
 
-    printf("\n--- Test group 3: ST machine memory ---\n");
+    printf("\n--- Test group 2: ST machine memory ---\n");
 
-    /* INTENT[INT-STM-001 → TC-STM-001 → REQ-STM-001]:
-     * st_init must reject a NULL machine pointer */
-    ulContext = st_init(NULL);
-    UC_TEST("[R] st_init(NULL, NULL) returns ST_ERROR", ulContext == ST_ERROR);
-
-    /* INTENT[INT-STM-002 → TC-STM-002 → REQ-STM-002]:
-     * st_init must succeed and power on the machine */
-    UC_CHECK("[N] st_init(&tMachine, NULL)", st_init(NULL));
-    ptCtx = (st_machine_context_t*)ulContext;
-    UC_TEST("[N] bPoweredOn == TRUE", ptCtx->bPoweredOn == ST_TRUE);
-    UC_TEST("[N] resolution == ST_RES_LOW",
-            ptCtx->uiResolution == ST_RES_LOW);
-
-    /* INTENT[INT-STM-003 → TC-STM-003 → REQ-STM-006]:
-     * byte read/write round-trip must be exact */
-    UC_CHECK("[N] st_write_byte(0x1000, 0xAB)",
-             st_write_byte(0x1000, 0xAB));
-    UC_CHECK("[N] st_read_byte(0x1000)",
+    /* -- [ST]4. Reject any NULL parameter with an error -- */
+    /* -- [ST]5. Returns 0xFF if machine is not powered on -- */
+    /* -- [ST]6. If address is in RAM, return the RAM Value -- */
+    /* -- [ST]12. If address is in unknown area, returns 0xFF -- */
+    /* INTENT[INT-STM-003 → TC-STM-005...010 → REQ-xxx-yyy → UFR-xxx-yyy]:
+     * Attempt reading bytes from RAM area and out of bound area (Bus Error) */
+    UC_TEST("[Chk] Check that ST Machine is ON", ptSTCtx->bPoweredOn == ST_TRUE);
+    UC_INFO("(INT-STM-003) Reading bytes in RAM & out of bound");
+    result = st_read_byte(0x1000, NULL);   
+    UC_TEST("[R] (TC-STM-005) st_read_byte(0x1000, NULL) returns ST_ERROR ", result == ST_ERROR);
+    ptSTCtx->bPoweredOn = ST_FALSE;
+    result = st_read_byte(0x1000, &uiByte);   
+    UC_TEST("[R] (TC-STM-006) Reading a byte with ST machine off returns ST_ERROR ", result == ST_ERROR);
+    UC_TEST("[R] (TC-STM-007) Read byte is 0xFF ", uiByte == 0xFFu);
+    ptSTCtx->bPoweredOn = ST_TRUE;
+    UC_CHECK("(INT-STM-003) [Chk] st_read_byte(0x1000)",
              st_read_byte(0x1000, &uiByte));
-    UC_TEST("[N] read-back byte == 0xAB", uiByte == 0xAB);
+    UC_TEST("[N] (TC-STM-008) Read byte @0x1000 is 0x00 ", uiByte == 0x00u);
+    UC_CHECK("(INT-STM-003) [Chk] st_read_byte(0x0000)",
+             st_read_byte(0x0000, &uiByte));
+    UC_TEST("[N] (TC-STM-009) Read byte @0x0000 is 0x00 ", uiByte == 0x00u);
+    result = st_read_byte(0xFFFCDE, &uiByte);
+    UC_TEST("[N] (TC-STM-010) Reading a byte out of bound returns ST_ERROR ", result == ST_ERROR);
+    UC_TEST("[N] (TC-STM-011) Read byte @0xFFFCDE is 0xFF ", uiByte == 0xFFu);
+    UC_CHECK("(INT-STM-003) [Chk] Read last RAM byte",
+             st_read_byte(ST_RAM_SIZE - 1, &uiByte));
+    UC_TEST("[R] (TC-STM-012) Last byte of RAM is 0x00 ", uiByte == 0x00u);
+        
 
-    /* INTENT[INT-STM-004 → TC-STM-004 → REQ-STM-004]:
-     * NULL machine pointer must be rejected on read and write */
-    st_error_t eR = st_write_byte(0x1000, 0xAB);
-    UC_TEST("[R] st_write_byte(NULL, ...) returns ST_ERROR",
-            eR == ST_ERROR);
-    eR = st_read_byte(0x1000, &uiByte);
-    UC_TEST("[R] st_read_byte(NULL, ...) returns ST_ERROR",
-            eR == ST_ERROR);
+    /* -- [ST]13. Reject any NULL parameter with an error -- */
+    /* -- [ST]14. Reject unaligned address with an error -- */
+    /* -- [ST]15. Read word, based on read bytes function -- */
+    /* INTENT[INT-STM-004 → TC-STM-013...023 → REQ-xxx-yyy → UFR-xxx-yyy]:
+     * Attempt reading words from RAM area and out of bound area (Bus Error) */
+    UC_INFO("(INT-STM-004) Reading words in RAM & out of bound");
+    result = st_read_word(0x1000, NULL);   
+    UC_TEST("[R] (TC-STM-013) st_read_word(0x1000, NULL) returns ST_ERROR ", result == ST_ERROR);
+    ptSTCtx->bPoweredOn = ST_FALSE;
+    result = st_read_word(0x1000, &uiWord);   
+    UC_TEST("[R] (TC-STM-014) Reading a word with ST machine off returns ST_ERROR ", result == ST_ERROR);
+    UC_TEST("[R] (TC-STM-015) Read word is 0xFFFF ", uiWord == 0xFFFFu);
+    ptSTCtx->bPoweredOn = ST_TRUE;
+    UC_CHECK("(INT-STM-004) [Chk] st_read_word(0x1000)",
+             st_read_word(0x1000, &uiWord));
+    UC_TEST("[N] (TC-STM-016) Read word @0x1000 is 0x0000 ", uiWord == 0x0000u);
+    UC_CHECK("(INT-STM-004) [Chk] st_read_word(0x0000)",
+             st_read_word(0x0000, &uiWord));
+    UC_TEST("[N] (TC-STM-017) Read word @0x0000 is 0x0000 ", uiWord == 0x0000u);
+    result = st_read_word(0xFFFCDE, &uiWord);
+    UC_TEST("[N] (TC-STM-018) Reading a word out of bound returns ST_ERROR ", result == ST_ERROR);
+    UC_TEST("[N] (TC-STM-019) Read word @0xFFFCDE is 0xFFFF ", uiWord == 0xFFFFu);
+    result = st_read_word(0x0001, &uiWord);   
+    UC_TEST("[R] (TC-STM-020) Reading word at unaligned address returns ST_ERROR ", result == ST_ERROR);
+    UC_TEST("[R] (TC-STM-021) Read word is 0xFFFF ", uiWord == 0xFFFFu);
+    UC_CHECK("(INT-STM-004) [Chk] Read last RAM word",
+             st_read_word(ST_RAM_SIZE - 2, &uiWord));
+    UC_TEST("[R] (TC-STM-022) Last word of RAM is 0x00 ", uiWord == 0x0000u);
+    result = st_read_word(ST_RAM_SIZE - 1, &uiWord);
+    UC_TEST("[R] (TC-STM-023) Reading word at last byte of RAM returns ST_ERROR ", result == ST_ERROR);
+        
+    /* -- [ST]16. Reject any NULL parameter with an error -- */
+    /* -- [ST]17. Read long, based on read word function -- */
+    /* INTENT[INT-STM-005 → TC-STM-024...035 → REQ-xxx-yyy → UFR-xxx-yyy]:
+     * Attempt reading longs from RAM area and out of bound area (Bus Error) */
+    UC_INFO("(INT-STM-005) Reading longs in RAM & out of bound");
+    result = st_read_long(0x1000, NULL);   
+    UC_TEST("[R] (TC-STM-024) st_read_long(0x1000, NULL) returns ST_ERROR ", result == ST_ERROR);
+    ptSTCtx->bPoweredOn = ST_FALSE;
+    result = st_read_long(0x1000, &uiLong);   
+    UC_TEST("[R] (TC-STM-025) Reading a long with ST machine off returns ST_ERROR ", result == ST_ERROR);
+    UC_TEST("[R] (TC-STM-026) Read long is 0xFFFF ", uiLong == 0xFFFFFFFFu);
+    ptSTCtx->bPoweredOn = ST_TRUE;
+    UC_CHECK("(INT-STM-005) [Chk] st_read_long(0x1000)",
+             st_read_long(0x1000, &uiLong));
+    UC_TEST("[N] (TC-STM-027) Read long @0x1000 is 0x0000 ", uiLong == 0x00000000u);
+    UC_CHECK("(INT-STM-005) [Chk] st_read_long(0x0000)",
+             st_read_long(0x0000, &uiLong));
+    UC_TEST("[N] (TC-STM-028) Read long @0x0000 is 0x0000 ", uiLong == 0x00000000u);
+    result = st_read_long(0xFFFCDE, &uiLong);
+    UC_TEST("[N] (TC-STM-029) Reading a long out of bound returns ST_ERROR ", result == ST_ERROR);
+    UC_TEST("[N] (TC-STM-030) Read long @0xFFFCDE is 0xFFFF ", uiLong == 0xFFFFFFFFu);
+    result = st_read_long(0x0001, &uiLong);   
+    UC_TEST("[R] (TC-STM-031) Reading long at unaligned address returns ST_ERROR ", result == ST_ERROR);
+    UC_TEST("[R] (TC-STM-032) Read long is 0xFFFF ", uiLong == 0xFFFFFFFFu);
+    UC_CHECK("(INT-STM-005) [Chk] Read last RAM long",
+             st_read_long(ST_RAM_SIZE - 4, &uiLong));
+    UC_TEST("[R] (TC-STM-033) Last long of RAM is 0x00 ", uiLong == 0x00000000u);
+    result = st_read_long(ST_RAM_SIZE - 2, &uiLong);
+    UC_TEST("[R] (TC-STM-034) Reading long at last word of RAM returns ST_ERROR ", result == ST_ERROR);
+    UC_TEST("[N] (TC-STM-035) Read long is 0xFFFFFFFF ", uiLong == 0xFFFFFFFFu);
+    result = st_read_long(ST_RAM_SIZE - 1, &uiLong);
+    UC_TEST("[R] (TC-STM-036) Reading long at last byte of RAM returns ST_ERROR ", result == ST_ERROR);
 
-    /* INTENT[INT-STM-005 → TC-STM-005 → REQ-STM-005]:
-     * NULL output pointer must be rejected */
-    eR = st_read_byte(0x1000, NULL);
-    UC_TEST("[R] st_read_byte(..., NULL) returns ST_ERROR",
-            eR == ST_ERROR);
 
-    /* INTENT[INT-STM-006 → TC-STM-006 → REQ-STM-007]:
-     * word read/write round-trip must preserve big-endian order */
-    UC_CHECK("[N] st_write_word(0x2000, 0x1234)",
-             st_write_word(0x2000, 0x1234));
-    UC_CHECK("[N] st_read_word(0x2000)",
-             st_read_word(0x2000, &uiWord));
-    UC_TEST("[N] read-back word == 0x1234", uiWord == 0x1234);
+    /* -- [ST]28. Do not write in memory if machine is not powered on -- */
+    /* -- [ST]18. If address is in RAM, write the RAM Value -- */
+    /* -- [ST]19. If address is in ROM, reject with an error -- */
+    /* -- [ST]24. Log an error, if address is in unknown area-- */
+    /* INTENT[INT-STM-006 → TC-STM-037...041 → REQ-xxx-yyy → UFR-xxx-yyy]:
+     * Attempt writing bytes to RAM area, ROM area (read-only) and
+     * unmapped area (silently ignored) */
+    UC_INFO("(INT-STM-006) Writing bytes in RAM, ROM & unmapped area");
+    ptSTCtx->bPoweredOn = ST_FALSE;
+    result = st_write_byte(0x1000, 0xABu);
+    UC_TEST("[R] (TC-STM-037) Reading a byte with ST machine off returns ST_ERROR ", result == ST_ERROR);
+    ptSTCtx->bPoweredOn = ST_TRUE;
+    UC_CHECK("(INT-STM-006) [Chk] st_write_byte(0x1000, 0xAB)",
+             st_write_byte(0x1000, 0xABu));
+    UC_CHECK("(INT-STM-006) [Chk] Read back written byte",
+             st_read_byte(0x1000, &uiByte));
+    UC_TEST("[N] (TC-STM-038) Written byte @0x1000 is 0xAB ", uiByte == 0xABu);
+    result = st_write_byte(0xFC0000, 0x11u);
+    UC_TEST("[N] (TC-STM-039) Writing byte to ROM area returns ST_ERROR ", result == ST_ERROR);
+    result = st_write_byte(0xFFFCDE, 0x22u);
+    UC_TEST("[N] (TC-STM-040) Writing byte to unmapped area returns ST_ERROR ", result == ST_ERROR);
+    UC_CHECK("(INT-STM-006) [Chk] Write last RAM byte",
+             st_write_byte(ST_RAM_SIZE - 1, 0x55u));
+    UC_CHECK("(INT-STM-006) [Chk] Read back last RAM byte",
+             st_read_byte(ST_RAM_SIZE - 1, &uiByte));
+    UC_TEST("[R] (TC-STM-041) Last byte of RAM after write is 0x55 ", uiByte == 0x55u);
 
-    /* INTENT[INT-STM-007 → TC-STM-007 → REQ-STM-008]:
-     * long read/write round-trip must preserve big-endian order */
-    UC_CHECK("[N] st_write_long(0x3000, 0xDEADBEEF)",
-             st_write_long(0x3000, 0xDEADBEEF));
-    UC_CHECK("[N] st_read_long(0x3000)",
-             st_read_long(0x3000, &uiLong));
-    UC_TEST("[N] read-back long == 0xDEADBEEF", uiLong == 0xDEADBEEF);
 
-    /* INTENT[INT-STM-008 → TC-STM-008 → REQ-STM-009]:
-     * unaligned word access must raise a bus error */
-    eR = st_write_word(0x1001, 0x0000);
-    UC_TEST("[R] unaligned word write (0x1001) returns ST_ERROR",
-            eR == ST_ERROR);
+    /* -- [ST]25. Reject unaligned address with an error -- */
+    /* -- [ST]26. Write word, based on write byte function -- */
+    /* INTENT[INT-STM-007 → TC-STM-042...047 → REQ-xxx-yyy → UFR-xxx-yyy]:
+     * Attempt writing words to RAM area, unaligned address and ROM area
+     * (read-only) */
+    UC_INFO("(INT-STM-007) Writing words in RAM, unaligned & ROM area");
+    UC_CHECK("(INT-STM-007) [Chk] st_write_word(0x1000, 0x1234)",
+             st_write_word(0x1000, 0x1234u));
+    UC_CHECK("(INT-STM-007) [Chk] Read back written word",
+             st_read_word(0x1000, &uiWord));
+    UC_TEST("[N] (TC-STM-042) Written word @0x1000 is 0x1234 ", uiWord == 0x1234u);
+    result = st_write_word(0x0001, 0x5678u);
+    UC_TEST("[R] (TC-STM-043) Writing word at unaligned address returns ST_ERROR ", result == ST_ERROR);
+    result = st_write_word(0xFC0000, 0x9999u);
+    UC_TEST("[N] (TC-STM-044) Writing word to ROM area returns ST_ERROR ", result == ST_ERROR);
+    result = st_write_word(0xFFFCDE, 0x4321u);
+    UC_TEST("[N] (TC-STM-045) Writing word to unmapped area returns ST_ERROR ", result == ST_ERROR);
+    UC_CHECK("(INT-STM-007) [Chk] Write last RAM word",
+             st_write_word(ST_RAM_SIZE - 2, 0xBEEFu));
+    UC_CHECK("(INT-STM-007) [Chk] Read back last RAM word",
+             st_read_word(ST_RAM_SIZE - 2, &uiWord));
+    UC_TEST("[R] (TC-STM-046) Last word of RAM after write is 0xBEEF ", uiWord == 0xBEEFu);
+    result = st_write_word(ST_RAM_SIZE - 1, 0x4321u);
+    UC_TEST("[N] (TC-STM-047) Writing word at last byte of RAM returns ST_ERROR ", result == ST_ERROR);
+    
 
-    /* INTENT[INT-STM-009 → TC-STM-009 → REQ-STM-010]:
-     * unaligned long access must raise a bus error */
-    eR = st_write_long(0x1003, 0x00000000);
-    UC_TEST("[R] unaligned long write (0x1003) returns ST_ERROR",
-            eR == ST_ERROR);
-
-    /*
-     * INTENT[INT-STM-010 → TC-STM-010 → REQ-STM-011]:
-     * address beyond RAM (cartridge/ROM space) must not crash.
-     * NOTE: UC1 stub returns ST_NO_ERROR + 0xFF for unmapped addresses
-     *       (cartridge space is valid 24-bit addressing on the ST).
-     * ADAPTED when UC24 implements real bus errors for unmapped regions.
-     */
-    eR = st_read_byte(ST_RAM_SIZE, &uiByte);
-    UC_TEST("[R] st_read_byte(ST_RAM_SIZE) is safe (stub: ST_NO_ERROR+0xFF)",
-            eR == ST_NO_ERROR && uiByte == 0xFF);
-
-    /* INTENT[INT-STM-011 → TC-STM-011 → REQ-STM-013]:
-     * st_shutdown must reject a NULL pointer */
-    eR = st_shutdown(NULL);
-    UC_TEST("[R] st_shutdown(NULL) returns ST_ERROR", eR == ST_ERROR);
-
-    /* INTENT[INT-STM-012 → TC-STM-012 → REQ-STM-014]:
-     * st_shutdown must power off the machine cleanly */
-    UC_CHECK("[N] st_shutdown(&tMachine)", st_shutdown());
-    UC_TEST("[N] bPoweredOn == FALSE after shutdown",
-            ptCtx->bPoweredOn == ST_FALSE);
-}
+    /* -- [ST]27. Write long, based on write word function -- */
+    /* -- [ST]29. Reject the write if any of the 4 bytes is not writable,
+     *            before touching any word (atomic long write) -- */
+    /* INTENT[INT-STM-008 → TC-STM-048...052 → REQ-xxx-yyy → UFR-xxx-yyy]:
+     * Attempt writing longs to RAM area and ROM area (read-only) ; a
+     * long straddling the RAM/unmapped boundary must be rejected
+     * entirely, without leaving its high word written (TC-STM-051/052) */
+    UC_INFO("(INT-STM-008) Writing longs in RAM & ROM area");
+    UC_CHECK("(INT-STM-008) [Chk] st_write_long(0x1000, 0xDEADBEEF)",
+             st_write_long(0x1000, 0xDEADBEEFu));
+    UC_CHECK("(INT-STM-008) [Chk] Read back written long",
+             st_read_long(0x1000, &uiLong));
+    UC_TEST("[N] (TC-STM-048) Written long @0x1000 is 0xDEADBEEF ", uiLong == 0xDEADBEEFu);
+    result = st_write_long(0xFC0000, 0x11223344u);
+    UC_TEST("[N] (TC-STM-049) Writing long to ROM area returns ST_ERROR ", result == ST_ERROR);
+    UC_CHECK("(INT-STM-008) [Chk] Write last RAM long",
+             st_write_long(ST_RAM_SIZE - 4, 0xCAFEBABEu));
+    UC_CHECK("(INT-STM-008) [Chk] Read back last RAM long",
+             st_read_long(ST_RAM_SIZE - 4, &uiLong));
+    UC_TEST("[R] (TC-STM-050) Last long of RAM after write is 0xCAFEBABE ", uiLong == 0xCAFEBABEu);
+    result = st_write_long(ST_RAM_SIZE - 2, 0xDEADC0DEu);
+    UC_TEST("[N] (TC-STM-051) Writing word at last byte of RAM returns ST_ERROR ", result == ST_ERROR);
+    UC_CHECK("(INT-STM-008) [Chk] Read back last RAM word",
+             st_read_word(ST_RAM_SIZE - 2, &uiWord));
+    UC_TEST("[R] (TC-STM-052) Last word of RAM after incorrect last long write is 0xBABE ", uiWord == 0xBABEu);
+    
+ }
 
 /* ------------------------------------------------------------------
- * Group 4: CPU 68000 + hello.prg
+ * Group 3: CPU 68000 + hello.prg
  * ------------------------------------------------------------------ */
 
 static void test_cpu(void)
@@ -493,7 +615,7 @@ static void test_cpu(void)
 }
 
 /* ------------------------------------------------------------------
- * Group 5: Disassembler stub
+ * Group 4: Disassembler stub
  * ------------------------------------------------------------------ */
 
 static void test_disasm(void)
@@ -560,9 +682,8 @@ int main(void)
     if (gIsObject) 
     {
         /* Launch the use_case_01.c tests */
-        test_trace();
-        test_line();
-        test_st_machine();
+        uc01_test_trace();
+        uc01_test_st_machine();
         test_cpu();
         test_disasm();
     } else printf("  [SKIP] (UC01) ST_MAIN_CTX Object Check failed\n\n");

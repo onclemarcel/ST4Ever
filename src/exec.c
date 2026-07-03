@@ -277,8 +277,9 @@ st_error_t exec_shutdown(void)
         exec_close();
     }
 
-    g_exec_ptCtx.bIsMachineOn = ST_FALSE;
-    g_exec_ptCtx.bInitOK      = ST_FALSE;
+    memset(&g_exec_ptCtx, 0, sizeof(g_exec_ptCtx));
+    g_exec_ptCtx.ulMagic = 0xCAFEDECA;
+    g_exec_ptCtx.eObject = ST_EXEC_CTX;
     LOG_INFO("execution engine shutdown");
     return ST_NO_ERROR;
 }

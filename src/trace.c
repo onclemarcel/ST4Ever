@@ -2,7 +2,7 @@
  * trace.c - ST4Ever trace and debug console implementation
  *
  * UC4.4: Added GUI_WND_TRACE window (D2D append-only scroll view).
- *   - trace_open()  : opens GUI window + starts appending entries.
+ *   - trace_gui_open()  : opens GUI window + starts appending entries.
  *   - trace_close() : closes GUI window.
  *   - trace_log()   : writes to log file + GUI ring buffer (no stderr).
  *
@@ -420,9 +420,12 @@ static void trace_event_callback(gui_window_t  hWnd,
 /* ------------------------------------------------------------------
  * Public API (see description in trace.h)
  * ------------------------------------------------------------------ */
-
-st_u64_t trace_init(st_bool_t bOpen)
+///////////////////////////////////////////////////////////////////////////////
+//
+st_u64_t trace_init()
 {
+    LOG_TRACE("Initializing the Trace Module");
+
     /* -- [TRACE]1. Log Information if already initialised -- */
     if (g_trace_ptCtx.bInitialised == ST_TRUE)
     {
@@ -443,33 +446,31 @@ st_u64_t trace_init(st_bool_t bOpen)
 
     /* -- [TRACE]3. Init trace context structure -- */
     g_trace_ptCtx.bInitialised  = ST_TRUE;
-    g_trace_ptCtx.bTraceEnabled = ST_TRUE;
+    g_trace_ptCtx.bGUITraceEnabled = ST_FALSE;
     
-    /* -- [TRACE]4. If input parameter is TRUE, open the GUI console -- */
-    if (bOpen == ST_TRUE)
-    {
-        trace_open();
-        return (st_u64_t)&g_trace_ptCtx;
-    }
-
-    /* -- [TRACE]5. Init returns context sructure -- */
+    /* -- [TRACE]4. Init returns context sructure -- */
     return (st_u64_t)&g_trace_ptCtx;
 }
 
-st_error_t trace_open(void)
+///////////////////////////////////////////////////////////////////////////////
+//
+st_error_t trace_gui_open(void)
 {
     trace_view_t  *ptView;
     gui_wnd_desc_t tDesc;
     st_error_t     eResult;
 
+    LOG_TRACE("Opening the Trace Module GUI View");
+
+    /* -- [TRACE]11. GUI must not be open when trace module is not initialized -- */
     if (g_trace_ptCtx.bInitialised == ST_FALSE)
     {
         fprintf(stderr,
-                "[trace_open] ERROR: trace not initialised\n");
+                "[trace_gui_open] ERROR: trace module not initialised\n");
         return ST_ERROR;
     }
 
-    /* Idempotent: already open */
+    /* -- [TRACE]12. Calling trace_gui_open() when GUI is open is harmless -- */
     if (g_trace_ptCtx.bOpen == ST_TRUE)
     {
         return ST_NO_ERROR;
@@ -477,12 +478,11 @@ st_error_t trace_open(void)
 
     g_trace_ptCtx.bOpen = ST_TRUE;
 
-    /* Allocate and initialise the GUI view */
+    /* -- [TRACE]13. Allocate a new trace_view structure -- */
     ptView = (trace_view_t *)malloc(sizeof(trace_view_t));
     if (ptView == NULL)
     {
-        fprintf(stderr,
-                "[trace_open] ERROR: malloc failed for trace_view_t\n");
+        LOG_ERROR("malloc failed for trace_view_t");
         return ST_ERROR;
     }
     memset(ptView, 0, sizeof(trace_view_t));
@@ -493,11 +493,11 @@ st_error_t trace_open(void)
     if (eResult != ST_NO_ERROR)
     {
         free(ptView);
-        fprintf(stderr, "[trace_open] ERROR: platform_mutex_create failed\n");
+        LOG_ERROR("platform_mutex_create failed");
         return ST_ERROR;
     }
 
-    /* Open the GUI window */
+    /* -- [TRACE]14. Open the GUI window -- */
     memset(&tDesc, 0, sizeof(tDesc));
     tDesc.szTitle  = "ST4Ever - Trace";
     tDesc.eType    = GUI_WND_TRACE;
@@ -509,61 +509,73 @@ st_error_t trace_open(void)
     {
         /* Non-fatal: GUI not available (headless / gui_init not called).
          * Trace continues with stderr + log file output only. */
-        fprintf(stderr,
-                "[trace_open] WARNING: gui_open_window failed - "
-                "GUI trace window unavailable (stderr/log only)\n");
+        LOG_ERROR("gui_open_window failed - GUI not available - file log only");
         platform_mutex_destroy(&ptView->ptMutex);
         free(ptView);
         ptView = NULL;
     }
-
+    
     g_trace_ptCtx.ptView = ptView;
-    g_trace_ptCtx.hWnd   = (ptView != NULL) ? ptView->hWnd : NULL;
 
-    LOG_INFO("Trace console opened");
+    LOG_INFO("Trace gui is open (bOpen=%d, ptView=%p)", 
+               g_trace_ptCtx.bOpen, (void*)g_trace_ptCtx.ptView);
+
     return ST_NO_ERROR;
 }
 
-st_error_t trace_close(void)
+///////////////////////////////////////////////////////////////////////////////
+//
+st_error_t trace_gui_close(void)
 {
+    LOG_TRACE("Closing the trace window");
+	
+	/* -- [TRACE]15. Do not close if trace module is not initialized -- */
     if (g_trace_ptCtx.bInitialised == ST_FALSE)
     {
         return ST_NO_ERROR;
     }
 
-    trace_flush_compact();
-
-    LOG_INFO("Trace console closed");
     g_trace_ptCtx.bOpen = ST_FALSE;
 
-    /* Close the GUI window and free the view */
-    if (g_trace_ptCtx.hWnd != NULL)
-    {
-        gui_close_window(g_trace_ptCtx.hWnd);
-        g_trace_ptCtx.hWnd = NULL;
-    }
-
+    /* -- [TRACE]16. Close the GUI window -- */
     if (g_trace_ptCtx.ptView != NULL)
     {
-        platform_mutex_destroy(&g_trace_ptCtx.ptView->ptMutex);
+		if (g_trace_ptCtx.ptView->hWnd != NULL)
+		{
+			gui_close_window(g_trace_ptCtx.ptView->hWnd);
+			g_trace_ptCtx.ptView->hWnd = NULL;
+		}
+
+		platform_mutex_destroy(&g_trace_ptCtx.ptView->ptMutex);
         free(g_trace_ptCtx.ptView);
         g_trace_ptCtx.ptView = NULL;
     }
 
+	LOG_INFO("Trace gui is closed (bOpen=%d, ptView=%p)", 
+               g_trace_ptCtx.bOpen, (void*)g_trace_ptCtx.ptView);
     return ST_NO_ERROR;
 }
 
+///////////////////////////////////////////////////////////////////////////////
+//
 st_error_t trace_set_trace_enabled(st_bool_t bEnabled)
 {
-    trace_flush_compact();
-    g_trace_ptCtx.bTraceEnabled = bEnabled;
+    LOG_TRACE("Set Request for bGUITraceEnabled=%d", bEnabled);
+
+    /* -- [TRACE]17. Private bGUITraceEnabled can be set externally -- */
+    g_trace_ptCtx.bGUITraceEnabled = bEnabled;
     LOG_INFO("LOG_TRACE %s", bEnabled == ST_TRUE ? "enabled" : "disabled");
     return ST_NO_ERROR;
 }
 
+///////////////////////////////////////////////////////////////////////////////
+//
 st_bool_t trace_is_trace_enabled(void)
 {
-    return g_trace_ptCtx.bTraceEnabled;
+    LOG_TRACE("Get Request for bGUITraceEnabled=%d", g_trace_ptCtx.bGUITraceEnabled);
+
+    /* -- [TRACE]18. Private bGUITraceEnabled can be read externally -- */
+    return g_trace_ptCtx.bGUITraceEnabled;
 }
 
 st_bool_t trace_is_open(void)
@@ -583,29 +595,14 @@ void trace_log(log_level_t  eLevel,
     va_list vaArgs;
     int     bCompacted;
 
-    /* -- [TRACE]6. Trace Context must be initialized before logging -- */
+    /* -- [TRACE]5. Trace Context must be initialized before logging -- */
     if (g_trace_ptCtx.bInitialised == ST_FALSE)
     {
         return;
     }
 
-    /* -- [TRACE]7. LOG_TRACE is filtered in case of trace off command -- */
-    if (eLevel == LOG_LEVEL_TRACE
-    &&  g_trace_ptCtx.bTraceEnabled == ST_FALSE)
-    {
-        return;
-    }
-
-    /* -- [TRACE]8. Log function does nothing when GUI is open and
-     *              log file is NULL  -- */
-    if (g_trace_ptCtx.bOpen == ST_FALSE && g_trace_ptCtx.pFile == NULL)
-    {
-        return;
-    }
-
-    /* -- [TRACE]9. LOG_TRACE is compacted when called consecutively from
-     *              form the same function -- */
-    /* ---- Compaction logic for LOG_TRACE ---- */
+    /* -- [TRACE]6. LOG_TRACE is compacted when called consecutively -- */
+    /* --- Compaction logic for LOG_TRACE - based on function name  --- */
     bCompacted = 0;
 
     if (eLevel == LOG_LEVEL_TRACE && szFunc != NULL)
@@ -638,9 +635,8 @@ void trace_log(log_level_t  eLevel,
         return;
     }
 
-    /* -- [TRACE]10. Format logging messages with :
-     *               timestamp [TAG] function:line Message -- */
-    /* ---- Format the message ---- */
+    /* -- [TRACE]7. Format logging messages -- */
+	/* format : timestamp [TAG] function:line Message */
     va_start(vaArgs, szFmt);
     vsnprintf(szMsg, sizeof(szMsg), szFmt, vaArgs);
     va_end(vaArgs);
@@ -651,9 +647,9 @@ void trace_log(log_level_t  eLevel,
      * when the trace console is open (bOpen=TRUE) the terminal must stay
      * clean — the GUI window is the output.  Preliminary traces during GUI
      * startup go to the log file only.  Real init errors use fprintf()
-     * directly in trace_open()/trace_init(), bypassing this path. */
+     * directly in trace_gui_open()/trace_init(), bypassing this path. */
 
-    /* -- [TRACE]11. Log in file -- */
+    /* -- [TRACE]8. Log in file -- */
     /* ---- Write to log file (plain text) ---- */
     if (g_trace_ptCtx.pFile != NULL)
     {
@@ -667,17 +663,17 @@ void trace_log(log_level_t  eLevel,
         fflush(g_trace_ptCtx.pFile);
     }
 
-    /* -- [TRACE]12. Log in GUI when available -- */
-    /* ---- Append to GUI trace view (thread-safe) ---- */
-    /* Guard covers the entire GUI section: platform_mutex_lock calls
-     * LOG_TRACE which re-enters trace_log.  Without this guard the
-     * chain trace_log → mutex_lock → LOG_TRACE → trace_log → mutex_lock
-     * recurses infinitely and overflows the stack. */
-    if (g_trace_ptCtx.ptView != NULL && g_trace_ptCtx.hWnd != NULL
-    &&  !g_trace_ptCtx.bInNotify)
+	/* -- [TRACE]9. LOG_TRACE is filtered from GUI unless requested -- */
+    if (eLevel == LOG_LEVEL_TRACE
+    &&  g_trace_ptCtx.bGUITraceEnabled == ST_FALSE)
     {
-        g_trace_ptCtx.bInNotify = 1;
+        return;
+    }
 
+    /* -- [TRACE]10. Log in GUI when available -- */
+    /* ---- Append to GUI trace view (thread-safe) ---- */
+    if (g_trace_ptCtx.ptView != NULL)
+    {
         snprintf(szLine, sizeof(szLine),
                  "%s [%s] %s:%d  %s",
                  szTime,
@@ -692,19 +688,19 @@ void trace_log(log_level_t  eLevel,
             platform_mutex_unlock(g_trace_ptCtx.ptView->ptMutex);
         }
 
-        gui_invalidate(g_trace_ptCtx.hWnd);
-
-        g_trace_ptCtx.bInNotify = 0;
-    }
+        gui_invalidate(g_trace_ptCtx.ptView->hWnd);
+	}
 }
 
 st_error_t trace_clear(void)
 {
+    /* -- [TRACE]19. Do nothing if no trace view window is open -- */
     if (g_trace_ptCtx.ptView == NULL)
     {
         return ST_NO_ERROR; /* no window open — no-op */
     }
 
+    /* -- [TRACE]20. Reset the ring buffer under mutex protection -- */
     if (platform_mutex_lock(g_trace_ptCtx.ptView->ptMutex) == ST_NO_ERROR)
     {
         g_trace_ptCtx.ptView->iHead      = 0;
@@ -713,11 +709,10 @@ st_error_t trace_clear(void)
         platform_mutex_unlock(g_trace_ptCtx.ptView->ptMutex);
     }
 
-    if (g_trace_ptCtx.hWnd != NULL && !g_trace_ptCtx.bInNotify)
+    /* -- [TRACE]21. Invalidate the window to force a redraw -- */
+    if (g_trace_ptCtx.ptView->hWnd != NULL)
     {
-        g_trace_ptCtx.bInNotify = 1;
-        gui_invalidate(g_trace_ptCtx.hWnd);
-        g_trace_ptCtx.bInNotify = 0;
+        gui_invalidate(g_trace_ptCtx.ptView->hWnd);
     }
 
     LOG_INFO("trace: buffer cleared");
@@ -726,16 +721,17 @@ st_error_t trace_clear(void)
 
 st_error_t trace_set_view_level(log_level_t eMinLevel)
 {
+    /* -- [TRACE]22. Store the new minimum level globally -- */
     g_trace_ptCtx.eViewMinLevel = eMinLevel;
 
+    /* -- [TRACE]23. Propagate the new level to the open view and
+     *               invalidate it -- */
     if (g_trace_ptCtx.ptView != NULL)
     {
         g_trace_ptCtx.ptView->eViewMinLevel = eMinLevel;
-        if (g_trace_ptCtx.hWnd != NULL && !g_trace_ptCtx.bInNotify)
+        if (g_trace_ptCtx.ptView->hWnd != NULL)
         {
-            g_trace_ptCtx.bInNotify = 1;
-            gui_invalidate(g_trace_ptCtx.hWnd);
-            g_trace_ptCtx.bInNotify = 0;
+            gui_invalidate(g_trace_ptCtx.ptView->hWnd);
         }
     }
 
@@ -750,25 +746,28 @@ log_level_t trace_get_view_level(void)
 
 st_error_t trace_shutdown(void)
 {
-    st_error_t eResult;
+    LOG_TRACE("Closing trace context");
 
+	st_error_t eResult;
+
+    /* -- [TRACE]24. Do nothing if trace module is not initialized -- */
     if (g_trace_ptCtx.bInitialised == ST_FALSE)
     {
         return ST_NO_ERROR;
     }
 
-    LOG_INFO("%s %s shutting down - trace closing",
-             ST_APP_NAME, ST_APP_VERSION);
-    trace_flush_compact();
-
-    /* Close GUI window if still open */
+    /* -- [TRACE]25. Close the GUI window if still open -- */
     if (g_trace_ptCtx.bOpen == ST_TRUE)
     {
-        trace_close();
+        if (gui_is_initialized()) trace_gui_close();
     }
 
     eResult = ST_NO_ERROR;
 
+    LOG_INFO("%s %s shutting down - trace closing - bye folks",
+             ST_APP_NAME, ST_APP_VERSION);
+
+    /* -- [TRACE]26. Close the trace log file -- */
     if (g_trace_ptCtx.pFile != NULL)
     {
         if (fclose(g_trace_ptCtx.pFile) != 0)
@@ -780,11 +779,10 @@ st_error_t trace_shutdown(void)
         g_trace_ptCtx.pFile = NULL;
     }
 
-    g_trace_ptCtx.bInitialised  = ST_FALSE;
-    g_trace_ptCtx.bOpen         = ST_FALSE;
-    g_trace_ptCtx.bTraceEnabled = ST_TRUE;
-    g_trace_ptCtx.iCompactCount = 0;
-    g_trace_ptCtx.szLastFunc[0] = '\0';
+    /* -- [TRACE]27. Reset trace context state to uninitialized -- */
+    memset(&g_trace_ptCtx, 0, sizeof(g_trace_ptCtx));
+    g_trace_ptCtx.ulMagic = 0xCAFEDECA;
+    g_trace_ptCtx.eObject = ST_TRACE_CTX;
 
     return eResult;
 }

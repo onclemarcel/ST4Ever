@@ -409,4 +409,6 @@ st_error_t gui_clipboard_get_text(char *szBuf, size_t uiMax);
 st_error_t gui_find_window_by_type(gui_wnd_type_t  eType,
                                     gui_window_t   *phWnd);
 
+st_bool_t gui_is_initialized();
+
 #endif /* GUI_H */

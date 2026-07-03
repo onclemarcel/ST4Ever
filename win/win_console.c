@@ -157,11 +157,14 @@ st_u64_t win_console_init(void)
 st_error_t win_console_shutdown(void)
 {
     LOG_TRACE("Cleaning internal states");
-    
-    g_win_console_ptCtx.eStdinType    = WIN_STDIN_UNKNOWN;
-    g_win_console_ptCtx.hStdin        = INVALID_HANDLE_VALUE;
-    g_win_console_ptCtx.dwOrigConMode = 0;
 
+    memset(&g_win_console_ptCtx, 0, sizeof(g_win_console_ptCtx));
+    g_win_console_ptCtx.ulMagic    = 0xCAFEDECA;
+    g_win_console_ptCtx.eObject    = ST_WIN_CONSOLE_CTX;
+    g_win_console_ptCtx.eStdinType = WIN_STDIN_UNKNOWN;
+    g_win_console_ptCtx.hStdin     = INVALID_HANDLE_VALUE;
+
+    LOG_INFO("windows console shutdown complete");
     return ST_NO_ERROR;
 }
 

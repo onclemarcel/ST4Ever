@@ -35,7 +35,7 @@ int main(void)
     printf("=== UC4.4: GUI Trace Window ===\n\n");
 
     /* ----------------------------------------------------------------
-     * BLOCK 1 — gui_init (required before trace_open opens a window)
+     * BLOCK 1 — gui_init (required before trace_gui_open opens a window)
      * ----------------------------------------------------------------
      * INTENT[INT-TRC-020 → TC-TRC-017 → REQ-TRC-017 → UFR-CON-004]:
      * gui_init() must succeed before any GUI window can be opened.
@@ -44,7 +44,7 @@ int main(void)
     UC_CHECK("[N] gui_init succeeds", gui_init());
 
     /* ----------------------------------------------------------------
-     * BLOCK 2 — trace_init / trace_open / trace_close lifecycle
+     * BLOCK 2 — trace_init / trace_gui_open / trace_close lifecycle
      * ----------------------------------------------------------------
      * INTENT[INT-TRC-021 → TC-TRC-018 → REQ-TRC-001 → UFR-CON-004]:
      * trace_init(ST_FALSE) initialises the subsystem without opening
@@ -60,14 +60,14 @@ int main(void)
 
     /*
      * INTENT[INT-TRC-022 → TC-TRC-020 → REQ-TRC-017 → UFR-TRC-007]:
-     * trace_open() opens the D2D GUI window; trace_is_open() returns ST_TRUE.
+     * trace_gui_open() opens the D2D GUI window; trace_is_open() returns ST_TRUE.
      * The window shall not steal keyboard focus from the console.
      */
-    printf("--- trace_open opens GUI window ---\n");
-    UC_CHECK("[N] trace_open() succeeds", trace_open());
+    printf("--- trace_gui_open opens GUI window ---\n");
+    UC_CHECK("[N] trace_gui_open() succeeds", trace_gui_open());
 
     iState = (int)trace_is_open();
-    UC_TEST("[N] trace_is_open() == ST_TRUE after trace_open",
+    UC_TEST("[N] trace_is_open() == ST_TRUE after trace_gui_open",
             iState == (int)ST_TRUE);
 
     /* Let the GUI window fully initialise and render once */
@@ -95,13 +95,13 @@ int main(void)
 
     /*
      * INTENT[INT-TRC-024 → TC-TRC-022 → REQ-TRC-017 → UFR-TRC-007]:
-     * Double trace_open() is idempotent: a second call while already
+     * Double trace_gui_open() is idempotent: a second call while already
      * open must return ST_NO_ERROR and leave the window open without
      * creating a second window.
      */
     printf("--- double open (robustness) ---\n");
-    UC_CHECK("[R] second trace_open() idempotent (ST_NO_ERROR)",
-             trace_open());
+    UC_CHECK("[R] second trace_gui_open() idempotent (ST_NO_ERROR)",
+             trace_gui_open());
 
     iState = (int)trace_is_open();
     UC_TEST("[R] trace_is_open() still ST_TRUE after double open",
@@ -135,11 +135,11 @@ int main(void)
     UC_TEST("[N] trace_is_open() == ST_FALSE after shutdown",
             iState == (int)ST_FALSE);
 
-    /* Shutdown with open window: trace_open then trace_shutdown */
+    /* Shutdown with open window: trace_gui_open then trace_shutdown */
     UC_CHECK("[N] trace_init for shutdown-while-open test",
              trace_init(ST_FALSE));
-    UC_CHECK("[N] trace_open for shutdown-while-open test",
-             trace_open());
+    UC_CHECK("[N] trace_gui_open for shutdown-while-open test",
+             trace_gui_open());
     platform_sleep_ms(100);
     UC_CHECK("[N] trace_shutdown() closes open window cleanly",
              trace_shutdown());
@@ -157,7 +157,7 @@ int main(void)
     /* Re-init for manual tests */
     gui_init();
     trace_init(ST_FALSE);
-    trace_open();
+    trace_gui_open();
     platform_sleep_ms(200);
 
     LOG_INFO("Manual test: INFO line — should appear in CYAN");

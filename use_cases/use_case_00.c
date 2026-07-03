@@ -5,16 +5,22 @@
  *   INTENT[INT-xxx-NNN → TC-xxx-NNN → REQ-xxx-NNN -> UFR-xxx-NNN]
  *
  * TEST MATRIX:
- *   [N] Nominal    : 44 tests  - all public functions & static functions
+ *   [N] Nominal    : 62 tests  - all public functions & static functions
  *   [R] Robustness : 7  tests  - NULL params, out-of-bounds addresses,
  *                                double init/close, alignment errors
  *   [S] Skipped    : xx tests  - Manual test to complete coverage
  *
  * Test groups:
  *   Group 1: Management of ST4Ever application options
- * 
+ *
  *   Group 2-8: Initialization functions chain & capture of the context
  *            structures
+ *
+ *   Group 9: Shutdown sequence - exercises every *_shutdown() in the
+ *            exact order used by ST4Ever_shutdown() and checks that
+ *            each context remains a recognized object (magic + eObject
+ *            intact) afterward - st_shutdown() is the reference pattern
+ *            the other *_shutdown() functions were homogenized with.
  *
  * Exit code: ST_NO_ERROR = all tests passed, ST_ERROR = one or more failures.
  */
@@ -57,6 +63,15 @@ static char* g_uc00_szArgs_help_long[]       = {"Test.exe", "--trace",
  * Code Coverage:
  *   main.c:
  *   -- [MAIN]1. Parse command-line options --
+ *   -- [MAIN]10. Recognize -t/--trace and set bTraceAtStart --
+ *   -- [MAIN]11. Reject --script if it has no following
+ *              argument --
+ *   -- [MAIN]12. Reject --script if the next token looks
+ *              like another option --
+ *   -- [MAIN]13. Store the script file name --   
+ *   -- [MAIN]14. Recognize -h/--help, print usage and quit --
+ *   -- [MAIN]15. Reject any unrecognized option --
+ *   -- [MAIN]23. Show the help message (only in release mode) --               
  * 
  * Parameters:
  *   None
@@ -83,7 +98,7 @@ static void uc00_manage_options()
                 (ptCtx->bTraceAtStart == ST_FALSE)); 
     } else printf("  [SKIP] (TC-APP-001) ST_MAIN_CTX Object Check failed\n\n");
 
-    /* --- [MAIN]1.1 Manage the Trace Console option --- */
+    /* -- [MAIN]10. Recognize -t/--trace and set bTraceAtStart -- */
     /* INTENT[INT-APP-002 → TC-APP-002...004 → REQ-xxx-yyy → UFR-xxx-yyy]:
      * -t|--trace option is captured and bTraceAtStart is set to TRUE */
     ptCtx = (ST4Ever_context_t*)ST4Ever_init(2, g_uc00_szArgs_trace_short);
@@ -113,7 +128,11 @@ static void uc00_manage_options()
                  (ptCtx->bTraceAtStart == ST_TRUE)); 
     } else printf("  [SKIP] (TC-APP-004) ST_MAIN_CTX Object Check failed\n\n");
 
-    /* --- [MAIN]1.2 Manage the input script option --- */
+    /* -- [MAIN]11. Reject --script if it has no following
+     *              argument -- */
+    /* -- [MAIN]12. Reject --script if the next token looks
+     *              like another option -- */        
+    /* -- [MAIN]13. Store the script file name -- */
     /* INTENT[INT-APP-003 → TC-APP-005...010 → REQ-xxx-yyy → UFR-xxx-yyy]:
      * --script option is captured with its file name stored in szScriptFile */
     ptCtx = (ST4Ever_context_t*)ST4Ever_init(4, g_uc00_szArgs_trace_last);
@@ -148,7 +167,8 @@ static void uc00_manage_options()
                           strlen(ptCtx->szScriptFile)) == 0));  
     } else printf("  [SKIP] (TC-APP-009...010) ST_MAIN_CTX Object Check failed\n\n");
 
-    /* --- [MAIN]1.3 Manage help option --- */
+    /* -- [MAIN]14. Recognize -h/--help, print usage and quit -- */
+    /* -- [MAIN]23. Show the help message (only in release mode) -- */
     /* INTENT[INT-APP-004 → TC-APP-011...012 → REQ-xxx-yyy → UFR-xxx-yyy]:
      * -h|--help is captured and application quits */
     ptCtx = (ST4Ever_context_t*)ST4Ever_init(2, g_uc00_szArgs_help_short);
@@ -160,7 +180,7 @@ static void uc00_manage_options()
     UC_TEST("[R] (TC-APP-012) Launch ST4Ever with --help in the middle", 
                 ((st_u64_t)ptCtx == ST_QUIT));
 
-    /* --- [MAIN]1.4 Manage unknown options --- */
+    /* -- [MAIN]15. Reject any unrecognized option -- */
     /* INTENT[INT-APP-005 → TC-APP-013...014 → REQ-xxx-yyy → UFR-xxx-yyy]:
      * incorrect short/long options are captured, init sends ST_ERROR */
     ptCtx = (ST4Ever_context_t*)ST4Ever_init(3, g_uc00_szArgs_err_short);
@@ -312,8 +332,7 @@ static void uc00_check_win_console()
  *   -- [TRACE]1. Log Information if already initialised --
  *   -- [TRACE]2. If not initialized, open TRACE_LOG file for writing --
  *   -- [TRACE]3. Init trace context structure --
- *   -- [TRACE]4. If input parameter is TRUE, open the GUI console --
- *   -- [TRACE]5. Init returns context sructure --
+ *   -- [TRACE]4. Init returns context sructure --
  * 
  * Parameters:
  *   None
@@ -328,9 +347,10 @@ static void uc00_trace_subsystem()
     printf("\n--- Test group 3: Init Trace Module ---\n");
     
     /* -- [MAIN]3. Init Trace Module -- */
+    /* -- [TRACE]2. If not initialized, open TRACE_LOG file for writing -- */
     /* -- [TRACE]3. Init trace context structure -- */
-    /* -- [TRACE]5. Init returns context sructure -- */
-    /* INTENT[INT-TRC-001 → TC-TRC-001...002 → REQ-xxx-yyy → UFR-xxx-yyy]:
+    /* -- [TRACE]4. Init returns context sructure -- */
+    /* INTENT[INT-TRC-001 → TC-TRC-001...004 → REQ-xxx-yyy → UFR-xxx-yyy]:
      * Check that first call to trace_init() returns the context structure */
     ptCtx = (trace_context_t*)trace_init(ST_FALSE);
     UC_CHECK("(INT-TRC-001) [Chk] Launch trace_init()", (st_u64_t)ptCtx);
@@ -339,50 +359,28 @@ static void uc00_trace_subsystem()
     {
         UC_TEST("[N] (TC-TRC-001) bInitialised is set to true", 
                 (ptCtx->bInitialised == ST_TRUE));
-        UC_TEST("[N] (TC-TRC-002) bTraceEnabled is set to true", 
-                (ptCtx->bTraceEnabled == ST_TRUE));
-        
+        UC_TEST("[N] (TC-TRC-002) Trace are not enabled in GUI by default", 
+                (ptCtx->bGUITraceEnabled == ST_FALSE));
+        UC_TEST("[N] (TC-TRC-003) open file handler is not null", 
+                (ptCtx->pFile != NULL));
+        UC_TEST("[N] (TC-TRC-004) GUI is not initialized", 
+                (ptCtx->ptView == NULL));
         // Forcing dummy value for next test
-        ptCtx->bTraceEnabled = ST_FALSE;
-    } else printf("  [SKIP] (TC-TRC-001...002) ST_TRACE_CTX Object Check failed\n\n");
+        ptCtx->bGUITraceEnabled = ST_TRUE;
+    } else printf("  [SKIP] (TC-TRC-001...004) ST_TRACE_CTX Object Check failed\n\n");
 
     /* -- [TRACE]1. Log Information if already initialised -- */
-    /* INTENT[INT-TRC-002 → TC-TRC-003 → REQ-xxx-yyy → UFR-xxx-yyy]:
+    /* INTENT[INT-TRC-002 → TC-TRC-005 → REQ-xxx-yyy → UFR-xxx-yyy]:
      * Check that second call still returns the structure (no error) */
     ptCtx = (trace_context_t*)trace_init(ST_TRUE);
-    UC_CHECK("(INT-TRC-002) [Chk] Forcing bTraceEnabled to FALSE & re-launch trace_init()"
+    UC_CHECK("(INT-TRC-002) [Chk] Forcing bGUITraceEnabled to ST_TRUE & re-launch trace_init()"
               , (st_u64_t)ptCtx);
     UC_CHECK_OBJ(ptCtx, ST_TRACE_CTX);
     if (gIsObject) 
     {
-        UC_TEST("[N] (TC-TRC-003) bTraceEnabled is kept to false", 
-                (ptCtx->bTraceEnabled == ST_FALSE));
-
-        // Reset bInitialized 
-        ptCtx->bInitialised = ST_FALSE;
-    } else printf("  [SKIP] (TC-TRC-003) ST_TRACE_CTX Object Check failed\n\n");    
-    
-    /* -- [TRACE]2. If not initialized, open TRACE_LOG file for writing -- */
-    /* -- [TRACE]4. If input parameter is TRUE, open the GUI console -- */
-    /* INTENT[INT-TRC-003 → TC-TRC-004...007 → REQ-xxx-yyy → UFR-xxx-yyy]:
-     * Re-init trace subsystem and call GUI (while gui is not initialized)
-     * This should returns the context structure with ptView set to NULL but
-     * with pFile set to not NULL (open file succeeded) */
-    ptCtx = (trace_context_t*)trace_init(ST_TRUE);
-    UC_CHECK("(INT-TRC-003) [Chk] Forcing bInitialized to FALSE and re-launch trace_init(TRUE)"
-              , (st_u64_t)ptCtx);
-    UC_CHECK_OBJ(ptCtx, ST_TRACE_CTX);
-    if (gIsObject) 
-    {
-        UC_TEST("[N] (TC-TRC-004) bInitialised is set to true", 
-                (ptCtx->bInitialised == ST_TRUE));
-        UC_TEST("[N] (TC-TRC-005) bTraceEnabled is set to true", 
-                (ptCtx->bTraceEnabled == ST_TRUE));
-        UC_TEST("[N] (TC-TRC-006) open file handler is not null", 
-                (ptCtx->pFile != NULL));
-        UC_TEST("[N] (TC-TRC-007) GUI is not initialized", 
-                (ptCtx->ptView == NULL));
-    } else printf("  [SKIP] (TC-TRC-004...007) ST_TRACE_CTX Object Check failed\n\n");
+        UC_TEST("[N] (TC-TRC-005) bGUITraceEnabled is kept to TRUE", 
+                (ptCtx->bGUITraceEnabled == ST_TRUE));
+    } else printf("  [SKIP] (TC-TRC-005) ST_TRACE_CTX Object Check failed\n\n");    
     
 }
 
@@ -735,8 +733,150 @@ static void uc00_console_module()
     {
         UC_TEST("[N] (TC-CON-010) Script name is updated", 
                       strcmp(ptCtx->szScriptFile, "script.txt") == 0);
-    } else printf("  [SKIP] (TC-CON-010) ST_LINE_CTX Object Check failed\n\n");    
-    
+    } else printf("  [SKIP] (TC-CON-010) ST_LINE_CTX Object Check failed\n\n");
+
+}
+
+/*
+ * uc00_shutdown_sequence() - Shutdown all modules in the exact order
+ *                            used by ST4Ever_shutdown() and verify each
+ *                            context remains a recognized object (magic
+ *                            + eObject intact) afterward.
+ *
+ * st_shutdown() is the reference/canonical pattern (full memset, then
+ * ulMagic/eObject restored) - line_shutdown()/load_shutdown() used to
+ * memset without restoring the magic, and gui_shutdown()/exec_shutdown()/
+ * trace_shutdown() only reset a handful of fields; all six were
+ * homogenized with st_shutdown()'s pattern before writing this test, so
+ * that a single, uniform assertion ("still a recognized object, freshly
+ * reset") holds for every module.
+ *
+ * Code Coverage:
+ *   main.c:
+ *   -- [MAIN]16. Shutdown Main Console --
+ *   -- [MAIN]17. Shutdown 'exec' command --
+ *   -- [MAIN]18. Shutdown 'load' command --
+ *   -- [MAIN]19. Shutdown Virtual ST machine --
+ *   -- [MAIN]20. Shutdown GUI Module --
+ *   -- [MAIN]21. Shutdown Trace Module --
+ *
+ *   ST.c:
+ *   -- [ST]30. Reset the ST Machine context to power-off state --
+ *
+ *   trace.c:
+ *   -- [TRACE]24. Do nothing if trace module is not initialized --
+ *   -- [TRACE]25. Close the GUI window if still open --
+ *   -- [TRACE]26. Close the trace log file --
+ *   -- [TRACE]27. Reset trace context state to uninitialized --
+ *
+ * Parameters:
+ *   None
+ *
+ * Returns:
+ *   Void
+ */
+static void uc00_shutdown_sequence()
+{
+    line_context_t*       ptLineCtx;
+    exec_context_t*       ptExecCtx;
+    load_context_t*       ptLoadCtx;
+    st_machine_context_t* ptSTCtx;
+    gui_context_t*        ptGUICtx;
+    trace_context_t*      ptTrcCtx;
+    st_error_t             eResult;
+
+    printf("\n--- Test group 9: Shutdown sequence "
+           "(ST4Ever_shutdown order) ---\n");
+
+    ptSTCtx   = (st_machine_context_t*)st_init(NULL);
+    ptLineCtx = (line_context_t*)line_init("");
+    ptExecCtx = (exec_context_t*)exec_init((st_u64_t)ptSTCtx);
+    ptLoadCtx = (load_context_t*)load_init((st_u64_t)ptSTCtx);
+    ptGUICtx  = (gui_context_t*)gui_init();
+    ptTrcCtx  = (trace_context_t*)trace_init(ST_FALSE);
+
+    /* -- [MAIN]16. Shutdown Main Console -- */
+    /* -- [MAIN]17. Shutdown 'exec' command -- */
+    /* -- [MAIN]18. Shutdown 'load' command -- */
+    /* -- [MAIN]19. Shutdown Virtual ST machine -- */
+    /* -- [ST]30. Reset the ST Machine context to power-off state -- */
+    /* -- [MAIN]20. Shutdown GUI Module -- */
+    /* -- [MAIN]21. Shutdown Trace Module -- */
+    /* INTENT[INT-APP-006 → TC-APP-015 → REQ-xxx-yyy → UFR-xxx-yyy]:
+     * ST4Ever_shutdown() must shut down every subsystem in one call
+     * and return exactly ST_NO_ERROR when none of them fails -
+     * eExitCode must not leak uninitialized stack content on the
+     * all-success path (BUG found manually: it used to be declared
+     * without an initializer and only ever assigned in failure
+     * branches, so a fully successful shutdown returned garbage) */
+    eResult = ST4Ever_shutdown();
+    UC_INFO("(INT-APP-006) ST4Ever_shutdown() full orchestration");
+    UC_TEST("[N] (TC-APP-015) ST4Ever_shutdown() returns exactly"
+            " ST_NO_ERROR when every subsystem shuts down cleanly",
+            eResult == ST_NO_ERROR);
+
+    UC_CHECK_OBJ(ptLineCtx, ST_LINE_CTX);
+    UC_TEST("[N] (TC-CON-011) context is still a recognized object"
+            " after line_shutdown()", gIsObject);
+    if (gIsObject)
+    {
+        UC_TEST("[N] (TC-CON-012) bRunning is reset to ST_FALSE",
+                ptLineCtx->bRunning == ST_FALSE);
+    } else printf("  [SKIP] (TC-CON-012) ST_LINE_CTX Object Check failed\n\n");
+
+    UC_CHECK_OBJ(ptExecCtx, ST_EXEC_CTX);
+    UC_TEST("[N] (TC-EXE-004) context is still a recognized object"
+            " after exec_shutdown()", gIsObject);
+    if (gIsObject)
+    {
+        UC_TEST("[N] (TC-EXE-005) bInitOK is reset to ST_FALSE",
+                ptExecCtx->bInitOK == ST_FALSE);
+    } else printf("  [SKIP] (TC-EXE-005) ST_EXEC_CTX Object Check failed\n\n");
+
+    UC_CHECK_OBJ(ptLoadCtx, ST_LOAD_CTX);
+    UC_TEST("[N] (TC-LOD-003) context is still a recognized object"
+            " after load_shutdown()", gIsObject);
+    if (gIsObject)
+    {
+        UC_TEST("[N] (TC-LOD-004) bIsMachineOn is reset to ST_FALSE",
+                ptLoadCtx->bIsMachineOn == ST_FALSE);
+    } else printf("  [SKIP] (TC-LOD-004) ST_LOAD_CTX Object Check failed\n\n");
+
+    UC_CHECK_OBJ(ptSTCtx, ST_MACHINE_CTX);
+    UC_TEST("[N] (TC-STM-053) context is still a recognized object"
+            " after st_shutdown()", gIsObject);
+    if (gIsObject)
+    {
+        UC_TEST("[N] (TC-STM-054) bPoweredOn is reset to ST_FALSE",
+                ptSTCtx->bPoweredOn == ST_FALSE);
+    } else printf("  [SKIP] (TC-STM-054) ST_MACHINE_CTX Object Check failed\n\n");
+
+    UC_CHECK_OBJ(ptGUICtx, ST_GUI_CTX);
+    UC_TEST("[N] (TC-GUI-008) context is still a recognized object"
+            " after gui_shutdown()", gIsObject);
+    if (gIsObject)
+    {
+        UC_TEST("[N] (TC-GUI-009) bInit is reset to ST_FALSE",
+                ptGUICtx->bInit == ST_FALSE);
+    } else printf("  [SKIP] (TC-GUI-009) ST_GUI_CTX Object Check failed\n\n");
+
+    /* -- [TRACE]24. Do nothing if trace module is not initialized -- */
+    /* -- [TRACE]25. Close the GUI window if still open -- */
+    /* -- [TRACE]26. Close the trace log file -- */
+    /* -- [TRACE]27. Reset trace context state to uninitialized -- */
+    /* INTENT[INT-TRC-008 → TC-TRC-024...025 → REQ-xxx-yyy → UFR-xxx-yyy]:
+     * trace_shutdown() must reset the trace context to a clean state,
+     * while it remains a recognized ST_TRACE_CTX object - it must run
+     * last: no further LOG_* call is guaranteed to reach the log file
+     * afterward */
+    UC_CHECK_OBJ(ptTrcCtx, ST_TRACE_CTX);
+    UC_TEST("[N] (TC-TRC-024) context is still a recognized object"
+            " after trace_shutdown()", gIsObject);
+    if (gIsObject)
+    {
+        UC_TEST("[N] (TC-TRC-025) bInitialised is reset to ST_FALSE",
+                ptTrcCtx->bInitialised == ST_FALSE);
+    } else printf("  [SKIP] (TC-TRC-025) ST_TRACE_CTX Object Check failed\n\n");
 }
 
 
@@ -764,10 +904,10 @@ int main(void)
     uc00_load_module();
     uc00_exec_module();
     uc00_console_module();
-    
-    /* Close the log function */
-    printf("\n--- Shutdown ---\n");
-    trace_shutdown();
+
+    /* Shutdown sequence - exercises every *_shutdown(), including the
+     * final trace_shutdown() (no separate cleanup call needed) */
+    uc00_shutdown_sequence();
     printf("  [INFO] trace_shutdown() complete - "
            "see st4ever_trace.log for full trace\n");
 

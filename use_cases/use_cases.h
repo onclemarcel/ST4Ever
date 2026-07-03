@@ -81,6 +81,12 @@ extern st_bool_t gIsObject;
         UC_TEST(desc, _e != ST_ERROR); \
     } while (0)
 
+/* Just print a line as info - usually to show the INT-xxx-yyy reference */
+#define UC_INFO(desc)   \
+    do {    \
+        printf("  [INFO] %s\n", (desc)); \
+    } while(0)      
+
 /* Check if the pointer is a registered ST4Ever structure */
 #define UC_CHECK_OBJ(pt, type) \
     do { \

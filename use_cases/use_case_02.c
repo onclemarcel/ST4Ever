@@ -49,9 +49,9 @@ static void test_trace_toggle(void)
 
     /* INTENT[INT-TRC-011 → TC-TRC-011 → REQ-TRC-011]:
      * `trace` (no arg) must open the console when it is closed.
-     * Simulates: if (!trace_is_open()) trace_open() */
-    UC_CHECK("[N] trace_open()  [toggle: closed -> open]",
-             trace_open());
+     * Simulates: if (!trace_is_open()) trace_gui_open() */
+    UC_CHECK("[N] trace_gui_open()  [toggle: closed -> open]",
+             trace_gui_open());
     UC_TEST("[N] trace_is_open() == TRUE after toggle-open",
             trace_is_open() == ST_TRUE);
 
@@ -69,8 +69,8 @@ static void test_trace_toggle(void)
      * trace_set_trace_enabled) */
     UC_CHECK("[N] trace_set_trace_enabled(TRUE) before toggle",
              trace_set_trace_enabled(ST_TRUE));
-    UC_CHECK("[N] trace_open()  [toggle: verify enabled unchanged]",
-             trace_open());
+    UC_CHECK("[N] trace_gui_open()  [toggle: verify enabled unchanged]",
+             trace_gui_open());
     UC_TEST("[N] trace_is_trace_enabled() unchanged after toggle-open",
             trace_is_trace_enabled() == ST_TRUE);
     UC_CHECK("[N] trace_close()  [toggle: verify enabled unchanged]",
@@ -88,12 +88,12 @@ static void test_trace_on(void)
     printf("\n--- Test group 2: trace on ---\n");
 
     /* Precondition: console closed, trace_enabled TRUE (from group 1).
-     * Simulates the sequence: trace_open() + trace_set_trace_enabled */
+     * Simulates the sequence: trace_gui_open() + trace_set_trace_enabled */
 
     /* INTENT[INT-TRC-014 → TC-TRC-014 → REQ-TRC-012]:
      * `trace on` must open the trace console */
-    UC_CHECK("[N] trace_open()  [trace on: open console]",
-             trace_open());
+    UC_CHECK("[N] trace_gui_open()  [trace on: open console]",
+             trace_gui_open());
     UC_TEST("[N] trace_is_open() == TRUE after trace on",
             trace_is_open() == ST_TRUE);
 
@@ -110,8 +110,8 @@ static void test_trace_on(void)
     /* INTENT[INT-TRC-016 → TC-TRC-016 → REQ-TRC-012]:
      * `trace on` when console already open must be a no-op (open is
      * idempotent per UC1 contract) */
-    UC_TEST("[R] trace_open() idempotent: already open -> ST_NO_ERROR",
-            trace_open() == ST_NO_ERROR);
+    UC_TEST("[R] trace_gui_open() idempotent: already open -> ST_NO_ERROR",
+            trace_gui_open() == ST_NO_ERROR);
     UC_TEST("[R] trace_is_open() still TRUE after second open",
             trace_is_open() == ST_TRUE);
 }
