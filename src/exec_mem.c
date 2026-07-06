@@ -134,7 +134,7 @@ static void exec_mem_render(exec_mem_view_t *ptView)
 
     /* Snapshot PC under mutex */
     platform_mutex_lock(ptState->ptMutex);
-    uiPC = ptState->tCpuSnap.uiPC;
+    uiPC = ptState->tCpuSnap->uiPC;
     platform_mutex_unlock(ptState->ptMutex);
 
     uiRamSize = (st_u32_t)ST_RAM_SIZE;
@@ -320,7 +320,7 @@ static void exec_mem_event_cb(gui_window_t  hWnd,
                     if (ptView->ptState != NULL)
                     {
                         platform_mutex_lock(ptView->ptState->ptMutex);
-                        uiPC = ptView->ptState->tCpuSnap.uiPC;
+                        uiPC = ptView->ptState->tCpuSnap->uiPC;
                         platform_mutex_unlock(ptView->ptState->ptMutex);
                         ptView->uiMemBase = uiPC
                             & ~((st_u32_t)(EXEC_MEM_BYTES_PER_ROW - 1));
@@ -388,7 +388,7 @@ st_error_t exec_mem_open(exec_mem_view_t **pptView)
 
     /* Set initial view position to PC */
     platform_mutex_lock(ptState->ptMutex);
-    ptView->uiMemBase = ptState->tCpuSnap.uiPC
+    ptView->uiMemBase = ptState->tCpuSnap->uiPC
                         & ~((st_u32_t)(EXEC_MEM_BYTES_PER_ROW - 1));
     platform_mutex_unlock(ptState->ptMutex);
 

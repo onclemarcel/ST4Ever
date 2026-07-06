@@ -505,6 +505,23 @@ La vérification de chaque contexte de module (`UC_CHECK_OBJ + if (gIsObject)`) 
 2. Forcer le champ interne à la valeur cible → appeler la fonction → vérifier l'effet (via helper `ucNN_check_log_entry()` ou assertion directe) → **restaurer impérativement** le champ à sa valeur d'origine.
 3. Utiliser des marqueurs textuels uniques et explicites (e.g. `"TRC6_INIT_GUARD"`) dans les `LOG_xxx` de test pour que `uc01_check_log_entry()` ne produise pas de faux positif sur d'autres lignes du log.
 
+**R25 — Procédure de tagging incrémental par groupe de tests** *(établie 2026-07-03, appliquée au Groupe 3 CPU de use_case_01.c)*
+
+Quand Tonton Marcel désigne un groupe de tests existant (bloc de lignes dans un `use_case_NN.c`, typiquement un ancien `test_xxx()` pré-R24) à faire migrer vers la stratégie de traçabilité R24/R23, Claude suit cette séquence — reproductible à l'identique dans une nouvelle fenêtre de contexte :
+
+1. **Identifier les fonctions testées** : lire le bloc de lignes désigné, lister les fonctions publiques du/des fichier(s) `.c` réellement exercées (ignorer les fonctions d'autres modules déjà tagués ailleurs, ex. `st_init()`/`st_write_long()` déjà couverts par `[ST]n`).
+2. **Tagger le(s) `.c` source(s), uniquement les fonctions identifiées, pas à pas** : appliquer la taxonomie établie en session (voir historique de conversation / mémoire) — GUARD (garde de validation), STEP (étape séquentielle d'une fonction d'orchestration), DISPATCH BRANCH (une branche `if/else if`/`switch` par tag, y compris la branche par défaut), RESULT (action finale avant `return`). Ne tagger que les branches réellement exercées par les tests de CE groupe — pas la totalité d'un `switch` si seules 2 branches sur 15 sont testées (ex. CPU: seules les branches MOVEQ et Misc/RTS du dispatch de `cpu_step()` ont été tagguées, pas les 13 autres). Les fonctions statiques internes appelées depuis un bloc déjà taggué restent non-tagguées pour l'instant (cohérent avec R24 : progressif, un tag à la fois).
+3. **Réécrire le groupe de test** : renommer `test_xxx()` → `ucNN_test_xxx()`, ajouter le docstring `Code Coverage:` (liste des tags recopiés), recopier chaque tag inline juste avant le bloc `INTENT[...]` qu'il documente (R24), reformuler les `UC_TEST`/`UC_CHECK` avec le format `(TC-xxx-NNN)` (R23). **Profiter de cette réécriture pour corriger les assertions obsolètes** trouvées en cours de route (R14 : bug réel → corriger le code ; comportement stub→réel → adapter l'assertion). Ne pas se contenter de faire passer les tests : comprendre *pourquoi* un test échouait avant de le modifier (dans le cas CPU, un test « robustesse » appelait par erreur `cpu_step()` avec des arguments valides au lieu de `NULL`, ce qui exécutait une vraie instruction et décalait toute la séquence de pas — les 5 échecs pré-existants de UC1 venaient tous de ce même bloc et ont été résolus par la restructuration).
+4. **Valider avec `python3 tools/check_tags.py --strict`** (et `--module <MODULE>` pour un rapport ciblé) : 0 erreur attendu (tags malformés, unicité INT/TC, cohérence header↔inline↔INTENT, correspondance use_case↔source). Compléter avec `make tests` : 0 warning, 0 failure (R14 §4).
+5. **Rendre la main à Tonton Marcel** pour relecture des tests et des comportements identifiés — ne pas clore le groupe/UC sans validation explicite.
+
+Cette procédure est **indépendante du module** : elle s'applique identiquement au Groupe 4 (disassembler stub, `disasm_range()`) et aux groupes suivants. Pour reprendre dans une nouvelle fenêtre de contexte : relire ce paragraphe R25, identifier le prochain groupe désigné par Tonton Marcel, et exécuter les 5 étapes.
+
+**Ne pas dupliquer une vérification déjà garantie par l'ordre séquentiel des tests** *(ajouté suite à relecture Groupe 3, 2026-07-03)* : `main()` de chaque `use_case_NN.c` appelle les groupes dans un ordre fixe, bloquant sur `UC_CHECK_OBJ` en cas d'échec (cf `if (gIsObject) { ucNN_test_a(); ucNN_test_b(); ... }`). Un groupe qui s'exécute APRÈS un autre peut donc supposer que : (a) l'init globale (`ST4Ever_init()`) a réussi, et (b) tout champ forcé à une valeur de test par un groupe précédent a été restauré (règle §4/R24 « restaurer impérativement »). En conséquence :
+- Ne **pas** ré-appeler `xxx_init()` avec un `UC_CHECK` en tête d'un nouveau groupe juste pour « re-tester » une init déjà couverte par UC0/le groupe précédent — c'est redondant et n'apporte aucune couverture supplémentaire (exemple corrigé : `UC_CHECK("[N] st_init()", st_init(NULL));` retiré du Groupe 3 CPU).
+- Si un état précis doit néanmoins être vérifié en tête de groupe (cas rare), récupérer le pointeur de contexte réel (`ptCtx->ptXxxCtx`) et inspecter les champs directement — ne pas se fier à la seule valeur de retour d'un appel d'init répété.
+- Un appel d'init reste légitime quand il **restaure un état que CE groupe vient lui-même de casser** (ex. `st_shutdown()` suivi de `st_init(NULL)` pour tester `cpu_init()` machine éteinte, puis remettre la machine ON avant la suite) — ce n'est pas une duplication, c'est le nettoyage prescrit par R24.
+
 
 ## 6. Use Cases
 
@@ -568,6 +585,7 @@ Les étapes de développement fonctionnelles sont formalisées en Use Cases, per
 | UC30E | interne | Assembleur DEVPAC3 — torture test : SOURCE.S (4072 lignes) → SOURCE.PRG byte-exact — 4 bugs corrigés : CCR/SR, EXG An↔Am, BTST ext words, header PRG size — 8 tests PASS | ✓ VALIDÉ 2026-06-14 |
 | UC30F | interne | Désassemblage GEN.TTP (assembleur DEVPAC3 d'origine, 68000 pur ~1988) — annotation des blocs fonctionnels (lexer, symbol table, encodeur EA) + comparaison architecturale avec UC30A-E + extraction patterns 68000 pour UC33 | ✓ VALIDÉ 2026-06-14 — `GEN_DISASM.md` + `use_case_30F.c` + `GEN_DISASM.s` (23078 instr.) + `GEN_STRINGS.txt` + `GEN_RELOC.txt` + `GEN_HEADER.txt` ; `GEN_DISASM_annotated.s` généré par UC30G |
 | UC30G | interne | Moteur d'annotation désassemblé 68000 — `annotate.h/c` pipeline 6 passes (réalignement EVEN pads, fixup labels, sub_/loc_/bra_, 9 patterns prologue/épilogue/retour) + `annot_db_t` + `annot_fix_region_t` + émission avec substitution fix regions — génère `GEN_DISASM_annotated.s` (1.4 Mo) | ✓ VALIDÉ 2026-06-18 — 18 tests PASS (14N+4R) 0 fail |
+| UC30H | interne | Corrections techniques accumulées pendant la campagne de tagging R25 (`use_case_00.c`→`use_case_NN.c`, un groupe de test à la fois) — bugs/incohérences repérés en cours de route mais différés pour ne pas interrompre la stratégie de test (liste : voir §7, propositions taguées "UC30H"). Traité **après** que tous les groupes de tests existants aient été migrés vers R23/R24/R25, **avant** UC31 | liste de correctifs appliqués + tests associés à jour, `make tests` 0 warning/0 failure |
 | UC31 | all | Démo cible via émulateur ST4Ever (choisie parmi candidats §9.4) : référence visuelle validée + désassemblé complet extrait — **pivot émulation → revival** | démo reconnue + .s extrait |
 | UC32A | `analyze` | Moteur d'analyse statique PRG — modules `src/prg.h/c` (header exposé, symtab DRI, reloc bitmap, segmap byte/byte) + `src/prg_analyze.h/c` (runtime detector GFA/PureC/ASM, prologue scanner, trap scanner statique GEMDOS/XBIOS, compiler identifier) + `src/boot_analyze.h/c` (boot sector parser + disasm wrapper) + commande console `analyze <file.prg>` | rapport `analyze` : type/compiler/fonctions/TRAPs sur démo cible |
 | UC32B | `analyze --cfg` | CFG statique — `src/prg_cfg.h/c` : basic blocks, arcs BSR/BRA/DBcc/JMP, résolution jump tables SELECT/CASE, détection handlers VBL/HBL installés ($0070) | VBL handler identifié + install vector confirmé sur démo cible |
@@ -1695,6 +1713,26 @@ blitter loop, scrolltext, palette) ont leurs indicateurs déjà présents dans
 | P67 (UC32C — annotation + patterns) | ACCEPTÉ | UC32C |
 
 *Séquence cible : UC30D/E/F → UC31 → UC32A → UC32B → UC32C → UC32 (session manuelle) → UC33+*
+
+---
+
+### Arbitrage — remarque post-Groupe 3 R25 (2026-07-03)
+
+**P68 — `cpu_fetch_word()` avale l'erreur `st_read_word()` (machine éteinte / bus error non propagé)** → **ACCEPTÉ DIFFÉRÉ — UC30H**
+
+Repéré par Tonton Marcel en relisant la restructuration R25 du Groupe 3 (`uc01_test_cpu()`) : `cpu_fetch_word()` (`CPU.c:38`) retourne `st_u16_t`, pas `st_error_t` — si `st_read_word()` échoue (machine éteinte, bus error), l'erreur est journalisée (`LOG_ERROR`) mais **pas remontée** : la fonction retourne `0xFFFFu` comme si c'était un mot lu valide, et `uiPC` avance quand même. Conséquence concrète : `cpu_step()` sur une machine éteinte décode `0xFFFF` comme un opcode Line-F et lève une exception — au lieu de renvoyer proprement `ST_ERROR` avec un message clair.
+
+Question posée : faut-il un pointeur croisé entre `cpu68k_t` et `st_machine_context_t` pour que `CPU.c` puisse vérifier `bPoweredOn` directement ?
+
+Avis Claude : **REFUSÉ** (dans les deux sens — `st_machine_context_t*` dans `cpu68k_t`, ou l'inverse). Aucune fonction `st_read_*()`/`st_write_*()` n'accepte de paramètre de contexte (singleton global pur, seul module du projet fonctionnant ainsi) ; un pointeur croisé créerait une API à deux vitesses pour un bénéfice étroit. Un pointeur `cpu68k_t*` dans `st_machine_context_t` inverserait en plus la dépendance de couche (le bus mémoire n'a pas à connaître le CPU). Il n'existe qu'une seule instance de `g_st_machine_ptCtx` dans tout le projet — aucun besoin réel de généralité multi-instance.
+
+**Correctif recommandé** (différé) : faire retourner `st_error_t` à `cpu_fetch_word()` avec le mot lu en paramètre `[out]`, conformément à la convention déjà établie du projet (§4.4). `cpu_step()` vérifierait ce retour avant de dispatcher et renverrait `ST_ERROR` proprement au lieu du faux Line-F. Portée : 28 sites d'appel dans `CPU.c` (tous les modes d'adressage étendus) — trop large pour être traité en fin de session sans validation dédiée.
+
+**Décision Tonton Marcel** : ne pas interrompre la campagne de tagging R25 en cours (Groupes 4+ de `use_case_01.c`, puis les `use_case_NN.c` suivants) pour ce correctif. Les corrections techniques de ce type sont accumulées et documentées ici au fil des sessions R25, puis traitées ensemble dans **UC30H** (nouveau, tableau §6, positionné après UC30G et avant UC31) une fois que tous les groupes de tests existants auront été migrés vers R23/R24/R25. Après UC30H, reprise du plan UC à partir d'UC31.
+
+| Proposition | Décision | UC cible |
+|-------------|----------|----------|
+| P68 (cpu_fetch_word ne propage pas l'erreur st_read_word) | ACCEPTÉ DIFFÉRÉ | UC30H |
 
 ---
 

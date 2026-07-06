@@ -53,11 +53,11 @@
 #define CPU_SR_T    0x8000u   /* Trace mode                          */
 
 /* Helper macros for flag testing */
-#define CPU_FLAG_C(pCpu)  (((pCpu)->uiSR & CPU_SR_C) != 0)
-#define CPU_FLAG_V(pCpu)  (((pCpu)->uiSR & CPU_SR_V) != 0)
-#define CPU_FLAG_Z(pCpu)  (((pCpu)->uiSR & CPU_SR_Z) != 0)
-#define CPU_FLAG_N(pCpu)  (((pCpu)->uiSR & CPU_SR_N) != 0)
-#define CPU_FLAG_X(pCpu)  (((pCpu)->uiSR & CPU_SR_X) != 0)
+#define CPU_FLAG_C(uiSR)  ((uiSR & CPU_SR_C) != 0)
+#define CPU_FLAG_V(uiSR)  ((uiSR & CPU_SR_V) != 0)
+#define CPU_FLAG_Z(uiSR)  ((uiSR & CPU_SR_Z) != 0)
+#define CPU_FLAG_N(uiSR)  ((uiSR & CPU_SR_N) != 0)
+#define CPU_FLAG_X(uiSR)  ((uiSR & CPU_SR_X) != 0)
 
 /* ------------------------------------------------------------------
  * Exception vector table addresses
@@ -94,8 +94,11 @@ typedef enum cpu_state_e
  * Register file
  * ------------------------------------------------------------------ */
 
-typedef struct cpu68k_s
+typedef struct cpu_context_s
 {
+    st_u32_t    ulMagic;                /* Magic ST4Ever OO-like tag */
+    st_object_t eObject;                /* Object type for tests     */
+
     st_u32_t   auDn[8];     /* D0-D7 data registers                  */
     st_u32_t   auAn[8];     /* A0-A7 address registers               */
     st_u32_t   uiSSP;       /* Supervisor stack pointer (A7')        */
@@ -106,7 +109,7 @@ typedef struct cpu68k_s
     /* Performance counters */
     st_u64_t   ulInstrCount;    /* Total instructions executed        */
     st_u64_t   ulCycleCount;    /* Total cycles emulated              */
-} cpu68k_t;
+} cpu_context_t;
 
 /* ------------------------------------------------------------------
  * Step result  (returned by cpu_step)
@@ -135,25 +138,14 @@ typedef struct cpu_step_result_s
  * 0x000004) and sets SR to supervisor mode, interrupt mask = 7.
  *
  * Parameters:
- *   ptCpu     [out] : CPU state to initialise.
- *   ptMachine [in]  : Initialised ST machine (provides reset vector).
+ *    void
  *
- * Returns: ST_NO_ERROR on success, ST_ERROR if either pointer is NULL.
+ * Returns: 
+* Returns:
+ *   Value of the global cpu_context_t structure pointer on success.
+ *   ST_ERROR on ST Memory read error
  */
-st_error_t cpu_init(cpu68k_t *ptCpu);
-
-/*
- * cpu_reset() - Perform a CPU reset (re-read reset vectors).
- *
- * @req REQ-CPU-002, REQ-CPU-003, REQ-CPU-004
- *
- * Parameters:
- *   ptCpu     [in/out] : CPU state.
- *   ptMachine [in]     : ST machine (provides new reset vector).
- *
- * Returns: ST_NO_ERROR on success, ST_ERROR if either pointer is NULL.
- */
-st_error_t cpu_reset(cpu68k_t *ptCpu);
+st_u64_t cpu_init();
 
 /*
  * cpu_step() - Fetch, decode and execute one instruction.
@@ -162,14 +154,11 @@ st_error_t cpu_reset(cpu68k_t *ptCpu);
  *      REQ-CPU-010, REQ-CPU-011
  *
  * Parameters:
- *   ptCpu     [in/out] : CPU state (registers updated).
- *   ptMachine [in/out] : ST machine (memory read/written).
  *   ptResult  [out]    : Execution result (may be NULL).
  *
  * Returns: ST_NO_ERROR on success, ST_ERROR on fatal emulation error.
  */
-st_error_t cpu_step(cpu68k_t           *ptCpu,
-                     cpu_step_result_t  *ptResult);
+st_error_t cpu_step(cpu_step_result_t  *ptResult);
 
 /*
  * cpu_raise_exception() - Push the exception frame and jump to vector.
@@ -177,13 +166,10 @@ st_error_t cpu_step(cpu68k_t           *ptCpu,
  * @req REQ-CPU-040
  *
  * Parameters:
- *   ptCpu     [in/out] : CPU state.
- *   ptMachine [in/out] : ST machine.
  *   uiVector  [in]     : Exception vector address.
  *
  * Returns: ST_NO_ERROR on success, ST_ERROR on stack overflow.
  */
-st_error_t cpu_raise_exception(cpu68k_t     *ptCpu,
-                                 st_u32_t      uiVector);
+st_error_t cpu_raise_exception(st_u32_t      uiVector);
 
 #endif /* CPU_H */

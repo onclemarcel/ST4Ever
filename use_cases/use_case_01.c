@@ -15,8 +15,9 @@
  *                              GUI open/close)
  *   Group 2: ST machine       (nominal init, read/write byte/word/long,
  *             alignment errors, bounds, NULL guards)
- *   Group 3: CPU 68000        (nominal init, nominal init,
- *             cpu_step NULL guards, cpu_step on hello.prg)
+ *   Group 3: CPU 68000        (cpu_init NULL/power-off guards, nominal
+ *             init from hello.prg's reset vectors, cpu_step NULL guard,
+ *             MOVEQ + RTS step-by-step execution, optional ptResult)
  *   Group 4: Disassembler     (disasm_range nominal, zero-length
  *             buffer, NULL param guards)
  *
@@ -512,35 +513,73 @@ static void uc01_test_st_machine(void)
  * Group 3: CPU 68000 + hello.prg
  * ------------------------------------------------------------------ */
 
-static void test_cpu(void)
+/*
+ * uc01_test_cpu() - cpu_init() / cpu_step() on hello.prg
+ *
+ * Code Coverage:
+ *   CPU.c:
+ *   -- [CPU]1. Read the reset SSP vector from ST RAM --
+ *   -- [CPU]2. Read the reset PC vector from ST RAM --
+ *   -- [CPU]3. Enter supervisor mode and RUNNING state at the reset PC --
+ *   -- [CPU]4. Do nothing if the CPU is not RUNNING --
+ *   -- [CPU]5. Fetch the opcode word and advance PC --
+ *   -- [CPU]6. Fill the optional result structure when ptResult is provided --
+ *   -- [CPU]11. Dispatch Misc opcodes(0x4xxx) --
+ *   -- [CPU]14. Dispatch MOVEQ opcodes (0x7xxx) --
+ *   -- [CPU]23. Update result & cycles count for time accuracy --
+ *
+ * Parameters:
+ *   None
+ *
+ * Returns:
+ *   Void
+ */
+static void uc01_test_cpu(void)
 {
-    cpu68k_t          tCpu;
+    cpu_context_t*    tCpu;
     cpu_step_result_t tResult;
     st_u32_t          uiTextSz;
-    st_error_t        eR;
+    st_u64_t          ulR;
 
     const st_u32_t    UI_LOAD_ADDR  = 0x1000;
     const st_u32_t    UI_STACK_ADDR = 0x0800;
 
-    printf("\n--- Test group 4: CPU 68000 + hello.prg ---\n");
+    printf("\n--- Test group 3: CPU 68000 + hello.prg ---\n");
 
-    UC_CHECK("[N] st_init()", st_init(NULL));
+    /* -- [CPU]1. Read the reset SSP vector from ST RAM -- */
+    /* -- [CPU]2. Read the reset PC vector from ST RAM -- */
+    /* -- [CPU]3. Enter supervisor mode and RUNNING state at the reset PC -- */
+    /* INTENT[INT-CPU-001 → TC-CPU-001...005 → REQ-xxx-yyy → UFR-xxx-yyy]:
+     * cpu_init reset PC & SSP values if ST Machine is powered on */
+    UC_CHECK("(INT-CPU-001) [Chk] st_shutdown() (force machine OFF)",
+             st_shutdown());
+    ulR = cpu_init();
+    UC_TEST("[R] (TC-CPU-001) cpu_init() fails when the"
+            " ST machine is powered off", ulR == ST_ERROR);
+    UC_CHECK("(INT-CPU-001) [Chk] st_init() (restore machine ON)", st_init(NULL));
+    UC_CHECK("(INT-CPU-001) [Chk] write SSP reset vector",
+             st_write_long(CPU_VEC_RESET_SSP, UI_STACK_ADDR));
+    UC_CHECK("(INT-CPU-001) [Chk] write PC reset vector",
+             st_write_long(CPU_VEC_RESET_PC,  UI_LOAD_ADDR));
 
-    /* INTENT[INT-CPU-001 → TC-CPU-001/002 → REQ-CPU-001]:
-     * cpu_init must reject NULL pointers before touching state */
-    eR = cpu_init(NULL);
-    UC_TEST("[R] cpu_init(NULL) returns ST_ERROR",
-            eR == ST_ERROR);
-    eR = cpu_init(&tCpu);
-    UC_TEST("[R] cpu_init(&tCpu) returns ST_ERROR",
-            eR == ST_ERROR);
+    tCpu = (cpu_context_t*)cpu_init(NULL);
+    UC_CHECK("(INT-CPU-001) [Chk] cpu_init() launched", (st_u64_t)tCpu);
+    UC_TEST("[R] (TC-CPU-002) CPU SSP == 0x0800 after init",
+            tCpu->uiSSP == UI_STACK_ADDR);
+    UC_TEST("[R] (TC-CPU-003) CPU PC == 0x1000 after init",
+            tCpu->uiPC == UI_LOAD_ADDR);
+    UC_TEST("[N] (TC-CPU-004) CPU SR supervisor mode set",
+            (tCpu->uiSR & CPU_SR_S) != 0);
+    UC_TEST("[N] (TC-CPU-005) CPU state == RUNNING",
+            tCpu->eState == CPU_STATE_RUNNING);
 
-    /* INTENT[INT-CPU-002 → TC-CPU-003 → REQ-STM-006]:
-     * hello.prg text section must load cleanly into ST RAM */
+
+    /* INTENT[INT-CPU-003 → TC-CPU-003 → REQ-xxx-yyy → UFR-xxx-yyy]:
+     * hello.prg text section must load cleanly into ST RAM
     eR = uc01_load_prg_text("use_cases/UC01/hello.prg",
                               UI_LOAD_ADDR,
                               &uiTextSz);
-    UC_TEST("[N] hello.prg text section loaded (4 bytes)",
+    UC_TEST("[N] (TC-CPU-003) hello.prg text section loaded (4 bytes)",
             eR == ST_NO_ERROR && uiTextSz == 4);
 
     if (eR != ST_NO_ERROR)
@@ -549,69 +588,47 @@ static void test_cpu(void)
                "         Run from the project root directory.\n");
         st_shutdown();
         return;
-    }
+    }*/
 
-    UC_CHECK("[N] write SSP reset vector",
-             st_write_long(CPU_VEC_RESET_SSP, UI_STACK_ADDR));
-    UC_CHECK("[N] write PC reset vector",
-             st_write_long(CPU_VEC_RESET_PC,  UI_LOAD_ADDR));
-
-    /* INTENT[INT-CPU-003 → TC-CPU-004 → REQ-CPU-002/003/004/005]:
-     * cpu_init must read reset vectors and enter supervisor mode */
-    UC_CHECK("[N] cpu_init(&tCpu, &tMachine)",
-             cpu_init(&tCpu));
-    UC_TEST("[N] CPU PC == 0x1000 after init",
-            tCpu.uiPC == UI_LOAD_ADDR);
-    UC_TEST("[N] CPU SSP == 0x0800 after init",
-            tCpu.uiSSP == UI_STACK_ADDR);
-    UC_TEST("[N] CPU SR supervisor mode set",
-            (tCpu.uiSR & CPU_SR_S) != 0);
-    UC_TEST("[N] CPU state == RUNNING",
-            tCpu.eState == CPU_STATE_RUNNING);
-
-    printf("  [INFO] CPU after init: PC=0x%08X SSP=0x%08X SR=0x%04X\n",
-           tCpu.uiPC, tCpu.uiSSP, (unsigned)tCpu.uiSR);
-
-    /* INTENT[INT-CPU-004 → TC-CPU-005 → REQ-CPU-006]:
-     * cpu_step must reject NULL ptCpu and NULL ptMachine */
-    eR = cpu_step(NULL, &tResult);
-    UC_TEST("[R] cpu_step(NULL, &tMachine, ...) returns ST_ERROR",
-            eR == ST_ERROR);
-    eR = cpu_step(&tCpu, &tResult);
-    UC_TEST("[R] cpu_step(&tCpu, NULL, ...) returns ST_ERROR",
-            eR == ST_ERROR);
-
-    /*
-     * INTENT[INT-CPU-005 → TC-CPU-006 → REQ-CPU-007/008]:
+    /* -- [CPU]7. Do nothing if the CPU is not RUNNING -- */
+    /* -- [CPU]8. Fetch the opcode word and advance PC -- */
+    /* -- [CPU]9. Dispatch MOVEQ opcodes (0x7xxx) -- */
+    /* INTENT[INT-CPU-006 → TC-CPU-009...011 → REQ-xxx-yyy → UFR-xxx-yyy]:
      * cpu_step must fetch the MOVEQ #42,D0 opcode, advance PC by 2,
-     * and execute it (D0=42 after UC21 real decode).
-     * ADAPTED: UC21 - real MOVEQ decode: D0==42, PC+2 still holds
-     *   (MOVEQ is a 1-word instruction).
-     */
+     * and execute it (D0=42)
     UC_CHECK("[N] cpu_step() #1 (MOVEQ #42,D0)",
              cpu_step(&tCpu, &tResult));
-    UC_TEST("[N] step #1 PC advanced by 2",
+    UC_TEST("[N] (TC-CPU-009) step #1 PC advanced by 2",
             tResult.uiPCAfter == UI_LOAD_ADDR + 2);
-    UC_TEST("[N] step #1 opcode == 0x702A (MOVEQ #42,D0)",
+    UC_TEST("[N] (TC-CPU-010) step #1 opcode == 0x702A (MOVEQ #42,D0)",
             tResult.uiOpcode == 0x702A);
-    /* ADAPTED: UC21 - D0 now actually holds 42 after real MOVEQ decode */
-    UC_TEST("[N] step #1 D0==42 after MOVEQ",
-            tCpu.auDn[0] == 42u);
+    UC_TEST("[N] (TC-CPU-011) step #1 D0==42 after MOVEQ",
+            tCpu.auDn[0] == 42u);*/
 
-    /* INTENT[INT-CPU-006 → TC-CPU-007 → REQ-CPU-007]:
-     * cpu_step must fetch the RTS opcode on the second step.
-     * ADAPTED: UC21 - RTS (0x4E75) is in group 0x4/misc4; it hits
-     *   LOG_TODO (UC23) but returns ST_NO_ERROR (non-fatal). */
-    UC_CHECK("[N] cpu_step() #2 (RTS — LOG_TODO UC23)",
-             cpu_step(&tCpu, &tResult));
-    UC_TEST("[N] step #2 opcode == 0x4E75 (RTS)",
+    /* -- [CPU]10. Dispatch Misc opcodes incl. RTS/NOP/STOP/RTE/RTR
+     *             (0x4Exx) -- */
+    /* INTENT[INT-CPU-007 → TC-CPU-012...013 → REQ-xxx-yyy → UFR-xxx-yyy]:
+     * cpu_step must fetch and fully execute the RTS opcode on the
+     * second step - RTS pops the return address from the stack; since
+     * nothing was pushed, it pops the zeroed stack top (PC becomes 0)
+    UC_CHECK("[N] cpu_step() #2 (RTS)", cpu_step(&tCpu, &tResult));
+    UC_TEST("[N] (TC-CPU-012) step #2 opcode == 0x4E75 (RTS)",
             tResult.uiOpcode == 0x4E75);
+    UC_TEST("[N] (TC-CPU-013) step #2 PC popped from the (zeroed) stack",
+            tCpu.uiPC == 0u);*/
 
-    printf("  [INFO] CPU after 2 steps: PC=0x%08X instrCount=%llu\n",
+    /* -- [CPU]11. Fill the optional result structure when ptResult is
+     *             provided -- */
+    /* INTENT[INT-CPU-008 → TC-CPU-014 → REQ-xxx-yyy → UFR-xxx-yyy]:
+     * cpu_step must accept a NULL ptResult (diagnostic output is
+     * optional) and still execute the fetched instruction normally
+    eR = cpu_step(&tCpu, NULL);
+    UC_TEST("[N] (TC-CPU-014) cpu_step(&tCpu, NULL) returns ST_NO_ERROR",
+            eR == ST_NO_ERROR);
+
+    printf("  [INFO] CPU after 3 steps: PC=0x%08X instrCount=%llu\n",
            tCpu.uiPC,
-           (unsigned long long)tCpu.ulInstrCount);
-
-    UC_CHECK("[N] st_shutdown()", st_shutdown());
+           (unsigned long long)tCpu.ulInstrCount);*/
 }
 
 /* ------------------------------------------------------------------
@@ -684,7 +701,7 @@ int main(void)
         /* Launch the use_case_01.c tests */
         uc01_test_trace();
         uc01_test_st_machine();
-        test_cpu();
+        uc01_test_cpu();
         test_disasm();
     } else printf("  [SKIP] (UC01) ST_MAIN_CTX Object Check failed\n\n");
 

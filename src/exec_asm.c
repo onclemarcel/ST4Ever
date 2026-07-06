@@ -181,7 +181,7 @@ static void exec_asm_render(exec_asm_view_t *ptView)
 
     /* Snapshot PC under mutex */
     platform_mutex_lock(ptState->ptMutex);
-    uiPC = ptState->tCpuSnap.uiPC;
+    uiPC = ptState->tCpuSnap->uiPC;
     platform_mutex_unlock(ptState->ptMutex);
 
     uiRamSize = (st_u32_t)ST_RAM_SIZE;
@@ -406,7 +406,7 @@ static void exec_asm_event_cb(gui_window_t  hWnd,
                     if (cCh == 'f' || cCh == 'F')
                     {
                         platform_mutex_lock(ptState->ptMutex);
-                        uiPC = ptState->tCpuSnap.uiPC;
+                        uiPC = ptState->tCpuSnap->uiPC;
                         platform_mutex_unlock(ptState->ptMutex);
                         ptView->uiAsmBase = uiPC;
                         gui_invalidate(hWnd);
@@ -466,7 +466,7 @@ st_error_t exec_asm_open(exec_asm_view_t **pptView)
 
     /* Set initial view position to PC */
     platform_mutex_lock(ptState->ptMutex);
-    ptView->uiAsmBase = ptState->tCpuSnap.uiPC;
+    ptView->uiAsmBase = ptState->tCpuSnap->uiPC;
     platform_mutex_unlock(ptState->ptMutex);
 
     snprintf(szTitle, sizeof(szTitle),

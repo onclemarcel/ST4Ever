@@ -40,7 +40,7 @@ static void exec_mon_render(exec_mon_view_t *ptView)
 {
     exec_state_t      *ptState;
     exec_run_state_t   eRunState;
-    cpu68k_t           tSnap;
+    cpu_context_t      tSnap;
     cpu_step_result_t  tResult;
     char               szNextDisasm[DISASM_LINE_MAX];
     st_u32_t           auBP[EXEC_BP_MAX];
@@ -67,7 +67,7 @@ static void exec_mon_render(exec_mon_view_t *ptView)
     /* --- Snapshot state under mutex --- */
     platform_mutex_lock(ptState->ptMutex);
     eRunState = ptState->eRunState;
-    memcpy(&tSnap,   &ptState->tCpuSnap,    sizeof(cpu68k_t));
+    memcpy(&tSnap,   ptState->tCpuSnap,    sizeof(cpu_context_t));
     memcpy(&tResult, &ptState->tLastResult, sizeof(cpu_step_result_t));
     memcpy(auBP, ptState->auBP, sizeof(auBP));
     iBPCount = ptState->iBPCount;
@@ -326,7 +326,7 @@ static void exec_mon_event_cb(gui_window_t  hWnd,
                     {
                         st_u32_t uiPC;
                         platform_mutex_lock(ptState->ptMutex);
-                        uiPC = ptState->tCpuSnap.uiPC;
+                        uiPC = ptState->tCpuSnap->uiPC;
                         platform_mutex_unlock(ptState->ptMutex);
                         exec_bp_toggle(uiPC);
                         if (hWnd != NULL)

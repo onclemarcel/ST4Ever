@@ -28,6 +28,13 @@ static const st_u32_t g_auiMask[3] = { 0xFFu, 0xFFFFu, 0xFFFFFFFFu };
 static const st_u32_t g_auiMsb[3]  = { 0x80u, 0x8000u, 0x80000000u };
 
 /* ------------------------------------------------------------------
+ * Global CPU Context - there is only one CPU in the ATARI ST
+ * ------------------------------------------------------------------ */
+
+ static cpu_context_t g_cpu_ptCtx = {.ulMagic = 0xCAFEDECA,
+                                     .eObject = ST_CPU_CTX};
+
+/* ------------------------------------------------------------------
  * Internal helpers
  * ------------------------------------------------------------------ */
 
@@ -35,18 +42,18 @@ static const st_u32_t g_auiMsb[3]  = { 0x80u, 0x8000u, 0x80000000u };
  * cpu_fetch_word() - Read word at PC and advance PC by 2.
  * @req REQ-CPU-008
  */
-static st_u16_t cpu_fetch_word(cpu68k_t     *ptCpu)
+static st_u16_t cpu_fetch_word()
 {
     st_u16_t   uiW;
     st_error_t eR;
 
-    eR = st_read_word(ptCpu->uiPC, &uiW);
+    eR = st_read_word(g_cpu_ptCtx.uiPC, &uiW);
     if (eR != ST_NO_ERROR)
     {
-        LOG_ERROR("bus error at PC=0x%06X", ptCpu->uiPC);
+        LOG_ERROR("bus error at PC=0x%06X", g_cpu_ptCtx.uiPC);
         uiW = 0xFFFFu;
     }
-    ptCpu->uiPC += 2u;
+    g_cpu_ptCtx.uiPC += 2u;
     return uiW;
 }
 
@@ -54,9 +61,9 @@ static st_u16_t cpu_fetch_word(cpu68k_t     *ptCpu)
  * cpu_flags_nz() - Update N and Z flags from masked result.
  * @req REQ-CPU-021, REQ-CPU-022, REQ-CPU-023
  */
-static void cpu_flags_nz(cpu68k_t *ptCpu, st_u32_t uiVal, int iSz)
+static void cpu_flags_nz(st_u32_t uiVal, int iSz)
 {
-    st_u16_t uiSR = ptCpu->uiSR;
+    st_u16_t uiSR = g_cpu_ptCtx.uiSR;
 
     uiVal &= g_auiMask[iSz];
     if (uiVal == 0u)
@@ -69,16 +76,16 @@ static void cpu_flags_nz(cpu68k_t *ptCpu, st_u32_t uiVal, int iSz)
     else
         uiSR &= (st_u16_t)~CPU_SR_N;
 
-    ptCpu->uiSR = uiSR;
+    g_cpu_ptCtx.uiSR = uiSR;
 }
 
 /*
  * cpu_flags_clr_vc() - Clear V and C flags.
  * @req REQ-CPU-021
  */
-static void cpu_flags_clr_vc(cpu68k_t *ptCpu)
+static void cpu_flags_clr_vc()
 {
-    ptCpu->uiSR &= (st_u16_t)~(CPU_SR_V | CPU_SR_C);
+    g_cpu_ptCtx.uiSR &= (st_u16_t)~(CPU_SR_V | CPU_SR_C);
 }
 
 /*
@@ -87,15 +94,14 @@ static void cpu_flags_clr_vc(cpu68k_t *ptCpu)
  *
  * C = unsigned carry out; V = signed overflow; X = C.
  */
-static void cpu_flags_add(cpu68k_t *ptCpu,
-                           st_u32_t  uiSrc,
+static void cpu_flags_add( st_u32_t  uiSrc,
                            st_u32_t  uiDst,
                            st_u32_t  uiRes,
                            int       iSz)
 {
     st_u32_t uiMsb  = g_auiMsb[iSz];
     st_u32_t uiMask = g_auiMask[iSz];
-    st_u16_t uiSR   = ptCpu->uiSR;
+    st_u16_t uiSR   = g_cpu_ptCtx.uiSR;
 
     uiSrc &= uiMask;
     uiDst &= uiMask;
@@ -123,7 +129,7 @@ static void cpu_flags_add(cpu68k_t *ptCpu,
     else
         uiSR &= (st_u16_t)~CPU_SR_V;
 
-    ptCpu->uiSR = uiSR;
+    g_cpu_ptCtx.uiSR = uiSR;
 }
 
 /*
@@ -132,15 +138,14 @@ static void cpu_flags_add(cpu68k_t *ptCpu,
  *
  * C = borrow (src > dst unsigned); V = signed overflow; X = C.
  */
-static void cpu_flags_sub(cpu68k_t *ptCpu,
-                           st_u32_t  uiSrc,
+static void cpu_flags_sub( st_u32_t  uiSrc,
                            st_u32_t  uiDst,
                            st_u32_t  uiRes,
                            int       iSz)
 {
     st_u32_t uiMsb  = g_auiMsb[iSz];
     st_u32_t uiMask = g_auiMask[iSz];
-    st_u16_t uiSR   = ptCpu->uiSR;
+    st_u16_t uiSR   = g_cpu_ptCtx.uiSR;
 
     uiSrc &= uiMask;
     uiDst &= uiMask;
@@ -168,7 +173,7 @@ static void cpu_flags_sub(cpu68k_t *ptCpu,
     else
         uiSR &= (st_u16_t)~CPU_SR_V;
 
-    ptCpu->uiSR = uiSR;
+    g_cpu_ptCtx.uiSR = uiSR;
 }
 
 /* ------------------------------------------------------------------
@@ -179,35 +184,32 @@ static void cpu_flags_sub(cpu68k_t *ptCpu,
  * cpu_push_long() - Pre-decrement A7 by 4 and write long-word to stack.
  * @req REQ-CPU-040
  */
-static st_error_t cpu_push_long(cpu68k_t     *ptCpu,
-                                 st_u32_t      uiVal)
+static st_error_t cpu_push_long( st_u32_t      uiVal)
 {
-    ptCpu->auAn[7] -= 4u;
-    return st_write_long(ptCpu->auAn[7] & 0x00FFFFFFu, uiVal);
+    g_cpu_ptCtx.auAn[7] -= 4u;
+    return st_write_long(g_cpu_ptCtx.auAn[7] & 0x00FFFFFFu, uiVal);
 }
 
 /*
  * cpu_push_word() - Pre-decrement A7 by 2 and write word to stack.
  * @req REQ-CPU-040
  */
-static st_error_t cpu_push_word(cpu68k_t     *ptCpu,
-                                 st_u16_t      uiVal)
+static st_error_t cpu_push_word( st_u16_t      uiVal)
 {
-    ptCpu->auAn[7] -= 2u;
-    return st_write_word(ptCpu->auAn[7] & 0x00FFFFFFu, uiVal);
+    g_cpu_ptCtx.auAn[7] -= 2u;
+    return st_write_word(g_cpu_ptCtx.auAn[7] & 0x00FFFFFFu, uiVal);
 }
 
 /*
  * cpu_pop_long() - Read long-word from stack and post-increment A7 by 4.
  * @req REQ-CPU-035, REQ-CPU-036
  */
-static st_error_t cpu_pop_long(cpu68k_t     *ptCpu,
-                                st_u32_t     *puiVal)
+static st_error_t cpu_pop_long( st_u32_t     *puiVal)
 {
     st_error_t eR;
-    eR = st_read_long(ptCpu->auAn[7] & 0x00FFFFFFu, puiVal);
+    eR = st_read_long(g_cpu_ptCtx.auAn[7] & 0x00FFFFFFu, puiVal);
     if (eR == ST_NO_ERROR)
-        ptCpu->auAn[7] += 4u;
+        g_cpu_ptCtx.auAn[7] += 4u;
     return eR;
 }
 
@@ -215,13 +217,12 @@ static st_error_t cpu_pop_long(cpu68k_t     *ptCpu,
  * cpu_pop_word() - Read word from stack and post-increment A7 by 2.
  * @req REQ-CPU-035, REQ-CPU-036
  */
-static st_error_t cpu_pop_word(cpu68k_t     *ptCpu,
-                                st_u16_t     *puiVal)
+static st_error_t cpu_pop_word( st_u16_t     *puiVal)
 {
     st_error_t eR;
-    eR = st_read_word(ptCpu->auAn[7] & 0x00FFFFFFu, puiVal);
+    eR = st_read_word(g_cpu_ptCtx.auAn[7] & 0x00FFFFFFu, puiVal);
     if (eR == ST_NO_ERROR)
-        ptCpu->auAn[7] += 2u;
+        g_cpu_ptCtx.auAn[7] += 2u;
     return eR;
 }
 
@@ -233,12 +234,12 @@ static st_error_t cpu_pop_word(cpu68k_t     *ptCpu,
  * cpu_eval_cc() - Evaluate a 68000 condition code against SR flags.
  * @req REQ-CPU-033, REQ-CPU-043, REQ-CPU-044
  */
-static st_bool_t cpu_eval_cc(const cpu68k_t *ptCpu, int iCc)
+static st_bool_t cpu_eval_cc(int iCc)
 {
-    int bN = CPU_FLAG_N(ptCpu) ? 1 : 0;
-    int bZ = CPU_FLAG_Z(ptCpu) ? 1 : 0;
-    int bV = CPU_FLAG_V(ptCpu) ? 1 : 0;
-    int bC = CPU_FLAG_C(ptCpu) ? 1 : 0;
+    int bN = CPU_FLAG_N(g_cpu_ptCtx.uiSR) ? 1 : 0;
+    int bZ = CPU_FLAG_Z(g_cpu_ptCtx.uiSR) ? 1 : 0;
+    int bV = CPU_FLAG_V(g_cpu_ptCtx.uiSR) ? 1 : 0;
+    int bC = CPU_FLAG_C(g_cpu_ptCtx.uiSR) ? 1 : 0;
 
     switch (iCc & 0xF)
     {
@@ -275,8 +276,7 @@ static st_bool_t cpu_eval_cc(const cpu68k_t *ptCpu, int iCc)
  * iReg  : bits 2-0 of opcode (source) or bits 11-9 (dest).
  * iSz   : SZ_BYTE / SZ_WORD / SZ_LONG
  */
-static st_error_t cpu_ea_read(cpu68k_t     *ptCpu,
-                               int           iMode,
+static st_error_t cpu_ea_read( int           iMode,
                                int           iReg,
                                int           iSz,
                                st_u32_t     *puiVal)
@@ -292,43 +292,43 @@ static st_error_t cpu_ea_read(cpu68k_t     *ptCpu,
     switch (iMode)
     {
     case 0: /* Dn */
-        *puiVal = ptCpu->auDn[iReg] & g_auiMask[iSz];
+        *puiVal = g_cpu_ptCtx.auDn[iReg] & g_auiMask[iSz];
         return ST_NO_ERROR;
 
     case 1: /* An — reads always as long */
-        *puiVal = ptCpu->auAn[iReg];
+        *puiVal = g_cpu_ptCtx.auAn[iReg];
         return ST_NO_ERROR;
 
     case 2: /* (An) */
-        uiAddr = ptCpu->auAn[iReg] & 0x00FFFFFFu;
+        uiAddr = g_cpu_ptCtx.auAn[iReg] & 0x00FFFFFFu;
         break;
 
     case 3: /* (An)+ */
-        uiAddr = ptCpu->auAn[iReg] & 0x00FFFFFFu;
+        uiAddr = g_cpu_ptCtx.auAn[iReg] & 0x00FFFFFFu;
         /* A7 with byte: increment by 2 */
         if (iSz == SZ_BYTE && iReg == 7)
-            ptCpu->auAn[iReg] += 2u;
+            g_cpu_ptCtx.auAn[iReg] += 2u;
         else
-            ptCpu->auAn[iReg] += (st_u32_t)(1 << iSz);
+            g_cpu_ptCtx.auAn[iReg] += (st_u32_t)(1 << iSz);
         break;
 
     case 4: /* -(An) */
         if (iSz == SZ_BYTE && iReg == 7)
-            ptCpu->auAn[iReg] -= 2u;
+            g_cpu_ptCtx.auAn[iReg] -= 2u;
         else
-            ptCpu->auAn[iReg] -= (st_u32_t)(1 << iSz);
-        uiAddr = ptCpu->auAn[iReg] & 0x00FFFFFFu;
+            g_cpu_ptCtx.auAn[iReg] -= (st_u32_t)(1 << iSz);
+        uiAddr = g_cpu_ptCtx.auAn[iReg] & 0x00FFFFFFu;
         break;
 
     case 5: /* d16(An) */
-        uiExt = cpu_fetch_word(ptCpu);
+        uiExt = cpu_fetch_word();
         iDisp = (st_i16_t)uiExt;
-        uiAddr = (ptCpu->auAn[iReg] + (st_u32_t)(st_i32_t)iDisp)
+        uiAddr = (g_cpu_ptCtx.auAn[iReg] + (st_u32_t)(st_i32_t)iDisp)
                  & 0x00FFFFFFu;
         break;
 
     case 6: /* d8(An,Xn) — brief extension word */
-        uiExt  = cpu_fetch_word(ptCpu);
+        uiExt  = cpu_fetch_word();
         iDisp  = (st_i8_t)(uiExt & 0xFFu);
         {
             st_u32_t uiIdx;
@@ -336,14 +336,14 @@ static st_error_t cpu_ea_read(cpu68k_t     *ptCpu,
             int iXSz = (uiExt >> 11) & 1; /* 0=.W, 1=.L */
 
             if ((uiExt >> 15) & 1) /* An index */
-                uiIdx = ptCpu->auAn[iXn];
+                uiIdx = g_cpu_ptCtx.auAn[iXn];
             else
-                uiIdx = ptCpu->auDn[iXn];
+                uiIdx = g_cpu_ptCtx.auDn[iXn];
 
             if (!iXSz) /* sign-extend .W */
                 uiIdx = (st_u32_t)(st_i32_t)(st_i16_t)(uiIdx & 0xFFFFu);
 
-            uiAddr = (ptCpu->auAn[iReg]
+            uiAddr = (g_cpu_ptCtx.auAn[iReg]
                       + (st_u32_t)(st_i32_t)iDisp
                       + uiIdx)
                      & 0x00FFFFFFu;
@@ -354,20 +354,20 @@ static st_error_t cpu_ea_read(cpu68k_t     *ptCpu,
         switch (iReg)
         {
         case 0: /* abs.W */
-            uiExt  = cpu_fetch_word(ptCpu);
+            uiExt  = cpu_fetch_word();
             uiAddr = (st_u32_t)(st_i32_t)(st_i16_t)uiExt & 0x00FFFFFFu;
             break;
 
         case 1: /* abs.L */
-            uiExt  = cpu_fetch_word(ptCpu);
+            uiExt  = cpu_fetch_word();
             uiAddr = (st_u32_t)uiExt << 16u;
-            uiExt  = cpu_fetch_word(ptCpu);
+            uiExt  = cpu_fetch_word();
             uiAddr = (uiAddr | uiExt) & 0x00FFFFFFu;
             break;
 
         case 2: /* d16(PC) */
-            uiAddr = ptCpu->uiPC; /* PC after fetch of this ext word */
-            uiExt  = cpu_fetch_word(ptCpu);
+            uiAddr = g_cpu_ptCtx.uiPC; /* PC after fetch of this ext word */
+            uiExt  = cpu_fetch_word();
             iDisp  = (st_i16_t)uiExt;
             /* The extension word address was already advanced; EA
              * = address_of_extension_word + displacement */
@@ -377,8 +377,8 @@ static st_error_t cpu_ea_read(cpu68k_t     *ptCpu,
 
         case 3: /* d8(PC,Xn) */
             {
-                st_u32_t uiBase = ptCpu->uiPC;
-                uiExt  = cpu_fetch_word(ptCpu);
+                st_u32_t uiBase = g_cpu_ptCtx.uiPC;
+                uiExt  = cpu_fetch_word();
                 iDisp  = (st_i8_t)(uiExt & 0xFFu);
                 {
                     st_u32_t uiIdx;
@@ -386,9 +386,9 @@ static st_error_t cpu_ea_read(cpu68k_t     *ptCpu,
                     int iXSz = (uiExt >> 11) & 1;
 
                     if ((uiExt >> 15) & 1)
-                        uiIdx = ptCpu->auAn[iXn];
+                        uiIdx = g_cpu_ptCtx.auAn[iXn];
                     else
-                        uiIdx = ptCpu->auDn[iXn];
+                        uiIdx = g_cpu_ptCtx.auDn[iXn];
 
                     if (!iXSz)
                         uiIdx = (st_u32_t)(st_i32_t)
@@ -403,11 +403,11 @@ static st_error_t cpu_ea_read(cpu68k_t     *ptCpu,
             break;
 
         case 4: /* #imm */
-            uiExt = cpu_fetch_word(ptCpu);
+            uiExt = cpu_fetch_word();
             if (iSz == SZ_LONG)
             {
                 st_u32_t uiHi = uiExt;
-                uiExt   = cpu_fetch_word(ptCpu);
+                uiExt   = cpu_fetch_word();
                 *puiVal = (uiHi << 16u) | uiExt;
             }
             else if (iSz == SZ_BYTE)
@@ -466,9 +466,7 @@ static st_error_t cpu_ea_read(cpu68k_t     *ptCpu,
  * cpu_ea_write() - Write value to EA, consuming extension words.
  * @req REQ-CPU-014
  */
-static st_error_t cpu_ea_write(cpu68k_t     *ptCpu,
-                                
-                                int           iMode,
+static st_error_t cpu_ea_write( int           iMode,
                                 int           iReg,
                                 int           iSz,
                                 st_u32_t      uiVal)
@@ -484,46 +482,46 @@ static st_error_t cpu_ea_write(cpu68k_t     *ptCpu,
     {
     case 0: /* Dn — partial write preserves upper bits */
         if (iSz == SZ_LONG)
-            ptCpu->auDn[iReg] = uiVal;
+            g_cpu_ptCtx.auDn[iReg] = uiVal;
         else if (iSz == SZ_WORD)
-            ptCpu->auDn[iReg] = (ptCpu->auDn[iReg] & 0xFFFF0000u) | uiVal;
+            g_cpu_ptCtx.auDn[iReg] = (g_cpu_ptCtx.auDn[iReg] & 0xFFFF0000u) | uiVal;
         else
-            ptCpu->auDn[iReg] = (ptCpu->auDn[iReg] & 0xFFFFFF00u) | uiVal;
+            g_cpu_ptCtx.auDn[iReg] = (g_cpu_ptCtx.auDn[iReg] & 0xFFFFFF00u) | uiVal;
         return ST_NO_ERROR;
 
     case 1: /* An — always full 32-bit */
-        ptCpu->auAn[iReg] = uiVal;
+        g_cpu_ptCtx.auAn[iReg] = uiVal;
         return ST_NO_ERROR;
 
     case 2: /* (An) */
-        uiAddr = ptCpu->auAn[iReg] & 0x00FFFFFFu;
+        uiAddr = g_cpu_ptCtx.auAn[iReg] & 0x00FFFFFFu;
         break;
 
     case 3: /* (An)+ */
-        uiAddr = ptCpu->auAn[iReg] & 0x00FFFFFFu;
+        uiAddr = g_cpu_ptCtx.auAn[iReg] & 0x00FFFFFFu;
         if (iSz == SZ_BYTE && iReg == 7)
-            ptCpu->auAn[iReg] += 2u;
+            g_cpu_ptCtx.auAn[iReg] += 2u;
         else
-            ptCpu->auAn[iReg] += (st_u32_t)(1 << iSz);
+            g_cpu_ptCtx.auAn[iReg] += (st_u32_t)(1 << iSz);
         break;
 
     case 4: /* -(An) */
         if (iSz == SZ_BYTE && iReg == 7)
-            ptCpu->auAn[iReg] -= 2u;
+            g_cpu_ptCtx.auAn[iReg] -= 2u;
         else
-            ptCpu->auAn[iReg] -= (st_u32_t)(1 << iSz);
-        uiAddr = ptCpu->auAn[iReg] & 0x00FFFFFFu;
+            g_cpu_ptCtx.auAn[iReg] -= (st_u32_t)(1 << iSz);
+        uiAddr = g_cpu_ptCtx.auAn[iReg] & 0x00FFFFFFu;
         break;
 
     case 5: /* d16(An) */
-        uiExt = cpu_fetch_word(ptCpu);
+        uiExt = cpu_fetch_word();
         iDisp = (st_i16_t)uiExt;
-        uiAddr = (ptCpu->auAn[iReg] + (st_u32_t)(st_i32_t)iDisp)
+        uiAddr = (g_cpu_ptCtx.auAn[iReg] + (st_u32_t)(st_i32_t)iDisp)
                  & 0x00FFFFFFu;
         break;
 
     case 6: /* d8(An,Xn) */
-        uiExt  = cpu_fetch_word(ptCpu);
+        uiExt  = cpu_fetch_word();
         iDisp  = (st_i8_t)(uiExt & 0xFFu);
         {
             st_u32_t uiIdx;
@@ -531,14 +529,14 @@ static st_error_t cpu_ea_write(cpu68k_t     *ptCpu,
             int iXSz = (uiExt >> 11) & 1;
 
             if ((uiExt >> 15) & 1)
-                uiIdx = ptCpu->auAn[iXn];
+                uiIdx = g_cpu_ptCtx.auAn[iXn];
             else
-                uiIdx = ptCpu->auDn[iXn];
+                uiIdx = g_cpu_ptCtx.auDn[iXn];
 
             if (!iXSz)
                 uiIdx = (st_u32_t)(st_i32_t)(st_i16_t)(uiIdx & 0xFFFFu);
 
-            uiAddr = (ptCpu->auAn[iReg]
+            uiAddr = (g_cpu_ptCtx.auAn[iReg]
                       + (st_u32_t)(st_i32_t)iDisp
                       + uiIdx)
                      & 0x00FFFFFFu;
@@ -549,14 +547,14 @@ static st_error_t cpu_ea_write(cpu68k_t     *ptCpu,
         switch (iReg)
         {
         case 0: /* abs.W */
-            uiExt  = cpu_fetch_word(ptCpu);
+            uiExt  = cpu_fetch_word();
             uiAddr = (st_u32_t)(st_i32_t)(st_i16_t)uiExt & 0x00FFFFFFu;
             break;
 
         case 1: /* abs.L */
-            uiExt  = cpu_fetch_word(ptCpu);
+            uiExt  = cpu_fetch_word();
             uiAddr = (st_u32_t)uiExt << 16u;
-            uiExt  = cpu_fetch_word(ptCpu);
+            uiExt  = cpu_fetch_word();
             uiAddr = (uiAddr | uiExt) & 0x00FFFFFFu;
             break;
 
@@ -601,9 +599,7 @@ static st_error_t cpu_ea_write(cpu68k_t     *ptCpu,
  *
  * Only valid for control-type EAs: modes 2/5/6 and 7.0/7.1/7.2/7.3.
  */
-static st_error_t cpu_ea_calc_addr(cpu68k_t     *ptCpu,
-                                    
-                                    int           iMode,
+static st_error_t cpu_ea_calc_addr( int           iMode,
                                     int           iReg,
                                     st_u32_t     *puiAddr)
 {
@@ -613,18 +609,18 @@ static st_error_t cpu_ea_calc_addr(cpu68k_t     *ptCpu,
     switch (iMode)
     {
     case 2: /* (An) */
-        *puiAddr = ptCpu->auAn[iReg] & 0x00FFFFFFu;
+        *puiAddr = g_cpu_ptCtx.auAn[iReg] & 0x00FFFFFFu;
         return ST_NO_ERROR;
 
     case 5: /* d16(An) */
-        uiExt  = cpu_fetch_word(ptCpu);
+        uiExt  = cpu_fetch_word();
         iDisp  = (st_i16_t)uiExt;
-        *puiAddr = (ptCpu->auAn[iReg] + (st_u32_t)(st_i32_t)iDisp)
+        *puiAddr = (g_cpu_ptCtx.auAn[iReg] + (st_u32_t)(st_i32_t)iDisp)
                    & 0x00FFFFFFu;
         return ST_NO_ERROR;
 
     case 6: /* d8(An,Xn) */
-        uiExt  = cpu_fetch_word(ptCpu);
+        uiExt  = cpu_fetch_word();
         iDisp  = (st_i8_t)(uiExt & 0xFFu);
         {
             st_u32_t uiIdx;
@@ -632,14 +628,14 @@ static st_error_t cpu_ea_calc_addr(cpu68k_t     *ptCpu,
             int iXSz = (uiExt >> 11) & 1;
 
             if ((uiExt >> 15) & 1)
-                uiIdx = ptCpu->auAn[iXn];
+                uiIdx = g_cpu_ptCtx.auAn[iXn];
             else
-                uiIdx = ptCpu->auDn[iXn];
+                uiIdx = g_cpu_ptCtx.auDn[iXn];
 
             if (!iXSz)
                 uiIdx = (st_u32_t)(st_i32_t)(st_i16_t)(uiIdx & 0xFFFFu);
 
-            *puiAddr = (ptCpu->auAn[iReg]
+            *puiAddr = (g_cpu_ptCtx.auAn[iReg]
                         + (st_u32_t)(st_i32_t)iDisp
                         + uiIdx)
                        & 0x00FFFFFFu;
@@ -650,22 +646,22 @@ static st_error_t cpu_ea_calc_addr(cpu68k_t     *ptCpu,
         switch (iReg)
         {
         case 0: /* abs.W */
-            uiExt    = cpu_fetch_word(ptCpu);
+            uiExt    = cpu_fetch_word();
             *puiAddr = (st_u32_t)(st_i32_t)(st_i16_t)uiExt
                        & 0x00FFFFFFu;
             return ST_NO_ERROR;
 
         case 1: /* abs.L */
-            uiExt    = cpu_fetch_word(ptCpu);
+            uiExt    = cpu_fetch_word();
             *puiAddr = (st_u32_t)uiExt << 16u;
-            uiExt    = cpu_fetch_word(ptCpu);
+            uiExt    = cpu_fetch_word();
             *puiAddr = (*puiAddr | uiExt) & 0x00FFFFFFu;
             return ST_NO_ERROR;
 
         case 2: /* d16(PC) */
             {
-                st_u32_t uiBase = ptCpu->uiPC;
-                uiExt   = cpu_fetch_word(ptCpu);
+                st_u32_t uiBase = g_cpu_ptCtx.uiPC;
+                uiExt   = cpu_fetch_word();
                 iDisp   = (st_i16_t)uiExt;
                 *puiAddr = (uiBase + (st_u32_t)(st_i32_t)iDisp)
                            & 0x00FFFFFFu;
@@ -674,19 +670,19 @@ static st_error_t cpu_ea_calc_addr(cpu68k_t     *ptCpu,
 
         case 3: /* d8(PC,Xn) */
             {
-                st_u32_t uiBase = ptCpu->uiPC;
+                st_u32_t uiBase = g_cpu_ptCtx.uiPC;
                 st_u32_t uiIdx;
                 int      iXn, iXSz;
 
-                uiExt  = cpu_fetch_word(ptCpu);
+                uiExt  = cpu_fetch_word();
                 iDisp  = (st_i8_t)(uiExt & 0xFFu);
                 iXn    = (uiExt >> 12) & 7;
                 iXSz   = (uiExt >> 11) & 1;
 
                 if ((uiExt >> 15) & 1)
-                    uiIdx = ptCpu->auAn[iXn];
+                    uiIdx = g_cpu_ptCtx.auAn[iXn];
                 else
-                    uiIdx = ptCpu->auDn[iXn];
+                    uiIdx = g_cpu_ptCtx.auDn[iXn];
 
                 if (!iXSz)
                     uiIdx = (st_u32_t)(st_i32_t)
@@ -726,9 +722,7 @@ static st_error_t cpu_ea_calc_addr(cpu68k_t     *ptCpu,
  *   [ 5- 3] src mode
  *   [ 2- 0] src reg
  */
-static st_error_t cpu_exec_move(cpu68k_t     *ptCpu,
-                                 
-                                 st_u16_t      uiOpc)
+static st_error_t cpu_exec_move(st_u16_t      uiOpc)
 {
     int        iNibble = (uiOpc >> 12) & 0xFu;
     int        iSrcMode = (uiOpc >> 3) & 7;
@@ -751,7 +745,7 @@ static st_error_t cpu_exec_move(cpu68k_t     *ptCpu,
         return ST_NO_ERROR;
     }
 
-    eR = cpu_ea_read(ptCpu, iSrcMode, iSrcReg, iSz, &uiVal);
+    eR = cpu_ea_read(iSrcMode, iSrcReg, iSz, &uiVal);
     if (eR != ST_NO_ERROR)
         return ST_ERROR;
 
@@ -760,15 +754,15 @@ static st_error_t cpu_exec_move(cpu68k_t     *ptCpu,
         /* MOVEA — sign-extend word, no flags */
         if (iSz == SZ_WORD)
             uiVal = (st_u32_t)(st_i32_t)(st_i16_t)(uiVal & 0xFFFFu);
-        ptCpu->auAn[iDstReg] = uiVal;
+        g_cpu_ptCtx.auAn[iDstReg] = uiVal;
         return ST_NO_ERROR;
     }
 
     /* Normal MOVE — set flags, then write destination */
-    cpu_flags_nz(ptCpu, uiVal, iSz);
-    cpu_flags_clr_vc(ptCpu);
+    cpu_flags_nz(uiVal, iSz);
+    cpu_flags_clr_vc();
 
-    eR = cpu_ea_write(ptCpu, iDstMode, iDstReg, iSz, uiVal);
+    eR = cpu_ea_write(iDstMode, iDstReg, iSz, uiVal);
     if (eR != ST_NO_ERROR)
         return ST_ERROR;
 
@@ -782,7 +776,7 @@ static st_error_t cpu_exec_move(cpu68k_t     *ptCpu,
  *
  * Encoding: 0111 DDD 0 IIIIIIII
  */
-static st_error_t cpu_exec_moveq(cpu68k_t *ptCpu, st_u16_t uiOpc)
+static st_error_t cpu_exec_moveq(st_u16_t uiOpc)
 {
     int      iDn  = (uiOpc >> 9) & 7;
     st_i8_t  iByte = (st_i8_t)(uiOpc & 0xFFu);
@@ -797,10 +791,10 @@ static st_error_t cpu_exec_moveq(cpu68k_t *ptCpu, st_u16_t uiOpc)
     }
 
     uiVal = (st_u32_t)(st_i32_t)iByte; /* sign-extend to 32 bits */
-    ptCpu->auDn[iDn] = uiVal;
+    g_cpu_ptCtx.auDn[iDn] = uiVal;
 
-    cpu_flags_nz(ptCpu, uiVal, SZ_LONG);
-    cpu_flags_clr_vc(ptCpu);
+    cpu_flags_nz(uiVal, SZ_LONG);
+    cpu_flags_clr_vc();
 
     return ST_NO_ERROR;
 }
@@ -812,7 +806,7 @@ static st_error_t cpu_exec_moveq(cpu68k_t *ptCpu, st_u16_t uiOpc)
  *
  * Encoding: 0100 0010 SS MMMRRR
  */
-static st_error_t cpu_exec_clr(cpu68k_t     *ptCpu,
+static st_error_t cpu_exec_clr(
                                  
                                  st_u16_t      uiOpc)
 {
@@ -831,13 +825,13 @@ static st_error_t cpu_exec_clr(cpu68k_t     *ptCpu,
         return ST_NO_ERROR;
     }
 
-    eR = cpu_ea_write(ptCpu, iMode, iReg, iSz, 0u);
+    eR = cpu_ea_write(iMode, iReg, iSz, 0u);
     if (eR != ST_NO_ERROR)
         return ST_ERROR;
 
     /* CLR: N=0, Z=1, V=0, C=0 */
-    ptCpu->uiSR &= (st_u16_t)~(CPU_SR_N | CPU_SR_V | CPU_SR_C);
-    ptCpu->uiSR |= (st_u16_t)CPU_SR_Z;
+    g_cpu_ptCtx.uiSR &= (st_u16_t)~(CPU_SR_N | CPU_SR_V | CPU_SR_C);
+    g_cpu_ptCtx.uiSR |= (st_u16_t)CPU_SR_Z;
 
     return ST_NO_ERROR;
 }
@@ -849,9 +843,7 @@ static st_error_t cpu_exec_clr(cpu68k_t     *ptCpu,
  *
  * Encoding: 0100 AAA 111 MMMRRR   (mask 0xF1C0 == 0x41C0)
  */
-static st_error_t cpu_exec_lea(cpu68k_t     *ptCpu,
-                                 
-                                 st_u16_t      uiOpc)
+static st_error_t cpu_exec_lea(st_u16_t      uiOpc)
 {
     int        iAn   = (uiOpc >> 9) & 7;
     int        iMode = (uiOpc >> 3) & 7;
@@ -859,11 +851,11 @@ static st_error_t cpu_exec_lea(cpu68k_t     *ptCpu,
     st_u32_t   uiAddr;
     st_error_t eR;
 
-    eR = cpu_ea_calc_addr(ptCpu, iMode, iReg, &uiAddr);
+    eR = cpu_ea_calc_addr(iMode, iReg, &uiAddr);
     if (eR != ST_NO_ERROR)
         return ST_ERROR;
 
-    ptCpu->auAn[iAn] = uiAddr;
+    g_cpu_ptCtx.auAn[iAn] = uiAddr;
     /* LEA does not affect flags */
     return ST_NO_ERROR;
 }
@@ -875,19 +867,19 @@ static st_error_t cpu_exec_lea(cpu68k_t     *ptCpu,
  *
  * Encoding: 0100 1000 0100 0DDD   (mask 0xFFF8 == 0x4840)
  */
-static st_error_t cpu_exec_swap(cpu68k_t *ptCpu, st_u16_t uiOpc)
+static st_error_t cpu_exec_swap(st_u16_t uiOpc)
 {
     int      iDn  = uiOpc & 7;
-    st_u32_t uiOld = ptCpu->auDn[iDn];
+    st_u32_t uiOld = g_cpu_ptCtx.auDn[iDn];
     st_u32_t uiNew;
 
     uiNew = ((uiOld & 0x0000FFFFu) << 16u)
             | ((uiOld & 0xFFFF0000u) >> 16u);
-    ptCpu->auDn[iDn] = uiNew;
+    g_cpu_ptCtx.auDn[iDn] = uiNew;
 
     /* SWAP: N, Z from full 32-bit result; V=0, C=0 */
-    cpu_flags_nz(ptCpu, uiNew, SZ_LONG);
-    cpu_flags_clr_vc(ptCpu);
+    cpu_flags_nz(uiNew, SZ_LONG);
+    cpu_flags_clr_vc();
 
     return ST_NO_ERROR;
 }
@@ -901,7 +893,7 @@ static st_error_t cpu_exec_swap(cpu68k_t *ptCpu, st_u16_t uiOpc)
  * iOp    : 0=NEG, 1=NEGX, 2=NOT, 3=TST
  * Encoding: 0100 oo10 SS MMMRRR   (oo = 01/10/11/00 for TST/NOT/NEG/NEGX)
  */
-static st_error_t cpu_exec_unary(cpu68k_t     *ptCpu,
+static st_error_t cpu_exec_unary(
                                    
                                    st_u16_t      uiOpc,
                                    int           iOp)
@@ -927,7 +919,7 @@ static st_error_t cpu_exec_unary(cpu68k_t     *ptCpu,
 
     uiMask = g_auiMask[iSz];
 
-    eR = cpu_ea_read(ptCpu, iMode, iReg, iSz, &uiSrc);
+    eR = cpu_ea_read(iMode, iReg, iSz, &uiSrc);
     if (eR != ST_NO_ERROR)
         return ST_ERROR;
 
@@ -937,30 +929,30 @@ static st_error_t cpu_exec_unary(cpu68k_t     *ptCpu,
     {
     case 0: /* NEG: 0 - src */
         uiRes = (st_u32_t)(-(st_i32_t)uiSrc) & uiMask;
-        cpu_flags_sub(ptCpu, uiSrc, 0u, uiRes, iSz);
-        eR = cpu_ea_write(ptCpu, iMode, iReg, iSz, uiRes);
+        cpu_flags_sub(uiSrc, 0u, uiRes, iSz);
+        eR = cpu_ea_write(iMode, iReg, iSz, uiRes);
         break;
 
     case 1: /* NEGX: 0 - src - X */
-        uiX   = CPU_FLAG_X(ptCpu) ? 1u : 0u;
+        uiX   = CPU_FLAG_X(g_cpu_ptCtx.uiSR) ? 1u : 0u;
         uiRes = (st_u32_t)(-(st_i32_t)uiSrc - (st_i32_t)uiX) & uiMask;
-        cpu_flags_sub(ptCpu, uiSrc + uiX, 0u, uiRes, iSz);
+        cpu_flags_sub(uiSrc + uiX, 0u, uiRes, iSz);
         /* NEGX: Z cleared only if result != 0 (not set if result == 0) */
         if (uiRes != 0u)
-            ptCpu->uiSR &= (st_u16_t)~CPU_SR_Z;
-        eR = cpu_ea_write(ptCpu, iMode, iReg, iSz, uiRes);
+            g_cpu_ptCtx.uiSR &= (st_u16_t)~CPU_SR_Z;
+        eR = cpu_ea_write(iMode, iReg, iSz, uiRes);
         break;
 
     case 2: /* NOT: ~src */
         uiRes = (~uiSrc) & uiMask;
-        cpu_flags_nz(ptCpu, uiRes, iSz);
-        cpu_flags_clr_vc(ptCpu);
-        eR = cpu_ea_write(ptCpu, iMode, iReg, iSz, uiRes);
+        cpu_flags_nz(uiRes, iSz);
+        cpu_flags_clr_vc();
+        eR = cpu_ea_write(iMode, iReg, iSz, uiRes);
         break;
 
     default: /* TST: result discarded, flags only */
-        cpu_flags_nz(ptCpu, uiSrc, iSz);
-        cpu_flags_clr_vc(ptCpu);
+        cpu_flags_nz(uiSrc, iSz);
+        cpu_flags_clr_vc();
         eR = ST_NO_ERROR;
         break;
     }
@@ -976,9 +968,7 @@ static st_error_t cpu_exec_unary(cpu68k_t     *ptCpu,
  * Encoding: 0000 TTTT SS MMMRRR  + imm word(s)
  *   TTTT: 0000=ORI, 0010=ANDI, 0100=SUBI, 0110=ADDI, 1010=EORI, 1100=CMPI
  */
-static st_error_t cpu_exec_group0(cpu68k_t     *ptCpu,
-                                    
-                                    st_u16_t      uiOpc)
+static st_error_t cpu_exec_group0(st_u16_t      uiOpc)
 {
     int        iOp     = (uiOpc >> 8) & 0xFu;
     int        iSzCode = (uiOpc >> 6) & 3;
@@ -1001,11 +991,11 @@ static st_error_t cpu_exec_group0(cpu68k_t     *ptCpu,
     }
 
     /* Read immediate value */
-    uiExtW = cpu_fetch_word(ptCpu);
+    uiExtW = cpu_fetch_word();
     if (iSz == SZ_LONG)
     {
         st_u32_t uiHi = uiExtW;
-        uiExtW = cpu_fetch_word(ptCpu);
+        uiExtW = cpu_fetch_word();
         uiImm  = (uiHi << 16u) | uiExtW;
     }
     else if (iSz == SZ_BYTE)
@@ -1014,7 +1004,7 @@ static st_error_t cpu_exec_group0(cpu68k_t     *ptCpu,
         uiImm = uiExtW;
 
     /* Read destination EA */
-    eR = cpu_ea_read(ptCpu, iMode, iReg, iSz, &uiDst);
+    eR = cpu_ea_read(iMode, iReg, iSz, &uiDst);
     if (eR != ST_NO_ERROR)
         return ST_ERROR;
 
@@ -1022,35 +1012,35 @@ static st_error_t cpu_exec_group0(cpu68k_t     *ptCpu,
     {
     case 0x0: /* ORI */
         uiRes = (uiDst | uiImm) & g_auiMask[iSz];
-        cpu_flags_nz(ptCpu, uiRes, iSz);
-        cpu_flags_clr_vc(ptCpu);
-        return cpu_ea_write(ptCpu, iMode, iReg, iSz, uiRes);
+        cpu_flags_nz(uiRes, iSz);
+        cpu_flags_clr_vc();
+        return cpu_ea_write(iMode, iReg, iSz, uiRes);
 
     case 0x2: /* ANDI */
         uiRes = (uiDst & uiImm) & g_auiMask[iSz];
-        cpu_flags_nz(ptCpu, uiRes, iSz);
-        cpu_flags_clr_vc(ptCpu);
-        return cpu_ea_write(ptCpu, iMode, iReg, iSz, uiRes);
+        cpu_flags_nz(uiRes, iSz);
+        cpu_flags_clr_vc();
+        return cpu_ea_write(iMode, iReg, iSz, uiRes);
 
     case 0x4: /* SUBI */
         uiRes = (uiDst - uiImm) & g_auiMask[iSz];
-        cpu_flags_sub(ptCpu, uiImm, uiDst, uiRes, iSz);
-        return cpu_ea_write(ptCpu, iMode, iReg, iSz, uiRes);
+        cpu_flags_sub(uiImm, uiDst, uiRes, iSz);
+        return cpu_ea_write(iMode, iReg, iSz, uiRes);
 
     case 0x6: /* ADDI */
         uiRes = (uiDst + uiImm) & g_auiMask[iSz];
-        cpu_flags_add(ptCpu, uiImm, uiDst, uiRes, iSz);
-        return cpu_ea_write(ptCpu, iMode, iReg, iSz, uiRes);
+        cpu_flags_add(uiImm, uiDst, uiRes, iSz);
+        return cpu_ea_write(iMode, iReg, iSz, uiRes);
 
     case 0xA: /* EORI */
         uiRes = (uiDst ^ uiImm) & g_auiMask[iSz];
-        cpu_flags_nz(ptCpu, uiRes, iSz);
-        cpu_flags_clr_vc(ptCpu);
-        return cpu_ea_write(ptCpu, iMode, iReg, iSz, uiRes);
+        cpu_flags_nz(uiRes, iSz);
+        cpu_flags_clr_vc();
+        return cpu_ea_write(iMode, iReg, iSz, uiRes);
 
     case 0xC: /* CMPI — result discarded, flags only */
         uiRes = (uiDst - uiImm) & g_auiMask[iSz];
-        cpu_flags_sub(ptCpu, uiImm, uiDst, uiRes, iSz);
+        cpu_flags_sub(uiImm, uiDst, uiRes, iSz);
         return ST_NO_ERROR;
 
     default:
@@ -1067,9 +1057,7 @@ static st_error_t cpu_exec_group0(cpu68k_t     *ptCpu,
  * Encoding: 0101 DDD Q SS MMMRRR
  *   Q=0 → ADDQ, Q=1 → SUBQ; DDD=immediate (0=8); SS=size
  */
-static st_error_t cpu_exec_group5(cpu68k_t     *ptCpu,
-                                    
-                                    st_u16_t      uiOpc)
+static st_error_t cpu_exec_group5(st_u16_t      uiOpc)
 {
     int        iData   = (uiOpc >> 9) & 7;
     int        iDir    = (uiOpc >> 8) & 1; /* 0=ADDQ, 1=SUBQ */
@@ -1096,21 +1084,21 @@ static st_error_t cpu_exec_group5(cpu68k_t     *ptCpu,
             st_u32_t   uiPCNext;
             st_i16_t   iWord;
 
-            uiD16    = cpu_fetch_word(ptCpu);
+            uiD16    = cpu_fetch_word();
             iDisp16  = (st_i16_t)uiD16;
-            uiPCNext = ptCpu->uiPC;   /* PC after extension word */
+            uiPCNext = g_cpu_ptCtx.uiPC;   /* PC after extension word */
 
-            if (!cpu_eval_cc(ptCpu, iCc3))
+            if (!cpu_eval_cc(iCc3))
             {
                 /* Decrement Dn.W */
-                iWord = (st_i16_t)(ptCpu->auDn[iRg3] & 0xFFFFu);
+                iWord = (st_i16_t)(g_cpu_ptCtx.auDn[iRg3] & 0xFFFFu);
                 iWord--;
-                ptCpu->auDn[iRg3] = (ptCpu->auDn[iRg3] & 0xFFFF0000u)
+                g_cpu_ptCtx.auDn[iRg3] = (g_cpu_ptCtx.auDn[iRg3] & 0xFFFF0000u)
                                      | (st_u16_t)iWord;
                 if (iWord != (st_i16_t)-1)
                 {
                     /* Branch: target = addr_of_ext_word + displacement */
-                    ptCpu->uiPC = ((uiPCNext - 2u)
+                    g_cpu_ptCtx.uiPC = ((uiPCNext - 2u)
                                    + (st_u32_t)(st_i32_t)iDisp16)
                                   & 0x00FFFFFFu;
                 }
@@ -1120,8 +1108,8 @@ static st_error_t cpu_exec_group5(cpu68k_t     *ptCpu,
 
         /* Scc EA: write 0xFF if condition true, 0x00 if false */
         {
-            st_u8_t uiScc = cpu_eval_cc(ptCpu, iCc3) ? 0xFFu : 0x00u;
-            return cpu_ea_write(ptCpu, iMd3, iRg3, SZ_BYTE,
+            st_u8_t uiScc = cpu_eval_cc(iCc3) ? 0xFFu : 0x00u;
+            return cpu_ea_write(iMd3, iRg3, SZ_BYTE,
                                 (st_u32_t)uiScc);
         }
     }
@@ -1132,7 +1120,7 @@ static st_error_t cpu_exec_group5(cpu68k_t     *ptCpu,
 
     uiImm = (iData == 0) ? 8u : (st_u32_t)iData;
 
-    eR = cpu_ea_read(ptCpu, iMode, iReg, iSz, &uiDst);
+    eR = cpu_ea_read(iMode, iReg, iSz, &uiDst);
     if (eR != ST_NO_ERROR)
         return ST_ERROR;
 
@@ -1141,16 +1129,16 @@ static st_error_t cpu_exec_group5(cpu68k_t     *ptCpu,
         uiRes = (uiDst + uiImm) & g_auiMask[iSz];
         /* An destination: no flags */
         if (iMode != 1)
-            cpu_flags_add(ptCpu, uiImm, uiDst, uiRes, iSz);
+            cpu_flags_add(uiImm, uiDst, uiRes, iSz);
     }
     else
     {
         uiRes = (uiDst - uiImm) & g_auiMask[iSz];
         if (iMode != 1)
-            cpu_flags_sub(ptCpu, uiImm, uiDst, uiRes, iSz);
+            cpu_flags_sub(uiImm, uiDst, uiRes, iSz);
     }
 
-    return cpu_ea_write(ptCpu, iMode, iReg, iSz, uiRes);
+    return cpu_ea_write(iMode, iReg, iSz, uiRes);
 }
 
 /*
@@ -1161,9 +1149,7 @@ static st_error_t cpu_exec_group5(cpu68k_t     *ptCpu,
  * Register: MMMRRR = 000 DDD (mode=0), Memory: MMMRRR = 001 DDD
  * iDir: 0=ADDX, 1=SUBX
  */
-static st_error_t cpu_exec_addx_subx(cpu68k_t     *ptCpu,
-                                       
-                                       st_u16_t      uiOpc,
+static st_error_t cpu_exec_addx_subx(st_u16_t      uiOpc,
                                        int           iDir)
 {
     int        iSzCode = (uiOpc >> 6) & 3;
@@ -1186,21 +1172,21 @@ static st_error_t cpu_exec_addx_subx(cpu68k_t     *ptCpu,
         return ST_NO_ERROR;
     }
 
-    uiX = CPU_FLAG_X(ptCpu) ? 1u : 0u;
+    uiX = CPU_FLAG_X(g_cpu_ptCtx.uiSR) ? 1u : 0u;
 
     if (iRm == 0)
     {
         /* Register form: Dy, Dx */
-        uiSrc = ptCpu->auDn[iRy] & g_auiMask[iSz];
-        uiDst = ptCpu->auDn[iRx] & g_auiMask[iSz];
+        uiSrc = g_cpu_ptCtx.auDn[iRy] & g_auiMask[iSz];
+        uiDst = g_cpu_ptCtx.auDn[iRx] & g_auiMask[iSz];
     }
     else
     {
         /* Memory form: -(Ay), -(Ax) */
-        eR = cpu_ea_read(ptCpu, 4, iRy, iSz, &uiSrc);
+        eR = cpu_ea_read(4, iRy, iSz, &uiSrc);
         if (eR != ST_NO_ERROR)
             return ST_ERROR;
-        eR = cpu_ea_read(ptCpu, 4, iRx, iSz, &uiDst);
+        eR = cpu_ea_read(4, iRx, iSz, &uiDst);
         if (eR != ST_NO_ERROR)
             return ST_ERROR;
     }
@@ -1209,28 +1195,28 @@ static st_error_t cpu_exec_addx_subx(cpu68k_t     *ptCpu,
     {
         /* ADDX */
         uiRes = (uiDst + uiSrc + uiX) & g_auiMask[iSz];
-        cpu_flags_add(ptCpu, uiSrc + uiX, uiDst, uiRes, iSz);
+        cpu_flags_add(uiSrc + uiX, uiDst, uiRes, iSz);
         /* ADDX: Z cleared only if result != 0 */
         if (uiRes != 0u)
-            ptCpu->uiSR &= (st_u16_t)~CPU_SR_Z;
+            g_cpu_ptCtx.uiSR &= (st_u16_t)~CPU_SR_Z;
     }
     else
     {
         /* SUBX */
         uiRes = (uiDst - uiSrc - uiX) & g_auiMask[iSz];
-        cpu_flags_sub(ptCpu, uiSrc + uiX, uiDst, uiRes, iSz);
+        cpu_flags_sub(uiSrc + uiX, uiDst, uiRes, iSz);
         if (uiRes != 0u)
-            ptCpu->uiSR &= (st_u16_t)~CPU_SR_Z;
+            g_cpu_ptCtx.uiSR &= (st_u16_t)~CPU_SR_Z;
     }
 
     if (iRm == 0)
     {
-        eR = cpu_ea_write(ptCpu, 0, iRx, iSz, uiRes);
+        eR = cpu_ea_write(0, iRx, iSz, uiRes);
     }
     else
     {
         /* Write back to the pre-decremented address — re-read adjusted An */
-        uiDst = ptCpu->auAn[iRx] & 0x00FFFFFFu;
+        uiDst = g_cpu_ptCtx.auAn[iRx] & 0x00FFFFFFu;
         switch (iSz)
         {
         case SZ_BYTE:
@@ -1253,9 +1239,7 @@ static st_error_t cpu_exec_addx_subx(cpu68k_t     *ptCpu,
  * cpu_exec_groupD() - ADD / ADDA / ADDX (group 0xD).
  * @req REQ-CPU-010, REQ-CPU-026, REQ-CPU-050
  */
-static st_error_t cpu_exec_groupD(cpu68k_t     *ptCpu,
-                                    
-                                    st_u16_t      uiOpc)
+static st_error_t cpu_exec_groupD(st_u16_t      uiOpc)
 {
     int        iReg    = (uiOpc >> 9) & 7;
     int        iDir    = (uiOpc >> 8) & 1;
@@ -1274,18 +1258,18 @@ static st_error_t cpu_exec_groupD(cpu68k_t     *ptCpu,
         if (iDir == 1)
         {
             /* ADDA.L: read full 32-bit source, add to An */
-            eR = cpu_ea_read(ptCpu, iMode, iRn, SZ_LONG, &uiSrc);
+            eR = cpu_ea_read(iMode, iRn, SZ_LONG, &uiSrc);
             if (eR != ST_NO_ERROR)
                 return ST_ERROR;
-            ptCpu->auAn[iReg] += uiSrc;
+            g_cpu_ptCtx.auAn[iReg] += uiSrc;
         }
         else
         {
             /* ADDA.W: read 16-bit source, sign-extend, add to An */
-            eR = cpu_ea_read(ptCpu, iMode, iRn, SZ_WORD, &uiSrc);
+            eR = cpu_ea_read(iMode, iRn, SZ_WORD, &uiSrc);
             if (eR != ST_NO_ERROR)
                 return ST_ERROR;
-            ptCpu->auAn[iReg] +=
+            g_cpu_ptCtx.auAn[iReg] +=
                 (st_u32_t)(st_i32_t)(st_i16_t)(uiSrc & 0xFFFFu);
         }
         return ST_NO_ERROR;
@@ -1297,29 +1281,29 @@ static st_error_t cpu_exec_groupD(cpu68k_t     *ptCpu,
 
     /* Check ADDX: bit8=1, mode field <= 1 (Dn or -(An)) */
     if (iDir == 1 && iMode <= 1)
-        return cpu_exec_addx_subx(ptCpu, uiOpc, 0);
+        return cpu_exec_addx_subx(uiOpc, 0);
 
     if (iDir == 0)
     {
         /* ADD EA,Dn  (bit8=0) */
-        eR = cpu_ea_read(ptCpu, iMode, iRn, iSz, &uiSrc);
+        eR = cpu_ea_read(iMode, iRn, iSz, &uiSrc);
         if (eR != ST_NO_ERROR)
             return ST_ERROR;
-        uiDst = ptCpu->auDn[iReg] & g_auiMask[iSz];
+        uiDst = g_cpu_ptCtx.auDn[iReg] & g_auiMask[iSz];
         uiRes = (uiDst + uiSrc) & g_auiMask[iSz];
-        cpu_flags_add(ptCpu, uiSrc, uiDst, uiRes, iSz);
-        return cpu_ea_write(ptCpu, 0, iReg, iSz, uiRes);
+        cpu_flags_add(uiSrc, uiDst, uiRes, iSz);
+        return cpu_ea_write(0, iReg, iSz, uiRes);
     }
     else
     {
         /* ADD Dn,EA  (bit8=1, mode>1) */
-        uiSrc = ptCpu->auDn[iReg] & g_auiMask[iSz];
-        eR = cpu_ea_read(ptCpu, iMode, iRn, iSz, &uiDst);
+        uiSrc = g_cpu_ptCtx.auDn[iReg] & g_auiMask[iSz];
+        eR = cpu_ea_read(iMode, iRn, iSz, &uiDst);
         if (eR != ST_NO_ERROR)
             return ST_ERROR;
         uiRes = (uiDst + uiSrc) & g_auiMask[iSz];
-        cpu_flags_add(ptCpu, uiSrc, uiDst, uiRes, iSz);
-        return cpu_ea_write(ptCpu, iMode, iRn, iSz, uiRes);
+        cpu_flags_add(uiSrc, uiDst, uiRes, iSz);
+        return cpu_ea_write(iMode, iRn, iSz, uiRes);
     }
 }
 
@@ -1327,9 +1311,7 @@ static st_error_t cpu_exec_groupD(cpu68k_t     *ptCpu,
  * cpu_exec_group9() - SUB / SUBA / SUBX (group 0x9).
  * @req REQ-CPU-010, REQ-CPU-026, REQ-CPU-050
  */
-static st_error_t cpu_exec_group9(cpu68k_t     *ptCpu,
-                                    
-                                    st_u16_t      uiOpc)
+static st_error_t cpu_exec_group9(st_u16_t      uiOpc)
 {
     int        iReg    = (uiOpc >> 9) & 7;
     int        iDir    = (uiOpc >> 8) & 1;
@@ -1348,18 +1330,18 @@ static st_error_t cpu_exec_group9(cpu68k_t     *ptCpu,
         if (iDir == 1)
         {
             /* SUBA.L: read full 32-bit source, subtract from An */
-            eR = cpu_ea_read(ptCpu, iMode, iRn, SZ_LONG, &uiSrc);
+            eR = cpu_ea_read(iMode, iRn, SZ_LONG, &uiSrc);
             if (eR != ST_NO_ERROR)
                 return ST_ERROR;
-            ptCpu->auAn[iReg] -= uiSrc;
+            g_cpu_ptCtx.auAn[iReg] -= uiSrc;
         }
         else
         {
             /* SUBA.W: read 16-bit source, sign-extend, subtract from An */
-            eR = cpu_ea_read(ptCpu, iMode, iRn, SZ_WORD, &uiSrc);
+            eR = cpu_ea_read(iMode, iRn, SZ_WORD, &uiSrc);
             if (eR != ST_NO_ERROR)
                 return ST_ERROR;
-            ptCpu->auAn[iReg] -=
+            g_cpu_ptCtx.auAn[iReg] -=
                 (st_u32_t)(st_i32_t)(st_i16_t)(uiSrc & 0xFFFFu);
         }
         return ST_NO_ERROR;
@@ -1370,29 +1352,29 @@ static st_error_t cpu_exec_group9(cpu68k_t     *ptCpu,
     else                   iSz = SZ_LONG;
 
     if (iDir == 1 && iMode <= 1)
-        return cpu_exec_addx_subx(ptCpu, uiOpc, 1);
+        return cpu_exec_addx_subx(uiOpc, 1);
 
     if (iDir == 0)
     {
         /* SUB EA,Dn */
-        eR = cpu_ea_read(ptCpu, iMode, iRn, iSz, &uiSrc);
+        eR = cpu_ea_read(iMode, iRn, iSz, &uiSrc);
         if (eR != ST_NO_ERROR)
             return ST_ERROR;
-        uiDst = ptCpu->auDn[iReg] & g_auiMask[iSz];
+        uiDst = g_cpu_ptCtx.auDn[iReg] & g_auiMask[iSz];
         uiRes = (uiDst - uiSrc) & g_auiMask[iSz];
-        cpu_flags_sub(ptCpu, uiSrc, uiDst, uiRes, iSz);
-        return cpu_ea_write(ptCpu, 0, iReg, iSz, uiRes);
+        cpu_flags_sub(uiSrc, uiDst, uiRes, iSz);
+        return cpu_ea_write(0, iReg, iSz, uiRes);
     }
     else
     {
         /* SUB Dn,EA */
-        uiSrc = ptCpu->auDn[iReg] & g_auiMask[iSz];
-        eR = cpu_ea_read(ptCpu, iMode, iRn, iSz, &uiDst);
+        uiSrc = g_cpu_ptCtx.auDn[iReg] & g_auiMask[iSz];
+        eR = cpu_ea_read(iMode, iRn, iSz, &uiDst);
         if (eR != ST_NO_ERROR)
             return ST_ERROR;
         uiRes = (uiDst - uiSrc) & g_auiMask[iSz];
-        cpu_flags_sub(ptCpu, uiSrc, uiDst, uiRes, iSz);
-        return cpu_ea_write(ptCpu, iMode, iRn, iSz, uiRes);
+        cpu_flags_sub(uiSrc, uiDst, uiRes, iSz);
+        return cpu_ea_write(iMode, iRn, iSz, uiRes);
     }
 }
 
@@ -1400,9 +1382,7 @@ static st_error_t cpu_exec_group9(cpu68k_t     *ptCpu,
  * cpu_exec_groupB() - CMP / CMPA / EOR / CMPM (group 0xB).
  * @req REQ-CPU-010, REQ-CPU-026
  */
-static st_error_t cpu_exec_groupB(cpu68k_t     *ptCpu,
-                                    
-                                    st_u16_t      uiOpc)
+static st_error_t cpu_exec_groupB(st_u16_t      uiOpc)
 {
     int        iReg    = (uiOpc >> 9) & 7;
     int        iDir    = (uiOpc >> 8) & 1;
@@ -1418,12 +1398,12 @@ static st_error_t cpu_exec_groupB(cpu68k_t     *ptCpu,
     if (iSzCode == 3)
     {
         /* CMPA.L */
-        eR = cpu_ea_read(ptCpu, iMode, iRn, SZ_LONG, &uiSrc);
+        eR = cpu_ea_read(iMode, iRn, SZ_LONG, &uiSrc);
         if (eR != ST_NO_ERROR)
             return ST_ERROR;
-        uiDst = ptCpu->auAn[iReg];
+        uiDst = g_cpu_ptCtx.auAn[iReg];
         uiRes = (uiDst - uiSrc) & g_auiMask[SZ_LONG];
-        cpu_flags_sub(ptCpu, uiSrc, uiDst, uiRes, SZ_LONG);
+        cpu_flags_sub(uiSrc, uiDst, uiRes, SZ_LONG);
         return ST_NO_ERROR;
     }
 
@@ -1434,37 +1414,37 @@ static st_error_t cpu_exec_groupB(cpu68k_t     *ptCpu,
     if (iDir == 1 && iMode == 1)
     {
         /* CMPM (An)+,(An)+ */
-        eR = cpu_ea_read(ptCpu, 3, iRn, iSz, &uiSrc);
+        eR = cpu_ea_read(3, iRn, iSz, &uiSrc);
         if (eR != ST_NO_ERROR)
             return ST_ERROR;
-        eR = cpu_ea_read(ptCpu, 3, iReg, iSz, &uiDst);
+        eR = cpu_ea_read(3, iReg, iSz, &uiDst);
         if (eR != ST_NO_ERROR)
             return ST_ERROR;
         uiRes = (uiDst - uiSrc) & g_auiMask[iSz];
-        cpu_flags_sub(ptCpu, uiSrc, uiDst, uiRes, iSz);
+        cpu_flags_sub(uiSrc, uiDst, uiRes, iSz);
         return ST_NO_ERROR;
     }
 
     if (iDir == 1)
     {
         /* EOR Dn,EA */
-        uiSrc = ptCpu->auDn[iReg] & g_auiMask[iSz];
-        eR = cpu_ea_read(ptCpu, iMode, iRn, iSz, &uiDst);
+        uiSrc = g_cpu_ptCtx.auDn[iReg] & g_auiMask[iSz];
+        eR = cpu_ea_read(iMode, iRn, iSz, &uiDst);
         if (eR != ST_NO_ERROR)
             return ST_ERROR;
         uiRes = (uiDst ^ uiSrc) & g_auiMask[iSz];
-        cpu_flags_nz(ptCpu, uiRes, iSz);
-        cpu_flags_clr_vc(ptCpu);
-        return cpu_ea_write(ptCpu, iMode, iRn, iSz, uiRes);
+        cpu_flags_nz(uiRes, iSz);
+        cpu_flags_clr_vc();
+        return cpu_ea_write(iMode, iRn, iSz, uiRes);
     }
 
     /* CMP EA,Dn (bit8=0) */
-    eR = cpu_ea_read(ptCpu, iMode, iRn, iSz, &uiSrc);
+    eR = cpu_ea_read(iMode, iRn, iSz, &uiSrc);
     if (eR != ST_NO_ERROR)
         return ST_ERROR;
-    uiDst = ptCpu->auDn[iReg] & g_auiMask[iSz];
+    uiDst = g_cpu_ptCtx.auDn[iReg] & g_auiMask[iSz];
     uiRes = (uiDst - uiSrc) & g_auiMask[iSz];
-    cpu_flags_sub(ptCpu, uiSrc, uiDst, uiRes, iSz);
+    cpu_flags_sub(uiSrc, uiDst, uiRes, iSz);
     return ST_NO_ERROR;
 }
 
@@ -1472,9 +1452,7 @@ static st_error_t cpu_exec_groupB(cpu68k_t     *ptCpu,
  * cpu_exec_groupC() - AND / MULU / MULS (group 0xC).
  * @req REQ-CPU-010, REQ-CPU-027
  */
-static st_error_t cpu_exec_groupC(cpu68k_t     *ptCpu,
-                                    
-                                    st_u16_t      uiOpc)
+static st_error_t cpu_exec_groupC(st_u16_t      uiOpc)
 {
     int        iReg    = (uiOpc >> 9) & 7;
     int        iDir    = (uiOpc >> 8) & 1;
@@ -1490,23 +1468,23 @@ static st_error_t cpu_exec_groupC(cpu68k_t     *ptCpu,
     if (iSzCode == 3)
     {
         /* MULU.W or MULS.W */
-        eR = cpu_ea_read(ptCpu, iMode, iRn, SZ_WORD, &uiSrc);
+        eR = cpu_ea_read(iMode, iRn, SZ_WORD, &uiSrc);
         if (eR != ST_NO_ERROR)
             return ST_ERROR;
         if (iDir == 0)
         {
             /* MULU.W: unsigned 16x16 → 32 */
-            uiRes = (uiSrc & 0xFFFFu) * (ptCpu->auDn[iReg] & 0xFFFFu);
+            uiRes = (uiSrc & 0xFFFFu) * (g_cpu_ptCtx.auDn[iReg] & 0xFFFFu);
         }
         else
         {
             /* MULS.W: signed 16x16 → 32 */
             uiRes = (st_u32_t)((st_i32_t)(st_i16_t)(uiSrc & 0xFFFFu)
-                    * (st_i32_t)(st_i16_t)(ptCpu->auDn[iReg] & 0xFFFFu));
+                    * (st_i32_t)(st_i16_t)(g_cpu_ptCtx.auDn[iReg] & 0xFFFFu));
         }
-        ptCpu->auDn[iReg] = uiRes;
-        cpu_flags_nz(ptCpu, uiRes, SZ_LONG);
-        cpu_flags_clr_vc(ptCpu);
+        g_cpu_ptCtx.auDn[iReg] = uiRes;
+        cpu_flags_nz(uiRes, SZ_LONG);
+        cpu_flags_clr_vc();
         return ST_NO_ERROR;
     }
 
@@ -1517,26 +1495,26 @@ static st_error_t cpu_exec_groupC(cpu68k_t     *ptCpu,
     if (iDir == 0)
     {
         /* AND EA,Dn */
-        eR = cpu_ea_read(ptCpu, iMode, iRn, iSz, &uiSrc);
+        eR = cpu_ea_read(iMode, iRn, iSz, &uiSrc);
         if (eR != ST_NO_ERROR)
             return ST_ERROR;
-        uiDst = ptCpu->auDn[iReg] & g_auiMask[iSz];
+        uiDst = g_cpu_ptCtx.auDn[iReg] & g_auiMask[iSz];
         uiRes = (uiDst & uiSrc) & g_auiMask[iSz];
-        cpu_flags_nz(ptCpu, uiRes, iSz);
-        cpu_flags_clr_vc(ptCpu);
-        return cpu_ea_write(ptCpu, 0, iReg, iSz, uiRes);
+        cpu_flags_nz(uiRes, iSz);
+        cpu_flags_clr_vc();
+        return cpu_ea_write(0, iReg, iSz, uiRes);
     }
     else
     {
         /* AND Dn,EA */
-        uiSrc = ptCpu->auDn[iReg] & g_auiMask[iSz];
-        eR = cpu_ea_read(ptCpu, iMode, iRn, iSz, &uiDst);
+        uiSrc = g_cpu_ptCtx.auDn[iReg] & g_auiMask[iSz];
+        eR = cpu_ea_read(iMode, iRn, iSz, &uiDst);
         if (eR != ST_NO_ERROR)
             return ST_ERROR;
         uiRes = (uiDst & uiSrc) & g_auiMask[iSz];
-        cpu_flags_nz(ptCpu, uiRes, iSz);
-        cpu_flags_clr_vc(ptCpu);
-        return cpu_ea_write(ptCpu, iMode, iRn, iSz, uiRes);
+        cpu_flags_nz(uiRes, iSz);
+        cpu_flags_clr_vc();
+        return cpu_ea_write(iMode, iRn, iSz, uiRes);
     }
 }
 
@@ -1544,9 +1522,7 @@ static st_error_t cpu_exec_groupC(cpu68k_t     *ptCpu,
  * cpu_exec_group8() - OR / DIVU / DIVS (group 0x8).
  * @req REQ-CPU-010, REQ-CPU-028
  */
-static st_error_t cpu_exec_group8(cpu68k_t     *ptCpu,
-                                    
-                                    st_u16_t      uiOpc)
+static st_error_t cpu_exec_group8(st_u16_t      uiOpc)
 {
     int        iReg    = (uiOpc >> 9) & 7;
     int        iDir    = (uiOpc >> 8) & 1;
@@ -1562,7 +1538,7 @@ static st_error_t cpu_exec_group8(cpu68k_t     *ptCpu,
     if (iSzCode == 3)
     {
         /* DIVU.W or DIVS.W */
-        eR = cpu_ea_read(ptCpu, iMode, iRn, SZ_WORD, &uiSrc);
+        eR = cpu_ea_read(iMode, iRn, SZ_WORD, &uiSrc);
         if (eR != ST_NO_ERROR)
             return ST_ERROR;
         uiSrc &= 0xFFFFu;
@@ -1571,13 +1547,13 @@ static st_error_t cpu_exec_group8(cpu68k_t     *ptCpu,
             LOG_TODO("DIV by zero — exception UC23");
             return ST_NO_ERROR;
         }
-        uiDst = ptCpu->auDn[iReg];
+        uiDst = g_cpu_ptCtx.auDn[iReg];
         if (iDir == 0)
         {
             /* DIVU.W */
             st_u32_t uiQ = uiDst / uiSrc;
             st_u32_t uiR = uiDst % uiSrc;
-            ptCpu->auDn[iReg] = ((uiR & 0xFFFFu) << 16u)
+            g_cpu_ptCtx.auDn[iReg] = ((uiR & 0xFFFFu) << 16u)
                                  | (uiQ & 0xFFFFu);
         }
         else
@@ -1587,11 +1563,11 @@ static st_error_t cpu_exec_group8(cpu68k_t     *ptCpu,
             st_i32_t iSrc  = (st_i32_t)(st_i16_t)uiSrc;
             st_i32_t iQ    = iDst / iSrc;
             st_i32_t iR    = iDst % iSrc;
-            ptCpu->auDn[iReg] = (((st_u32_t)(iR & 0xFFFF) << 16u))
+            g_cpu_ptCtx.auDn[iReg] = (((st_u32_t)(iR & 0xFFFF) << 16u))
                                  | ((st_u32_t)(iQ & 0xFFFF));
         }
-        cpu_flags_nz(ptCpu, ptCpu->auDn[iReg] & 0xFFFFu, SZ_WORD);
-        cpu_flags_clr_vc(ptCpu);
+        cpu_flags_nz(g_cpu_ptCtx.auDn[iReg] & 0xFFFFu, SZ_WORD);
+        cpu_flags_clr_vc();
         return ST_NO_ERROR;
     }
 
@@ -1602,26 +1578,26 @@ static st_error_t cpu_exec_group8(cpu68k_t     *ptCpu,
     if (iDir == 0)
     {
         /* OR EA,Dn */
-        eR = cpu_ea_read(ptCpu, iMode, iRn, iSz, &uiSrc);
+        eR = cpu_ea_read(iMode, iRn, iSz, &uiSrc);
         if (eR != ST_NO_ERROR)
             return ST_ERROR;
-        uiDst = ptCpu->auDn[iReg] & g_auiMask[iSz];
+        uiDst = g_cpu_ptCtx.auDn[iReg] & g_auiMask[iSz];
         uiRes = (uiDst | uiSrc) & g_auiMask[iSz];
-        cpu_flags_nz(ptCpu, uiRes, iSz);
-        cpu_flags_clr_vc(ptCpu);
-        return cpu_ea_write(ptCpu, 0, iReg, iSz, uiRes);
+        cpu_flags_nz(uiRes, iSz);
+        cpu_flags_clr_vc();
+        return cpu_ea_write(0, iReg, iSz, uiRes);
     }
     else
     {
         /* OR Dn,EA */
-        uiSrc = ptCpu->auDn[iReg] & g_auiMask[iSz];
-        eR = cpu_ea_read(ptCpu, iMode, iRn, iSz, &uiDst);
+        uiSrc = g_cpu_ptCtx.auDn[iReg] & g_auiMask[iSz];
+        eR = cpu_ea_read(iMode, iRn, iSz, &uiDst);
         if (eR != ST_NO_ERROR)
             return ST_ERROR;
         uiRes = (uiDst | uiSrc) & g_auiMask[iSz];
-        cpu_flags_nz(ptCpu, uiRes, iSz);
-        cpu_flags_clr_vc(ptCpu);
-        return cpu_ea_write(ptCpu, iMode, iRn, iSz, uiRes);
+        cpu_flags_nz(uiRes, iSz);
+        cpu_flags_clr_vc();
+        return cpu_ea_write(iMode, iRn, iSz, uiRes);
     }
 }
 
@@ -1639,9 +1615,7 @@ static st_error_t cpu_exec_group8(cpu68k_t     *ptCpu,
  *
  * Memory form (sz=3): shift by 1 word, modes 2-7.
  */
-static st_error_t cpu_exec_groupE(cpu68k_t     *ptCpu,
-                                    
-                                    st_u16_t      uiOpc)
+static st_error_t cpu_exec_groupE(st_u16_t      uiOpc)
 {
     int        iSzCode = (uiOpc >> 6) & 3;
     int        iMode   = (uiOpc >> 3) & 7;
@@ -1688,7 +1662,7 @@ static st_error_t cpu_exec_groupE(cpu68k_t     *ptCpu,
                      (unsigned)uiOpc);
             return ST_NO_ERROR;
         }
-        eR = cpu_ea_read(ptCpu, iMode, iRn, iSz, &uiVal);
+        eR = cpu_ea_read(iMode, iRn, iSz, &uiVal);
         if (eR != ST_NO_ERROR)
             return ST_ERROR;
     }
@@ -1708,15 +1682,15 @@ static st_error_t cpu_exec_groupE(cpu68k_t     *ptCpu,
         }
         else
         {
-            iCount = (int)(ptCpu->auDn[(uiOpc >> 9) & 7] & 63u);
+            iCount = (int)(g_cpu_ptCtx.auDn[(uiOpc >> 9) & 7] & 63u);
         }
 
-        uiVal = ptCpu->auDn[iRn] & g_auiMask[iSz];
+        uiVal = g_cpu_ptCtx.auDn[iRn] & g_auiMask[iSz];
     }
 
     uiMsb  = g_auiMsb[iSz];
     uiMask = g_auiMask[iSz];
-    iX     = CPU_FLAG_X(ptCpu) ? 1 : 0;
+    iX     = CPU_FLAG_X(g_cpu_ptCtx.uiSR) ? 1 : 0;
     uiRes  = uiVal;
 
     {
@@ -1731,18 +1705,18 @@ static st_error_t cpu_exec_groupE(cpu68k_t     *ptCpu,
                     uiLastBit = (uiRes & uiMsb) ? 1u : 0u;
                     uiRes     = (uiRes << 1u) & uiMask;
                     if (uiLastBit)
-                        ptCpu->uiSR |=  (st_u16_t)(CPU_SR_C | CPU_SR_X);
+                        g_cpu_ptCtx.uiSR |=  (st_u16_t)(CPU_SR_C | CPU_SR_X);
                     else
-                        ptCpu->uiSR &= (st_u16_t)~(CPU_SR_C | CPU_SR_X);
+                        g_cpu_ptCtx.uiSR &= (st_u16_t)~(CPU_SR_C | CPU_SR_X);
                 }
                 else
                 {
                     uiLastBit = uiRes & 1u;
                     uiRes     = ((uiRes >> 1u) | (uiRes & uiMsb)) & uiMask;
                     if (uiLastBit)
-                        ptCpu->uiSR |=  (st_u16_t)(CPU_SR_C | CPU_SR_X);
+                        g_cpu_ptCtx.uiSR |=  (st_u16_t)(CPU_SR_C | CPU_SR_X);
                     else
-                        ptCpu->uiSR &= (st_u16_t)~(CPU_SR_C | CPU_SR_X);
+                        g_cpu_ptCtx.uiSR &= (st_u16_t)~(CPU_SR_C | CPU_SR_X);
                 }
                 break;
 
@@ -1752,18 +1726,18 @@ static st_error_t cpu_exec_groupE(cpu68k_t     *ptCpu,
                     uiLastBit = (uiRes & uiMsb) ? 1u : 0u;
                     uiRes     = (uiRes << 1u) & uiMask;
                     if (uiLastBit)
-                        ptCpu->uiSR |=  (st_u16_t)(CPU_SR_C | CPU_SR_X);
+                        g_cpu_ptCtx.uiSR |=  (st_u16_t)(CPU_SR_C | CPU_SR_X);
                     else
-                        ptCpu->uiSR &= (st_u16_t)~(CPU_SR_C | CPU_SR_X);
+                        g_cpu_ptCtx.uiSR &= (st_u16_t)~(CPU_SR_C | CPU_SR_X);
                 }
                 else
                 {
                     uiLastBit = uiRes & 1u;
                     uiRes     = (uiRes >> 1u) & uiMask;
                     if (uiLastBit)
-                        ptCpu->uiSR |=  (st_u16_t)(CPU_SR_C | CPU_SR_X);
+                        g_cpu_ptCtx.uiSR |=  (st_u16_t)(CPU_SR_C | CPU_SR_X);
                     else
-                        ptCpu->uiSR &= (st_u16_t)~(CPU_SR_C | CPU_SR_X);
+                        g_cpu_ptCtx.uiSR &= (st_u16_t)~(CPU_SR_C | CPU_SR_X);
                 }
                 break;
 
@@ -1774,9 +1748,9 @@ static st_error_t cpu_exec_groupE(cpu68k_t     *ptCpu,
                     uiRes     = ((uiRes << 1u) | (st_u32_t)iX) & uiMask;
                     iX        = (int)uiLastBit;
                     if (iX)
-                        ptCpu->uiSR |=  (st_u16_t)(CPU_SR_C | CPU_SR_X);
+                        g_cpu_ptCtx.uiSR |=  (st_u16_t)(CPU_SR_C | CPU_SR_X);
                     else
-                        ptCpu->uiSR &= (st_u16_t)~(CPU_SR_C | CPU_SR_X);
+                        g_cpu_ptCtx.uiSR &= (st_u16_t)~(CPU_SR_C | CPU_SR_X);
                 }
                 else
                 {
@@ -1788,9 +1762,9 @@ static st_error_t cpu_exec_groupE(cpu68k_t     *ptCpu,
                                 & uiMask;
                     iX        = (int)uiLastBit;
                     if (iX)
-                        ptCpu->uiSR |=  (st_u16_t)(CPU_SR_C | CPU_SR_X);
+                        g_cpu_ptCtx.uiSR |=  (st_u16_t)(CPU_SR_C | CPU_SR_X);
                     else
-                        ptCpu->uiSR &= (st_u16_t)~(CPU_SR_C | CPU_SR_X);
+                        g_cpu_ptCtx.uiSR &= (st_u16_t)~(CPU_SR_C | CPU_SR_X);
                 }
                 break;
 
@@ -1801,9 +1775,9 @@ static st_error_t cpu_exec_groupE(cpu68k_t     *ptCpu,
                     uiRes     = ((uiRes << 1u)
                                  | uiLastBit) & uiMask;
                     if (uiLastBit)
-                        ptCpu->uiSR |=  (st_u16_t)CPU_SR_C;
+                        g_cpu_ptCtx.uiSR |=  (st_u16_t)CPU_SR_C;
                     else
-                        ptCpu->uiSR &= (st_u16_t)~CPU_SR_C;
+                        g_cpu_ptCtx.uiSR &= (st_u16_t)~CPU_SR_C;
                 }
                 else
                 {
@@ -1814,9 +1788,9 @@ static st_error_t cpu_exec_groupE(cpu68k_t     *ptCpu,
                                      : iSz == SZ_WORD ? 15 : 31)))
                                 & uiMask;
                     if (uiLastBit)
-                        ptCpu->uiSR |=  (st_u16_t)CPU_SR_C;
+                        g_cpu_ptCtx.uiSR |=  (st_u16_t)CPU_SR_C;
                     else
-                        ptCpu->uiSR &= (st_u16_t)~CPU_SR_C;
+                        g_cpu_ptCtx.uiSR &= (st_u16_t)~CPU_SR_C;
                 }
                 break;
             }
@@ -1830,21 +1804,21 @@ static st_error_t cpu_exec_groupE(cpu68k_t     *ptCpu,
         /* ASL: V=1 if MSB changed during any shift step */
         st_u32_t uiOrig = uiVal & uiMsb;
         if ((uiRes & uiMsb) != uiOrig || uiRes == 0u)
-            ptCpu->uiSR &= (st_u16_t)~CPU_SR_V; /* simplified */
+            g_cpu_ptCtx.uiSR &= (st_u16_t)~CPU_SR_V; /* simplified */
         else
-            ptCpu->uiSR &= (st_u16_t)~CPU_SR_V;
+            g_cpu_ptCtx.uiSR &= (st_u16_t)~CPU_SR_V;
     }
     else
     {
-        ptCpu->uiSR &= (st_u16_t)~CPU_SR_V;
+        g_cpu_ptCtx.uiSR &= (st_u16_t)~CPU_SR_V;
     }
 
-    cpu_flags_nz(ptCpu, uiRes, iSz);
+    cpu_flags_nz(uiRes, iSz);
 
     if (iSzCode == 3)
-        return cpu_ea_write(ptCpu, iMode, iRn, SZ_WORD, uiRes);
+        return cpu_ea_write(iMode, iRn, SZ_WORD, uiRes);
     else
-        return cpu_ea_write(ptCpu, 0, iRn, iSz, uiRes);
+        return cpu_ea_write(0, iRn, iSz, uiRes);
 }
 
 /*
@@ -1863,9 +1837,7 @@ static st_error_t cpu_exec_groupE(cpu68k_t     *ptCpu,
  * word (before any extension word) — this is the base for the target.
  * The return address for BSR is the PC after all extension words.
  */
-static st_error_t cpu_exec_branch(cpu68k_t     *ptCpu,
-                                    
-                                    st_u16_t      uiOpc)
+static st_error_t cpu_exec_branch(st_u16_t      uiOpc)
 {
     int        iCc     = (uiOpc >> 8) & 0xFu;
     st_i8_t    iDisp8  = (st_i8_t)(uiOpc & 0xFFu);
@@ -1874,12 +1846,12 @@ static st_error_t cpu_exec_branch(cpu68k_t     *ptCpu,
     st_u32_t   uiTarget;
     st_error_t eR;
 
-    uiBase = ptCpu->uiPC;   /* PC already advanced past opcode word */
+    uiBase = g_cpu_ptCtx.uiPC;   /* PC already advanced past opcode word */
 
     if (iDisp8 == 0)
     {
         /* Word displacement follows */
-        st_u16_t uiExt = cpu_fetch_word(ptCpu);
+        st_u16_t uiExt = cpu_fetch_word();
         iDisp = (st_i32_t)(st_i16_t)uiExt;
     }
     else
@@ -1892,27 +1864,27 @@ static st_error_t cpu_exec_branch(cpu68k_t     *ptCpu,
 
     if (iCc == 0) /* BRA — unconditional */
     {
-        ptCpu->uiPC = uiTarget;
+        g_cpu_ptCtx.uiPC = uiTarget;
         return ST_NO_ERROR;
     }
 
     if (iCc == 1) /* BSR — push return address then branch */
     {
         /* Return address = PC after full instruction (past ext word) */
-        eR = cpu_push_long(ptCpu, ptCpu->uiPC);
+        eR = cpu_push_long(g_cpu_ptCtx.uiPC);
         if (eR != ST_NO_ERROR)
         {
             LOG_ERROR("BSR: stack push failed SP=0x%06X",
-                      ptCpu->auAn[7] + 4u);
+                      g_cpu_ptCtx.auAn[7] + 4u);
             return ST_ERROR;
         }
-        ptCpu->uiPC = uiTarget;
+        g_cpu_ptCtx.uiPC = uiTarget;
         return ST_NO_ERROR;
     }
 
     /* Bcc — conditional branch */
-    if (cpu_eval_cc(ptCpu, iCc))
-        ptCpu->uiPC = uiTarget;
+    if (cpu_eval_cc(iCc))
+        g_cpu_ptCtx.uiPC = uiTarget;
     /* else: fall through, PC already at next instruction */
 
     return ST_NO_ERROR;
@@ -1926,7 +1898,7 @@ static st_error_t cpu_exec_branch(cpu68k_t     *ptCpu,
  * EXT.W : 0100 1000 1000 0DDD  (0xFFF8 == 0x4880)
  * EXT.L : 0100 1000 1100 0DDD  (0xFFF8 == 0x48C0)
  */
-static st_error_t cpu_exec_ext(cpu68k_t *ptCpu, st_u16_t uiOpc)
+static st_error_t cpu_exec_ext(st_u16_t uiOpc)
 {
     int      iDn  = uiOpc & 7;
     st_u32_t uiVal;
@@ -1935,8 +1907,8 @@ static st_error_t cpu_exec_ext(cpu68k_t *ptCpu, st_u16_t uiOpc)
     if ((uiOpc & 0xFFF8u) == 0x4880u)
     {
         /* EXT.W: sign-extend byte to word */
-        uiVal = (st_u32_t)(st_i32_t)(st_i8_t)(ptCpu->auDn[iDn] & 0xFFu);
-        ptCpu->auDn[iDn] = (ptCpu->auDn[iDn] & 0xFFFF0000u)
+        uiVal = (st_u32_t)(st_i32_t)(st_i8_t)(g_cpu_ptCtx.auDn[iDn] & 0xFFu);
+        g_cpu_ptCtx.auDn[iDn] = (g_cpu_ptCtx.auDn[iDn] & 0xFFFF0000u)
                            | (uiVal & 0xFFFFu);
         iSz = SZ_WORD;
         uiVal &= 0xFFFFu;
@@ -1945,13 +1917,13 @@ static st_error_t cpu_exec_ext(cpu68k_t *ptCpu, st_u16_t uiOpc)
     {
         /* EXT.L: sign-extend word to long */
         uiVal = (st_u32_t)(st_i32_t)(st_i16_t)
-                (ptCpu->auDn[iDn] & 0xFFFFu);
-        ptCpu->auDn[iDn] = uiVal;
+                (g_cpu_ptCtx.auDn[iDn] & 0xFFFFu);
+        g_cpu_ptCtx.auDn[iDn] = uiVal;
         iSz = SZ_LONG;
     }
 
-    cpu_flags_nz(ptCpu, uiVal, iSz);
-    cpu_flags_clr_vc(ptCpu);
+    cpu_flags_nz(uiVal, iSz);
+    cpu_flags_clr_vc();
     return ST_NO_ERROR;
 }
 
@@ -1965,9 +1937,7 @@ static st_error_t cpu_exec_ext(cpu68k_t *ptCpu, st_u16_t uiOpc)
  * RTR (0x4E77), TRAP #n (0x4E40-0x4E4F), LINK An,#d16 (0x4E50-0x4E57),
  * UNLK An (0x4E58-0x4E5F), JSR EA (0x4E80-0x4EBF), JMP EA (0x4EC0-0x4EFF).
  */
-static st_error_t cpu_exec_misc4e(cpu68k_t     *ptCpu,
-                                    
-                                    st_u16_t      uiOpc)
+static st_error_t cpu_exec_misc4e(st_u16_t      uiOpc)
 {
     st_u16_t   uiExt;
     st_u32_t   uiAddr;
@@ -1986,9 +1956,9 @@ static st_error_t cpu_exec_misc4e(cpu68k_t     *ptCpu,
     /* STOP #imm — load immediate → SR, halt CPU */
     if (uiOpc == 0x4E72u)
     {
-        uiExt = cpu_fetch_word(ptCpu);
-        ptCpu->uiSR   = uiExt;
-        ptCpu->eState = CPU_STATE_STOPPED;
+        uiExt = cpu_fetch_word();
+        g_cpu_ptCtx.uiSR   = uiExt;
+        g_cpu_ptCtx.eState = CPU_STATE_STOPPED;
         LOG_INFO("STOP #0x%04X — CPU halted", (unsigned)uiExt);
         return ST_NO_ERROR;
     }
@@ -1996,59 +1966,59 @@ static st_error_t cpu_exec_misc4e(cpu68k_t     *ptCpu,
     /* RTE: pop SR (word) then PC (long) — restore full context */
     if (uiOpc == 0x4E73u)
     {
-        eR = cpu_pop_word(ptCpu, &uiW);
+        eR = cpu_pop_word(&uiW);
         if (eR != ST_NO_ERROR)
         {
             LOG_ERROR("RTE: stack pop SR failed SP=0x%06X",
-                      ptCpu->auAn[7]);
+                      g_cpu_ptCtx.auAn[7]);
             return ST_ERROR;
         }
-        ptCpu->uiSR = uiW;
-        eR = cpu_pop_long(ptCpu, &uiTmp);
+        g_cpu_ptCtx.uiSR = uiW;
+        eR = cpu_pop_long(&uiTmp);
         if (eR != ST_NO_ERROR)
         {
             LOG_ERROR("RTE: stack pop PC failed SP=0x%06X",
-                      ptCpu->auAn[7]);
+                      g_cpu_ptCtx.auAn[7]);
             return ST_ERROR;
         }
-        ptCpu->uiPC = uiTmp & 0x00FFFFFFu;
+        g_cpu_ptCtx.uiPC = uiTmp & 0x00FFFFFFu;
         return ST_NO_ERROR;
     }
 
     /* RTS: pop PC from stack */
     if (uiOpc == 0x4E75u)
     {
-        eR = cpu_pop_long(ptCpu, &uiTmp);
+        eR = cpu_pop_long(&uiTmp);
         if (eR != ST_NO_ERROR)
         {
             LOG_ERROR("RTS: stack pop failed SP=0x%06X",
-                      ptCpu->auAn[7]);
+                      g_cpu_ptCtx.auAn[7]);
             return ST_ERROR;
         }
-        ptCpu->uiPC = uiTmp & 0x00FFFFFFu;
+        g_cpu_ptCtx.uiPC = uiTmp & 0x00FFFFFFu;
         return ST_NO_ERROR;
     }
 
     /* RTR: pop CCR (word) then PC — restores condition codes only */
     if (uiOpc == 0x4E77u)
     {
-        eR = cpu_pop_word(ptCpu, &uiW);
+        eR = cpu_pop_word(&uiW);
         if (eR != ST_NO_ERROR)
         {
             LOG_ERROR("RTR: stack pop CCR failed SP=0x%06X",
-                      ptCpu->auAn[7]);
+                      g_cpu_ptCtx.auAn[7]);
             return ST_ERROR;
         }
         /* RTR: only CCR (lower byte: X N Z V C) is restored */
-        ptCpu->uiSR = (ptCpu->uiSR & 0xFF00u) | (uiW & 0x00FFu);
-        eR = cpu_pop_long(ptCpu, &uiTmp);
+        g_cpu_ptCtx.uiSR = (g_cpu_ptCtx.uiSR & 0xFF00u) | (uiW & 0x00FFu);
+        eR = cpu_pop_long(&uiTmp);
         if (eR != ST_NO_ERROR)
         {
             LOG_ERROR("RTR: stack pop PC failed SP=0x%06X",
-                      ptCpu->auAn[7]);
+                      g_cpu_ptCtx.auAn[7]);
             return ST_ERROR;
         }
-        ptCpu->uiPC = uiTmp & 0x00FFFFFFu;
+        g_cpu_ptCtx.uiPC = uiTmp & 0x00FFFFFFu;
         return ST_NO_ERROR;
     }
 
@@ -2057,29 +2027,29 @@ static st_error_t cpu_exec_misc4e(cpu68k_t     *ptCpu,
     {
         iN = uiOpc & 0xFu;
         if (iN == 1)
-            return tos_gemdos(ptCpu);
+            return tos_gemdos(&g_cpu_ptCtx);
         if (iN == 14)
-            return tos_xbios(ptCpu);
-        return cpu_raise_exception(ptCpu, CPU_VEC_TRAP(iN));
+            return tos_xbios(&g_cpu_ptCtx);
+        return cpu_raise_exception(CPU_VEC_TRAP(iN));
     }
 
     /* LINK An,#d16: 0100 1110 0101 0AAA */
     if ((uiOpc & 0xFFF8u) == 0x4E50u)
     {
         iAn  = uiOpc & 7;
-        uiExt = cpu_fetch_word(ptCpu);
+        uiExt = cpu_fetch_word();
         /* Push An (saved value) to stack */
-        eR = cpu_push_long(ptCpu, ptCpu->auAn[iAn]);
+        eR = cpu_push_long(g_cpu_ptCtx.auAn[iAn]);
         if (eR != ST_NO_ERROR)
         {
             LOG_ERROR("LINK: push An failed SP=0x%06X",
-                      ptCpu->auAn[7] + 4u);
+                      g_cpu_ptCtx.auAn[7] + 4u);
             return ST_ERROR;
         }
         /* An = SP (frame pointer) */
-        ptCpu->auAn[iAn] = ptCpu->auAn[7];
+        g_cpu_ptCtx.auAn[iAn] = g_cpu_ptCtx.auAn[7];
         /* SP += sign_ext(d16) — displacement is typically negative */
-        ptCpu->auAn[7] += (st_u32_t)(st_i32_t)(st_i16_t)uiExt;
+        g_cpu_ptCtx.auAn[7] += (st_u32_t)(st_i32_t)(st_i16_t)uiExt;
         return ST_NO_ERROR;
     }
 
@@ -2088,16 +2058,16 @@ static st_error_t cpu_exec_misc4e(cpu68k_t     *ptCpu,
     {
         iAn = uiOpc & 7;
         /* SP = An (frame pointer) */
-        ptCpu->auAn[7] = ptCpu->auAn[iAn];
+        g_cpu_ptCtx.auAn[7] = g_cpu_ptCtx.auAn[iAn];
         /* Pop saved An from stack */
-        eR = cpu_pop_long(ptCpu, &uiTmp);
+        eR = cpu_pop_long(&uiTmp);
         if (eR != ST_NO_ERROR)
         {
             LOG_ERROR("UNLK: pop An failed SP=0x%06X",
-                      ptCpu->auAn[7]);
+                      g_cpu_ptCtx.auAn[7]);
             return ST_ERROR;
         }
-        ptCpu->auAn[iAn] = uiTmp;
+        g_cpu_ptCtx.auAn[iAn] = uiTmp;
         return ST_NO_ERROR;
     }
 
@@ -2106,18 +2076,18 @@ static st_error_t cpu_exec_misc4e(cpu68k_t     *ptCpu,
     {
         iMode = (uiOpc >> 3) & 7;
         iReg  = uiOpc & 7;
-        eR    = cpu_ea_calc_addr(ptCpu, iMode, iReg, &uiAddr);
+        eR    = cpu_ea_calc_addr(iMode, iReg, &uiAddr);
         if (eR != ST_NO_ERROR)
             return ST_ERROR;
         /* Push return address (PC after full instruction + ext words) */
-        eR = cpu_push_long(ptCpu, ptCpu->uiPC);
+        eR = cpu_push_long(g_cpu_ptCtx.uiPC);
         if (eR != ST_NO_ERROR)
         {
             LOG_ERROR("JSR: stack push failed SP=0x%06X",
-                      ptCpu->auAn[7] + 4u);
+                      g_cpu_ptCtx.auAn[7] + 4u);
             return ST_ERROR;
         }
-        ptCpu->uiPC = uiAddr;
+        g_cpu_ptCtx.uiPC = uiAddr;
         return ST_NO_ERROR;
     }
 
@@ -2126,10 +2096,10 @@ static st_error_t cpu_exec_misc4e(cpu68k_t     *ptCpu,
     {
         iMode = (uiOpc >> 3) & 7;
         iReg  = uiOpc & 7;
-        eR    = cpu_ea_calc_addr(ptCpu, iMode, iReg, &uiAddr);
+        eR    = cpu_ea_calc_addr(iMode, iReg, &uiAddr);
         if (eR != ST_NO_ERROR)
             return ST_ERROR;
-        ptCpu->uiPC = uiAddr;
+        g_cpu_ptCtx.uiPC = uiAddr;
         return ST_NO_ERROR;
     }
 
@@ -2156,9 +2126,7 @@ static st_error_t cpu_exec_misc4e(cpu68k_t     *ptCpu,
  *
  * Word transfers (.W) are sign-extended to 32 bits on load.
  */
-static st_error_t cpu_exec_movem(cpu68k_t     *ptCpu,
-                                   
-                                   st_u16_t      uiOpc)
+static st_error_t cpu_exec_movem(st_u16_t      uiOpc)
 {
     int        iDir;
     int        iSzCode;
@@ -2179,15 +2147,15 @@ static st_error_t cpu_exec_movem(cpu68k_t     *ptCpu,
     iReg    = uiOpc & 7;
     iStep   = iSzCode ? 4 : 2;
 
-    if (st_read_word(ptCpu->uiPC, &uiMask) != ST_NO_ERROR)
+    if (st_read_word(g_cpu_ptCtx.uiPC, &uiMask) != ST_NO_ERROR)
         return ST_ERROR;
-    ptCpu->uiPC += 2u;
+    g_cpu_ptCtx.uiPC += 2u;
 
     /* Snapshot all registers (handles the An-in-list edge case correctly) */
     for (i = 0; i < 8; i++)
     {
-        auSnap[i]     = ptCpu->auDn[i];
-        auSnap[i + 8] = ptCpu->auAn[i];
+        auSnap[i]     = g_cpu_ptCtx.auDn[i];
+        auSnap[i + 8] = g_cpu_ptCtx.auAn[i];
     }
 
     if (iDir == 0)
@@ -2196,7 +2164,7 @@ static st_error_t cpu_exec_movem(cpu68k_t     *ptCpu,
         if (iMode == 4)
         {
             /* -(An): reversed mask, pre-decrement each transfer */
-            uiAddr = ptCpu->auAn[iReg];
+            uiAddr = g_cpu_ptCtx.auAn[iReg];
             for (i = 0; i <= 15; i++)
             {
                 if (!((uiMask >> i) & 1u))
@@ -2212,12 +2180,12 @@ static st_error_t cpu_exec_movem(cpu68k_t     *ptCpu,
                 if (eR != ST_NO_ERROR)
                     return ST_ERROR;
             }
-            ptCpu->auAn[iReg] = uiAddr;
+            g_cpu_ptCtx.auAn[iReg] = uiAddr;
         }
         else
         {
             /* control EA: sequential write, An unchanged */
-            eR = cpu_ea_calc_addr(ptCpu, iMode, iReg, &uiAddr);
+            eR = cpu_ea_calc_addr(iMode, iReg, &uiAddr);
             if (eR != ST_NO_ERROR)
                 return ST_ERROR;
             for (i = 0; i <= 15; i++)
@@ -2243,7 +2211,7 @@ static st_error_t cpu_exec_movem(cpu68k_t     *ptCpu,
         if (iMode == 3)
         {
             /* (An)+: post-increment, standard mask */
-            uiAddr = ptCpu->auAn[iReg];
+            uiAddr = g_cpu_ptCtx.auAn[iReg];
             for (i = 0; i <= 15; i++)
             {
                 if (!((uiMask >> i) & 1u))
@@ -2261,16 +2229,16 @@ static st_error_t cpu_exec_movem(cpu68k_t     *ptCpu,
                 }
                 uiAddr += (st_u32_t)iStep;
                 if (i < 8)
-                    ptCpu->auDn[i] = uiLong;
+                    g_cpu_ptCtx.auDn[i] = uiLong;
                 else
-                    ptCpu->auAn[i - 8] = uiLong;
+                    g_cpu_ptCtx.auAn[i - 8] = uiLong;
             }
-            ptCpu->auAn[iReg] = uiAddr;
+            g_cpu_ptCtx.auAn[iReg] = uiAddr;
         }
         else
         {
             /* control EA: sequential read, An unchanged */
-            eR = cpu_ea_calc_addr(ptCpu, iMode, iReg, &uiAddr);
+            eR = cpu_ea_calc_addr(iMode, iReg, &uiAddr);
             if (eR != ST_NO_ERROR)
                 return ST_ERROR;
             for (i = 0; i <= 15; i++)
@@ -2290,9 +2258,9 @@ static st_error_t cpu_exec_movem(cpu68k_t     *ptCpu,
                 }
                 uiAddr += (st_u32_t)iStep;
                 if (i < 8)
-                    ptCpu->auDn[i] = uiLong;
+                    g_cpu_ptCtx.auDn[i] = uiLong;
                 else
-                    ptCpu->auAn[i - 8] = uiLong;
+                    g_cpu_ptCtx.auAn[i - 8] = uiLong;
             }
         }
     }
@@ -2303,49 +2271,47 @@ static st_error_t cpu_exec_movem(cpu68k_t     *ptCpu,
  * cpu_exec_misc4() - Dispatch group 0x4 instructions.
  * @req REQ-CPU-045
  */
-static st_error_t cpu_exec_misc4(cpu68k_t     *ptCpu,
-                                   
-                                   st_u16_t      uiOpc)
+static st_error_t cpu_exec_misc4(st_u16_t      uiOpc)
 {
     /* LEA: 0100 AAA 111 MMMRRR */
     if ((uiOpc & 0xF1C0u) == 0x41C0u)
-        return cpu_exec_lea(ptCpu, uiOpc);
+        return cpu_exec_lea(uiOpc);
 
     /* EXT.W / EXT.L (must come before MOVEM — same upper byte) */
     if ((uiOpc & 0xFFF8u) == 0x4880u || (uiOpc & 0xFFF8u) == 0x48C0u)
-        return cpu_exec_ext(ptCpu, uiOpc);
+        return cpu_exec_ext(uiOpc);
 
     /* MOVEM: 0100 1d00 1s MM RRR (d=0: reg→mem, d=1: mem→reg) */
     if ((uiOpc & 0xFB80u) == 0x4880u)
-        return cpu_exec_movem(ptCpu, uiOpc);
+        return cpu_exec_movem(uiOpc);
 
     /* SWAP: 0100 1000 0100 0DDD */
     if ((uiOpc & 0xFFF8u) == 0x4840u)
-        return cpu_exec_swap(ptCpu, uiOpc);
+        return cpu_exec_swap(uiOpc);
 
     /* NEGX: 0100 0000 SS MMMRRR */
     if ((uiOpc & 0xFF00u) == 0x4000u)
-        return cpu_exec_unary(ptCpu, uiOpc, 1);
+        return cpu_exec_unary(uiOpc, 1);
 
     /* CLR: 0100 0010 SS MMMRRR */
     if ((uiOpc & 0xFF00u) == 0x4200u)
-        return cpu_exec_clr(ptCpu, uiOpc);
+        return cpu_exec_clr(uiOpc);
 
     /* NEG: 0100 0100 SS MMMRRR */
     if ((uiOpc & 0xFF00u) == 0x4400u)
-        return cpu_exec_unary(ptCpu, uiOpc, 0);
+        return cpu_exec_unary(uiOpc, 0);
 
     /* NOT: 0100 0110 SS MMMRRR */
     if ((uiOpc & 0xFF00u) == 0x4600u)
-        return cpu_exec_unary(ptCpu, uiOpc, 2);
+        return cpu_exec_unary(uiOpc, 2);
 
     /* TST: 0100 1010 SS MMMRRR */
     if ((uiOpc & 0xFF00u) == 0x4A00u)
-        return cpu_exec_unary(ptCpu, uiOpc, 3);
+        return cpu_exec_unary(uiOpc, 3);
 
     /* 0x4Exx: NOP/STOP/RTE/RTS/RTR/TRAP/LINK/UNLK/JSR/JMP */
     if ((uiOpc & 0xFF00u) == 0x4E00u)
-        return cpu_exec_misc4e(ptCpu, uiOpc);
+        return cpu_exec_misc4e(uiOpc);
 
     LOG_TODO("cpu_exec_misc4: unimplemented 0x%04X",
              (unsigned)uiOpc);
@@ -2356,27 +2322,23 @@ static st_error_t cpu_exec_misc4(cpu68k_t     *ptCpu,
  * Public API
  * ------------------------------------------------------------------ */
 
-st_error_t cpu_init(cpu68k_t *ptCpu)
+st_u64_t cpu_init()
 {
     st_u32_t   uiSSP;
     st_u32_t   uiPC;
     st_error_t eR;
 
-    LOG_TRACE("ptCpu=%p", (void *)ptCpu);
-    if (ptCpu == NULL)
-    {
-        LOG_ERROR("NULL parameter");
-        return ST_ERROR;
-    }
-
-    memset(ptCpu, 0, sizeof(cpu68k_t));
-
+    LOG_TRACE("Using ATARI ST Start-up conventions");
+    
+    /* -- [CPU]1. Read the reset SSP vector from ST RAM -- */
     eR = st_read_long(CPU_VEC_RESET_SSP, &uiSSP);
     if (eR != ST_NO_ERROR)
     {
         LOG_ERROR("failed to read reset SSP vector");
         return ST_ERROR;
     }
+    
+    /* -- [CPU]2. Read the reset PC vector from ST RAM -- */
     eR = st_read_long(CPU_VEC_RESET_PC, &uiPC);
     if (eR != ST_NO_ERROR)
     {
@@ -2384,53 +2346,41 @@ st_error_t cpu_init(cpu68k_t *ptCpu)
         return ST_ERROR;
     }
 
-    ptCpu->uiSSP    = uiSSP;
-    ptCpu->auAn[7]  = uiSSP;
-    ptCpu->uiPC     = uiPC;
-    ptCpu->uiSR     = CPU_SR_S | CPU_SR_I_MASK;
-    ptCpu->eState   = CPU_STATE_RUNNING;
+    /* -- [CPU]3. Enter supervisor mode and RUNNING state at the reset PC -- */
+    g_cpu_ptCtx.uiSSP    = uiSSP;
+    g_cpu_ptCtx.auAn[7]  = uiSSP;
+    g_cpu_ptCtx.uiPC     = uiPC;
+    g_cpu_ptCtx.uiSR     = CPU_SR_S | CPU_SR_I_MASK;
+    g_cpu_ptCtx.eState   = CPU_STATE_RUNNING;
 
     LOG_INFO("cpu_init: SSP=0x%08X PC=0x%08X SR=0x%04X",
-             uiSSP, uiPC, (unsigned)ptCpu->uiSR);
-    return ST_NO_ERROR;
+             uiSSP, uiPC, (unsigned)g_cpu_ptCtx.uiSR);
+    return (st_u64_t)&g_cpu_ptCtx;
 }
 
-st_error_t cpu_reset(cpu68k_t *ptCpu)
-{
-    LOG_TRACE("ptCpu=%p", (void *)ptCpu);
-    if (ptCpu == NULL)
-    {
-        LOG_ERROR("NULL parameter");
-        return ST_ERROR;
-    }
-    return cpu_init(ptCpu);
-}
-
-st_error_t cpu_step(cpu68k_t          *ptCpu,
-                     cpu_step_result_t *ptResult)
+st_error_t cpu_step(cpu_step_result_t *ptResult)
 {
     st_u16_t   uiOpcode;
     st_u32_t   uiPCBefore;
     st_error_t eR;
 
-    LOG_TRACE("PC=0x%06X", ptCpu ? ptCpu->uiPC : 0u);
-    if (ptCpu == NULL)
+    LOG_TRACE("PC=0x%06X", g_cpu_ptCtx.uiPC);
+
+    /* -- [CPU]4. Do nothing if the CPU is not RUNNING -- */
+    if (g_cpu_ptCtx.eState != CPU_STATE_RUNNING)
     {
-        LOG_ERROR("NULL parameter");
-        return ST_ERROR;
-    }
-    if (ptCpu->eState != CPU_STATE_RUNNING)
-    {
-        LOG_INFO("cpu_step: CPU not running (state=%d)",
-                 (int)ptCpu->eState);
+        LOG_ERROR("cpu_step: CPU not running (state=%d) - use cpu_init() first",
+                 (int)g_cpu_ptCtx.eState);
         return ST_NO_ERROR;
     }
 
-    uiPCBefore = ptCpu->uiPC;
+    uiPCBefore = g_cpu_ptCtx.uiPC;
 
+    /* -- [CPU]5. Fetch the opcode word and advance PC -- */
     /* Fetch opcode word — advances PC by 2 */
-    uiOpcode = cpu_fetch_word(ptCpu);
+    uiOpcode = cpu_fetch_word();
 
+    /* -- [CPU]6. Fill the optional result structure when ptResult is provided -- */
     if (ptResult != NULL)
     {
         memset(ptResult, 0, sizeof(cpu_step_result_t));
@@ -2441,67 +2391,83 @@ st_error_t cpu_step(cpu68k_t          *ptCpu,
     /* Dispatch on top nibble */
     switch ((uiOpcode >> 12) & 0xFu)
     {
+    /* -- [CPU]7. Dispatch Immediate opcodes (0x0xxx) -- */
     case 0x0: /* Immediate ops: ORI/ANDI/SUBI/ADDI/EORI/CMPI */
-        eR = cpu_exec_group0(ptCpu, uiOpcode);
+        eR = cpu_exec_group0(uiOpcode);
         break;
 
+    /* -- [CPU]8. Dispatch byte MOVE opcodes (0x1xxx) -- */
+    /* -- [CPU]9. Dispatch long MOVE opcodes (0x2xxx) -- */
+    /* -- [CPU]10. Dispatch word MOVE opcodes (0x3xxx) -- */
     case 0x1: /* MOVE.B */
     case 0x2: /* MOVE.L */
     case 0x3: /* MOVE.W / MOVEA.W */
-        eR = cpu_exec_move(ptCpu, uiOpcode);
+        eR = cpu_exec_move(uiOpcode);
         break;
 
+    /* -- [CPU]11. Dispatch Misc opcodes(0x4xxx) -- */
     case 0x4: /* Misc: LEA/CLR/SWAP/NEG/NOT/TST/EXT + UC23 */
-        eR = cpu_exec_misc4(ptCpu, uiOpcode);
+        eR = cpu_exec_misc4(uiOpcode);
         break;
 
+    /* -- [CPU]12. Dispatch ADDQ/SUBQ/Scc/DBcc opcodes(0x5xxx) -- */
     case 0x5: /* ADDQ / SUBQ / Scc / DBcc */
-        eR = cpu_exec_group5(ptCpu, uiOpcode);
+        eR = cpu_exec_group5(uiOpcode);
         break;
 
+    /* -- [CPU]13. Dispatch BRA/BSR/Bcc opcodes(0x6xxx) -- */
     case 0x6: /* BRA / BSR / Bcc */
-        eR = cpu_exec_branch(ptCpu, uiOpcode);
+        eR = cpu_exec_branch(uiOpcode);
         break;
 
+    /* -- [CPU]14. Dispatch MOVEQ opcodes (0x7xxx) -- */
     case 0x7: /* MOVEQ */
-        eR = cpu_exec_moveq(ptCpu, uiOpcode);
+        eR = cpu_exec_moveq(uiOpcode);
         break;
 
+    /* -- [CPU]15. Dispatch OR/DIVU/DIVS opcodes(0x8xxx) -- */
     case 0x8: /* OR / DIVU / DIVS */
-        eR = cpu_exec_group8(ptCpu, uiOpcode);
+        eR = cpu_exec_group8(uiOpcode);
         break;
 
+    /* -- [CPU]16. Dispatch SUB/SUBA/SUBX opcodes(0x9xxx) -- */
     case 0x9: /* SUB / SUBA / SUBX */
-        eR = cpu_exec_group9(ptCpu, uiOpcode);
+        eR = cpu_exec_group9(uiOpcode);
         break;
 
-    case 0xB: /* CMP / CMPA / EOR / CMPM */
-        eR = cpu_exec_groupB(ptCpu, uiOpcode);
-        break;
-
-    case 0xC: /* AND / MULU / MULS */
-        eR = cpu_exec_groupC(ptCpu, uiOpcode);
-        break;
-
-    case 0xD: /* ADD / ADDA / ADDX */
-        eR = cpu_exec_groupD(ptCpu, uiOpcode);
-        break;
-
+    /* -- [CPU]17. Dispatch LINE-A traps (0xAxxx) -- */
     case 0xA: /* Line-A traps ($Axxx) */
-        eR = linea_dispatch(ptCpu, uiOpcode);
+        eR = linea_dispatch(&g_cpu_ptCtx, uiOpcode);
         break;
 
+    /* -- [CPU]18. Dispatch CMP/CMPA/EOR/CMPM opcodes(0xBxxx) -- */
+    case 0xB: /* CMP / CMPA / EOR / CMPM */
+        eR = cpu_exec_groupB(uiOpcode);
+        break;
+
+    /* -- [CPU]19. Dispatch AND/MULU/MULS opcodes(0xCxxx) -- */
+    case 0xC: /* AND / MULU / MULS */
+        eR = cpu_exec_groupC(uiOpcode);
+        break;
+
+    /* -- [CPU]20. Dispatch ADD/ADDA/ADDX opcodes(0xDxxx) -- */
+    case 0xD: /* ADD / ADDA / ADDX */
+        eR = cpu_exec_groupD(uiOpcode);
+        break;
+
+    /* -- [CPU]21. Dispatch Shifts/Rotates opcodes(0xExxx) -- */
     case 0xE: /* Shifts / Rotations */
-        eR = cpu_exec_groupE(ptCpu, uiOpcode);
+        eR = cpu_exec_groupE(uiOpcode);
         break;
 
+    /* -- [CPU]22. Dispatch Line-F traps (0xFxxx) -- */
     case 0xF: /* Line-F ($Fxxx) — raises exception, not yet handled */
         LOG_TODO("cpu_step: Line-F opcode 0x%04X at PC=0x%06X (UC29+)",
                  (unsigned)uiOpcode, uiPCBefore);
-        eR = cpu_raise_exception(ptCpu, CPU_VEC_LINE_F);
+        eR = cpu_raise_exception(CPU_VEC_LINE_F);
         break;
 
-    default:
+    default: // Should never go there anymore - default case kept
         LOG_TODO("cpu_step: unimplemented opcode 0x%04X "
                  "at PC=0x%06X",
                  (unsigned)uiOpcode, uiPCBefore);
@@ -2509,59 +2475,54 @@ st_error_t cpu_step(cpu68k_t          *ptCpu,
         break;
     }
 
-    ptCpu->ulInstrCount++;
+    g_cpu_ptCtx.ulInstrCount++;
 
+    /* -- [CPU]23. Update result & cycles count for time accuracy -- */
     if (ptResult != NULL)
     {
-        ptResult->uiPCAfter = ptCpu->uiPC;
+        ptResult->uiPCAfter = g_cpu_ptCtx.uiPC;
         ptResult->iCycles   = 4; /* TODO(UC22): accurate cycle counts */
     }
 
     return eR;
 }
 
-st_error_t cpu_raise_exception(cpu68k_t     *ptCpu,
-                                 st_u32_t      uiVector)
+st_error_t cpu_raise_exception(st_u32_t      uiVector)
 {
     st_u16_t   uiSR;
     st_u32_t   uiHandler;
     st_error_t eR;
 
-    LOG_TRACE("ptCpu=%p vector=0x%08X", (void *)ptCpu, uiVector);
-    if (ptCpu == NULL)
-    {
-        LOG_ERROR("NULL parameter");
-        return ST_ERROR;
-    }
-
+    LOG_TRACE("vector=0x%08X", uiVector);
+    
     /* Save current SR before modification */
-    uiSR = ptCpu->uiSR;
+    uiSR = g_cpu_ptCtx.uiSR;
 
     /* Switch to supervisor mode if in user mode */
     if (!(uiSR & CPU_SR_S))
     {
-        st_u32_t uiUSP  = ptCpu->auAn[7];
-        ptCpu->auAn[7]  = ptCpu->uiSSP;
-        ptCpu->uiSSP    = uiUSP;
-        ptCpu->uiSR    |= (st_u16_t)CPU_SR_S;
+        st_u32_t uiUSP  = g_cpu_ptCtx.auAn[7];
+        g_cpu_ptCtx.auAn[7]  = g_cpu_ptCtx.uiSSP;
+        g_cpu_ptCtx.uiSSP    = uiUSP;
+        g_cpu_ptCtx.uiSR    |= (st_u16_t)CPU_SR_S;
     }
 
     /* Exception frame: push PC (long) then SR (word)
      * Result on stack (low addr): SR | PC_hi | PC_lo  */
-    eR = cpu_push_long(ptCpu, ptCpu->uiPC);
+    eR = cpu_push_long(g_cpu_ptCtx.uiPC);
     if (eR != ST_NO_ERROR)
     {
         LOG_ERROR("exception: push PC failed SP=0x%06X",
-                  ptCpu->auAn[7] + 4u);
-        ptCpu->eState = CPU_STATE_HALTED;
+                  g_cpu_ptCtx.auAn[7] + 4u);
+        g_cpu_ptCtx.eState = CPU_STATE_HALTED;
         return ST_ERROR;
     }
-    eR = cpu_push_word(ptCpu, uiSR);
+    eR = cpu_push_word(uiSR);
     if (eR != ST_NO_ERROR)
     {
         LOG_ERROR("exception: push SR failed SP=0x%06X",
-                  ptCpu->auAn[7] + 2u);
-        ptCpu->eState = CPU_STATE_HALTED;
+                  g_cpu_ptCtx.auAn[7] + 2u);
+        g_cpu_ptCtx.eState = CPU_STATE_HALTED;
         return ST_ERROR;
     }
 
@@ -2570,12 +2531,12 @@ st_error_t cpu_raise_exception(cpu68k_t     *ptCpu,
     if (eR != ST_NO_ERROR)
     {
         LOG_ERROR("exception: read vector 0x%08X failed", uiVector);
-        ptCpu->eState = CPU_STATE_HALTED;
+        g_cpu_ptCtx.eState = CPU_STATE_HALTED;
         return ST_ERROR;
     }
 
-    ptCpu->uiPC = uiHandler & 0x00FFFFFFu;
+    g_cpu_ptCtx.uiPC = uiHandler & 0x00FFFFFFu;
     LOG_INFO("exception vector=0x%06X handler=0x%06X SP=0x%06X",
-             uiVector, ptCpu->uiPC, ptCpu->auAn[7]);
+             uiVector, g_cpu_ptCtx.uiPC, g_cpu_ptCtx.auAn[7]);
     return ST_NO_ERROR;
 }

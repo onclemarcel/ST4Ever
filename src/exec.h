@@ -61,7 +61,7 @@ typedef enum exec_run_state_e
 typedef struct exec_state_s
 {
     /* CPU snapshot — updated after each step */
-    cpu68k_t          tCpuSnap;
+    cpu_context_t    *tCpuSnap;
     cpu_step_result_t tLastResult;
     exec_run_state_t  eRunState;
     /* Disassembly of the NEXT instruction to execute (at tCpuSnap.uiPC) */
@@ -111,7 +111,7 @@ typedef struct exec_context_s
     st_machine_context_t   *ptMachine;
     st_thread_t            *ptThread;  
     exec_state_t            tState;
-    cpu68k_t                tCpu;   /* owned exclusively by exec thread */
+    cpu_context_t          *tCpu;   /* owned exclusively by exec thread */
 } exec_context_t;
 
 /* ------------------------------------------------------------------

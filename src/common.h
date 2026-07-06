@@ -69,7 +69,8 @@ typedef enum st_bool_s
     ST_GUI_CTX         = 0x20u,
     ST_GUI_PTF_CTX     = 0x21u,
     ST_MACHINE_CTX     = 0x50u,
-    ST_LOAD_CTX        = 0x51u,
+    ST_CPU_CTX         = 0x51u,
+    ST_LOAD_CTX        = 0x55u,
     ST_EXEC_CTX        = 0x60u,
     ST_WIN_CONSOLE_CTX = 0x80u
  } st_object_t;

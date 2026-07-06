@@ -105,7 +105,7 @@ st_error_t linea_init();
  *   ST_NO_ERROR  always (stubs are non-fatal).
  *   ST_ERROR     if ptCpu or ptMachine is NULL.
  */
-st_error_t linea_dispatch(cpu68k_t     *ptCpu,
+st_error_t linea_dispatch(cpu_context_t     *ptCpu,
                            st_u16_t      uiOpcode);
 
 #endif /* LINEA_H */

@@ -123,7 +123,7 @@ st_error_t linea_init()
  * Clamps out-of-bounds coordinates silently (no error).
  * ------------------------------------------------------------------ */
 
-static st_error_t linea_do_put_pixel(cpu68k_t     *ptCpu)
+static st_error_t linea_do_put_pixel(cpu_context_t     *ptCpu)
 {
     int      iX;
     int      iY;
@@ -188,7 +188,7 @@ static st_error_t linea_do_put_pixel(cpu68k_t     *ptCpu)
  * Sets A0 = LINEA_PARAM_ADDR and refreshes the parameter block.
  * ------------------------------------------------------------------ */
 
-static st_error_t linea_do_init(cpu68k_t     *ptCpu)
+static st_error_t linea_do_init(cpu_context_t     *ptCpu)
 {
     st_error_t eResult;
 
@@ -209,7 +209,7 @@ static st_error_t linea_do_init(cpu68k_t     *ptCpu)
  * linea_dispatch
  * ------------------------------------------------------------------ */
 
-st_error_t linea_dispatch(cpu68k_t     *ptCpu,
+st_error_t linea_dispatch(cpu_context_t     *ptCpu,
                            st_u16_t      uiOpcode)
 {
     unsigned int uiFn;

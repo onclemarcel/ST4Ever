@@ -38,7 +38,7 @@ static const renderer_color_t g_cpu_clrGray   = RENDERER_COLOR_GRAY;
 static void exec_cpu_render(exec_cpu_view_t *ptView)
 {
     exec_state_t      *ptState;
-    cpu68k_t           tSnap;
+    cpu_context_t      tSnap;
     exec_run_state_t   eRunState;
     int                iCellH;
     int                iCellW;
@@ -58,7 +58,7 @@ static void exec_cpu_render(exec_cpu_view_t *ptView)
 
     /* --- Snapshot under mutex --- */
     platform_mutex_lock(ptState->ptMutex);
-    memcpy(&tSnap, &ptState->tCpuSnap, sizeof(cpu68k_t));
+    memcpy(&tSnap, ptState->tCpuSnap, sizeof(cpu_context_t));
     eRunState = ptState->eRunState;
     platform_mutex_unlock(ptState->ptMutex);
 

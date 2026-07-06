@@ -35,7 +35,7 @@ static st_error_t stack_read_long( st_u32_t            uiSP,
  * tos_gemdos - TRAP #1 handler
  * ------------------------------------------------------------------ */
 
-st_error_t tos_gemdos(cpu68k_t     *ptCpu)
+st_error_t tos_gemdos(cpu_context_t     *ptCpu)
 {
     st_u16_t    uiFn;
     st_u16_t    uiRetCode;
@@ -100,7 +100,7 @@ st_error_t tos_gemdos(cpu68k_t     *ptCpu)
  * tos_xbios - TRAP #14 handler
  * ------------------------------------------------------------------ */
 
-st_error_t tos_xbios(cpu68k_t     *ptCpu)
+st_error_t tos_xbios(cpu_context_t     *ptCpu)
 {
     st_u16_t   uiFn;
     st_u32_t   uiPhysBase;

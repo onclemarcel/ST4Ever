@@ -41,10 +41,10 @@ static void exec_refresh_disasm(exec_state_t *ptState)
     st_u32_t        uiPC;
 
     memset(&tDisasm, 0, sizeof(tDisasm));
-    uiPC = ptState->tCpuSnap.uiPC;
+    uiPC = ptState->tCpuSnap->uiPC;
     if (uiPC < (st_u32_t)ST_RAM_SIZE)
     {
-        disasm_one(st_get_ram_pointer(0) + uiPC,
+        disasm_one(st_get_ram_pointer(uiPC),
                    (size_t)(ST_RAM_SIZE - uiPC),
                    uiPC,
                    &tDisasm);
@@ -80,7 +80,7 @@ static int exec_bp_find(const exec_state_t *ptState, st_u32_t uiAddr)
 static void exec_thread_fn(void *pArg)
 {
     exec_state_t     *ptState;
-    cpu68k_t         *ptCpu;
+    cpu_context_t    *ptCpu;
     cpu_step_result_t tResult;
     st_bool_t         bQuit;
     st_bool_t         bDoStep;
@@ -91,7 +91,7 @@ static void exec_thread_fn(void *pArg)
     int               iBPIdx;
 
     ptState = (exec_state_t *)pArg;
-    ptCpu   = &(g_exec_ptCtx.tCpu);
+    ptCpu   = g_exec_ptCtx.tCpu;
     bQuit   = ST_FALSE;
 
     while (!bQuit)
@@ -115,11 +115,11 @@ static void exec_thread_fn(void *pArg)
             ptState->eRunState = EXEC_RUN_PAUSED;
             eRunState          = EXEC_RUN_PAUSED;
             /* Reset CPU to load address */
-            cpu_init(ptCpu);
+            ptCpu = (cpu_context_t*)cpu_init();
             ptCpu->uiPC  = ptState->uiLoadAddr;
             ptCpu->uiSSP = ST_LOAD_BASE - 2u;
             ptCpu->auAn[7] = ptCpu->uiSSP;
-            memcpy(&ptState->tCpuSnap, ptCpu, sizeof(cpu68k_t));
+            memcpy(&ptState->tCpuSnap, ptCpu, sizeof(cpu_context_t));
             exec_refresh_disasm(ptState);
             bDoStep = ST_FALSE;
             bDoRun  = ST_FALSE;
@@ -188,7 +188,7 @@ static void exec_thread_fn(void *pArg)
             }
 
             memset(&tResult, 0, sizeof(tResult));
-            cpu_step(ptCpu, &tResult);
+            cpu_step(&tResult);
 
             /* Check breakpoints — lock for read */
             platform_mutex_lock(ptState->ptMutex);
@@ -205,7 +205,7 @@ static void exec_thread_fn(void *pArg)
 
         /* ---- Update snapshot with final state ---- */
         platform_mutex_lock(ptState->ptMutex);
-        memcpy(&ptState->tCpuSnap, ptCpu, sizeof(cpu68k_t));
+        memcpy(&ptState->tCpuSnap, ptCpu, sizeof(cpu_context_t));
         ptState->tLastResult = tResult;
         if (bDoStep)
         {
@@ -327,16 +327,16 @@ st_error_t exec_open(const char *szProgName, st_u32_t uiLoadAddr)
     }
 
     /* Initialise CPU at load address */
-    cpu_init(&(g_exec_ptCtx.tCpu));
-    g_exec_ptCtx.tCpu.uiPC   = uiLoadAddr;
-    g_exec_ptCtx.tCpu.uiSSP  = ST_LOAD_BASE - 2u;
-    g_exec_ptCtx.tCpu.auAn[7] = g_exec_ptCtx.tCpu.uiSSP;
+    g_exec_ptCtx.tCpu = (cpu_context_t*)cpu_init();
+    g_exec_ptCtx.tCpu->uiPC   = uiLoadAddr;
+    g_exec_ptCtx.tCpu->uiSSP  = ST_LOAD_BASE - 2u;
+    g_exec_ptCtx.tCpu->auAn[7] = g_exec_ptCtx.tCpu->uiSSP;
 
     /* Prepare Line-A parameter block in RAM (non-fatal if fails) */
     linea_init();
 
     /* Copy initial state to snapshot */
-    memcpy(&g_exec_ptCtx.tState.tCpuSnap, &g_exec_ptCtx.tCpu, sizeof(cpu68k_t));
+    memcpy(g_exec_ptCtx.tState.tCpuSnap, g_exec_ptCtx.tCpu, sizeof(cpu_context_t));
     g_exec_ptCtx.tState.eRunState = EXEC_RUN_PAUSED;
 
     /* Disassemble first instruction */
