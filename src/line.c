@@ -1137,23 +1137,14 @@ static st_error_t line_cmd_trace(const parsed_cmd_t *ptParsed)
             line_print_error("trace on: open failed");
             return ST_ERROR;
         }
-        eResult = trace_set_trace_enabled(ST_TRUE);
-        if (eResult != ST_NO_ERROR)
-        {
-            line_print_error("trace on: enable LOG_TRACE failed");
-            return ST_ERROR;
-        }
+        
+        trace_set_trace_enabled(ST_TRUE);
         line_print_msg("Trace: ON  (LOG_TRACE enabled)");
     }
     else if (strcmp(szArg, "off") == 0)
     {
         /* P19: trace off filters LOG_TRACE only; view stays open. */
-        eResult = trace_set_trace_enabled(ST_FALSE);
-        if (eResult != ST_NO_ERROR)
-        {
-            line_print_error("trace off: disable LOG_TRACE failed");
-            return ST_ERROR;
-        }
+        trace_set_trace_enabled(ST_FALSE);
         line_print_msg("Trace: LOG_TRACE filtered  "
                        "(use 'trace' to close the view)");
     }
@@ -3722,7 +3713,7 @@ st_u64_t line_init(const char* szScriptFile)
         g_line_ptCtx.szCwd[ST_MAX_PATH - 1] = '\0';
     }
 
-    /* -- [LINE]5. Fills context struture fields -- */
+    /* -- [LINE]5. Fills context structure fields (mutex, script) -- */
     /* Create the mutex protecting szSelected */
     eResult = platform_mutex_create(&g_line_ptCtx.ptSelectedMutex);
     if (eResult != ST_NO_ERROR)

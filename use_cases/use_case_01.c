@@ -84,85 +84,6 @@ static st_bool_t uc01_check_log_entry(const char *szTag,
     return bFound;
 }
 
-/*
- * uc01_load_prg_text() - Load the .text section of hello.prg into
- *                        ST RAM at a given address.
- *
- * Reads the PRG header, then copies text_size bytes starting at
- * PRG offset 28 into ptMachine->aRam[uiLoadAddr].
- *
- * Parameters:
- *   szPath    [in]     : Path to the .prg file.
- *   ptMachine [in/out] : Target machine RAM.
- *   uiLoadAddr[in]     : ST RAM destination address.
- *   puiTextSz [out]    : Receives text section size in bytes.
- *
- * Returns: ST_NO_ERROR on success.
- */
-static st_error_t uc01_load_prg_text(const char   *szPath,
-                                      st_u32_t      uiLoadAddr,
-                                      st_u32_t     *puiTextSz)
-{
-    FILE     *pFile;
-    st_u8_t   aHeader[28];
-    st_u32_t  uiTextSz;
-    size_t    uiRead;
-
-    if (szPath == NULL || puiTextSz == NULL)
-    {
-        return ST_ERROR;
-    }
-
-    pFile = fopen(szPath, "rb");
-    if (pFile == NULL)
-    {
-        fprintf(stderr, "  [uc01_load_prg_text] cannot open '%s'\n",
-                szPath);
-        return ST_ERROR;
-    }
-
-    uiRead = fread(aHeader, 1, 28, pFile);
-    if (uiRead != 28)
-    {
-        fclose(pFile);
-        return ST_ERROR;
-    }
-
-    if (aHeader[0] != 0x60 || aHeader[1] != 0x1A)
-    {
-        fprintf(stderr, "  [uc01_load_prg_text] bad magic 0x%02X%02X\n",
-                aHeader[0], aHeader[1]);
-        fclose(pFile);
-        return ST_ERROR;
-    }
-
-    uiTextSz = ((st_u32_t)aHeader[2] << 24)
-             | ((st_u32_t)aHeader[3] << 16)
-             | ((st_u32_t)aHeader[4] <<  8)
-             |  (st_u32_t)aHeader[5];
-
-    if (uiLoadAddr + uiTextSz > ST_RAM_SIZE)
-    {
-        fprintf(stderr,
-                "  [uc01_load_prg_text] load overflows RAM "
-                "(addr=0x%06X size=%u)\n",
-                uiLoadAddr, uiTextSz);
-        fclose(pFile);
-        return ST_ERROR;
-    }
-
-    uiRead = fread(st_get_ram_pointer(uiLoadAddr), 1, uiTextSz, pFile);
-    fclose(pFile);
-
-    if (uiRead != (size_t)uiTextSz)
-    {
-        return ST_ERROR;
-    }
-
-    *puiTextSz = uiTextSz;
-    return ST_NO_ERROR;
-}
-
 /* ------------------------------------------------------------------
  * Group 1: Trace subsystem
  * ------------------------------------------------------------------ */
@@ -199,7 +120,8 @@ static void uc01_test_trace(void)
     /* -- [TRACE]7. Format logging messages -- */
     /* -- [TRACE]8. Log in file -- */
     /* INTENT[INT-TRC-003 → TC-TRC-006...009 → REQ-xxx-yyy → UFR-xxx-yyy]:
-     * all four log levels must write their tag and message to TRACE_LOGFILE */
+     * all types of logging messages must be formatted with their tag and
+     * message to TRACE_LOGFILE */
     UC_INFO("(INT-TRC-003) Log TRC, INF, ERR and TODO messages");
     LOG_TRACE("UC1 test: LOG_TRACE entry (param=%d)", 42);
     LOG_INFO("UC1 test: LOG_INFO  entry");
@@ -216,8 +138,7 @@ static void uc01_test_trace(void)
 
     /* -- [TRACE]5. Trace Context must be initialized before logging -- */
     /* INTENT[INT-TRC-004 → TC-TRC-010 → REQ-TRC-001 → UFR-xxx-yyy]:
-     * trace_log() must silently return without writing anything when
-     * bInitialised is FALSE  */
+     * logging messages are rejected when the trace module is not initialized  */
     UC_INFO("(INT-TRC-004) Do not log if trace module is not initialized");
     ptTrcCtx = (trace_context_t *)ptCtx->ptTraceCtx;
     ptTrcCtx->bInitialised = ST_FALSE;
@@ -228,7 +149,7 @@ static void uc01_test_trace(void)
 
     /* -- [TRACE]6. LOG_TRACE is compacted when called consecutively -- */
     /* INTENT[INT-TRC-005 → TC-TRC-011..012 → REQ-xxx-yyy → UFR-xxx-yyy]:
-     * 5 consecutive LOG_TRACE from the same function collapse to a single
+     * 5 consecutive LOG_TRACE from the same function are compacted to a single
      * [xN] compaction summary in the log; intermediate calls (passes 2-5)
      * are not individually written to the log file */
     UC_INFO("(INT-TRC-005) Compaction: 5x LOG_TRACE from same function");
@@ -487,7 +408,7 @@ static void uc01_test_st_machine(void)
     /* INTENT[INT-STM-008 → TC-STM-048...052 → REQ-xxx-yyy → UFR-xxx-yyy]:
      * Attempt writing longs to RAM area and ROM area (read-only) ; a
      * long straddling the RAM/unmapped boundary must be rejected
-     * entirely, without leaving its high word written (TC-STM-051/052) */
+     * entirely, without leaving its high word written */
     UC_INFO("(INT-STM-008) Writing longs in RAM & ROM area");
     UC_CHECK("(INT-STM-008) [Chk] st_write_long(0x1000, 0xDEADBEEF)",
              st_write_long(0x1000, 0xDEADBEEFu));
@@ -524,9 +445,15 @@ static void uc01_test_st_machine(void)
  *   -- [CPU]4. Do nothing if the CPU is not RUNNING --
  *   -- [CPU]5. Fetch the opcode word and advance PC --
  *   -- [CPU]6. Fill the optional result structure when ptResult is provided --
- *   -- [CPU]11. Dispatch Misc opcodes(0x4xxx) --
+ *   -- [CPU]11. Dispatch Misc opcodes RTS/LEA/CLR/... (0x4xxx) --
  *   -- [CPU]14. Dispatch MOVEQ opcodes (0x7xxx) --
  *   -- [CPU]23. Update result & cycles count for time accuracy --
+ *   load.c:
+ *   -- [LOAD]3. Dispatch .prg/.ttp/.tos files to the full PRG loader --
+ *   -- [LOAD]4. Validate the 0x601A magic header --
+ *   -- [LOAD]5. Read .text + .data into ST RAM at ST_LOAD_BASE --
+ *   -- [LOAD]6. Apply the fixup relocation table --
+ *   -- [LOAD]7. Update load state with loaded PRG metadata --
  *
  * Parameters:
  *   None
@@ -536,13 +463,14 @@ static void uc01_test_st_machine(void)
  */
 static void uc01_test_cpu(void)
 {
-    cpu_context_t*    tCpu;
-    cpu_step_result_t tResult;
-    st_u32_t          uiTextSz;
-    st_u64_t          ulR;
+    cpu_context_t*         tCpu;
+    cpu_step_result_t      tResult;
+    const load_context_t*  ptLoadCtx;
+    st_error_t             eR;
+    st_u64_t               ulR;
 
-    const st_u32_t    UI_LOAD_ADDR  = 0x1000;
-    const st_u32_t    UI_STACK_ADDR = 0x0800;
+    const st_u32_t    UI_LOAD_ADDR  = ST_LOAD_BASE;
+    const st_u32_t    UI_STACK_ADDR = 0x8000;
 
     printf("\n--- Test group 3: CPU 68000 + hello.prg ---\n");
 
@@ -561,12 +489,12 @@ static void uc01_test_cpu(void)
              st_write_long(CPU_VEC_RESET_SSP, UI_STACK_ADDR));
     UC_CHECK("(INT-CPU-001) [Chk] write PC reset vector",
              st_write_long(CPU_VEC_RESET_PC,  UI_LOAD_ADDR));
-
+    
     tCpu = (cpu_context_t*)cpu_init(NULL);
     UC_CHECK("(INT-CPU-001) [Chk] cpu_init() launched", (st_u64_t)tCpu);
-    UC_TEST("[R] (TC-CPU-002) CPU SSP == 0x0800 after init",
+    UC_TEST("[R] (TC-CPU-002) CPU SSP == 0x8000 after init",
             tCpu->uiSSP == UI_STACK_ADDR);
-    UC_TEST("[R] (TC-CPU-003) CPU PC == 0x1000 after init",
+    UC_TEST("[R] (TC-CPU-003) CPU PC == ST_LOAD_BASE after init",
             tCpu->uiPC == UI_LOAD_ADDR);
     UC_TEST("[N] (TC-CPU-004) CPU SR supervisor mode set",
             (tCpu->uiSR & CPU_SR_S) != 0);
@@ -574,111 +502,136 @@ static void uc01_test_cpu(void)
             tCpu->eState == CPU_STATE_RUNNING);
 
 
-    /* INTENT[INT-CPU-003 → TC-CPU-003 → REQ-xxx-yyy → UFR-xxx-yyy]:
-     * hello.prg text section must load cleanly into ST RAM
-    eR = uc01_load_prg_text("use_cases/UC01/hello.prg",
-                              UI_LOAD_ADDR,
-                              &uiTextSz);
-    UC_TEST("[N] (TC-CPU-003) hello.prg text section loaded (4 bytes)",
-            eR == ST_NO_ERROR && uiTextSz == 4);
+    /* -- [LOAD]3. Dispatch .prg/.ttp/.tos files to the full PRG loader -- */
+    /* -- [LOAD]4. Validate the 0x601A magic header -- */
+    /* -- [LOAD]5. Read .text + .data into ST RAM at ST_LOAD_BASE -- */
+    /* -- [LOAD]6. Apply the fixup relocation table -- */
+    /* -- [LOAD]7. Update load state with loaded PRG metadata -- */
+    /* INTENT[INT-LOD-002 → TC-LOD-003  → REQ-xxx-yyy → UFR-xxx-yyy]:
+     * hello.prg text section must load cleanly into ST RAM at
+     * ST_LOAD_BASE via the load.c module (not a local reimplementation) */
+    ptLoadCtx = (load_context_t*)ptCtx->ptSTLoadCtx;
+    eR = load_file("use_cases/UC01/hello.prg");
+    UC_CHECK("(INT-LOD-002) [Chk] Check load of UC01/hello.prg ", eR);
+    UC_TEST("[N] (TC-LOD-003) hello.prg text section loaded (4 bytes)",
+            eR == ST_NO_ERROR
+            && ptLoadCtx->eType == LOAD_TYPE_PRG
+            && ptLoadCtx->uiTextSize == 4
+            && ptLoadCtx->uiLoadAddr == ST_LOAD_BASE);
 
-    if (eR != ST_NO_ERROR)
-    {
-        printf("  [WARN] Skipping remaining CPU tests - PRG load failed.\n"
-               "         Run from the project root directory.\n");
-        st_shutdown();
-        return;
-    }*/
-
-    /* -- [CPU]7. Do nothing if the CPU is not RUNNING -- */
-    /* -- [CPU]8. Fetch the opcode word and advance PC -- */
-    /* -- [CPU]9. Dispatch MOVEQ opcodes (0x7xxx) -- */
-    /* INTENT[INT-CPU-006 → TC-CPU-009...011 → REQ-xxx-yyy → UFR-xxx-yyy]:
+    /* -- [CPU]4. Do nothing if the CPU is not RUNNING -- */
+    /* -- [CPU]5. Fetch the opcode word and advance PC -- */
+    /* -- [CPU]6. Fill the optional result structure when ptResult is provided -- */
+    /* -- [CPU]14. Dispatch MOVEQ opcodes (0x7xxx) -- */
+    /* -- [CPU]23. Update result & cycles count for time accuracy -- */
+    /* INTENT[INT-CPU-002 → TC-CPU-006...011 → REQ-xxx-yyy → UFR-xxx-yyy]:
      * cpu_step must fetch the MOVEQ #42,D0 opcode, advance PC by 2,
-     * and execute it (D0=42)
-    UC_CHECK("[N] cpu_step() #1 (MOVEQ #42,D0)",
-             cpu_step(&tCpu, &tResult));
-    UC_TEST("[N] (TC-CPU-009) step #1 PC advanced by 2",
+     * and execute it (D0=42) */
+    UC_INFO("(INT-CPU-002) Force CPU to STOP state");
+    tResult.uiOpcode = 0xABCD;
+    tCpu->eState = CPU_STATE_STOPPED;
+    eR = cpu_step(&tResult);
+    UC_TEST("[R] (TC-CPU-006) cpu_step() sends ST_ERROR", eR == ST_ERROR);
+    UC_TEST("[R] (TC-CPU-007) tResult is unchanged", tResult.uiOpcode == 0xABCD);
+    tCpu->eState = CPU_STATE_RUNNING;
+    
+    UC_CHECK("(INT-CPU-002) [Chk] cpu_step() #1 (MOVEQ #42,D0)",
+             cpu_step(&tResult));
+    UC_TEST("[N] (TC-CPU-008) step #1 PC advanced by 2",
             tResult.uiPCAfter == UI_LOAD_ADDR + 2);
-    UC_TEST("[N] (TC-CPU-010) step #1 opcode == 0x702A (MOVEQ #42,D0)",
+    UC_TEST("[N] (TC-CPU-009) step #1 opcode == 0x702A (MOVEQ #42,D0)",
             tResult.uiOpcode == 0x702A);
+    UC_TEST("[N] (TC-CPU-010) Cycles is set to 4",
+            tResult.iCycles == 4);
     UC_TEST("[N] (TC-CPU-011) step #1 D0==42 after MOVEQ",
-            tCpu.auDn[0] == 42u);*/
+            tCpu->auDn[0] == 42u);
 
-    /* -- [CPU]10. Dispatch Misc opcodes incl. RTS/NOP/STOP/RTE/RTR
-     *             (0x4Exx) -- */
-    /* INTENT[INT-CPU-007 → TC-CPU-012...013 → REQ-xxx-yyy → UFR-xxx-yyy]:
-     * cpu_step must fetch and fully execute the RTS opcode on the
-     * second step - RTS pops the return address from the stack; since
-     * nothing was pushed, it pops the zeroed stack top (PC becomes 0)
-    UC_CHECK("[N] cpu_step() #2 (RTS)", cpu_step(&tCpu, &tResult));
+    /* -- [CPU]11. Dispatch Misc opcodes RTS/LEA/CLR/... (0x4xxx) -- */
+    /* INTENT[INT-CPU-003 → TC-CPU-012...013 → REQ-xxx-yyy → UFR-xxx-yyy]:
+     * cpu_step fetches and executees the RTS opcode */
+    /* RTS pops the return address from the stack; since
+     * nothing was pushed, it pops the zeroed stack top (PC becomes 0) */
+    UC_CHECK("(INT-CPU-003) [Chk] cpu_step() #2 (RTS)", cpu_step(&tResult));
     UC_TEST("[N] (TC-CPU-012) step #2 opcode == 0x4E75 (RTS)",
             tResult.uiOpcode == 0x4E75);
     UC_TEST("[N] (TC-CPU-013) step #2 PC popped from the (zeroed) stack",
-            tCpu.uiPC == 0u);*/
-
-    /* -- [CPU]11. Fill the optional result structure when ptResult is
-     *             provided -- */
-    /* INTENT[INT-CPU-008 → TC-CPU-014 → REQ-xxx-yyy → UFR-xxx-yyy]:
+            tCpu->uiPC == 0u);
+    
+    /* -- [CPU]6. Fill the optional result structure when ptResult is provided -- */
+    /* INTENT[INT-CPU-004 → TC-CPU-014...015 → REQ-xxx-yyy → UFR-xxx-yyy]:
      * cpu_step must accept a NULL ptResult (diagnostic output is
-     * optional) and still execute the fetched instruction normally
-    eR = cpu_step(&tCpu, NULL);
-    UC_TEST("[N] (TC-CPU-014) cpu_step(&tCpu, NULL) returns ST_NO_ERROR",
+     * optional) and still execute the fetched instruction normally */
+    UC_CHECK("(INT-CPU-004) [Chk] Write an opcode at address 0",
+             st_write_word(0, 0x702A));
+    eR = cpu_step(NULL);
+    UC_TEST("[R] (TC-CPU-014) cpu_step(NULL) returns ST_NO_ERROR",
             eR == ST_NO_ERROR);
-
-    printf("  [INFO] CPU after 3 steps: PC=0x%08X instrCount=%llu\n",
-           tCpu.uiPC,
-           (unsigned long long)tCpu.ulInstrCount);*/
+    UC_TEST("[R] (TC-CPU-015) PC is now at UI_LOAD_ADDR + 6",
+            tCpu->uiPC == 2);
 }
 
 /* ------------------------------------------------------------------
  * Group 4: Disassembler stub
  * ------------------------------------------------------------------ */
 
-static void test_disasm(void)
+/*
+ * uc01_test_disam() - disasm_range nominal, zero-length buffer,
+ *                     NULL param guards
+ *
+ * Code Coverage:
+ *   disassembler.c:
+ *   -- [DISAMS]1. Reject any NULL pointer in parameter with ST_ERROR --
+ *   
+ *
+ * Parameters:
+ *   None
+ *
+ * Returns:
+ *   Void
+ */
+static void uc01_test_disasm(void)
 {
     const st_u8_t   aBytes[]  = { 0x70, 0x2A, 0x4E, 0x75 };
     disasm_result_t aResults[4];
     size_t          uiLines   = 0;
     st_error_t      eR;
 
-    printf("\n--- Test group 5: Disassembler stub ---\n");
+    printf("\n--- Test group 4: Disassembler stub ---\n");
 
-    /* INTENT[INT-DIS-001 → TC-DIS-001 → REQ-DIS-004/005]:
-     * disasm_range must decode 4 bytes into 2 instruction lines.
-     * ADAPTED: UC14 - MOVEQ (#42,D0) and RTS now fully decoded;
-     *   uiLines==2 is still correct (2 real instructions, not DC.W). */
-    eR = disasm_range(aBytes, sizeof(aBytes), 0x1000,
-                      aResults, 4, &uiLines);
-    UC_TEST("[N] disasm_range() returns ST_NO_ERROR", eR == ST_NO_ERROR);
-    /* ADAPTED: UC14 — description updated; assertion uiLines==2 unchanged */
-    UC_TEST("[N] disasm_range() produces 2 decoded lines", uiLines == 2);
-
-    if (uiLines > 0) { printf("  [INFO] disasm[0]: %s\n", aResults[0].szLine); }
-    if (uiLines > 1) { printf("  [INFO] disasm[1]: %s\n", aResults[1].szLine); }
-    printf("  [NOTE] UC11+UC14: MOVEQ and RTS fully decoded\n");
-
-    /* INTENT[INT-DIS-002 → TC-DIS-002 → REQ-DIS-004]:
-     * zero-length buffer must produce 0 lines without error */
-    uiLines = 99;
-    eR = disasm_range(aBytes, 0, 0x1000, aResults, 4, &uiLines);
-    UC_TEST("[N] disasm_range(len=0) returns ST_NO_ERROR",
-            eR == ST_NO_ERROR);
-    UC_TEST("[N] disasm_range(len=0) writes 0 lines", uiLines == 0);
-
-    /* INTENT[INT-DIS-003 → TC-DIS-003/004/005 → REQ-DIS-001/002/003]:
-     * NULL params must be rejected with ST_ERROR */
+    /* -- [DISAMS]1. Reject any NULL pointer in parameter with ST_ERROR -- */
+    /* INTENT[INT-DIS-001 → TC-DIS-001...003 → REQ-xxx-yyy → UFR-xxx-yyy]:
+     * NULL pointers must be rejected with ST_ERROR */
+    UC_INFO("(INT-DIS-001) Sending NULL pointers to the disassembler");
     eR = disasm_range(NULL, sizeof(aBytes), 0x1000, aResults, 4, &uiLines);
-    UC_TEST("[R] disasm_range(NULL buf) returns ST_ERROR",
+    UC_TEST("[R] (TC-DIS-001) disasm_range(NULL buf) returns ST_ERROR",
             eR == ST_ERROR);
 
     eR = disasm_range(aBytes, sizeof(aBytes), 0x1000, NULL, 4, &uiLines);
-    UC_TEST("[R] disasm_range(NULL results) returns ST_ERROR",
+    UC_TEST("[R] (TC-DIS-002) disasm_range(NULL results) returns ST_ERROR",
             eR == ST_ERROR);
 
     eR = disasm_range(aBytes, sizeof(aBytes), 0x1000, aResults, 4, NULL);
-    UC_TEST("[R] disasm_range(NULL puiLines) returns ST_ERROR",
+    UC_TEST("[R] (TC-DIS-003) disasm_range(NULL puiLines) returns ST_ERROR",
             eR == ST_ERROR);
+            
+    /* -- [DISAMS]2. Disassemble each instruction until end of buffer -- */
+    /* INTENT[INT-DIS-002 → TC-DIS-004 → REQ-xxx-yyy → UFR-xxx-yyy]:
+     * Disassemble an array of 4 bytes = 2 instructions (MOVEQ #42,D0 & RTS) 
+     * & show that zero-length buffer leads to no decoded line */
+    UC_CHECK("(INT-DIS-002) [Chk] Disassemble MOVEQ #42,D0 - RTS", 
+         disasm_range(aBytes, sizeof(aBytes), 0x1000,
+                      aResults, 4, &uiLines));
+    UC_TEST("[N] (TC-DIS-004) disasm_range() produces 2 decoded lines", uiLines == 2);
+    if (uiLines == 2)
+    {
+        UC_TEST("[N] (TC-DIS-005) Second line is \"RTS\"",  
+                  strcmp("RTS", aResults[1].szLine));
+    } else printf("  [SKIP] (TC-DIS-005) Could not disassemble 2 lines\n\n");
+ 
+    uiLines = 99;
+    UC_CHECK("(INT-DIS-002) [Chk] Disassemble zero-length buffer", 
+              disasm_range(aBytes, 0, 0x1000, aResults, 4, &uiLines));
+    UC_TEST("[R] (TC-DIS-006) disasm_range() 0 decoded lines", uiLines == 0);    
 }
 
 /* ------------------------------------------------------------------
@@ -702,7 +655,7 @@ int main(void)
         uc01_test_trace();
         uc01_test_st_machine();
         uc01_test_cpu();
-        test_disasm();
+        uc01_test_disasm();
     } else printf("  [SKIP] (UC01) ST_MAIN_CTX Object Check failed\n\n");
 
     printf("\n--- Shutdown ---\n");

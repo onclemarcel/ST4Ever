@@ -2371,7 +2371,7 @@ st_error_t cpu_step(cpu_step_result_t *ptResult)
     {
         LOG_ERROR("cpu_step: CPU not running (state=%d) - use cpu_init() first",
                  (int)g_cpu_ptCtx.eState);
-        return ST_NO_ERROR;
+        return ST_ERROR;
     }
 
     uiPCBefore = g_cpu_ptCtx.uiPC;
@@ -2405,7 +2405,7 @@ st_error_t cpu_step(cpu_step_result_t *ptResult)
         eR = cpu_exec_move(uiOpcode);
         break;
 
-    /* -- [CPU]11. Dispatch Misc opcodes(0x4xxx) -- */
+    /* -- [CPU]11. Dispatch Misc opcodes RTS/LEA/CLR/... (0x4xxx) -- */
     case 0x4: /* Misc: LEA/CLR/SWAP/NEG/NOT/TST/EXT + UC23 */
         eR = cpu_exec_misc4(uiOpcode);
         break;

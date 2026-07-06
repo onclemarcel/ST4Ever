@@ -472,9 +472,15 @@ def parse_usecase_file(path):
 
         # --- doc tags (Code Coverage bullet list) ---
         cleaned = normalize(cc_m.group('body'))
+        # The bullet text itself may legitimately contain "--" glued to a
+        # word (e.g. "-t/--trace", "Reject --script ..."), so those are
+        # not valid closing markers. The real closing "--" is always
+        # followed by whitespace (next bullet/module line) or the end of
+        # the list - never directly by another word character.
         for bm in re.finditer(
                 r'--\s*\[(?P<module>[A-Za-z_][A-Za-z0-9_]*)\]'
-                r'(?P<num>\d+)\.\s*(?P<text>.*?)\s*--', cleaned):
+                r'(?P<num>\d+)\.\s*(?P<text>.*?)\s*--(?=\s|\Z)',
+                cleaned):
             key = (bm.group('module'), int(bm.group('num')))
             tf.doc_tags[key] = normalize(bm.group('text'))
 

@@ -165,7 +165,7 @@ st_error_t trace_gui_open(void);
 st_error_t trace_gui_close(void);
 
 /*
- * trace_set_trace_enabled() - Enable or disable LOG_TRACE output.
+ * trace_set_trace_enabled() - Enable or disable LOG_TRACE output in GUI
  *
  * LOG_INFO, LOG_ERROR and LOG_TODO are unaffected.
  *
@@ -173,12 +173,12 @@ st_error_t trace_gui_close(void);
  *   bEnabled [in] : ST_TRUE to enable, ST_FALSE to suppress.
  *
  * Returns:
- *   ST_NO_ERROR.
+ *   void (this is a setter - no result expected)
  */
-st_error_t trace_set_trace_enabled(st_bool_t bEnabled);
+void trace_set_trace_enabled(st_bool_t bEnabled);
 
 /*
- * trace_is_trace_enabled() - Query whether LOG_TRACE is active.
+ * trace_is_trace_enabled() - Query whether LOG_TRACE is active in GUI
  *
  * Returns:
  *   ST_TRUE if LOG_TRACE output is enabled, ST_FALSE otherwise.

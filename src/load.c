@@ -294,6 +294,7 @@ static st_error_t load_do_prg(const char *szPath)
     if (file_open(szPath, FILE_MODE_READ, &ptFile) != ST_NO_ERROR)
         return ST_ERROR;
 
+    /* -- [LOAD]4. Validate the 0x601A magic header -- */
     /* ----------------------------------------------------------------
      * 1. Read and validate the 28-byte header
      * ---------------------------------------------------------------- */
@@ -337,6 +338,7 @@ static st_error_t load_do_prg(const char *szPath)
         return ST_ERROR;
     }
 
+    /* -- [LOAD]5. Read .text + .data into ST RAM at ST_LOAD_BASE -- */
     /* ----------------------------------------------------------------
      * 2. Read .text + .data into ST RAM at ST_LOAD_BASE
      * ---------------------------------------------------------------- */
@@ -380,6 +382,7 @@ static st_error_t load_do_prg(const char *szPath)
         }
     }
 
+    /* -- [LOAD]6. Apply the fixup relocation table -- */
     /* ----------------------------------------------------------------
      * 5. Apply fixup relocation table (unless abs_flag is set)
      * ---------------------------------------------------------------- */
@@ -400,6 +403,7 @@ static st_error_t load_do_prg(const char *szPath)
 
     file_close(&ptFile);
 
+    /* -- [LOAD]7. Update load state with loaded PRG metadata -- */
     /* ----------------------------------------------------------------
      * 6. Update load state
      * ---------------------------------------------------------------- */
@@ -498,6 +502,7 @@ st_error_t load_file(const char *szPath)
         return ST_ERROR;
     }
 
+    /* -- [LOAD]3. Dispatch .prg/.ttp/.tos files to the full PRG loader -- */
     if (load_is_prg_ext(tStat.szExt))
         return load_do_prg(szPath);
 

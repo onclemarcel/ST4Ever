@@ -167,7 +167,7 @@ static st_error_t ST4Ever_manage_options(int argc, char* argv[])
 
 st_u64_t ST4Ever_init(int argc, char *argv[])
 {
-    /* -- [MAIN]1. Parse command-line options -- */
+    /* -- [MAIN]1. Analyze given arguemnts, no argument will succeed -- */
     if (ST4Ever_manage_options(argc, argv) == ST_QUIT) return ST_QUIT;
 
     /* -- [MAIN]2. Platform-specific console init -- */

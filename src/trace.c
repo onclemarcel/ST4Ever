@@ -40,32 +40,60 @@ static const renderer_color_t g_tv_clrSel   = {0.20f, 0.20f, 0.35f, 1.0f};
 /* ------------------------------------------------------------------
  * Internal helpers
  * ------------------------------------------------------------------ */
-
-static void trace_get_timestamp(char *szBuf, size_t uiBufLen)
+/*
+ * trace_get_timestamp() - stamp incoming buffer with time
+ *
+ * Parameters:
+ *   szBuf    [in] : Pointer to string
+ *   uiBufLen [in] : length of string
+ *
+ * Returns:
+ *   ST_ERROR if an error is detected
+ *   ST_NO_ERROR on success
+ */
+static st_error_t trace_get_timestamp(char *szBuf, size_t uiBufLen)
 {
     time_t     tNow;
     struct tm *pTm;
 
+    // No LOG_TRACE - as we are currently writing a log message
+
+    /* -- [TRACE]17. Reject NULL buffer or zero-length buffer -- */
     if (szBuf == NULL || uiBufLen == 0)
     {
-        return;
+        return ST_ERROR;
     }
 
     tNow = time(NULL);
     pTm  = localtime(&tNow);
 
+    /* -- [TRACE]28. Add timestamp ??:??:?? if glibc does not work -- */
     if (pTm == NULL)
     {
         strncpy(szBuf, "??:??:??", uiBufLen - 1);
         szBuf[uiBufLen - 1] = '\0';
-        return;
+        return ST_ERROR;
     }
 
+    /* -- [TRACE]18. Add timestamp %H:%M:%S at start of buffer -- */
     strftime(szBuf, uiBufLen, "%H:%M:%S", pTm);
+    return ST_NO_ERROR;
 }
 
+/*
+ * trace_level_label() - Set the tag according to the incoming level
+ *
+ * Parameters:
+ *   eLevel   [in] : Type of logging message
+ *
+ * Returns:
+ *   A 4-characters string representing the tag
+ */
 static const char *trace_level_label(log_level_t eLevel)
 {
+    // No LOG_TRACE - as we are currently writing a log message
+    
+    /* -- [TRACE]29. Tag logging message according to its type -- */
     switch (eLevel)
     {
         case LOG_LEVEL_TRACE: return "TRC ";
@@ -77,8 +105,20 @@ static const char *trace_level_label(log_level_t eLevel)
 }
 
 
+/*
+ * trace_level_color() - Set the text color according to the incoming level
+ *
+ * Parameters:
+ *   eLevel   [in] : Type of logging message
+ *
+ * Returns:
+ *   A rendering color of type renderer_color_t (RGB & Alpha format)
+ */
 static const renderer_color_t *trace_level_color(log_level_t eLevel)
 {
+    // No LOG_TRACE - as we are currently writing a log message
+
+    /* -- [TRACE]30. Set message color according to its type -- */
     switch (eLevel)
     {
         case LOG_LEVEL_TRACE: return &g_tv_clrTrace;
@@ -89,20 +129,33 @@ static const renderer_color_t *trace_level_color(log_level_t eLevel)
     }
 }
 
-static void trace_flush_compact(void)
+/*
+ * trace_flush_compact() - Write the compaction logging message
+ *
+ * Parameters:
+ *   void   
+ *
+ * Returns:
+ *   ST_ERROR in case of detected error
+ *   ST_NO_ERROR in case of success
+ */
+static st_error_t trace_flush_compact(void)
 {
     char szTime[16];
+    st_error_t eR;
 
+    // No LOG_TRACE - as we are currently writing a log message
+
+    /* -- [TRACE]31. If no need for compaction, return with no error -- */
     if (g_trace_ptCtx.iCompactCount <= 1)
     {
         g_trace_ptCtx.iCompactCount = 0;
         g_trace_ptCtx.szLastFunc[0] = '\0';
-        return;
+        return ST_NO_ERROR;
     }
 
-    trace_get_timestamp(szTime, sizeof(szTime));
-
-    /* stderr omitted — same rationale as trace_log(). */
+    /* -- [TRACE]32. Send the compaction message in trace file -- */
+    eR = trace_get_timestamp(szTime, sizeof(szTime));
 
     if (g_trace_ptCtx.pFile != NULL)
     {
@@ -114,26 +167,49 @@ static void trace_flush_compact(void)
                 g_trace_ptCtx.iCompactCount);
         fflush(g_trace_ptCtx.pFile);
     }
+    else
+    {
+        eR = ST_ERROR;
+    }
 
     g_trace_ptCtx.iCompactCount = 0;
     g_trace_ptCtx.szLastFunc[0] = '\0';
+
+    return eR;
 }
 
 /* ------------------------------------------------------------------
  * GUI trace view — ring buffer append (caller holds ptMutex)
  * ------------------------------------------------------------------ */
-
-static void trace_view_append_locked(trace_view_t *ptView,
-                                      log_level_t   eLevel,
-                                      const char   *szLine)
+/*
+ * trace_view_append_locked() - Add new lines in GUI view and apply
+ *                              an auto-scroll strategy to keep new 
+ *                              line visible
+ *
+ * Parameters:
+ *   ptView [in] : the pointer to the GUI view to be updated
+ *   eLevel [in] : the log message level when this line is written
+ *   szLine [in] : the line itself
+ *
+ * Returns:
+ *   ST_ERROR in case of detected error
+ *   ST_NO_ERROR in case of success
+ */
+static st_error_t trace_view_append_locked(trace_view_t *ptView,
+                                      log_level_t  eLevel,
+                                      const char  *szLine)
 {
     int iInsert;
 
+    // No LOG_TRACE - as we are currently writing a log message in GUI
+
+    /* -- [TRACE]33. Returns an error if NULL parameter is received -- */
     if (ptView == NULL || szLine == NULL)
     {
-        return;
+        return ST_ERROR;
     }
 
+    /* -- [TRACE]34. Manage the ring buffer of trace lines -- */
     if (ptView->iCount < TRACE_VIEW_MAX_LINES)
     {
         /* Buffer not yet full: append after tail */
@@ -152,12 +228,13 @@ static void trace_view_append_locked(trace_view_t *ptView,
         }
     }
 
+    /* -- [TRACE]35. Insert the new line given in input -- */
     strncpy(ptView->aLines[iInsert].szText, szLine,
             TRACE_VIEW_LINE_LEN - 1);
     ptView->aLines[iInsert].szText[TRACE_VIEW_LINE_LEN - 1] = '\0';
     ptView->aLines[iInsert].eLevel = eLevel;
 
-    /* Auto-scroll: keep the newest line visible */
+    /* -- [TRACE]36. Apply auto-scroll strategy for new line visiblity -- */
     if (ptView->bAutoScroll == ST_TRUE)
     {
         int iVisRows;
@@ -168,12 +245,22 @@ static void trace_view_append_locked(trace_view_t *ptView,
         ptView->iScrollOff = ptView->iCount - iVisRows;
         if (ptView->iScrollOff < 0) ptView->iScrollOff = 0;
     }
+
+    return ST_NO_ERROR;
 }
 
 /* ------------------------------------------------------------------
  * GUI trace view — rendering
  * ------------------------------------------------------------------ */
-
+/*
+ * trace_render() - Trace GUI rendering function
+ *
+ * Parameters:
+ *   ptView [in] : the pointer to the GUI view to be updated
+ *
+ * Returns:
+ *   void
+ */
 static void trace_render(trace_view_t *ptView)
 {
     renderer_color_t  tBg;
@@ -558,31 +645,6 @@ st_error_t trace_gui_close(void)
 
 ///////////////////////////////////////////////////////////////////////////////
 //
-st_error_t trace_set_trace_enabled(st_bool_t bEnabled)
-{
-    LOG_TRACE("Set Request for bGUITraceEnabled=%d", bEnabled);
-
-    /* -- [TRACE]17. Private bGUITraceEnabled can be set externally -- */
-    g_trace_ptCtx.bGUITraceEnabled = bEnabled;
-    LOG_INFO("LOG_TRACE %s", bEnabled == ST_TRUE ? "enabled" : "disabled");
-    return ST_NO_ERROR;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-//
-st_bool_t trace_is_trace_enabled(void)
-{
-    LOG_TRACE("Get Request for bGUITraceEnabled=%d", g_trace_ptCtx.bGUITraceEnabled);
-
-    /* -- [TRACE]18. Private bGUITraceEnabled can be read externally -- */
-    return g_trace_ptCtx.bGUITraceEnabled;
-}
-
-st_bool_t trace_is_open(void)
-{
-    return g_trace_ptCtx.bOpen;
-}
-
 void trace_log(log_level_t  eLevel,
                const char  *szFunc,
                int          iLine,
@@ -594,6 +656,8 @@ void trace_log(log_level_t  eLevel,
     char    szLine[TRACE_VIEW_LINE_LEN];
     va_list vaArgs;
     int     bCompacted;
+
+    // No LOG_TRACE here - we are in the function producing the logs
 
     /* -- [TRACE]5. Trace Context must be initialized before logging -- */
     if (g_trace_ptCtx.bInitialised == ST_FALSE)
@@ -692,8 +756,12 @@ void trace_log(log_level_t  eLevel,
 	}
 }
 
+///////////////////////////////////////////////////////////////////////////////
+//
 st_error_t trace_clear(void)
 {
+    LOG_TRACE("ptView=%p", g_trace_ptCtx.ptView);
+    
     /* -- [TRACE]19. Do nothing if no trace view window is open -- */
     if (g_trace_ptCtx.ptView == NULL)
     {
@@ -709,7 +777,7 @@ st_error_t trace_clear(void)
         platform_mutex_unlock(g_trace_ptCtx.ptView->ptMutex);
     }
 
-    /* -- [TRACE]21. Invalidate the window to force a redraw -- */
+    /* -- [TRACE]21. Invalidate the window for next redraw -- */
     if (g_trace_ptCtx.ptView->hWnd != NULL)
     {
         gui_invalidate(g_trace_ptCtx.ptView->hWnd);
@@ -719,8 +787,12 @@ st_error_t trace_clear(void)
     return ST_NO_ERROR;
 }
 
+///////////////////////////////////////////////////////////////////////////////
+//
 st_error_t trace_set_view_level(log_level_t eMinLevel)
 {
+    LOG_TRACE("Changing trace level to %d", eMinLevel);
+
     /* -- [TRACE]22. Store the new minimum level globally -- */
     g_trace_ptCtx.eViewMinLevel = eMinLevel;
 
@@ -739,11 +811,8 @@ st_error_t trace_set_view_level(log_level_t eMinLevel)
     return ST_NO_ERROR;
 }
 
-log_level_t trace_get_view_level(void)
-{
-    return g_trace_ptCtx.eViewMinLevel;
-}
-
+///////////////////////////////////////////////////////////////////////////////
+//
 st_error_t trace_shutdown(void)
 {
     LOG_TRACE("Closing trace context");
@@ -786,3 +855,40 @@ st_error_t trace_shutdown(void)
 
     return eResult;
 }
+
+/******************************************************************************
+ * Getters
+ *****************************************************************************/
+
+log_level_t trace_get_view_level(void)
+{
+    LOG_TRACE("Get Request for eViewMinLevel=%d", g_trace_ptCtx.eViewMinLevel);
+    
+    return g_trace_ptCtx.eViewMinLevel;
+}
+
+st_bool_t trace_is_open(void)
+{
+    LOG_TRACE("Get Request for bOpen=%d", g_trace_ptCtx.bOpen);
+    
+    return g_trace_ptCtx.bOpen;
+}
+
+st_bool_t trace_is_trace_enabled(void)
+{
+    LOG_TRACE("Get Request for bGUITraceEnabled=%d", g_trace_ptCtx.bGUITraceEnabled);
+
+    return g_trace_ptCtx.bGUITraceEnabled;
+}
+
+/******************************************************************************
+ * Setters
+ *****************************************************************************/
+
+void trace_set_trace_enabled(st_bool_t bEnabled)
+{
+    LOG_TRACE("Set Request for bGUITraceEnabled=%d", bEnabled);
+
+    g_trace_ptCtx.bGUITraceEnabled = bEnabled;
+}
+

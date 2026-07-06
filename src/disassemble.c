@@ -1801,17 +1801,18 @@ st_error_t disasm_one(const st_u8_t  *pBuf,
  * disasm_range() — unchanged
  * ------------------------------------------------------------------ */
 
-st_error_t disasm_range(const st_u8_t  *pBuf,
-                          size_t          uiBufLen,
-                          st_u32_t        uiAddr,
-                          disasm_result_t *ptResults,
-                          size_t          uiMaxLines,
-                          size_t         *puiLines)
+st_error_t disasm_range(const st_u8_t   *pBuf,
+                        size_t           uiBufLen,
+                        st_u32_t         uiAddr,
+                        disasm_result_t *ptResults,
+                        size_t           uiMaxLines,
+                        size_t          *puiLines)
 {
     size_t     uiOffset;
     size_t     uiLine;
     st_error_t eR;
 
+    /* -- [DISAMS]1. Reject any NULL pointer in parameter with ST_ERROR -- */
     if (pBuf == NULL || ptResults == NULL || puiLines == NULL)
     {
         LOG_ERROR("NULL parameter: pBuf=%p ptResults=%p puiLines=%p",
@@ -1822,6 +1823,7 @@ st_error_t disasm_range(const st_u8_t  *pBuf,
     uiOffset = 0;
     uiLine   = 0;
 
+    /* -- [DISAMS]2. Disassemble each instruction until end of buffer -- */
     while (uiOffset < uiBufLen && uiLine < uiMaxLines)
     {
         eR = disasm_one(pBuf + uiOffset,

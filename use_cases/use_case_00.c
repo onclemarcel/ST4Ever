@@ -62,7 +62,7 @@ static char* g_uc00_szArgs_help_long[]       = {"Test.exe", "--trace",
  *
  * Code Coverage:
  *   main.c:
- *   -- [MAIN]1. Parse command-line options --
+ *   -- [MAIN]1. Analyze given arguemnts, no argument will succeed --
  *   -- [MAIN]10. Recognize -t/--trace and set bTraceAtStart --
  *   -- [MAIN]11. Reject --script if it has no following
  *              argument --
@@ -85,16 +85,15 @@ static void uc00_manage_options()
 
     printf("\n--- Test group 1: Parse command-line options ---\n");
     
-    /* -- [MAIN]1. Parse command-line options -- */
+    /* -- [MAIN]1. Analyze given arguemnts, no argument will succeed -- */
     /* INTENT[INT-APP-001 → TC-APP-001 → REQ-xxx-yyy → UFR-xxx-yyy]:
-     * call the ST4Ever main function with no argument : init is OK 
-     * bTraceAtStart is FALSE */
+     * call the ST4Ever with no argument starts application with default values */
     ptCtx = (ST4Ever_context_t*)ST4Ever_init(1, g_uc00_szArgs_none);
     UC_CHECK("(INT-APP-001) [Chk] Launch ST4Ever with no argument", (st_u64_t)ptCtx);
     UC_CHECK_OBJ(ptCtx, ST_MAIN_CTX);
     if (gIsObject) 
     {
-        UC_TEST("[N] (TC-APP-001) bTraceAtStart is set to TRUE", 
+        UC_TEST("[N] (TC-APP-001) bTraceAtStart is set to FALSE", 
                 (ptCtx->bTraceAtStart == ST_FALSE)); 
     } else printf("  [SKIP] (TC-APP-001) ST_MAIN_CTX Object Check failed\n\n");
 
@@ -182,7 +181,7 @@ static void uc00_manage_options()
 
     /* -- [MAIN]15. Reject any unrecognized option -- */
     /* INTENT[INT-APP-005 → TC-APP-013...014 → REQ-xxx-yyy → UFR-xxx-yyy]:
-     * incorrect short/long options are captured, init sends ST_ERROR */
+     * incorrect short/long options returns ST_ERROR */
     ptCtx = (ST4Ever_context_t*)ST4Ever_init(3, g_uc00_szArgs_err_short);
     UC_CHECK("(INT-APP-005) [Chk] Launch ST4Ever with invalid argument", (st_u64_t)ptCtx);
     UC_TEST("[R] (TC-APP-013) Launch ST4Ever with invalid -x argument", 
@@ -371,7 +370,7 @@ static void uc00_trace_subsystem()
 
     /* -- [TRACE]1. Log Information if already initialised -- */
     /* INTENT[INT-TRC-002 → TC-TRC-005 → REQ-xxx-yyy → UFR-xxx-yyy]:
-     * Check that second call still returns the structure (no error) */
+     * Call when initialized return ST_NO_ERROR and log a message */
     ptCtx = (trace_context_t*)trace_init(ST_TRUE);
     UC_CHECK("(INT-TRC-002) [Chk] Forcing bGUITraceEnabled to ST_TRUE & re-launch trace_init()"
               , (st_u64_t)ptCtx);
@@ -431,7 +430,7 @@ static void uc00_gui_module()
 
     /* -- [GUI]1. Log Information if already initialised -- */
     /* INTENT[INT-GUI-002 → TC-GUI-003 → REQ-xxx-yyy → UFR-xxx-yyy]:
-     * Check that second call still returns the structure (no error) */
+     * Call when initialized return ST_NO_ERROR and log a message */
     ptCtx = (gui_context_t*)gui_init();
     UC_CHECK("(INT-GUI-002) [Chk] Forcing windows count to 78 & re-launch gui_init()"
               , (st_u64_t)ptCtx);
@@ -449,8 +448,8 @@ static void uc00_gui_module()
     /* -- [GUI]3. Create mutex list -- */
     /* -- [GUI]4. Platform-specific GUI init -- */
     /* INTENT[INT-GUI-003 → TC-GUI-004...007 → REQ-xxx-yyy → UFR-xxx-yyy]:
-     * After bInit set FALSE, check that gui_init() fills correctly the context
-     * structure - with platform-related functions initialized */
+     * check that gui_init() fills correctly the context structure with mutex
+     * and platform-related functions initialized */
     ptCtx = (gui_context_t*)gui_init();
     UC_CHECK("(INT-GUI-003) [Chk] Forcing bInit to FALSE & re-launch gui_init()"
               , (st_u64_t)ptCtx);
@@ -515,8 +514,7 @@ static void uc00_st_module()
 
     /* -- [ST]2. Init ROM in memory -- */
     /* INTENT[INT-STM-002 → TC-STM-003...004 → REQ-xxx-yyy → UFR-xxx-yyy]:
-     * Check that ST Machine ROM is initialized if ROM file is given
-     * in parameter (TODO) */
+     * Check that ST Machine ROM area is created (TODO) */
     st_u16_t uiWord = 0x1234;
     ptCtx = (st_machine_context_t*)st_init("test.rom");
     UC_CHECK("(INT-STM-002) [Chk] Launch st_init(\"test.rom\")", 
@@ -646,7 +644,7 @@ static void uc00_exec_module()
  *   -- [LINE]2. Log Information if already initialised --
  *   -- [LINE]3. Auto-detect ANSI capability --
  *   -- [LINE]4. get current working directory --
- *   -- [LINE]5. Fills context struture fields --
+ *   -- [LINE]5. Fills context structure fields (mutex, script) --
  *   -- [LINE]6. Load console commands history --
  * 
  * Parameters:
@@ -666,7 +664,7 @@ static void uc00_console_module()
     /* -- [LINE]1. Reject any NULL incoming parameter -- */
     /* -- [LINE]3. Auto-detect ANSI capability -- */
     /* -- [LINE]4. get current working directory -- */
-    /* -- [LINE]5. Fills context struture fields -- */
+    /* -- [LINE]5. Fills context structure fields (mutex, script) -- */
     /* -- [LINE]6. Load console commands history -- */
     /* INTENT[INT-CON-001 → TC-CON-001...007 → REQ-xxx-yyy → UFR-xxx-yyy]:
      * Check that console line initializes its own context, except if
@@ -704,9 +702,9 @@ static void uc00_console_module()
                 (st_u64_t)ptCtx == ST_ERROR);
 
     /* -- [LINE]2. Log Information if already initialised -- */
-    /* -- [LINE]5. Fills context struture fields -- */
+    /* -- [LINE]5. Fills context structure fields (mutex, script) -- */
     /* INTENT[INT-CON-002 → TC-CON-008...009 → REQ-xxx-yyy → UFR-xxx-yyy]:
-     * Check that second call still returns the structure (no error) */
+     * Call when initialized return ST_NO_ERROR and log a message */
     ptCtx = (line_context_t*)line_init("script.txt");
     UC_CHECK("(INT-CON-002) [Chk] Force bColors to ST_FALSE & re-launch line_init(\"script.txt\")"
               , (st_u64_t)ptCtx);
@@ -722,9 +720,9 @@ static void uc00_console_module()
         ptCtx->bRunning = ST_FALSE;
     } else printf("  [SKIP] (TC-CON-008...009) ST_LINE_CTX Object Check failed\n\n");    
     
-    /* -- [LINE]5. Fills context struture fields -- */
+    /* -- [LINE]5. Fills context structure fields (mutex, script) -- */
     /* INTENT[INT-CON-003 → TC-CON-010 → REQ-xxx-yyy → UFR-xxx-yyy]:
-     * Check that script name is captured correctly */
+     * Check that mutex & script name are captured in context structure */
     ptCtx = (line_context_t*)line_init("script.txt");
     UC_CHECK("(INT-CON-003) [Chk] Force bRunning to ST_FALSE & re-launch line_init(\"script.txt\")"
               , (st_u64_t)ptCtx);
@@ -802,13 +800,10 @@ static void uc00_shutdown_sequence()
     /* -- [ST]30. Reset the ST Machine context to power-off state -- */
     /* -- [MAIN]20. Shutdown GUI Module -- */
     /* -- [MAIN]21. Shutdown Trace Module -- */
-    /* INTENT[INT-APP-006 → TC-APP-015 → REQ-xxx-yyy → UFR-xxx-yyy]:
-     * ST4Ever_shutdown() must shut down every subsystem in one call
+    /* INTENT[INT-APP-006 → TC-APP-015...025 → REQ-xxx-yyy → UFR-xxx-yyy]:
+     * ST4Ever_shutdown() must shut down each subsystem in sequence
      * and return exactly ST_NO_ERROR when none of them fails -
-     * eExitCode must not leak uninitialized stack content on the
-     * all-success path (BUG found manually: it used to be declared
-     * without an initializer and only ever assigned in failure
-     * branches, so a fully successful shutdown returned garbage) */
+     * This involves the console, exec, load, ST Machine, GUI and Trace */
     eResult = ST4Ever_shutdown();
     UC_INFO("(INT-APP-006) ST4Ever_shutdown() full orchestration");
     UC_TEST("[N] (TC-APP-015) ST4Ever_shutdown() returns exactly"
@@ -816,49 +811,49 @@ static void uc00_shutdown_sequence()
             eResult == ST_NO_ERROR);
 
     UC_CHECK_OBJ(ptLineCtx, ST_LINE_CTX);
-    UC_TEST("[N] (TC-CON-011) context is still a recognized object"
+    UC_TEST("[N] (TC-APP-016) context is still a recognized object"
             " after line_shutdown()", gIsObject);
     if (gIsObject)
     {
-        UC_TEST("[N] (TC-CON-012) bRunning is reset to ST_FALSE",
+        UC_TEST("[N] (TC-APP-017) bRunning is reset to ST_FALSE",
                 ptLineCtx->bRunning == ST_FALSE);
-    } else printf("  [SKIP] (TC-CON-012) ST_LINE_CTX Object Check failed\n\n");
+    } else printf("  [SKIP] (TC-APP-017) ST_LINE_CTX Object Check failed\n\n");
 
     UC_CHECK_OBJ(ptExecCtx, ST_EXEC_CTX);
-    UC_TEST("[N] (TC-EXE-004) context is still a recognized object"
+    UC_TEST("[N] (TC-APP-018) context is still a recognized object"
             " after exec_shutdown()", gIsObject);
     if (gIsObject)
     {
-        UC_TEST("[N] (TC-EXE-005) bInitOK is reset to ST_FALSE",
+        UC_TEST("[N] (TC-APP-019) bInitOK is reset to ST_FALSE",
                 ptExecCtx->bInitOK == ST_FALSE);
-    } else printf("  [SKIP] (TC-EXE-005) ST_EXEC_CTX Object Check failed\n\n");
+    } else printf("  [SKIP] (TC-APP-019) ST_EXEC_CTX Object Check failed\n\n");
 
     UC_CHECK_OBJ(ptLoadCtx, ST_LOAD_CTX);
-    UC_TEST("[N] (TC-LOD-003) context is still a recognized object"
+    UC_TEST("[N] (TC-APP-020) context is still a recognized object"
             " after load_shutdown()", gIsObject);
     if (gIsObject)
     {
-        UC_TEST("[N] (TC-LOD-004) bIsMachineOn is reset to ST_FALSE",
+        UC_TEST("[N] (TC-APP-021) bIsMachineOn is reset to ST_FALSE",
                 ptLoadCtx->bIsMachineOn == ST_FALSE);
-    } else printf("  [SKIP] (TC-LOD-004) ST_LOAD_CTX Object Check failed\n\n");
+    } else printf("  [SKIP] (TC-APP-021) ST_LOAD_CTX Object Check failed\n\n");
 
     UC_CHECK_OBJ(ptSTCtx, ST_MACHINE_CTX);
-    UC_TEST("[N] (TC-STM-053) context is still a recognized object"
+    UC_TEST("[N] (TC-APP-022) context is still a recognized object"
             " after st_shutdown()", gIsObject);
     if (gIsObject)
     {
-        UC_TEST("[N] (TC-STM-054) bPoweredOn is reset to ST_FALSE",
+        UC_TEST("[N] (TC-APP-023) bPoweredOn is reset to ST_FALSE",
                 ptSTCtx->bPoweredOn == ST_FALSE);
-    } else printf("  [SKIP] (TC-STM-054) ST_MACHINE_CTX Object Check failed\n\n");
+    } else printf("  [SKIP] (TC-APP-023) ST_MACHINE_CTX Object Check failed\n\n");
 
     UC_CHECK_OBJ(ptGUICtx, ST_GUI_CTX);
-    UC_TEST("[N] (TC-GUI-008) context is still a recognized object"
+    UC_TEST("[N] (TC-APP-024) context is still a recognized object"
             " after gui_shutdown()", gIsObject);
     if (gIsObject)
     {
-        UC_TEST("[N] (TC-GUI-009) bInit is reset to ST_FALSE",
+        UC_TEST("[N] (TC-APP-025) bInit is reset to ST_FALSE",
                 ptGUICtx->bInit == ST_FALSE);
-    } else printf("  [SKIP] (TC-GUI-009) ST_GUI_CTX Object Check failed\n\n");
+    } else printf("  [SKIP] (TC-APP-025) ST_GUI_CTX Object Check failed\n\n");
 
     /* -- [TRACE]24. Do nothing if trace module is not initialized -- */
     /* -- [TRACE]25. Close the GUI window if still open -- */
@@ -869,6 +864,7 @@ static void uc00_shutdown_sequence()
      * while it remains a recognized ST_TRACE_CTX object - it must run
      * last: no further LOG_* call is guaranteed to reach the log file
      * afterward */
+    UC_INFO("(INT-TRC-008) trace_shutdown() test");
     UC_CHECK_OBJ(ptTrcCtx, ST_TRACE_CTX);
     UC_TEST("[N] (TC-TRC-024) context is still a recognized object"
             " after trace_shutdown()", gIsObject);
