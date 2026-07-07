@@ -276,6 +276,9 @@ static void trace_render(trace_view_t *ptView)
     int               iSnapshot;
     int               iHeadSnapshot;
 
+    // No LOG_TRACE - R22: called on every GUI_EVT_PAINT repaint
+
+    /* -- [TRACE]38. Ignore paint request with no view or no D2D renderer -- */
     if (ptView == NULL || ptView->hRenderer == NULL)
     {
         return;
@@ -295,10 +298,13 @@ static void trace_render(trace_view_t *ptView)
         return;
     }
 
+    /* -- [TRACE]39. Compute visible row count from cell height, with a
+     *               sane fallback when no font metrics are available -- */
     iVisRows = ptView->iWndHeight / ptView->iCellH;
     if (iVisRows < 1) iVisRows = 1;
 
-    /* Take a consistent snapshot of count/head under mutex */
+    /* -- [TRACE]40. Snapshot ring buffer head/count under mutex, for a
+     *               tearing-free render pass -- */
     if (platform_mutex_lock(ptView->ptMutex) != ST_NO_ERROR)
     {
         renderer_end_draw(ptView->hRenderer);
@@ -329,12 +335,15 @@ static void trace_render(trace_view_t *ptView)
         eLevel = ptView->aLines[iAbsIdx].eLevel;
         platform_mutex_unlock(ptView->ptMutex);
 
-        /* P28: skip lines below the view minimum level */
+        /* -- [TRACE]41. Skip lines below the GUI display minimum level
+         *               (P28 filter) without consuming a screen row -- */
         if (eLevel < ptView->eViewMinLevel)
         {
             continue;
         }
 
+        /* -- [TRACE]42. Draw the alternating row highlight and the
+         *               level-coloured text for each visible line -- */
         fY = (float)(iRow * ptView->iCellH);
 
         /* Subtle row highlight for readability (alternating) */
@@ -366,11 +375,25 @@ static void trace_render(trace_view_t *ptView)
  * GUI trace view — scroll helpers
  * ------------------------------------------------------------------ */
 
+/*
+ * trace_view_scroll() - Move the scroll offset by iDelta lines, clamped
+ *                        to the ring buffer bounds
+ *
+ * Parameters:
+ *   ptView [in] : the pointer to the GUI view to be updated
+ *   iDelta [in] : positive = scroll up (toward older lines)
+ *
+ * Returns:
+ *   void
+ */
 static void trace_view_scroll(trace_view_t *ptView, int iDelta)
 {
     int iVisRows;
     int iMaxOff;
 
+    // No LOG_TRACE - R22: called on every mouse-wheel / key-repeat scroll
+
+    /* -- [TRACE]43. Reject NULL view - do nothing -- */
     if (ptView == NULL) return;
 
     iVisRows = (ptView->iCellH > 0)
@@ -381,18 +404,35 @@ static void trace_view_scroll(trace_view_t *ptView, int iDelta)
     iMaxOff = ptView->iCount - iVisRows;
     if (iMaxOff < 0) iMaxOff = 0;
 
+    /* -- [TRACE]44. Clamp the scroll offset between the top and the
+     *               bottom of the ring buffer -- */
     ptView->iScrollOff -= iDelta;  /* positive iDelta = scroll up */
     if (ptView->iScrollOff < 0)       ptView->iScrollOff = 0;
     if (ptView->iScrollOff > iMaxOff) ptView->iScrollOff = iMaxOff;
 
-    /* If user scrolled to bottom, re-enable auto-scroll */
+    /* -- [TRACE]45. Re-enable auto-scroll once the user has scrolled
+     *               back down to the newest line -- */
     ptView->bAutoScroll = (ptView->iScrollOff >= iMaxOff) ? ST_TRUE : ST_FALSE;
 }
 
+/*
+ * trace_view_page() - Move the scroll offset by one full page
+ *
+ * Parameters:
+ *   ptView [in] : the pointer to the GUI view to be updated
+ *   iSign  [in] : +1 = page up, -1 = page down
+ *
+ * Returns:
+ *   void
+ */
 static void trace_view_page(trace_view_t *ptView, int iSign)
 {
     int iVisRows;
 
+    // No LOG_TRACE - R22: delegates to trace_view_scroll(), called on
+    // every Page Up/Down key-repeat
+
+    /* -- [TRACE]46. Reject NULL view - do nothing -- */
     if (ptView == NULL) return;
 
     iVisRows = (ptView->iCellH > 0)
@@ -400,6 +440,7 @@ static void trace_view_page(trace_view_t *ptView, int iSign)
              : 25;
     if (iVisRows < 1) iVisRows = 1;
 
+    /* -- [TRACE]47. Scroll by a full page (iSign x visible rows) -- */
     trace_view_scroll(ptView, iSign * iVisRows);
 }
 
@@ -413,12 +454,18 @@ static void trace_event_callback(gui_window_t  hWnd,
 {
     trace_view_t *ptView;
 
+    // No LOG_TRACE - R22: dispatched for every GUI event (paint/resize/
+    // scroll/key/close), several times per second while the window is live
+
+    /* -- [TRACE]37. Reject any NULL pointer - Do nothing -- */
     if (ptEvent == NULL || pUserCtx == NULL) return;
 
     ptView = (trace_view_t *)pUserCtx;
 
     switch (ptEvent->eType)
     {
+    /* -- [TRACE]48. GUI_EVT_PAINT - lazily create the D2D renderer on
+     *               first paint, then render the visible lines -- */
     case GUI_EVT_PAINT:
         /* Lazy renderer creation: HWND is live at first paint */
         if (ptView->hRenderer == NULL)
@@ -437,6 +484,8 @@ static void trace_event_callback(gui_window_t  hWnd,
         trace_render(ptView);
         break;
 
+    /* -- [TRACE]49. GUI_EVT_RESIZE - resize the D2D renderer to the new
+     *               window dimensions -- */
     case GUI_EVT_RESIZE:
         ptView->iWndWidth  = ptEvent->uData.tResize.iWidth;
         ptView->iWndHeight = ptEvent->uData.tResize.iHeight;
@@ -448,11 +497,14 @@ static void trace_event_callback(gui_window_t  hWnd,
         }
         break;
 
+    /* -- [TRACE]50. GUI_EVT_SCROLL - mouse wheel scroll -- */
     case GUI_EVT_SCROLL:
         trace_view_scroll(ptView, ptEvent->uData.tScroll.iDelta);
         gui_invalidate(hWnd);
         break;
 
+    /* -- [TRACE]51. GUI_EVT_KEY_DOWN - keyboard navigation
+     *               (ESC/arrows/page/home/end) -- */
     case GUI_EVT_KEY_DOWN:
         switch (ptEvent->uData.tKey.eKey)
         {
@@ -492,6 +544,7 @@ static void trace_event_callback(gui_window_t  hWnd,
         }
         break;
 
+    /* -- [TRACE]52. GUI_EVT_CLOSE - destroy the D2D renderer -- */
     case GUI_EVT_CLOSE:
         if (ptView->hRenderer != NULL)
         {
@@ -499,6 +552,7 @@ static void trace_event_callback(gui_window_t  hWnd,
         }
         break;
 
+    /* -- [TRACE]53. default - ignore any unhandled event type -- */
     default:
         break;
     }

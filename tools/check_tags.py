@@ -17,7 +17,7 @@ same tag text in two places:
   2. Inline, immediately upstream of an "INTENT[...]" block, inside
      the test function's body.
 
-This script performs 7 checks (see CLAUDE.md R24):
+This script performs 9 checks (see CLAUDE.md R24):
 
   [0] Every "/* -- [MODULE]N. ... -- */" tag is well-formed (closing
       '--' present) - a malformed one silently swallows source code
@@ -39,9 +39,16 @@ This script performs 7 checks (see CLAUDE.md R24):
       description shares little vocabulary with the tag(s) it
       follows - flagged for manual review.
   [6] Coverage report per module and per use_case file. Only
-      use_case_00.c and use_case_01.c currently apply the full R24
-      strategy (Code Coverage header + inline tag + INTENT linking);
-      other use_case_*.c files are reported informationally.
+      use_case_00.c, use_case_01.c and use_case_02.c currently apply
+      the full R24 strategy (Code Coverage header + inline tag +
+      INTENT linking); other use_case_*.c files are reported
+      informationally.
+  [7] Informational: static functions in src/win/linux with no
+      preceding docstring comment (CLAUDE.md 4.6/4.7 expects one).
+  [8] Informational: functions (static or public) whose body has
+      neither a LOG_TRACE(...) call nor a "// No LOG_TRACE - <reason>"
+      justification comment (see src/trace.c for the convention, and
+      CLAUDE.md R22 for when omitting LOG_TRACE is legitimate).
 
 Usage:
     python tools/check_tags.py [--src DIR [DIR ...]] [--uc DIR]
@@ -415,6 +422,61 @@ def scan_source_tags(files):
             bad['file'] = path
             malformed.append(bad)
     return tags, malformed
+
+
+# ---------------------------------------------------------------------------
+# Source-side scan: function-level docstring / LOG_TRACE hygiene
+# (CLAUDE.md R24 follow-up: "toutes les fonctions static ont bien un
+# docstring ?" / "toutes les fonctions ont bien un LOG_TRACE ou une
+# justification pour ne pas en avoir ?")
+# ---------------------------------------------------------------------------
+
+# The explicit justification convention already used in trace.c, e.g.:
+#   // No LOG_TRACE - as we are currently writing a log message
+NO_LOG_TRACE_RE = re.compile(r'//\s*No\s+LOG_TRACE\b', re.IGNORECASE)
+
+
+class SourceFunction:
+    def __init__(self, name, path, line, is_static):
+        self.name = name
+        self.path = path
+        self.line = line
+        self.is_static = is_static
+        self.has_doc = False
+        self.has_log_trace = False
+        self.has_justification = False
+
+
+def scan_source_functions(files):
+    """Returns a list of SourceFunction, one per top-level function
+    definition found in `files` (via find_function_defs - the same
+    brace/masking scanner used for use_case_*.c). For each function:
+      - is_static         : 'static' appears in its signature text
+      - has_doc           : a /* ... */ comment immediately precedes it
+                             (module whitespace only in between)
+      - has_log_trace     : its body contains a literal 'LOG_TRACE(' call
+      - has_justification : its body contains a '// No LOG_TRACE - ...'
+                             comment (see trace.c for the convention)
+    """
+    functions = []
+    for path in files:
+        text = read_file(path)
+        comment_by_end = {m.end(): m
+                           for m in re.finditer(r'/\*.*?\*/', text, re.DOTALL)}
+        for fdef in find_function_defs(text):
+            sig_text = text[fdef['sig_start']:fdef['body_open']]
+            sf = SourceFunction(fdef['name'], path,
+                                 line_of(text, fdef['sig_start']),
+                                 bool(re.search(r'\bstatic\b', sig_text)))
+            sf.has_doc = fdef['sig_start'] in comment_by_end
+
+            body_end = find_matching_brace(text, fdef['body_open'])
+            body_text = text[fdef['body_open']:body_end]
+            sf.has_log_trace = 'LOG_TRACE(' in body_text
+            sf.has_justification = bool(NO_LOG_TRACE_RE.search(body_text))
+
+            functions.append(sf)
+    return functions
 
 
 # ---------------------------------------------------------------------------
@@ -871,6 +933,55 @@ def check5_heuristic_alerts(functions_by_file, source_tags, out, threshold):
     return alerts
 
 
+def check7_static_docstrings(source_functions, out, verbose):
+    out.append('')
+    out.append('=' * 78)
+    out.append('[7] static functions without a preceding docstring comment'
+                ' (informational)')
+    out.append('=' * 78)
+    missing = [sf for sf in source_functions if sf.is_static and not sf.has_doc]
+    n_static = sum(1 for sf in source_functions if sf.is_static)
+    if not missing:
+        out.append('')
+        out.append('  None found (%d static function(s) checked).' % n_static)
+        return missing
+    for sf in sorted(missing, key=lambda s: (s.path, s.line)):
+        out.append('  MISSING docstring   %s:%-4d  static %s()' %
+                    (rel(sf.path), sf.line, sf.name))
+    out.append('')
+    out.append('  %d/%d static function(s) missing a docstring' %
+                (len(missing), n_static))
+    return missing
+
+
+def check8_log_trace_hygiene(source_functions, out, verbose):
+    out.append('')
+    out.append('=' * 78)
+    out.append('[8] functions with neither a LOG_TRACE call nor a'
+                ' "// No LOG_TRACE - <reason>" justification (informational)')
+    out.append('=' * 78)
+    out.append('')
+    out.append('  Convention (see src/trace.c): a function with no LOG_TRACE')
+    out.append('  call must explain why with a comment of the exact form')
+    out.append('  "// No LOG_TRACE - <reason>" (R22: primitives called in a')
+    out.append('  tight loop - paint/mutex/query - are the usual reason).')
+    missing = [sf for sf in source_functions
+               if not sf.has_log_trace and not sf.has_justification]
+    if not missing:
+        out.append('')
+        out.append('  None found (%d function(s) checked).' %
+                    len(source_functions))
+        return missing
+    for sf in sorted(missing, key=lambda s: (s.path, s.line)):
+        kind = 'static' if sf.is_static else 'public'
+        out.append('  MISSING LOG_TRACE   %s:%-4d  %s %s()' %
+                    (rel(sf.path), sf.line, kind, sf.name))
+    out.append('')
+    out.append('  %d/%d function(s) missing LOG_TRACE or its justification' %
+                (len(missing), len(source_functions)))
+    return missing
+
+
 def check6_coverage_report(source_tags, uc_tag_index, functions_by_file,
                             uc_files, strategy_files, out):
     out.append('')
@@ -913,10 +1024,10 @@ def check6_coverage_report(source_tags, uc_tag_index, functions_by_file,
                     ' "Code Coverage:" header yet - pre-R24)' % n_legacy)
 
     out.append('')
-    out.append('  NOTE: per CLAUDE.md R24, only use_case_00.c and'
-                ' use_case_01.c currently implement the full')
-    out.append('        tag traceability strategy (Code Coverage header +'
-                ' inline tag + INTENT linking).')
+    out.append('  NOTE: per CLAUDE.md R24/R25, only use_case_00.c,'
+                ' use_case_01.c and use_case_02.c currently implement')
+    out.append('        the full tag traceability strategy (Code Coverage'
+                ' header + inline tag + INTENT linking).')
     out.append('        Other use_case_*.c files are scanned for inline'
                 ' tag reuse only, informationally.')
 
@@ -948,10 +1059,11 @@ def main():
     parser.add_argument('-v', '--verbose', action='store_true',
                          help='Also print OK entries, not just issues')
     parser.add_argument('--strategy-files', nargs='+',
-                         default=['use_case_00.c', 'use_case_01.c'],
+                         default=['use_case_00.c', 'use_case_01.c',
+                                  'use_case_02.c'],
                          help='use_case_*.c basenames considered to fully'
                               ' apply the R24 strategy (default:'
-                              ' use_case_00.c use_case_01.c)')
+                              ' use_case_00.c use_case_01.c use_case_02.c)')
     args = parser.parse_args()
 
     src_files = gather_source_files(args.src)
@@ -1020,6 +1132,15 @@ def main():
                                        args.alert_threshold)
     check6_coverage_report(source_tags, uc_tag_index, functions_by_file,
                             uc_files, set(args.strategy_files), out)
+
+    source_functions = scan_source_functions(src_files)
+    if args.module:
+        source_functions = [
+            sf for sf in source_functions
+            if os.path.splitext(os.path.basename(sf.path))[0].upper()
+            == args.module.upper()]
+    check7_static_docstrings(source_functions, out, args.verbose)
+    check8_log_trace_hygiene(source_functions, out, args.verbose)
 
     n_errors = len(errors0) + len(errors1) + len(errors2) + len(errors3)
     out.append('')
