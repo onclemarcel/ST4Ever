@@ -205,9 +205,8 @@ st_u64_t ST4Ever_init(int argc, char *argv[])
     }
 
     /* -- [MAIN]9. If requested on command line, open the Trace GUI view -- */
-#ifndef ST_TEST_FWK
     if (g_main_ptCtx.bTraceAtStart) trace_gui_open();
-#endif
+
     /* -- [MAIN]5. Init Virtual ST machine -- */
     /* TODO: Implement ROM upload function - see if ROM is uploaded at st_init() 
      *      or if a dedicated st_rom_load() function is better after st_init() */

@@ -112,6 +112,25 @@ extern st_bool_t gIsObject;
         }                                   \
     } while(0)
 
+
+/* Scripting related macros */
+#define UC_SCRIPT_CREATE(szPath, uiSize, filename, pF) \
+	do { \
+	snprintf(szPath, uiSize, filename);	\
+    pF = fopen(szPath, "w");			\
+    } while(0)
+		
+#define UC_SCRIPT_ADD_LINE(pF, line) \
+	do { \
+	if (pF) fprintf(pF, line); \
+    } while(0)
+
+#define UC_SCRIPT_CLOSE(pF) \
+	do { \
+	if (pF) fclose(pF); \
+    } while(0)
+
+
 /* Skip a test with a reason - does not count as failure */
 #define TEST_SKIP(desc) \
     printf("  [SKIP] %s\n", (desc))
@@ -147,6 +166,7 @@ extern st_bool_t gIsObject;
 #define TEST_MANUAL(desc, question) \
     printf("  [SKIP] %s (run make manual)\n", (desc))
 #endif
+
 
 /*
  * ST_TEST_LEVEL_UCNN is defined by the Makefile (-DST_TEST_LEVEL_UC01,

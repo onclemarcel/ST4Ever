@@ -94,7 +94,6 @@ typedef struct line_context_s
     char        szCwd[ST_MAX_PATH];        /* Current working dir       */
     char        szSelected[ST_MAX_PATH];   /* Path selected via `dir`   */
     st_mutex_t *ptSelectedMutex;           /* Protects szSelected       */
-    char        szScriptFile[ST_MAX_PATH]; /* --script path (UC4.3)     */
     st_bool_t   bColors;                   /* Console shows ANSI colors */
     st_bool_t   bRunning;                  /* ST_FALSE = shutdown       */
 
@@ -107,6 +106,10 @@ typedef struct line_context_s
     int  iHistCount;   /* valid entries, 0..LINE_HISTORY_MAX */
     int  iHistHead;    /* next write slot                    */
 
+    char        szScriptFile[ST_MAX_PATH]; /* --script path (UC4.3)     */
+    st_bool_t   bDebugSteps;               /* line by line script mode  */
+    FILE       *pfScript;                  /* Script file pointer       */
+    int         iScriptLine;               /* Current script line read  */
 } line_context_t;
 
 /* ------------------------------------------------------------------
@@ -346,5 +349,8 @@ void line_set_colors(st_bool_t bColors);
 st_bool_t line_get_colors(void);
 
 char* line_get_current_dir();
+
+void line_enable_script_debug(); 
+void line_disable_script_debug();
 
 #endif /* LINE_H */

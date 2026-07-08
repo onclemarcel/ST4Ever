@@ -106,7 +106,7 @@ static void uc00_manage_options()
     if (gIsObject) 
     {
         UC_TEST("[N] (TC-APP-002) bTraceAtStart is set to TRUE", 
-                 (ptCtx->bTraceAtStart == ST_TRUE)); 
+                 (ptCtx->bTraceAtStart == ST_TRUE));
     } else printf("  [SKIP] (TC-APP-002) ST_MAIN_CTX Object Check failed\n\n");
 
     ptCtx = (ST4Ever_context_t*)ST4Ever_init(4, g_uc00_szArgs_trace_last);
@@ -126,6 +126,7 @@ static void uc00_manage_options()
         UC_TEST("[N] (TC-APP-004) bTraceAtStart is set to TRUE", 
                  (ptCtx->bTraceAtStart == ST_TRUE)); 
     } else printf("  [SKIP] (TC-APP-004) ST_MAIN_CTX Object Check failed\n\n");
+	trace_gui_close();		// Close any open GUI
 
     /* -- [MAIN]11. Reject --script if it has no following
      *              argument -- */
@@ -190,6 +191,8 @@ static void uc00_manage_options()
     ptCtx = (ST4Ever_context_t*)ST4Ever_init(2, g_uc00_szArgs_err_long);
     UC_TEST("[R] (TC-APP-014) Launch ST4Ever with invalid --wrong argument", 
                 ((st_u64_t)ptCtx == ST_QUIT));
+				
+	trace_gui_close(); // Close any open GUI
 }
 
 /* ------------------------------------------------------------------
@@ -358,14 +361,14 @@ static void uc00_trace_subsystem()
     {
         UC_TEST("[N] (TC-TRC-001) bInitialised is set to true", 
                 (ptCtx->bInitialised == ST_TRUE));
-        UC_TEST("[N] (TC-TRC-002) Trace are not enabled in GUI by default", 
-                (ptCtx->bGUITraceEnabled == ST_FALSE));
+        UC_TEST("[N] (TC-TRC-002) Trace level in GUI by default is INFO", 
+                (ptCtx->eViewMinLevel == LOG_LEVEL_INFO));
         UC_TEST("[N] (TC-TRC-003) open file handler is not null", 
                 (ptCtx->pFile != NULL));
         UC_TEST("[N] (TC-TRC-004) GUI is not initialized", 
                 (ptCtx->ptView == NULL));
         // Forcing dummy value for next test
-        ptCtx->bGUITraceEnabled = ST_TRUE;
+        ptCtx->eViewMinLevel = LOG_LEVEL_TODO;
     } else printf("  [SKIP] (TC-TRC-001...004) ST_TRACE_CTX Object Check failed\n\n");
 
     /* -- [TRACE]1. Log Information if already initialised -- */
@@ -378,7 +381,7 @@ static void uc00_trace_subsystem()
     if (gIsObject) 
     {
         UC_TEST("[N] (TC-TRC-005) bGUITraceEnabled is kept to TRUE", 
-                (ptCtx->bGUITraceEnabled == ST_TRUE));
+                (ptCtx->eViewMinLevel == LOG_LEVEL_TODO));
     } else printf("  [SKIP] (TC-TRC-005) ST_TRACE_CTX Object Check failed\n\n");    
     
 }

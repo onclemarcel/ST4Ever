@@ -1,48 +1,18 @@
-make.exe --dry-run --always-make --keep-going --print-directory
+make.exe --dry-run --keep-going --print-directory
 make: Entering directory 'c:/msys/home/claude/ST4Ever'
-mkdir -p build
-mkdir -p release
-mkdir -p test
-gcc -Wall -Wextra -pedantic -std=gnu99 -g -D_GNU_SOURCE -I./src -MMD -MP -c src/CPU.c -o build/s_CPU.o
-gcc -Wall -Wextra -pedantic -std=gnu99 -g -D_GNU_SOURCE -I./src -MMD -MP -c src/ST.c -o build/s_ST.o
-gcc -Wall -Wextra -pedantic -std=gnu99 -g -D_GNU_SOURCE -I./src -MMD -MP -c src/annotate.c -o build/s_annotate.o
-gcc -Wall -Wextra -pedantic -std=gnu99 -g -D_GNU_SOURCE -I./src -MMD -MP -c src/as.c -o build/s_as.o
-gcc -Wall -Wextra -pedantic -std=gnu99 -g -D_GNU_SOURCE -I./src -MMD -MP -c src/dir.c -o build/s_dir.o
-gcc -Wall -Wextra -pedantic -std=gnu99 -g -D_GNU_SOURCE -I./src -MMD -MP -c src/disassemble.c -o build/s_disassemble.o
-gcc -Wall -Wextra -pedantic -std=gnu99 -g -D_GNU_SOURCE -I./src -MMD -MP -c src/edit.c -o build/s_edit.o
-gcc -Wall -Wextra -pedantic -std=gnu99 -g -D_GNU_SOURCE -I./src -MMD -MP -c src/edit_hex.c -o build/s_edit_hex.o
-gcc -Wall -Wextra -pedantic -std=gnu99 -g -D_GNU_SOURCE -I./src -MMD -MP -c src/edit_txt.c -o build/s_edit_txt.o
-gcc -Wall -Wextra -pedantic -std=gnu99 -g -D_GNU_SOURCE -I./src -MMD -MP -c src/exec.c -o build/s_exec.o
-gcc -Wall -Wextra -pedantic -std=gnu99 -g -D_GNU_SOURCE -I./src -MMD -MP -c src/exec_asm.c -o build/s_exec_asm.o
-gcc -Wall -Wextra -pedantic -std=gnu99 -g -D_GNU_SOURCE -I./src -MMD -MP -c src/exec_cpu.c -o build/s_exec_cpu.o
-gcc -Wall -Wextra -pedantic -std=gnu99 -g -D_GNU_SOURCE -I./src -MMD -MP -c src/exec_mem.c -o build/s_exec_mem.o
-gcc -Wall -Wextra -pedantic -std=gnu99 -g -D_GNU_SOURCE -I./src -MMD -MP -c src/exec_mon.c -o build/s_exec_mon.o
-gcc -Wall -Wextra -pedantic -std=gnu99 -g -D_GNU_SOURCE -I./src -MMD -MP -c src/exec_screen.c -o build/s_exec_screen.o
-gcc -Wall -Wextra -pedantic -std=gnu99 -g -D_GNU_SOURCE -I./src -MMD -MP -c src/file.c -o build/s_file.o
-gcc -Wall -Wextra -pedantic -std=gnu99 -g -D_GNU_SOURCE -I./src -MMD -MP -c src/gui.c -o build/s_gui.o
-gcc -Wall -Wextra -pedantic -std=gnu99 -g -D_GNU_SOURCE -I./src -MMD -MP -c src/image_annot.c -o build/s_image_annot.o
-gcc -Wall -Wextra -pedantic -std=gnu99 -g -D_GNU_SOURCE -I./src -MMD -MP -c src/image_msa.c -o build/s_image_msa.o
-gcc -Wall -Wextra -pedantic -std=gnu99 -g -D_GNU_SOURCE -I./src -MMD -MP -c src/image_st.c -o build/s_image_st.o
-gcc -Wall -Wextra -pedantic -std=gnu99 -g -D_GNU_SOURCE -I./src -MMD -MP -c src/line.c -o build/s_line.o
-gcc -Wall -Wextra -pedantic -std=gnu99 -g -D_GNU_SOURCE -I./src -MMD -MP -c src/linea.c -o build/s_linea.o
-gcc -Wall -Wextra -pedantic -std=gnu99 -g -D_GNU_SOURCE -I./src -MMD -MP -c src/load.c -o build/s_load.o
-gcc -Wall -Wextra -pedantic -std=gnu99 -g -D_GNU_SOURCE -I./src -MMD -MP -c src/main.c -o build/s_main.o
-gcc -Wall -Wextra -pedantic -std=gnu99 -g -D_GNU_SOURCE -I./src -MMD -MP -c src/mount.c -o build/s_mount.o
-gcc -Wall -Wextra -pedantic -std=gnu99 -g -D_GNU_SOURCE -I./src -MMD -MP -c src/renderer.c -o build/s_renderer.o
-gcc -Wall -Wextra -pedantic -std=gnu99 -g -D_GNU_SOURCE -I./src -MMD -MP -c src/sector_analyze.c -o build/s_sector_analyze.o
-gcc -Wall -Wextra -pedantic -std=gnu99 -g -D_GNU_SOURCE -I./src -MMD -MP -c src/shifter.c -o build/s_shifter.o
-gcc -Wall -Wextra -pedantic -std=gnu99 -g -D_GNU_SOURCE -I./src -MMD -MP -c src/tos.c -o build/s_tos.o
-gcc -Wall -Wextra -pedantic -std=gnu99 -g -D_GNU_SOURCE -I./src -MMD -MP -c src/trace.c -o build/s_trace.o
-gcc -Wall -Wextra -pedantic -std=gnu99 -g -D_GNU_SOURCE -I./src -MMD -MP -c win/win_D2D.c -o build/p_win_D2D.o
-gcc -Wall -Wextra -pedantic -std=gnu99 -g -D_GNU_SOURCE -I./src -MMD -MP -c win/win_console.c -o build/p_win_console.o
-gcc -Wall -Wextra -pedantic -std=gnu99 -g -D_GNU_SOURCE -I./src -MMD -MP -c win/win_gui.c -o build/p_win_gui.o
-gcc -Wall -Wextra -pedantic -std=gnu99 -g -D_GNU_SOURCE -I./src -MMD -MP -c win/win_platform.c -o build/p_win_platform.o
-gcc           build/s_CPU.o           build/s_ST.o           build/s_annotate.o           build/s_as.o           build/s_dir.o           build/s_disassemble.o           build/s_edit.o           build/s_edit_hex.o           build/s_edit_txt.o           build/s_exec.o           build/s_exec_asm.o           build/s_exec_cpu.o           build/s_exec_mem.o           build/s_exec_mon.o           build/s_exec_screen.o           build/s_file.o           build/s_gui.o           build/s_image_annot.o           build/s_image_msa.o           build/s_image_st.o           build/s_line.o           build/s_linea.o           build/s_load.o           build/s_main.o           build/s_mount.o           build/s_renderer.o           build/s_sector_analyze.o           build/s_shifter.o           build/s_tos.o           build/s_trace.o   build/p_win_D2D.o   build/p_win_console.o   build/p_win_gui.o   build/p_win_platform.o -o release/st4ever.exe -lkernel32 -luser32 -lgdi32 -ld2d1 -ldwrite -lole32 -luuid
-echo "  --> release/st4ever.exe"
-gcc -Wall -Wextra -pedantic -std=gnu99 -g -D_GNU_SOURCE -I./src -MMD -MP -DST_TEST_FWK -c src/main.c -o build/s_main_testing.o
-gcc -Wall -Wextra -pedantic -std=gnu99 -g -D_GNU_SOURCE -I./src -MMD -MP use_cases/use_case_00.c build/s_main_testing.o build/s_CPU.o build/s_ST.o build/s_annotate.o build/s_as.o build/s_dir.o build/s_disassemble.o build/s_edit.o build/s_edit_hex.o build/s_edit_txt.o build/s_exec.o build/s_exec_asm.o build/s_exec_cpu.o build/s_exec_mem.o build/s_exec_mon.o build/s_exec_screen.o build/s_file.o build/s_gui.o build/s_image_annot.o build/s_image_msa.o build/s_image_st.o build/s_line.o build/s_linea.o build/s_load.o build/s_mount.o build/s_renderer.o build/s_sector_analyze.o build/s_shifter.o build/s_tos.o build/s_trace.o build/p_win_D2D.o build/p_win_console.o build/p_win_gui.o build/p_win_platform.o -o test/use_case_00.exe -lkernel32 -luser32 -lgdi32 -ld2d1 -ldwrite -lole32 -luuid
+gcc -Wall -Wextra -pedantic -std=gnu99 -g -D_GNU_SOURCE -I./src -MMD -MP -DST_TEST_FWK -c src/line.c -o build/s_line_testing.o
+ 
+gcc -Wall -Wextra -pedantic -std=gnu99 -g -D_GNU_SOURCE -I./src -MMD -MP use_cases/use_case_00.c build/s_main_testing.o build/s_line_testing.o build/s_CPU.o build/s_ST.o build/s_annotate.o build/s_as.o build/s_dir.o build/s_disassemble.o build/s_edit.o build/s_edit_hex.o build/s_edit_txt.o build/s_exec.o build/s_exec_asm.o build/s_exec_cpu.o build/s_exec_mem.o build/s_exec_mon.o build/s_exec_screen.o build/s_file.o build/s_gui.o build/s_image_annot.o build/s_image_msa.o build/s_image_st.o build/s_linea.o build/s_load.o build/s_mount.o build/s_renderer.o build/s_sector_analyze.o build/s_shifter.o build/s_tos.o build/s_trace.o build/p_win_D2D.o build/p_win_console.o build/p_win_gui.o build/p_win_platform.o -o test/use_case_00.exe -lkernel32 -luser32 -lgdi32 -ld2d1 -ldwrite -lole32 -luuid
 echo "  --> test/use_case_00.exe"
-gcc -Wall -Wextra -pedantic -std=gnu99 -g -D_GNU_SOURCE -I./src -MMD -MP use_cases/use_case_01.c build/s_main_testing.o build/s_CPU.o build/s_ST.o build/s_annotate.o build/s_as.o build/s_dir.o build/s_disassemble.o build/s_edit.o build/s_edit_hex.o build/s_edit_txt.o build/s_exec.o build/s_exec_asm.o build/s_exec_cpu.o build/s_exec_mem.o build/s_exec_mon.o build/s_exec_screen.o build/s_file.o build/s_gui.o build/s_image_annot.o build/s_image_msa.o build/s_image_st.o build/s_line.o build/s_linea.o build/s_load.o build/s_mount.o build/s_renderer.o build/s_sector_analyze.o build/s_shifter.o build/s_tos.o build/s_trace.o build/p_win_D2D.o build/p_win_console.o build/p_win_gui.o build/p_win_platform.o -o test/use_case_01.exe -lkernel32 -luser32 -lgdi32 -ld2d1 -ldwrite -lole32 -luuid
+ 
+gcc -Wall -Wextra -pedantic -std=gnu99 -g -D_GNU_SOURCE -I./src -MMD -MP use_cases/use_case_01.c build/s_main_testing.o build/s_line_testing.o build/s_CPU.o build/s_ST.o build/s_annotate.o build/s_as.o build/s_dir.o build/s_disassemble.o build/s_edit.o build/s_edit_hex.o build/s_edit_txt.o build/s_exec.o build/s_exec_asm.o build/s_exec_cpu.o build/s_exec_mem.o build/s_exec_mon.o build/s_exec_screen.o build/s_file.o build/s_gui.o build/s_image_annot.o build/s_image_msa.o build/s_image_st.o build/s_linea.o build/s_load.o build/s_mount.o build/s_renderer.o build/s_sector_analyze.o build/s_shifter.o build/s_tos.o build/s_trace.o build/p_win_D2D.o build/p_win_console.o build/p_win_gui.o build/p_win_platform.o -o test/use_case_01.exe -lkernel32 -luser32 -lgdi32 -ld2d1 -ldwrite -lole32 -luuid
 echo "  --> test/use_case_01.exe"
+ 
+gcc -Wall -Wextra -pedantic -std=gnu99 -g -D_GNU_SOURCE -I./src -MMD -MP use_cases/use_case_02.c build/s_main_testing.o build/s_line_testing.o build/s_CPU.o build/s_ST.o build/s_annotate.o build/s_as.o build/s_dir.o build/s_disassemble.o build/s_edit.o build/s_edit_hex.o build/s_edit_txt.o build/s_exec.o build/s_exec_asm.o build/s_exec_cpu.o build/s_exec_mem.o build/s_exec_mon.o build/s_exec_screen.o build/s_file.o build/s_gui.o build/s_image_annot.o build/s_image_msa.o build/s_image_st.o build/s_linea.o build/s_load.o build/s_mount.o build/s_renderer.o build/s_sector_analyze.o build/s_shifter.o build/s_tos.o build/s_trace.o build/p_win_D2D.o build/p_win_console.o build/p_win_gui.o build/p_win_platform.o -o test/use_case_02.exe -lkernel32 -luser32 -lgdi32 -ld2d1 -ldwrite -lole32 -luuid
+echo "  --> test/use_case_02.exe"
+ 
+gcc -Wall -Wextra -pedantic -std=gnu99 -g -D_GNU_SOURCE -I./src -MMD -MP use_cases/use_case_03_1.c build/s_main_testing.o build/s_line_testing.o build/s_CPU.o build/s_ST.o build/s_annotate.o build/s_as.o build/s_dir.o build/s_disassemble.o build/s_edit.o build/s_edit_hex.o build/s_edit_txt.o build/s_exec.o build/s_exec_asm.o build/s_exec_cpu.o build/s_exec_mem.o build/s_exec_mon.o build/s_exec_screen.o build/s_file.o build/s_gui.o build/s_image_annot.o build/s_image_msa.o build/s_image_st.o build/s_linea.o build/s_load.o build/s_mount.o build/s_renderer.o build/s_sector_analyze.o build/s_shifter.o build/s_tos.o build/s_trace.o build/p_win_D2D.o build/p_win_console.o build/p_win_gui.o build/p_win_platform.o -o test/use_case_03_1.exe -lkernel32 -luser32 -lgdi32 -ld2d1 -ldwrite -lole32 -luuid
+echo "  --> test/use_case_03_1.exe"
+ 
 make: Leaving directory 'c:/msys/home/claude/ST4Ever'
  

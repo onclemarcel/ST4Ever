@@ -587,7 +587,7 @@ st_u64_t trace_init()
 
     /* -- [TRACE]3. Init trace context structure -- */
     g_trace_ptCtx.bInitialised  = ST_TRUE;
-    g_trace_ptCtx.bGUITraceEnabled = ST_FALSE;
+    g_trace_ptCtx.eViewMinLevel = LOG_LEVEL_INFO;
     
     /* -- [TRACE]4. Init returns context sructure -- */
     return (st_u64_t)&g_trace_ptCtx;
@@ -781,14 +781,7 @@ void trace_log(log_level_t  eLevel,
         fflush(g_trace_ptCtx.pFile);
     }
 
-	/* -- [TRACE]9. LOG_TRACE is filtered from GUI unless requested -- */
-    if (eLevel == LOG_LEVEL_TRACE
-    &&  g_trace_ptCtx.bGUITraceEnabled == ST_FALSE)
-    {
-        return;
-    }
-
-    /* -- [TRACE]10. Log in GUI when available -- */
+	/* -- [TRACE]10. Log in GUI when available -- */
     /* ---- Append to GUI trace view (thread-safe) ---- */
     if (g_trace_ptCtx.ptView != NULL)
     {
@@ -926,23 +919,5 @@ st_bool_t trace_is_open(void)
     LOG_TRACE("Get Request for bOpen=%d", g_trace_ptCtx.bOpen);
     
     return g_trace_ptCtx.bOpen;
-}
-
-st_bool_t trace_is_trace_enabled(void)
-{
-    LOG_TRACE("Get Request for bGUITraceEnabled=%d", g_trace_ptCtx.bGUITraceEnabled);
-
-    return g_trace_ptCtx.bGUITraceEnabled;
-}
-
-/******************************************************************************
- * Setters
- *****************************************************************************/
-
-void trace_set_trace_enabled(st_bool_t bEnabled)
-{
-    LOG_TRACE("Set Request for bGUITraceEnabled=%d", bEnabled);
-
-    g_trace_ptCtx.bGUITraceEnabled = bEnabled;
 }
 

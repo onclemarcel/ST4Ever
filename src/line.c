@@ -1074,22 +1074,23 @@ static st_error_t line_cmd_trace(const parsed_cmd_t *ptParsed)
     st_error_t  eResult;
     const char *szArg;
 
-    LOG_TRACE("ptParsed=%p",
-              (void *)ptParsed);
+    LOG_TRACE("ptParsed=%p", (void *)ptParsed);
 
+    /* -- [LINE]7. Invalid parameter returns an error -- */
     if (ptParsed == NULL)
     {
         LOG_ERROR("NULL parameter");
         return ST_ERROR;
     }
 
-    /* -- 1. Check if console line is initialized - return if not */
+    /* -- [LINE]7. Do not execute if line is not initialized -- */
     if (!g_line_ptCtx.bRunning)
     {
         LOG_ERROR("Use line_init() before use of any line_*() function");
         return ST_ERROR;
     }
 
+    /* -- [LINE]8. 'trace' with no option toggle the GUI status -- */
     if (ptParsed->iArgc == 1)
     {
         if (trace_is_open() == ST_TRUE)
@@ -1110,48 +1111,17 @@ static st_error_t line_cmd_trace(const parsed_cmd_t *ptParsed)
                 line_print_error("trace: open failed");
                 return ST_ERROR;
             }
-            /* P26: LOG_TRACE disabled by default on toggle-open to prevent
-             * flooding the view.  'trace on' enables it explicitly. */
-            trace_set_trace_enabled(ST_FALSE);
-            line_print_msg("Trace console opened (LOG_TRACE off — use 'trace on' to enable).");
         }
         return ST_NO_ERROR;
     }
 
+    /* -- [LINE]9. 'trace' with option does not toggle the GUI -- */
     szArg = ptParsed->aszArgv[1];
 
-    /* "level" and "clear" take their own sub-argument — skip generic check */
-    if (ptParsed->iArgc > 2 &&
-        strcmp(szArg, "level") != 0 &&
-        strcmp(szArg, "clear") != 0)
+    if (strcmp(szArg, "clear") == 0)
     {
-        line_print_warning("trace: ignoring extra arguments after '%s'",
-                           szArg);
-    }
-
-    if (strcmp(szArg, "on") == 0)
-    {
-        eResult = trace_gui_open();
-        if (eResult != ST_NO_ERROR)
-        {
-            line_print_error("trace on: open failed");
-            return ST_ERROR;
-        }
-        
-        trace_set_trace_enabled(ST_TRUE);
-        line_print_msg("Trace: ON  (LOG_TRACE enabled)");
-    }
-    else if (strcmp(szArg, "off") == 0)
-    {
-        /* P19: trace off filters LOG_TRACE only; view stays open. */
-        trace_set_trace_enabled(ST_FALSE);
-        line_print_msg("Trace: LOG_TRACE filtered  "
-                       "(use 'trace' to close the view)");
-    }
-    else if (strcmp(szArg, "clear") == 0)
-    {
-        /* P27: clear the GUI ring buffer */
-        if (ptParsed->iArgc > 2)
+        /* -- [LINE]10. 'trace clear' empties the GUI View -- */
+		if (ptParsed->iArgc > 2)
         {
             line_print_warning(
                 "trace clear: ignoring extra arguments");
@@ -1161,7 +1131,7 @@ static st_error_t line_cmd_trace(const parsed_cmd_t *ptParsed)
     }
     else if (strcmp(szArg, "level") == 0)
     {
-        /* P28: set GUI display filter level */
+        /* -- [LINE]11. 'trace level' filters the GUI View -- */
         const char  *szLevel;
         log_level_t  eNewLevel;
 
@@ -1174,10 +1144,9 @@ static st_error_t line_cmd_trace(const parsed_cmd_t *ptParsed)
 
         szLevel = ptParsed->aszArgv[2];
 
-        /* P57: incremental levels — todo < error < info < all.
-         * "all" replaces the old "trace" keyword (kept as silent alias). */
-        if (strcmp(szLevel, "all") == 0 ||
-            strcmp(szLevel, "trace") == 0)        /* legacy alias */
+        /* -- [LINE]12. trace level filters are incremental -- */
+		/* -- P57: todo < error < info < all. */
+        if (strcmp(szLevel, "all") == 0)
         {
             eNewLevel = LOG_LEVEL_TRACE;
         }
@@ -1218,10 +1187,10 @@ static st_error_t line_cmd_trace(const parsed_cmd_t *ptParsed)
     }
     else
     {
-        line_print_warning(
+        /* -- [LINE]13. trace unknown option are discarded -- */
+		line_print_warning(
             "trace: unknown argument '%s'  "
-            "- use: trace | trace on | trace off | "
-            "trace clear | trace level all|info|error|todo",
+            "- use: trace | trace clear | trace level all|info|error|todo",
             szArg);
     }
 
@@ -1806,11 +1775,6 @@ static st_error_t line_cmd_info(const parsed_cmd_t *ptParsed)
     line_print_msg("Trace        : %s%s%s%s",
                    trace_is_open() ? c_green() : c_gray(),
                    trace_is_open() ? "open" : "closed",
-                   trace_is_open()
-                       ? (trace_is_trace_enabled()
-                              ? "  [LOG_TRACE on]"
-                              : "  [LOG_TRACE off]")
-                       : "",
                    c_reset());
 
     line_print_msg("Colors       : %s%s%s",
@@ -2314,7 +2278,7 @@ static st_error_t line_cmd_image(const parsed_cmd_t *ptParsed)
             {
                 for (iExtNum = 2; iExtNum <= 99; iExtNum++)
                 {
-                    snprintf(szAutoDst, sizeof(szAutoDst) + 4,
+                    snprintf(szAutoDst, sizeof(szAutoDst) + 8,
                              "%sdisk%d", szCwdBuf, iExtNum);
                     memset(&tStat, 0, sizeof(tStat));
                     if (file_stat(szAutoDst, &tStat) != ST_NO_ERROR
@@ -3575,14 +3539,44 @@ static st_error_t line_read_rich(char           *szBuf)
 /* ------------------------------------------------------------------
  * Script (batch) mode
  * ------------------------------------------------------------------ */
+static st_error_t line_exec_script_line(char* szInput)
+{
+	size_t        uiLen;
+	st_error_t    eResult;
+    parsed_cmd_t  tParsed;
+    
+	/* Strip trailing CR/LF */
+	uiLen = strlen(szInput);
+	while (uiLen > 0
+		   && (szInput[uiLen - 1] == '\n'
+		   ||  szInput[uiLen - 1] == '\r'))
+	{
+		szInput[--uiLen] = '\0';
+	}
+
+	/* Skip comment lines and blank lines */
+	if (szInput[0] == '#' || uiLen == 0)
+	{
+		return ST_NO_ERROR;
+	}
+
+	eResult = line_parse_cmd(szInput, &tParsed);
+	
+	if (eResult == ST_NO_ERROR) 
+	{
+		return line_dispatch(&tParsed);
+	}
+	else 
+	{
+		return ST_ERROR;
+	}
+}
 
 static st_error_t line_exec_script(const char     *szPath)
 {
-    FILE         *pFile;
     char          szInput[ST_MAX_CMD];
-    parsed_cmd_t  tParsed;
     st_error_t    eResult;
-    size_t        uiLen;
+    
 
     LOG_TRACE("szPath='%s'", szPath ? szPath : "NULL");
 
@@ -3592,47 +3586,76 @@ static st_error_t line_exec_script(const char     *szPath)
         return ST_ERROR;
     }
 
-    /* -- 1. Check if console line is initialized - return if not */
+    /* -- Check if console line is initialized - return if not -- */
     if (!g_line_ptCtx.bRunning)
     {
         LOG_ERROR("Use line_init() before use of any line_*() function");
         return ST_ERROR;
     }
 
-    pFile = fopen(szPath, "r");
-    if (pFile == NULL)
-    {
-        LOG_ERROR("cannot open script '%s': %s",
-                  szPath, strerror(errno));
-        return ST_ERROR;
+	/* -- Open file if no script line has been already read -- */
+	if (!g_line_ptCtx.pfScript && g_line_ptCtx.iScriptLine == 0)
+	{
+		g_line_ptCtx.pfScript = fopen(szPath, "r");
+		if (g_line_ptCtx.pfScript == NULL)
+		{
+			LOG_ERROR("cannot open script '%s': %s",
+					szPath, strerror(errno));
+			return ST_ERROR;
+		}
     }
 
     LOG_INFO("running script '%s'", szPath);
 
-    while (g_line_ptCtx.bRunning == ST_TRUE
-           && fgets(szInput, sizeof(szInput), pFile) != NULL)
-    {
-        /* Strip trailing CR/LF */
-        uiLen = strlen(szInput);
-        while (uiLen > 0
-               && (szInput[uiLen - 1] == '\n'
-               ||  szInput[uiLen - 1] == '\r'))
-        {
-            szInput[--uiLen] = '\0';
-        }
-
-        /* Skip comment lines and blank lines */
-        if (szInput[0] == '#' || uiLen == 0)
-            continue;
-
-        eResult = line_parse_cmd(szInput, &tParsed);
-        if (eResult == ST_NO_ERROR)
-            line_dispatch(&tParsed);
-    }
-
-    fclose(pFile);
-    LOG_INFO("script '%s' complete", szPath);
-    return ST_NO_ERROR;
+    if (!g_line_ptCtx.bDebugSteps)
+	{
+		/* Execute full script in one run */
+		LOG_INFO("script '%s' full run mode from line %d", 
+				  szPath, g_line_ptCtx.iScriptLine);
+		
+		while (g_line_ptCtx.bRunning == ST_TRUE
+			   && fgets(szInput, sizeof(szInput), g_line_ptCtx.pfScript) != NULL)
+		{
+			eResult = line_exec_script_line(szInput);
+			if (eResult == ST_ERROR)
+				continue;
+		}
+		
+		fclose(g_line_ptCtx.pfScript);
+		g_line_ptCtx.pfScript = NULL;
+		
+		if (eResult == ST_ERROR)
+		{
+			LOG_INFO("script '%s' aborted on error", szPath);
+		}
+		else
+		{
+			LOG_INFO("script '%s' complete", szPath);
+		}
+		
+		return eResult;
+	}
+	else
+	{
+		/* Execute script line by line */
+		if (g_line_ptCtx.bRunning == ST_TRUE
+			   && fgets(szInput, sizeof(szInput), g_line_ptCtx.pfScript) != NULL)
+		{
+			LOG_INFO("script '%s' debug mode on line %d", szPath, g_line_ptCtx.iScriptLine);
+			eResult = line_exec_script_line(szInput);
+			g_line_ptCtx.iScriptLine++;
+			return eResult;
+		}
+		else
+		{
+			fclose(g_line_ptCtx.pfScript);
+			g_line_ptCtx.pfScript = NULL;
+			g_line_ptCtx.bDebugSteps = ST_FALSE;
+			g_line_ptCtx.iScriptLine = 0;
+			LOG_INFO("script '%s' complete (debug mode)", szPath);
+			return ST_NO_ERROR;
+		}
+	}
 }
 
 static st_error_t line_cmd_script(const parsed_cmd_t *ptParsed)
@@ -3728,6 +3751,9 @@ st_u64_t line_init(const char* szScriptFile)
         strncpy(g_line_ptCtx.szScriptFile, szScriptFile,
                 ST_MAX_PATH - 1);
         g_line_ptCtx.szScriptFile[ST_MAX_PATH - 1] = '\0';
+		g_line_ptCtx.iScriptLine = 0;
+		g_line_ptCtx.bDebugSteps = ST_FALSE;
+		g_line_ptCtx.pfScript    = NULL;
     }
 
     /* -- [LINE]6. Load console commands history -- */
@@ -3925,53 +3951,62 @@ st_error_t line_shutdown()
 
 void line_print_msg(const char *szFmt, ...)
 {
-    va_list vaArgs;
-
     if (szFmt == NULL)
     {
         return;
     }
+
+#ifndef ST_TEST_FWK		/* Be silent in test mode */
+    va_list vaArgs;
 
     printf("  ");
     va_start(vaArgs, szFmt);
     vprintf(szFmt, vaArgs);
     va_end(vaArgs);
     printf("\n");
+#endif 
 }
 
 void line_print_warning(const char *szFmt, ...)
 {
-    va_list vaArgs;
-
     if (szFmt == NULL)
     {
         return;
     }
+
+#ifndef ST_TEST_FWK		/* Be silent in test mode */
+    va_list vaArgs;
 
     printf("%s  Warning: ", c_yellow());
     va_start(vaArgs, szFmt);
     vprintf(szFmt, vaArgs);
     va_end(vaArgs);
     printf("%s\n", c_reset());
+#endif
 }
 
 void line_print_error(const char *szFmt, ...)
 {
-    va_list vaArgs;
-
     if (szFmt == NULL)
     {
         return;
     }
+
+#ifndef ST_TEST_FWK		/* Be silent in test mode */
+    va_list vaArgs;
 
     printf("%s  Error: ", c_red());
     va_start(vaArgs, szFmt);
     vprintf(szFmt, vaArgs);
     va_end(vaArgs);
     printf("%s\n", c_reset());
+#endif
 }
 
 char* line_get_current_dir()
 {
     return g_line_ptCtx.szCwd;
 }
+
+void line_enable_script_debug() {g_line_ptCtx.bDebugSteps = ST_TRUE;}
+void line_disable_script_debug() {g_line_ptCtx.bDebugSteps = ST_FALSE;}

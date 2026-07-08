@@ -1,5 +1,5 @@
-# UC2 Group 5 dispatch script
+# UC2 Group 1 Toggle trace
 trace
-trace on
-trace off
+trace level all
+trace 
 trace xyz

@@ -1,55 +1,43 @@
 /*
- * use_case_02.c - UC2 Validation: trace on/off/toggle command
+ * use_case_02.c - UC2 Validation: trace command toggles the GUI View
  *
  * Traceability chain per INTENT block:
  *   INTENT[INT-xxx-NNN → TC-xxx-NNN → REQ-xxx-NNN -> UFR-xxx-NNN]
  *
- * Strategy: line_cmd_trace() and line_dispatch() are static; direct
- * calls from a test binary are not possible.  UC2 validates behavioral
- * contracts in two complementary ways:
- *   (a) driving the public trace API in the exact sequences used by
- *       `trace`, `trace on`, and `trace off` (Groups 1-4) - fast,
- *       fine-grained, one assertion per trace.c effect;
- *   (b) driving the *real* line_dispatch()/line_cmd_trace() code path
- *       end-to-end (Group 5), via line_run() in script (batch) mode
- *       (UC4.3's `--script` mechanism) with the console's szScriptFile
- *       field set directly on ptCtx->ptConsoleCtx (R24 white-box
- *       technique - "boîte blanche" - force field, call, verify,
- *       restore).  This does not require line_cmd_trace()/line_dispatch()
- *       to be exposed: line_run() is already public API, and script mode
- *       already runs every line through the same line_parse_cmd() +
- *       line_dispatch() a real user's ENTER keypress would use.  Group 5
- *       is therefore no longer [S] Skipped/manual (Test Strategy Change 12).
+ * Strategy: line_cmd_trace() and line_dispatch() are static.
+ * UC2 validates behavioral contracts by driving the *real* 
+ * line_dispatch()/line_cmd_trace() code path end-to-end, via 
+ * line_run() in script (batch) mode (UC4.3's `--script` mechanism) with
+ * the console's szScriptFile field set directly on ptCtx->ptConsoleCtx 
  *
+ * White box test strategy using script debug mode:
+ * When internal states are needed for test purpose:
+ *   Script mode can be executed in debug line-by-line mode using:
+ *   - line_enable_script_debug()
+ *   - line_run() for a single line execution - note that a comment is a valid line
+ *   - make use of ptCtx fields to access to internal globals values of modules
+ *   - continue execution through line_run() or,
+ *   - line_disable_script_debug() to come back to full script run mode
+ *   - line_run() completes the script in headless mode
+ * 
  * R23/R24/R25: migrated from a free-standing trace_init()/trace_gui_open()
  * driver to the ST4Ever_init() context-access pattern (R24 §"Accès aux
  * contextes de modules") - ptCtx->ptTraceCtx is captured once in main()
  * and reused by every group, exactly like use_case_01.c's uc01_test_trace().
  * INT-TRC-xxx/TC-TRC-xxx numbering continues from the highest id used in
  * use_case_00.c/use_case_01.c (INT-TRC-008, TC-TRC-025) - the only two
- * other files already migrated to R24 at the time of writing.  Files not
- * yet migrated (use_case_04_4.c, use_case_05.c, ...) will be renumbered
- * into this same continuous sequence when their turn comes; REQ-xxx/
- * UFR-xxx traceability is deferred to that later cleanup pass too.
- * Group 5's INT-TRC-027..030/TC-TRC-045..049 ids were picked past the
- * highest ids already used repo-wide (INT-TRC-026/TC-TRC-044 in
- * use_case_04_4.c/use_case_05.c) to avoid collisions - the numbering is
- * not yet fully continuous project-wide; see the cleanup pass note above.
+ * other files already migrated to R24 at the time of writing.
  *
  * TEST MATRIX:
- *   [N] Nominal    : 16 tests  - toggle, on, off, state consistency,
- *                                real command dispatch (trace/on/off/bad)
+ *   [N] Nominal    : 16 tests  - toggle, state consistency,
+ *                                real command dispatch (trace/level/bad)
  *   [R] Robustness :  4 tests  - idempotent open/close, level isolation
  *   [S] Skipped    :  0 tests
  *
  * Test groups:
- *   Group 1: trace (toggle)   - open when closed, close when open,
- *                               trace_enabled state preserved
- *   Group 2: trace on         - open + enable LOG_TRACE, idempotent
- *   Group 3: trace off        - disable LOG_TRACE only; view stays open (P19)
- *   Group 4: state consistency - LOG levels unaffected by trace off
- *   Group 5: command dispatch - real line_run() script-mode execution of
- *                               `trace`, `trace on`, `trace off`, `trace xyz`
+ *   Group 1: trace (toggle)   - Start with GUI open, close when open,
+ *                               check that trace level filter is not
+ *							     affected by the GUI open/close
  *
  * Exit code: 0 = all tests passed, 1 = one or more failures.
  */
@@ -63,19 +51,18 @@ st_bool_t gIsObject  = ST_FALSE;
 static ST4Ever_context_t *ptCtx;
 
 /* ------------------------------------------------------------------
- * Group 1: trace (toggle - no argument)
+ * Group 1: trace command (toggle - Start ST4Ever with -t)
  * ------------------------------------------------------------------ */
-
 /*
  * uc02_test_trace_toggle() - `trace` (no argument) toggle behaviour
  *
  * Code Coverage:
- *   trace.c:
- *   -- [TRACE]12. Calling trace_gui_open() when GUI is open is harmless --
- *   -- [TRACE]13. Allocate a new trace_view structure --
- *   -- [TRACE]14. Open the GUI window --
- *   -- [TRACE]15. Do not close if trace module is not initialized --
- *   -- [TRACE]16. Close the GUI window --
+ *   trace.c: - supporting execution of commands (tested specifically in
+ *              other use_case_*.c
+ *
+ *   line.c:
+ *   -- [LINE]8. 'trace' with no option toggle the GUI status --
+ *   -- [LINE]9. 'trace' with option does not toggle the GUI --
  *
  * Parameters:
  *   None
@@ -85,313 +72,73 @@ static ST4Ever_context_t *ptCtx;
  */
 static void uc02_test_trace_toggle(void)
 {
-    trace_context_t* ptTraceCtx = (trace_context_t*)ptCtx->ptTraceCtx;
+    static char 	 szPath[ST_MAX_PATH];
+    FILE            *pF;
+	trace_context_t *ptTraceCtx = (trace_context_t*)ptCtx->ptTraceCtx;
+	line_context_t  *ptLineCtx  = (line_context_t*)ptCtx->ptConsoleCtx;
 
-    printf("\n--- Test group 1: trace toggle (no argument) ---\n");
+    printf("\n--- Test group 1: trace toggle (start with -t) ---\n");
 
-    /* -- [TRACE]13. Allocate a new trace_view structure -- */
-    /* -- [TRACE]14. Open the GUI window -- */
-    /* INTENT[INT-TRC-009 → TC-TRC-026...027 → REQ-xxx-yyy → UFR-xxx-yyy]:
-     * `trace` (no arg) must open the GUI window (allocate the trace
-     * view structure) when the console is closed.*/
-    UC_TEST("(INT-TRC-009) [Chk] console closed at startup (no -t/--trace)",
-            ptTraceCtx->bOpen == ST_FALSE);
-    UC_CHECK("(INT-TRC-009) [Chk] trace_gui_open()  [toggle: closed -> open]",
-            trace_gui_open());
-    UC_TEST("[N] (TC-TRC-026) GUI is created with a valid pointer",
-            ptTraceCtx->ptView != NULL);        
-    UC_TEST("[N] (TC-TRC-027) trace_is_open() == TRUE after toggle-open",
+    /* -- [LINE]8. 'trace' with no option toggle the GUI status -- */
+	/* -- [LINE]9. 'trace' with option does not toggle the GUI -- */
+	/* INTENT[INT-TRC-009 → TC-TRC-026...033 → REQ-xxx-yyy → UFR-xxx-yyy]:
+     * Starting from an open trace console at start of application, 'trace'
+	 * command closes the open console, 'trace <arg>' does not re-open it,
+     * 'trace' opens	 */
+    UC_TEST("(INT-TRC-009) [Chk] console open at startup (-t/--trace)",
             ptTraceCtx->bOpen == ST_TRUE);
 
-    /* -- [TRACE]15. Do not close if trace module is not initialized -- */
-    /* -- [TRACE]16. Close the GUI window -- */
-    /* INTENT[INT-TRC-010 → TC-TRC-028 → REQ-TRC-006,007 → UFR-CON-031]:
-     * `trace` (no arg) must close the console when it is open. */
-    UC_CHECK("(INT-TRC-010) [Chk] trace_gui_close()  [toggle: open -> closed]",
-             trace_gui_close());
-    UC_TEST("[N] (TC-TRC-028) trace_is_open() == FALSE after toggle-close",
-            ptTraceCtx->bOpen == ST_FALSE);
-    UC_TEST("[N] (TC-TRC-029) GUI is closed, its pointer in NULL",
-            ptTraceCtx->ptView == NULL);        
+	UC_SCRIPT_CREATE(szPath, sizeof(szPath), "use_cases/UC02/trace_dispatch.txt", pF);
 
-    /* -- [TRACE]12. Calling trace_gui_open() when GUI is open is harmless -- */
-    /* INTENT[INT-TRC-011 → TC-TRC-050,030 → REQ-TRC-011 → UFR-CON-032]:
-     * toggle must not change the trace_enabled state in either
-     * direction; calling trace_gui_open() again while the GUI window
-     * is already open must stay harmless (line_cmd_trace no-arg path
-     * never calls trace_set_trace_enabled) */
-    trace_set_trace_enabled(ST_TRUE);
-    UC_CHECK("(INT-TRC-011) [Chk] trace_gui_open()  [toggle: verify enabled unchanged]",
-             trace_gui_open());
-    UC_TEST("[N] (TC-TRC-050) trace_is_trace_enabled() unchanged after toggle-open",
-            trace_is_trace_enabled() == ST_TRUE);
-    UC_CHECK("(INT-TRC-011) [Chk] trace_gui_close()  [toggle: verify enabled unchanged]",
-             trace_gui_close());
-    UC_TEST("[N] (TC-TRC-030) trace_is_trace_enabled() unchanged after toggle-close",
-            trace_is_trace_enabled() == ST_TRUE);
+    UC_SCRIPT_ADD_LINE(pF, "# UC2 Group 1 Toggle trace\n");
+    UC_SCRIPT_ADD_LINE(pF, "trace\n");		// First command closes the GUI
+    UC_SCRIPT_ADD_LINE(pF, "trace level all\n");   // Set trace level (no opening)
+    UC_SCRIPT_ADD_LINE(pF, "trace \n");     // Open GUI 
+    UC_SCRIPT_ADD_LINE(pF, "trace xyz\n");  // Incorrect option - do not close GUI
+    
+	UC_SCRIPT_CLOSE(pF);
+	
+    strncpy(ptLineCtx->szScriptFile, szPath, ST_MAX_PATH - 1);
+    ptLineCtx->szScriptFile[ST_MAX_PATH - 1] = '\0';
 
-    /* Restore ST_FALSE precondition for group 2 (which re-enables it) */
-    trace_set_trace_enabled(ST_FALSE);
-}
+	line_enable_script_debug();
+	UC_CHECK("(INT-TRC-009) [Chk] line_run()  [#Comment]",
+			 line_run());	// Skip comment
+			 
+	UC_CHECK("(INT-TRC-009) [Chk] line_run()  [1st cmd: trace]",
+			 line_run());   // Closes already open GUI
+	UC_TEST("[N] (TC-TRC-026) GUI is closed",
+			ptTraceCtx->bOpen == ST_FALSE);
+	UC_TEST("[N] (TC-TRC-027) Trace level is INFO",
+			ptTraceCtx->eViewMinLevel == LOG_LEVEL_INFO);
+	
+	UC_CHECK("(INT-TRC-009) [Chk] line_run()  [2nd cmd: trace level all]",
+			 line_run());   // GUI remains closed
+	UC_TEST("[N] (TC-TRC-028) GUI remains closed",
+			ptTraceCtx->bOpen == ST_FALSE);
+	UC_TEST("[N] (TC-TRC-029) Trace level is set to TRACE",
+			ptTraceCtx->eViewMinLevel == LOG_LEVEL_TRACE);
+	
+	UC_CHECK("(INT-TRC-009) [Chk] line_run()  [3rd cmd: trace]",
+			 line_run());   // Open GUI - trace level is unchanged
+	UC_TEST("[N] (TC-TRC-030) GUI is re-open",
+			ptTraceCtx->bOpen == ST_TRUE);
+	UC_TEST("[N] (TC-TRC-031) Trace level is kept to TRACE",
+			ptTraceCtx->eViewMinLevel == LOG_LEVEL_TRACE);
+	
+	UC_CHECK("(INT-TRC-009) [Chk] line_run()  [4th cmd: trace xyz]",
+			 line_run());   // Incorrect option - no change
+	UC_TEST("[N] (TC-TRC-032) GUi is kept open",
+			ptTraceCtx->bOpen == ST_TRUE);
+	UC_TEST("[N] (TC-TRC-033) Trace level is kept to TRACE",
+			ptTraceCtx->eViewMinLevel == LOG_LEVEL_TRACE);
+	
+	UC_CHECK("(INT-TRC-009) [Chk] line_run()  [complete]",
+			 line_run());
+			 
+	UC_TEST("(INT-TRC-009) [Chk] Debug mode is actually disabled",
+            ptLineCtx->bDebugSteps == ST_FALSE);
 
-/* ------------------------------------------------------------------
- * Group 2: trace on
- * ------------------------------------------------------------------ */
-
-/*
- * uc02_test_trace_on() - `trace on` opens the console and enables
- *                        LOG_TRACE output
- *
- * Code Coverage:
- *   trace.c:
- *   -- [TRACE]12. Calling trace_gui_open() when GUI is open is harmless --
- *
- * Parameters:
- *   None
- *
- * Returns:
- *   Void
- */
-static void uc02_test_trace_on(void)
-{
-    printf("\n--- Test group 2: trace on ---\n");
-
-    /* Precondition: console closed, trace_enabled FALSE (from group 1).
-     * Simulates the sequence: trace_gui_open() + trace_set_trace_enabled */
-
-    /* INTENT[INT-TRC-012 → TC-TRC-031 → REQ-TRC-008 → UFR-CON-030]:
-     * `trace on` must open the trace console */
-    UC_CHECK("(INT-TRC-012) [Chk] trace_gui_open()  [trace on: open console]",
-             trace_gui_open());
-    UC_TEST("[N] (TC-TRC-031) trace_is_open() == TRUE after trace on",
-            trace_is_open() == ST_TRUE);
-
-    /* INTENT[INT-TRC-013 → TC-TRC-032 → REQ-TRC-010 → UFR-TRC-006]:
-     * `trace on` must activate LOG_TRACE output */
-    trace_set_trace_enabled(ST_TRUE);
-    UC_TEST("[N] (TC-TRC-032) trace_is_trace_enabled() == TRUE after trace on",
-            trace_is_trace_enabled() == ST_TRUE);
-
-    /* Verify LOG_TRACE is now active */
-    LOG_TRACE("LOG_TRACE active: this must appear in st4ever_trace.log");
-
-    /* -- [TRACE]12. Calling trace_gui_open() when GUI is open is harmless -- */
-    /* INTENT[INT-TRC-014 → TC-TRC-033,034 → REQ-TRC-008,017 → UFR-TRC-007]:
-     * `trace on` when the GUI window is already open must stay harmless:
-     * calling trace_gui_open() a second time is idempotent (UC1/UC4.4) */
-    UC_TEST("[R] (TC-TRC-033) trace_gui_open() idempotent: already open -> ST_NO_ERROR",
-            trace_gui_open() == ST_NO_ERROR);
-    UC_TEST("[R] (TC-TRC-034) trace_is_open() still TRUE after second open",
-            trace_is_open() == ST_TRUE);
-}
-
-/* ------------------------------------------------------------------
- * Group 3: trace off
- * ------------------------------------------------------------------ */
-
-/*
- * uc02_test_trace_off() - `trace off` disables LOG_TRACE without
- *                         closing the console (P19)
- *
- * Code Coverage:
- *   trace.c: (no additional source tags - trace_set_trace_enabled() is
- *             a plain setter with no [TRACE]N tag; see [TRACE]11..16
- *             already exercised in Group 1 for the open/close lifecycle)
- *
- * Parameters:
- *   None
- *
- * Returns:
- *   Void
- */
-static void uc02_test_trace_off(void)
-{
-    printf("\n--- Test group 3: trace off ---\n");
-
-    /* Precondition: console open, trace_enabled TRUE (from group 2).
-     * ADAPTED: P19 - trace off no longer calls trace_gui_close().
-     * Simulates: trace_set_trace_enabled(FALSE) only; view stays open. */
-
-    /* INTENT[INT-TRC-015 → TC-TRC-035 → REQ-TRC-009 → UFR-TRC-006]:
-     * `trace off` must disable LOG_TRACE output */
-    trace_set_trace_enabled(ST_FALSE);
-    UC_TEST("[N] (TC-TRC-035) trace_is_trace_enabled() == FALSE after trace off",
-            trace_is_trace_enabled() == ST_FALSE);
-
-    /* ADAPTED: P19 - trace off must NOT close the console.
-     * INTENT[INT-TRC-016 → TC-TRC-036 → REQ-TRC-016 → UFR-CON-031]:
-     * `trace off` must leave the trace view open (filter only) */
-    UC_TEST("[N] (TC-TRC-036) trace_is_open() == TRUE after trace off (P19: view stays open)",
-            trace_is_open() == ST_TRUE);
-
-    /* ADAPTED: P19 - idempotency now covers a second disable, not
-     * trace_gui_close() (which is no longer called by trace off).
-     * INTENT[INT-TRC-017 → TC-TRC-037,038 → REQ-TRC-016 → UFR-CON-031]:
-     * `trace off` twice is harmless; view remains open */
-    trace_set_trace_enabled(ST_FALSE);
-    UC_TEST("[R] (TC-TRC-037) trace_set_trace_enabled(FALSE) idempotent (no crash)",
-            trace_is_trace_enabled() == ST_FALSE);
-    UC_TEST("[R] (TC-TRC-038) trace_is_open() still TRUE after second trace off",
-            trace_is_open() == ST_TRUE);
-}
-
-/* ------------------------------------------------------------------
- * Group 4: state consistency after trace off
- * ------------------------------------------------------------------ */
-
-/*
- * uc02_test_state_consistency() - LOG_INFO/ERROR/TODO stay active while
- *                                 LOG_TRACE is filtered; re-enable works
- *
- * Code Coverage:
- *   trace.c: (no additional source tags - LOG_TRACE/LOG_INFO/LOG_ERROR/
- *             LOG_TODO routing through trace_log() is already tagged
- *             [TRACE]5..10 and exercised in use_case_01.c's Group 1)
- *
- * Parameters:
- *   None
- *
- * Returns:
- *   Void
- */
-static void uc02_test_state_consistency(void)
-{
-    printf("\n--- Test group 4: state consistency ---\n");
-
-    /* Precondition: console OPEN, trace_enabled FALSE (from group 3 — P19) */
-
-    /* INTENT[INT-TRC-018 → TC-TRC-039 → REQ-TRC-004,009 → UFR-TRC-006]:
-     * After trace off, LOG_INFO / LOG_ERROR / LOG_TODO must still
-     * emit to the log file without crash.  LOG_TRACE must be silent
-     * (trace_enabled FALSE). */
-    LOG_TRACE("THIS LINE MUST NOT APPEAR (trace_enabled is FALSE)");
-    LOG_INFO("LOG_INFO active: emitting to st4ever_trace.log");
-    LOG_ERROR("LOG_ERROR active: emitting (not a real error)");
-    LOG_TODO("LOG_TODO active: emitting");
-    UC_TEST("[R] (TC-TRC-039) LOG_INFO/ERROR/TODO emitted without crash while"
-            " trace_enabled is FALSE", trace_is_trace_enabled() == ST_FALSE);
-
-    /* INTENT[INT-TRC-019 → TC-TRC-040 → REQ-TRC-010 → UFR-TRC-006]:
-     * LOG_TRACE must become active again after trace_set_trace_enabled */
-    trace_set_trace_enabled(ST_TRUE);
-    UC_TEST("[N] (TC-TRC-040) trace_is_trace_enabled() == TRUE after re-enable",
-            trace_is_trace_enabled() == ST_TRUE);
-    LOG_TRACE("This LOG_TRACE MUST appear after re-enable");
-}
-
-/* ------------------------------------------------------------------
- * Group 5: real command dispatch via line_run() script mode
- * ------------------------------------------------------------------ */
-
-/*
- * uc02_write_dispatch_script() - Write the Group 5 batch script and
- * return its path (static buffer, stable across calls).
- *
- * Parameters:
- *   None
- *
- * Returns:
- *   Path to the script file, or NULL on fopen() failure.
- */
-static const char *uc02_write_dispatch_script(void)
-{
-    static char szPath[ST_MAX_PATH];
-    FILE       *pF;
-
-    snprintf(szPath, sizeof(szPath), "use_cases/UC02/trace_dispatch.txt");
-
-    pF = fopen(szPath, "w");
-    if (pF == NULL)
-    {
-        return NULL;
-    }
-
-    fprintf(pF, "# UC2 Group 5 dispatch script\n");
-    fprintf(pF, "trace\n");
-    fprintf(pF, "trace on\n");
-    fprintf(pF, "trace off\n");
-    fprintf(pF, "trace xyz\n");
-    fclose(pF);
-
-    return szPath;
-}
-
-/*
- * uc02_test_cmd_dispatch() - Drive `trace`/`trace on`/`trace off`/
- *                            `trace xyz` through the real
- *                            line_dispatch()/line_cmd_trace() path.
- *
- * Technique (R24 "boîte blanche"): force ptCtx->ptConsoleCtx's
- * szScriptFile field to the script path, call the public line_run()
- * (UC4.3 batch mode - identical mechanism to use_case_04_3.c's
- * test_script()), verify the resulting trace_context_t state, then
- * restore szScriptFile to "" so later groups/binaries are unaffected.
- *
- * Code Coverage:
- *   trace.c: (no additional source tags - the same trace_gui_open/
- *             close()/[TRACE]12..16 lifecycle already tagged and
- *             exercised in Group 1/2; this group's contribution is
- *             exercising it via the real console dispatch path
- *             instead of direct trace.h calls)
- *
- * Parameters:
- *   None
- *
- * Returns:
- *   Void
- */
-static void uc02_test_cmd_dispatch(void)
-{
-    trace_context_t *ptTraceCtx = (trace_context_t *)ptCtx->ptTraceCtx;
-    line_context_t   *ptLineCtx = (line_context_t *)ptCtx->ptConsoleCtx;
-    const char       *szScript;
-
-    printf("\n--- Test group 5: real command dispatch (line_run script mode) ---\n");
-
-    /* Precondition: console OPEN, trace_enabled TRUE (from group 4) */
-
-    szScript = uc02_write_dispatch_script();
-    UC_TEST("[N] (TC-TRC-045) dispatch script file created", szScript != NULL);
-
-    if (szScript != NULL)
-    {
-        strncpy(ptLineCtx->szScriptFile, szScript, ST_MAX_PATH - 1);
-        ptLineCtx->szScriptFile[ST_MAX_PATH - 1] = '\0';
-
-        /* INTENT[INT-TRC-027 → TC-TRC-046 → REQ-TRC-006,007 → UFR-CON-031]:
-         * `trace` dispatched through the real console (open -> close)
-         * must close the view; trace_enabled from group 4 is untouched */
-        UC_CHECK("(INT-TRC-027) [Chk] line_run()  [script: trace/on/off/xyz]",
-                 line_run());
-        UC_TEST("[N] (TC-TRC-046) trace_is_open() == TRUE after script "
-                "(close by 'trace', reopen by 'trace on')",
-                ptTraceCtx->bOpen == ST_TRUE);
-
-        /* INTENT[INT-TRC-028 → TC-TRC-047 → REQ-TRC-010 → UFR-TRC-006]:
-         * `trace on` dispatched through the console must enable
-         * LOG_TRACE; `trace off` right after must disable it again */
-        UC_TEST("[N] (TC-TRC-047) trace_is_trace_enabled() == FALSE "
-                "after script ('trace on' then 'trace off')",
-                trace_is_trace_enabled() == ST_FALSE);
-
-        /* INTENT[INT-TRC-029 → TC-TRC-048 → REQ-TRC-011 → UFR-CON-032]:
-         * `trace xyz` (unknown argument) dispatched through the console
-         * must leave both bOpen and trace_enabled unchanged */
-        UC_TEST("[N] (TC-TRC-048) trace state unchanged after 'trace xyz'"
-                " (unknown argument)",
-                ptTraceCtx->bOpen == ST_TRUE
-                && trace_is_trace_enabled() == ST_FALSE);
-
-        /* INTENT[INT-TRC-030 → TC-TRC-049 → REQ-CON-xxx → UFR-CON-031]:
-         * script mode must not force quit(); bRunning stays TRUE so
-         * ST4Ever_shutdown() runs its normal sequence afterwards */
-        UC_TEST("[N] (TC-TRC-049) bRunning still TRUE after script "
-                "(no 'quit' in this script)",
-                ptLineCtx->bRunning == ST_TRUE);
-
-        /* Restore precondition for any group/binary run after this one */
-        ptLineCtx->szScriptFile[0] = '\0';
-    }
 }
 
 /* ------------------------------------------------------------------
@@ -400,7 +147,7 @@ static void uc02_test_cmd_dispatch(void)
 
 int main(void)
 {
-    char *args[] = {"UC02"};
+    char *args[] = {"UC02", "-t"};
 
     printf("\n");
     printf("============================================================"
@@ -409,16 +156,12 @@ int main(void)
     printf("============================================================"
            "====\n");
 
-    ptCtx = (ST4Ever_context_t *)ST4Ever_init(1, args);
-    UC_CHECK("(UC02) [Chk] Launch ST4Ever with no argument", (st_u64_t)ptCtx);
+    ptCtx = (ST4Ever_context_t *)ST4Ever_init(2, args);
+    UC_CHECK("(UC02) [Chk] Launch ST4Ever with -t option", (st_u64_t)ptCtx);
     UC_CHECK_OBJ(ptCtx, ST_MAIN_CTX);
     if (gIsObject)
     {
         uc02_test_trace_toggle();
-        uc02_test_trace_on();
-        uc02_test_trace_off();
-        uc02_test_state_consistency();
-        uc02_test_cmd_dispatch();
     }
     else
     {

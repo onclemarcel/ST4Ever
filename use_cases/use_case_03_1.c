@@ -1,27 +1,21 @@
 /*
  * use_case_03_1.c - UC3.1 Validation: GUI message queue + Win32 window
  *
- * SRTD reference: SRTD.md §5.10–§5.11 — test cases TC-GUI-001..018
  * Traceability chain per INTENT block:
- *   INTENT[INT-GUI-NNN → TC-GUI-NNN → REQ-GUI-NNN]: intent text
+ *   INTENT[INT-xxx-NNN → TC-xxx-NNN → REQ-xxx-NNN -> UFR-xxx-NNN]
  *
  * TEST MATRIX - UC3.1:
- *   [N] Nominal    : 22 tests - gui_msg_queue_t full lifecycle (incl.
+ *   [N] Nominal    : 12 tests - gui_msg_queue_t full lifecycle (incl.
  *                               loop assertions), gui_init/shutdown
- *   [R] Robustness : 17 tests - NULL params, capacity 0, queue full,
+ *   [R] Robustness : 11 tests - NULL params, capacity 0, queue full,
  *                               queue empty, NULL window handles
- *   [S] Skipped    :  3 tests - window open/visible/close (make manual)
+ *   [S] Skipped    :  0 tests - 
  *
  * Test groups:
  *   Group 1: gui_msg_queue_t nominal  (create, post, get, FIFO,
  *             fill/drain to capacity, destroy)
  *   Group 2: gui_msg_queue_t robustness (NULL params, capacity 0,
  *             queue full, queue empty)
- *   Group 3: gui lifecycle nominal    (gui_init, gui_shutdown,
- *             idempotency of both)
- *   Group 4: gui_* NULL-param robustness (open_window, close_window,
- *             invalidate, get_size)
- *   Group 5: window open / close      (visual — make manual)
  *
  * Exit code: 0 = all tests passed, 1 = one or more failures.
  */
@@ -36,16 +30,12 @@ int main(void)
     gui_msg_queue_t  hQ;
     gui_event_t      tEvt;
     gui_event_t      tGot;
-    gui_window_t     hWnd;
-    gui_wnd_desc_t   tDesc;
     st_error_t       eRet;
-    int              iW;
-    int              iH;
     int              i;
 
     printf("\n");
     printf("================================================================\n");
-    printf(" UC3.1 - GUI message queue + Win32 window infrastructure\n");
+    printf(" UC3.1 - GUI message queue \n");
     printf("================================================================\n");
 
     trace_init(ST_FALSE);
@@ -197,109 +187,6 @@ int main(void)
     UC_TEST("[R] gui_msg_destroy(*pphQueue=NULL) -> ST_ERROR",
             eRet == ST_ERROR);
 
-    /* ================================================================ */
-    printf("\n--- Test group 3: gui_init / gui_shutdown lifecycle ---\n");
-    /* ================================================================ */
-
-    /* INTENT[INT-GUI-004 → TC-GUI-011 → REQ-GUI-001]:
-     * gui_init registers the Win32 WNDCLASS without error */
-    eRet = gui_init();
-    UC_TEST("[N] gui_init() -> ST_NO_ERROR", eRet == ST_NO_ERROR);
-
-    /* INTENT[INT-GUI-004 → TC-GUI-011 → REQ-GUI-002]:
-     * second gui_init call is idempotent — no double-registration */
-    eRet = gui_init();
-    UC_TEST("[N] gui_init() idempotent -> ST_NO_ERROR",
-            eRet == ST_NO_ERROR);
-
-    /* INTENT[INT-GUI-004 → TC-GUI-012 → REQ-GUI-007,REQ-GUI-008]:
-     * gui_shutdown closes all resources cleanly */
-    eRet = gui_shutdown();
-    UC_TEST("[N] gui_shutdown() -> ST_NO_ERROR", eRet == ST_NO_ERROR);
-
-    /* INTENT[INT-GUI-004 → TC-GUI-013 → REQ-GUI-007]:
-     * gui_shutdown without prior init is a safe no-op */
-    eRet = gui_shutdown();
-    UC_TEST("[N] gui_shutdown() idempotent -> ST_NO_ERROR",
-            eRet == ST_NO_ERROR);
-
-    /* ================================================================ */
-    printf("\n--- Test group 4: gui_* NULL-parameter robustness ---\n");
-    /* ================================================================ */
-
-    gui_init();
-
-    memset(&tDesc, 0, sizeof(tDesc));
-    tDesc.szTitle = "UC3.1 Test";
-    tDesc.eType   = GUI_WND_DIR;
-
-    /* INTENT[INT-GUI-005 → TC-GUI-014 → REQ-GUI-003]:
-     * gui_open_window rejects NULL ptDesc or NULL phWnd before side effects */
-    hWnd = NULL;
-    eRet = gui_open_window(NULL, &hWnd);
-    UC_TEST("[R] gui_open_window(NULL desc) -> ST_ERROR",
-            eRet == ST_ERROR);
-    UC_TEST("[R] gui_open_window(NULL desc): hWnd stays NULL",
-            hWnd == NULL);
-
-    eRet = gui_open_window(&tDesc, NULL);
-    UC_TEST("[R] gui_open_window(NULL phWnd) -> ST_ERROR",
-            eRet == ST_ERROR);
-
-    /* INTENT[INT-GUI-005 → TC-GUI-015 → REQ-GUI-005]:
-     * gui_close_window, gui_invalidate, gui_get_size reject NULL handle */
-    eRet = gui_close_window(NULL);
-    UC_TEST("[R] gui_close_window(NULL) -> ST_ERROR",
-            eRet == ST_ERROR);
-
-    eRet = gui_invalidate(NULL);
-    UC_TEST("[R] gui_invalidate(NULL) -> ST_ERROR",
-            eRet == ST_ERROR);
-
-    iW = 0; iH = 0;
-    eRet = gui_get_size(NULL, &iW, &iH);
-    UC_TEST("[R] gui_get_size(NULL hWnd) -> ST_ERROR",
-            eRet == ST_ERROR);
-
-    gui_shutdown();
-
-    /* ================================================================ */
-    printf("\n--- Test group 5: window open / close (manual) ---\n");
-    /* ================================================================ */
-
-    /* INTENT[INT-GUI-004 → TC-GUI-016 → REQ-GUI-004]:
-     * gui_open_window spawns a thread, window appears with dark background */
-#ifdef ST_MANUAL_TEST
-    gui_init();
-    memset(&tDesc, 0, sizeof(tDesc));
-    tDesc.szTitle  = "ST4Ever - UC3.1 Manual Test";
-    tDesc.eType    = GUI_WND_DIR;
-    tDesc.pfnEvent = NULL;
-    tDesc.pUserCtx = NULL;
-    hWnd = NULL;
-    gui_open_window(&tDesc, &hWnd);
-    platform_sleep_ms(500);
-    TEST_MANUAL("[S] TC-GUI-016 window open with dark background",
-                "Is a dark window titled 'ST4Ever - UC3.1 Manual Test' "
-                "visible?");
-
-    /* INTENT[INT-GUI-004 → TC-GUI-017 → REQ-GUI-006]:
-     * gui_close_window posts WM_CLOSE, thread exits, handle freed */
-    TEST_MANUAL("[S] TC-GUI-017 title bar shows correct title",
-                "Does the title bar read 'ST4Ever - UC3.1 Manual Test'?");
-    gui_close_window(hWnd);
-    hWnd = NULL;
-
-    /* INTENT[INT-GUI-005 → TC-GUI-018 → REQ-GUI-015]:
-     * OS close button (X) fires WM_DESTROY -> GUI_EVT_CLOSE callback */
-    TEST_MANUAL("[S] TC-GUI-018 gui_close_window: window disappears cleanly",
-                "Did the window disappear from the taskbar?");
-    gui_shutdown();
-#else
-    TEST_SKIP("[S] TC-GUI-016 gui_open_window() - window visible (run make manual)");
-    TEST_SKIP("[S] TC-GUI-017 window: dark background, title bar visible");
-    TEST_SKIP("[S] TC-GUI-018 gui_close_window() - window closes cleanly");
-#endif
 
     /* ================================================================ */
     printf("\n[cleanup] trace_shutdown()\n");

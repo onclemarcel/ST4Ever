@@ -114,7 +114,6 @@ typedef struct trace_context_s
     
     st_bool_t     bInitialised;
     st_bool_t     bOpen;
-    st_bool_t     bGUITraceEnabled;
     FILE         *pFile;
 
 /* Compaction state for consecutive LOG_TRACE from the same function */
@@ -163,27 +162,6 @@ st_error_t trace_gui_open(void);
  *   ST_NO_ERROR always (safe to call when already closed).
  */
 st_error_t trace_gui_close(void);
-
-/*
- * trace_set_trace_enabled() - Enable or disable LOG_TRACE output in GUI
- *
- * LOG_INFO, LOG_ERROR and LOG_TODO are unaffected.
- *
- * Parameters:
- *   bEnabled [in] : ST_TRUE to enable, ST_FALSE to suppress.
- *
- * Returns:
- *   void (this is a setter - no result expected)
- */
-void trace_set_trace_enabled(st_bool_t bEnabled);
-
-/*
- * trace_is_trace_enabled() - Query whether LOG_TRACE is active in GUI
- *
- * Returns:
- *   ST_TRUE if LOG_TRACE output is enabled, ST_FALSE otherwise.
- */
-st_bool_t trace_is_trace_enabled(void);
 
 /*
  * trace_is_open() - Query whether the trace console is visible.
