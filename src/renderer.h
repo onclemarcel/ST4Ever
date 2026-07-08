@@ -315,4 +315,72 @@ st_error_t renderer_draw_bitmap(renderer_t            hCtx,
  */
 st_error_t renderer_destroy(renderer_t *phCtx);
 
+/* ------------------------------------------------------------------
+ * Test-only spy API (ST_TEST_FWK builds only, R26)
+ * ------------------------------------------------------------------
+ * renderer_draw_text() records every call into a small ring buffer
+ * when compiled with -DST_TEST_FWK, so use_case_*.c binaries can
+ * assert on what was actually sent towards the platform backend
+ * (text, rect, colour, font, alignment) without opening a real D2D
+ * window and eyeballing pixels.  Compiled out entirely otherwise -
+ * zero cost and zero footprint in the release binary.
+ * ------------------------------------------------------------------ */
+#ifdef ST_TEST_FWK
+
+#define RENDERER_SPY_MAX_ENTRIES 64
+#define RENDERER_SPY_TEXT_LEN    128
+
+typedef struct renderer_spy_draw_text_s
+{
+    char               szText[RENDERER_SPY_TEXT_LEN];
+    renderer_rect_t    tRect;
+    renderer_color_t   tColor;
+    renderer_font_id_t eFontId;
+    renderer_align_t   eAlign;
+} renderer_spy_draw_text_t;
+
+/*
+ * renderer_spy_reset() - Clear the draw_text spy ring buffer.
+ *
+ * Call before the gui_invalidate()/paint pass under test, so only
+ * calls made during that pass are captured.
+ */
+void renderer_spy_reset(void);
+
+/*
+ * renderer_spy_draw_text_count() - Number of draw_text() calls
+ * captured since the last renderer_spy_reset().
+ *
+ * Returns:
+ *   0..RENDERER_SPY_MAX_ENTRIES (capture stops silently past the cap;
+ *   the count keeps growing so a test can also assert "too many").
+ */
+int renderer_spy_draw_text_count(void);
+
+/*
+ * renderer_spy_find_text() - Find the first captured draw_text() call
+ * whose szText contains szNeedle.
+ *
+ * Parameters:
+ *   szNeedle [in] : Substring to search for.
+ *
+ * Returns:
+ *   Index (0-based) of the first match, or -1 if none / NULL szNeedle.
+ */
+int renderer_spy_find_text(const char *szNeedle);
+
+/*
+ * renderer_spy_get_draw_text() - Retrieve a captured draw_text() call
+ * by index for detailed assertions (rect, colour, font, alignment).
+ *
+ * Parameters:
+ *   iIndex [in] : 0..renderer_spy_draw_text_count()-1.
+ *
+ * Returns:
+ *   Pointer to the captured record, or NULL if iIndex is out of range.
+ */
+const renderer_spy_draw_text_t *renderer_spy_get_draw_text(int iIndex);
+
+#endif /* ST_TEST_FWK */
+
 #endif /* RENDERER_H */

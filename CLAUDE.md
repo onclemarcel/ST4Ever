@@ -522,6 +522,31 @@ Cette procédure est **indépendante du module** : elle s'applique identiquement
 - Si un état précis doit néanmoins être vérifié en tête de groupe (cas rare), récupérer le pointeur de contexte réel (`ptCtx->ptXxxCtx`) et inspecter les champs directement — ne pas se fier à la seule valeur de retour d'un appel d'init répété.
 - Un appel d'init reste légitime quand il **restaure un état que CE groupe vient lui-même de casser** (ex. `st_shutdown()` suivi de `st_init(NULL)` pour tester `cpu_init()` machine éteinte, puis remettre la machine ON avant la suite) — ce n'est pas une duplication, c'est le nettoyage prescrit par R24.
 
+**R26 — Mode script « debug pas-à-pas » pour tester le vrai chemin de dispatch console** *(établie 2026-07-08, Test Strategy Change 13, modèle `uc02_test_trace_toggle()` de `use_case_02.c` lignes 73-142)*
+
+Contexte : `line_cmd_trace()` et `line_dispatch()` sont `static` — aucun appel direct depuis un binaire de test. Jusqu'à Test Strategy Change 12, UC2 contournait cela de deux façons : (a) simuler la séquence en appelant directement l'API `trace_*()` publique (fidèle au comportement mais ne teste pas le *parsing/dispatch* réel), ou (b) exécuter un script complet via `line_run()` en mode batch (UC4.3) et ne vérifier que l'état final — perdant toute visibilité sur l'état intermédiaire entre deux commandes. R26 ajoute un troisième mode qui exécute le vrai chemin `line_parse_cmd()` → `line_dispatch()` → `line_cmd_xxx()` **une commande à la fois**, avec assertions entre chaque appel.
+
+**API (`line.h`)** :
+- `line_context_t.bDebugSteps` (`st_bool_t`) : bascule le mode pas-à-pas. `ST_FALSE` par défaut (comportement UC4.3 inchangé : `line_run()` avec `szScriptFile` renseigné exécute tout le script en une seule fois).
+- `line_enable_script_debug()` / `line_disable_script_debug()` : activent/désactivent `bDebugSteps` sur le contexte global `g_line_ptCtx`.
+- Champs internes `iScriptLine` (compteur de ligne) et `pfScript` (handle de fichier persistant entre les appels) — non manipulés directement par les tests, gérés par `line_exec_script()`.
+
+**Contrat comportemental** (`line_exec_script()` dans `line.c`) :
+- `bDebugSteps == ST_FALSE` : une seule invocation de `line_run()` lit et dispatche **tout** le fichier jusqu'à EOF ou `bRunning == ST_FALSE`, ferme le fichier, retourne. Comportement UC4.3 `--script` d'origine, inchangé.
+- `bDebugSteps == ST_TRUE` : chaque invocation de `line_run()` lit et traite **une seule ligne** du script puis retourne — y compris les lignes de commentaire (`#...`) ou vides, qui sont silencieusement ignorées mais consomment quand même un appel (un appel = une ligne physique du fichier, jamais zéro). Cela permet d'intercaler des `UC_TEST`/`UC_CHECK` sur `ptCtx->ptXxxCtx` entre chaque commande dispatchée.
+- L'appel suivant la dernière ligne du script ferme le fichier, remet `iScriptLine` à 0 et repasse `bDebugSteps` à `ST_FALSE` automatiquement — un test doit vérifier cette désactivation automatique comme dernière assertion du groupe (cf. `use_case_02.c:139`).
+
+**Helpers de test (`use_cases.h`)** — remplacent le pattern `write_test_script()` copié-collé de `use_case_04_3.c` par des macros réutilisables pour construire un script de test jetable colocalisé dans `use_cases/UCnn/` :
+```c
+UC_SCRIPT_CREATE(szPath, sizeof(szPath), "use_cases/UC02/trace_dispatch.txt", pF);
+UC_SCRIPT_ADD_LINE(pF, "trace\n");
+UC_SCRIPT_CLOSE(pF);
+```
+
+**Quand utiliser R24/R25 (injection de champ) vs R26 (script debug pas-à-pas)** :
+- R24/R25 (forcer un champ → appeler → vérifier → restaurer) : test ciblé d'une fonction/module isolé, le plus rapide à écrire — reste la technique par défaut.
+- R26 : le test porte spécifiquement sur le chemin de dispatch console lui-même (`line_parse_cmd`/`line_dispatch`/`line_cmd_xxx`) et l'état intermédiaire entre commandes est significatif. Remplace les anciens groupes `[S]` Skipped/`TEST_MANUAL` de dispatch de commande hérités de l'ère R23 (voir Group 5 pré-Test-Strategy-Change-12 de `use_case_02.c`, aujourd'hui disparu).
+
 
 ## 6. Use Cases
 
