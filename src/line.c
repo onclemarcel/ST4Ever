@@ -1083,14 +1083,14 @@ static st_error_t line_cmd_trace(const parsed_cmd_t *ptParsed)
         return ST_ERROR;
     }
 
-    /* -- [LINE]7. Do not execute if line is not initialized -- */
+    /* -- [LINE]8. Do not execute if line is not initialized -- */
     if (!g_line_ptCtx.bRunning)
     {
         LOG_ERROR("Use line_init() before use of any line_*() function");
         return ST_ERROR;
     }
 
-    /* -- [LINE]8. 'trace' with no option toggle the GUI status -- */
+    /* -- [LINE]9. 'trace' with no option toggle the GUI status -- */
     if (ptParsed->iArgc == 1)
     {
         if (trace_is_open() == ST_TRUE)
@@ -1115,12 +1115,12 @@ static st_error_t line_cmd_trace(const parsed_cmd_t *ptParsed)
         return ST_NO_ERROR;
     }
 
-    /* -- [LINE]9. 'trace' with option does not toggle the GUI -- */
+    /* -- [LINE]10. 'trace' with option does not toggle the GUI -- */
     szArg = ptParsed->aszArgv[1];
 
     if (strcmp(szArg, "clear") == 0)
     {
-        /* -- [LINE]10. 'trace clear' empties the GUI View -- */
+        /* -- [LINE]11. 'trace clear' empties the GUI View -- */
 		if (ptParsed->iArgc > 2)
         {
             line_print_warning(
@@ -1131,7 +1131,7 @@ static st_error_t line_cmd_trace(const parsed_cmd_t *ptParsed)
     }
     else if (strcmp(szArg, "level") == 0)
     {
-        /* -- [LINE]11. 'trace level' filters the GUI View -- */
+        /* -- [LINE]12. 'trace level' filters the GUI View -- */
         const char  *szLevel;
         log_level_t  eNewLevel;
 
@@ -1144,7 +1144,7 @@ static st_error_t line_cmd_trace(const parsed_cmd_t *ptParsed)
 
         szLevel = ptParsed->aszArgv[2];
 
-        /* -- [LINE]12. trace level filters are incremental -- */
+        /* -- [LINE]13. trace level filters are incremental -- */
 		/* -- P57: todo < error < info < all. */
         if (strcmp(szLevel, "all") == 0)
         {
@@ -1187,7 +1187,7 @@ static st_error_t line_cmd_trace(const parsed_cmd_t *ptParsed)
     }
     else
     {
-        /* -- [LINE]13. trace unknown option are discarded -- */
+        /* -- [LINE]14. trace unknown option are discarded -- */
 		line_print_warning(
             "trace: unknown argument '%s'  "
             "- use: trace | trace clear | trace level all|info|error|todo",
@@ -1209,13 +1209,14 @@ static st_error_t line_cmd_dir(const parsed_cmd_t *ptParsed)
 
     LOG_TRACE("ptParsed=%p", (void *)ptParsed);
 
+    /* -- [LINE]15. Invalid parameter returns an error -- */
     if (ptParsed == NULL)
     {
         LOG_ERROR("NULL parameter");
         return ST_ERROR;
     }
 
-    /* -- 1. Check if console line is initialized - return if not */
+    /* -- [LINE]16. Do not execute if line is not initialized -- */
     if (!g_line_ptCtx.bRunning)
     {
         LOG_ERROR("Use line_init() before use of any line_*() function");
@@ -1227,6 +1228,7 @@ static st_error_t line_cmd_dir(const parsed_cmd_t *ptParsed)
     szPath      = NULL;
     szSelPath[0] = '\0';
 
+    /* -- [LINE]17. Check 'dir' options (-a/--select) and set path -- */
     for (iArg = 1; iArg < ptParsed->iArgc; iArg++)
     {
         if (strcmp(ptParsed->aszArgv[iArg], "-a") == 0)
@@ -1255,7 +1257,8 @@ static st_error_t line_cmd_dir(const parsed_cmd_t *ptParsed)
         }
     }
 
-    /* P50: headless selection — set selected path without opening GUI */
+    /* -- [LINE]18. 'dir --select <path>' sets szSelected headlessly -- */
+    /* P50: path is selected without opening a window -- */
     if (bSelectOnly)
     {
         if (szSelPath[0] == '\0')
@@ -1276,8 +1279,11 @@ static st_error_t line_cmd_dir(const parsed_cmd_t *ptParsed)
         return ST_NO_ERROR;
     }
 
+    /* -- [LINE]19. 'dir' closes any previously open view before opening a new one -- */
     if (g_line_ptCtx.ptDirView != NULL)
     {
+        LOG_TODO("See P69: Allow managing several 'dir' open GUI to compare folders");
+
         /* BUG-09: save history before closing so ALT+← works across
          * successive dir commands. */
         memcpy(g_line_aDirNavHist, g_line_ptCtx.ptDirView->aszNavHistory,
@@ -1293,6 +1299,7 @@ static st_error_t line_cmd_dir(const parsed_cmd_t *ptParsed)
         g_line_ptCtx.ptDirView = NULL;
     }
 
+    /* -- [LINE]20. 'dir -a' opens the view with hidden files shown -- */
     eResult = dir_open(szPath, (st_u64_t)&g_line_ptCtx, bShowHidden, &g_line_ptCtx.ptDirView);
     if (eResult != ST_NO_ERROR)
     {
@@ -1305,6 +1312,7 @@ static st_error_t line_cmd_dir(const parsed_cmd_t *ptParsed)
      * dir_open() seeds aszNavHistory[0] with szRoot, head=0, count=1.
      * We insert [prev_history] before the new root, then add new root at
      * iNewHead.  If history is full the oldest entry is silently dropped. */
+    /* -- [LINE]21. Manage 'dir' navigation history -- */
     if (g_line_iDirNavHistHead >= 0)
     {
         int iNewHead;
@@ -1331,6 +1339,7 @@ static st_error_t line_cmd_dir(const parsed_cmd_t *ptParsed)
         g_line_ptCtx.ptDirView->iNavHistHead  = iNewHead;
         g_line_ptCtx.ptDirView->iNavHistCount = iNewHead + 1;
     }
+
 
     line_print_msg("Directory view opened%s%s%s.",
                    szPath ? " for "              : "",
@@ -3966,6 +3975,18 @@ void line_print_msg(const char *szFmt, ...)
         va_end(vaArgs);
         printf("\n");
     }
+    else
+    {
+        /* Log the information message into the log file */
+        va_list vaArgs;
+        char buf[ST_MAX_MSG];
+
+        va_start(vaArgs, szFmt);
+        vsnprintf(buf, ST_MAX_MSG, szFmt, vaArgs);
+        va_end(vaArgs);
+        
+        LOG_INFO(buf);
+    }
 }
 
 void line_print_warning(const char *szFmt, ...)
@@ -3985,6 +4006,19 @@ void line_print_warning(const char *szFmt, ...)
         va_end(vaArgs);
         printf("%s\n", c_reset());
     }
+    else
+    {
+        /* Log the warning message into the log file (as an error) */
+        LOG_TODO("Log a console warning in a specific [WARN] category for test purpose");
+        va_list vaArgs;
+        char buf[ST_MAX_MSG];
+
+        va_start(vaArgs, szFmt);
+        vsnprintf(buf, ST_MAX_MSG, szFmt, vaArgs);
+        va_end(vaArgs);
+        
+        LOG_ERROR(buf);
+    }
 }
 
 void line_print_error(const char *szFmt, ...)
@@ -4003,6 +4037,18 @@ void line_print_error(const char *szFmt, ...)
         vprintf(szFmt, vaArgs);
         va_end(vaArgs);
         printf("%s\n", c_reset());
+    }
+    else
+    {
+        /* Log the error message into the log file */
+        va_list vaArgs;
+        char buf[ST_MAX_MSG];
+
+        va_start(vaArgs, szFmt);
+        vsnprintf(buf, ST_MAX_MSG, szFmt, vaArgs);
+        va_end(vaArgs);
+        
+        LOG_ERROR(buf);
     }
 }
 

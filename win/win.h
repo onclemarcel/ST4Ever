@@ -167,16 +167,6 @@ st_error_t win_console_shutdown(void);
 st_error_t win_D2D_spy_reset(win_d2d_ctx_t  *ptCtx);
 
 /*
- * win_D2D_spy_draw_text_count() - Number of draw_text() calls
- * captured since the last win_D2D_spy_reset().
- *
- * Returns:
- *   0..WIN_D2D_SPY_MAX_ENTRIES (capture stops silently past the cap;
- *   the count keeps growing so a test can also assert "too many").
- */
-int win_D2D_spy_draw_text_count(win_d2d_ctx_t  *ptCtx);
-
-/*
  * win_D2D_spy_find_text() - Find the first captured draw_text() call
  * whose szText contains szNeedle.
  *
@@ -189,11 +179,10 @@ int win_D2D_spy_draw_text_count(win_d2d_ctx_t  *ptCtx);
 int win_D2D_spy_find_text(const char *szNeedle, win_d2d_ctx_t  *ptCtx);
 
 /*
- * win_D2D_spy_get_draw_text() - Retrieve a captured draw_text() call
- * by index for detailed assertions (rect, colour, font, alignment).
+ * win_D2D_get_spy() - To be updated
  *
  * Parameters:
- *   iIndex [in] : 0..win_D2D_spy_draw_text_count()-1.
+ *
  *
  * Returns:
  *   Pointer to the captured record, or NULL if iIndex is out of range.
@@ -201,5 +190,25 @@ int win_D2D_spy_find_text(const char *szNeedle, win_d2d_ctx_t  *ptCtx);
 const void* win_D2D_get_spy(int iIndex,
                             win_d2d_ctx_t  *ptCtx,
                             st_object_t     type);
+
+/*
+ * win_D2D_spy_find_fill_rect_color() - Find whether a captured
+ * fill_rectangle() call matches the given colour exactly.
+ *
+ * Parameters:
+ *   fR/fG/fB/fA [in] : colour components to match exactly (colours are
+ *                      static float literals in the .c under test, so
+ *                      exact comparison is reliable).
+ *   ptCtx       [in] : D2D context holding the spy ring buffer.
+ *
+ * Returns:
+ *   ST_TRUE if a fill_rectangle() spy with this exact colour was
+ *   captured since the last win_D2D_spy_reset(), ST_FALSE otherwise.
+ */
+st_bool_t win_D2D_spy_find_fill_rect_color(float           fR,
+                                            float           fG,
+                                            float           fB,
+                                            float           fA,
+                                            win_d2d_ctx_t  *ptCtx);
 
 #endif /* WIN_H */

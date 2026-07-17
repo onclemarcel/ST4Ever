@@ -71,7 +71,8 @@ PLAT_FILES := $(wildcard $(PLATFORM)/*.c)
 UC_FILES   := $(UC_DIR)/use_case_00.c \
               $(UC_DIR)/use_case_01.c \
               $(UC_DIR)/use_case_02.c \
-			  $(UC_DIR)/use_case_03.c
+			  $(UC_DIR)/use_case_03.c \
+			  $(UC_DIR)/use_case_04.c
 
 SRC_OBJS   := $(patsubst src/%.c,          $(BUILD)/s_%.o, $(SRC_FILES))
 PLAT_OBJS  := $(patsubst $(PLATFORM)/%.c,  $(BUILD)/p_%.o, $(PLAT_FILES))

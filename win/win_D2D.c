@@ -364,11 +364,79 @@ const void *win_D2D_get_spy(int iIndex,
         {
             return ptCtx->pD2DSpies[iIndex];
         }
-        else 
+        else
         {
             return NULL;
         }
     }
+}
+
+/*
+ * win_D2D_spy_find_text() - Find the first captured draw_text() call
+ *                           whose wcText contains szNeedle (see win.h).
+ */
+int win_D2D_spy_find_text(const char *szNeedle, win_d2d_ctx_t *ptCtx)
+{
+    int      i;
+    wchar_t  wNeedle[WIN_D2D_SPY_TEXT_LEN];
+    const win_D2D_spy_draw_text_t *ptSpy;
+
+    // No LOG_TRACE - R22: query function, called repeatedly by
+    // use_case_*.c assertions.
+    if (szNeedle == NULL || ptCtx == NULL)
+    {
+        return -1;
+    }
+
+    mbstowcs(wNeedle, szNeedle, sizeof(wNeedle) / sizeof(wNeedle[0]) - 1);
+    wNeedle[sizeof(wNeedle) / sizeof(wNeedle[0]) - 1] = L'\0';
+
+    /* -- [SPY]13. Scan the ring buffer for the first DrawText spy containing szNeedle -- */
+    for (i = 0; i < ptCtx->uiSpiesCount; i++)
+    {
+        ptSpy = (const win_D2D_spy_draw_text_t *)
+                win_D2D_get_spy(i, ptCtx, ST_WIN_D2D_SPY_DT);
+        if (ptSpy == NULL) continue;
+        if (wcsstr(ptSpy->wcText, wNeedle) != NULL) return i;
+    }
+    return -1;
+}
+
+/*
+ * win_D2D_spy_find_fill_rect_color() - Find whether a captured
+ *                                       fill_rectangle() call matches
+ *                                       the given colour exactly
+ *                                       (see win.h).
+ */
+st_bool_t win_D2D_spy_find_fill_rect_color(float           fR,
+                                            float           fG,
+                                            float           fB,
+                                            float           fA,
+                                            win_d2d_ctx_t  *ptCtx)
+{
+    int i;
+    const win_D2D_spy_fill_rectangle_t *ptSpy;
+
+    // No LOG_TRACE - R22: query function, called repeatedly by
+    // use_case_*.c assertions.
+    if (ptCtx == NULL)
+    {
+        return ST_FALSE;
+    }
+
+    /* -- [SPY]14. Scan the ring buffer for a FillRectangle spy matching the exact color -- */
+    for (i = 0; i < ptCtx->uiSpiesCount; i++)
+    {
+        ptSpy = (const win_D2D_spy_fill_rectangle_t *)
+                win_D2D_get_spy(i, ptCtx, ST_WIN_D2D_SPY_FR);
+        if (ptSpy == NULL) continue;
+        if (ptSpy->tColor.r == fR && ptSpy->tColor.g == fG
+        &&  ptSpy->tColor.b == fB && ptSpy->tColor.a == fA)
+        {
+            return ST_TRUE;
+        }
+    }
+    return ST_FALSE;
 }
 
 /* ------------------------------------------------------------------

@@ -212,7 +212,7 @@ static st_error_t dir_node_load_children(dir_node_t *ptNode,
 
                 if (strcmp(tFd.cFileName, ".")  == 0) continue;
                 if (strcmp(tFd.cFileName, "..") == 0) continue;
-                /* P15: filter '.*' entries unless -a requested */
+                /* -- [DIR]9. P15: '.*' entries are skipped unless bShowHidden is set -- */
                 if (bShowHidden == ST_FALSE
                 &&  tFd.cFileName[0] == '.') continue;
 
@@ -854,6 +854,7 @@ static void dir_activate_sel(dir_view_t *ptView, gui_window_t hWnd)
 
     if (ptView->iSelectedFlat == -2) return; /* nothing selected */
 
+    /* -- [DIR]10. dir_activate_sel: ".." row navigates to the parent directory -- */
     if (ptView->iSelectedFlat == -1)
     {
         dir_navigate_up(ptView, hWnd);
@@ -863,6 +864,7 @@ static void dir_activate_sel(dir_view_t *ptView, gui_window_t hWnd)
     ptEntry = &ptView->aptFlat[ptView->iSelectedFlat];
     ptNode  = ptEntry->ptNode;
 
+    /* -- [DIR]11. dir_activate_sel: directory entry toggles expand/collapse -- */
     if (ptNode->bIsDir)
     {
         if (ptNode->bExpanded == ST_TRUE)
@@ -883,6 +885,7 @@ static void dir_activate_sel(dir_view_t *ptView, gui_window_t hWnd)
     }
     else
     {
+        /* -- [DIR]12. dir_activate_sel: file entry commits selection (P11) -- */
         /* File: update console selection (mutex-safe, UC4.3) */
         if (ptView->bIsLineRunning)
         {
@@ -946,6 +949,7 @@ static void dir_render(dir_view_t *ptView)
             }
         }
 
+        /* -- [DIR]24. dir_render: P11 green background marks the last committed selection -- */
         /* Layer 1 (bottom): P11 green — last committed selection */
         if (bLastSel == ST_TRUE)
         {
@@ -957,6 +961,7 @@ static void dir_render(dir_view_t *ptView)
                                &g_dir_clrLastSel);
         }
 
+        /* -- [DIR]25. dir_render: P14 purple background marks multi-selected files -- */
         /* Layer 2 (middle): P14 purple — multi-selected files */
         if (iRow > 0)
         {
@@ -973,6 +978,7 @@ static void dir_render(dir_view_t *ptView)
             }
         }
 
+        /* -- [DIR]26. dir_render: blue background marks the keyboard cursor selection -- */
         /* Layer 3 (top): blue — keyboard/cursor selection */
         if (bSelected == ST_TRUE)
         {
@@ -988,6 +994,7 @@ static void dir_render(dir_view_t *ptView)
         tRect.fW = (float)(ptView->iWndWidth - 4);
         tRect.fH = (float)ptView->iCellH;
 
+        /* -- [DIR]27. dir_render: rows are drawn as ".." / "[+/-] dir/" / file name -- */
         if (iRow == 0)
         {
             renderer_draw_text(ptView->hRenderer, "..", &tRect,
@@ -1051,6 +1058,7 @@ static void dir_handle_key(dir_view_t  *ptView,
 
     switch (eKey)
     {
+    /* -- [DIR]13. dir_handle_key: UP/DOWN move the cursor selection -- */
     case GUI_KEY_UP:
         if (ptView->iSelectedFlat > -1)
         {
@@ -1106,6 +1114,7 @@ static void dir_handle_key(dir_view_t  *ptView,
         bRedraw = ST_TRUE;
         break;
 
+    /* -- [DIR]14. dir_handle_key: ENTER activates the current selection -- */
     case GUI_KEY_ENTER:
         /* P13: ENTER = action (expand/collapse dir, select file, nav up) */
         dir_activate_sel(ptView, hWnd);
@@ -1119,6 +1128,7 @@ static void dir_handle_key(dir_view_t  *ptView,
             ptNode = ptView->aptFlat[ptView->iSelectedFlat].ptNode;
             if (uiMods & GUI_MOD_CTRL)
             {
+                /* -- [DIR]16. dir_handle_key: CTRL+SPACE toggles multi-selection on files (P14/P60) -- */
                 /* P14: CTRL+SPACE = toggle multi-selection (files only).
                  * P60: starting multi-sel clears single selection first. */
                 if (!ptNode->bIsDir)
@@ -1137,6 +1147,7 @@ static void dir_handle_key(dir_view_t  *ptView,
             }
             else
             {
+                /* -- [DIR]15. dir_handle_key: SPACE selects and clears multi-selection (P13/P60) -- */
                 /* P13: SPACE = pure selection — update szSelected, no expand.
                  * P60: clear multi-selection before setting single select. */
                 if (ptView->iMultiSelCount > 0)
@@ -1164,6 +1175,7 @@ static void dir_handle_key(dir_view_t  *ptView,
     case GUI_KEY_LEFT:
         if (uiMods & GUI_MOD_ALT)
         {
+            /* -- [DIR]18. dir_handle_key: ALT+LEFT/RIGHT navigate the history stack (P10) -- */
             /* P10: ALT+← = navigate history back */
             if (ptView->iNavHistHead > 0)
             {
@@ -1178,6 +1190,7 @@ static void dir_handle_key(dir_view_t  *ptView,
         }
         else
         {
+            /* -- [DIR]17. dir_handle_key: LEFT/RIGHT collapse/expand the selected directory (P12) -- */
             /* P12: collapse expanded directory */
             if (ptView->iSelectedFlat >= 0)
             {
@@ -1235,11 +1248,13 @@ static void dir_handle_key(dir_view_t  *ptView,
         }
         break;
 
+    /* -- [DIR]19. dir_handle_key: ESCAPE requests a non-blocking window close (P9) -- */
     case GUI_KEY_ESCAPE:
         /* P9: ESC closes the view non-blocking from the window thread */
         gui_request_close(hWnd);
         break;
 
+    /* -- [DIR]20. dir_handle_key: F5 refreshes the tree preserving expansion (P22) -- */
     case GUI_KEY_F5:
         /* P22: F5 = refresh while preserving current expansion state */
         dir_refresh_tree(ptView);
@@ -1254,6 +1269,7 @@ static void dir_handle_key(dir_view_t  *ptView,
                  ptView->szRootPath, ptView->iFlatCount);
         break;
 
+    /* -- [DIR]21. dir_handle_key: 'H'/'h' toggles hidden-file visibility (P21) -- */
     default:
         /* P21: 'H'/'h' toggles hidden file visibility */
         if (eKey >= GUI_KEY_PRINTABLE)
@@ -1293,6 +1309,7 @@ static void dir_handle_click(dir_view_t  *ptView,
     int               iClickRow;
     dir_flat_entry_t *ptEntry;
 
+    /* -- [DIR]22. dir_handle_click: left-click selects a row and expands directories -- */
     ST_UNUSED(iX);
 
     if (ptView->iCellH <= 0) return;
@@ -1336,6 +1353,7 @@ static void dir_handle_scroll(dir_view_t  *ptView,
     iMaxScroll = iTotalRows - iVisRows;
     if (iMaxScroll < 0) iMaxScroll = 0;
 
+    /* -- [DIR]23. dir_handle_scroll: mouse wheel adjusts iScrollOffset within bounds -- */
     /* iDelta > 0 = scroll up (towards beginning), < 0 = scroll down */
     ptView->iScrollOffset -= iDelta;
 
@@ -1438,9 +1456,10 @@ st_error_t dir_open(const char     *szPath,
     const char    *szRoot;
 
     LOG_TRACE("szPath=%p bIsLineRunning=%d bShowHidden=%d pptView=%p",
-              (void *)szPath, (int)bIsLineRunning, 
+              (void *)szPath, (int)bIsLineRunning,
               (int)bShowHidden, (void *)pptView);
 
+    /* -- [DIR]1. dir_open rejects NULL pptView -- */
     if (pptView == NULL)
     {
         LOG_ERROR("NULL parameter: pptView=%p", (void *)pptView);
@@ -1449,13 +1468,15 @@ st_error_t dir_open(const char     *szPath,
 
     *pptView = NULL;
 
+    /* -- [DIR]2. dir_open requires an initialized line context (bIsLineRunning) -- */
     if (!bIsLineRunning)
     {
         LOG_ERROR("Line context not initialized - call line_init() first");
         return ST_ERROR;
     }
 
-    
+
+    /* -- [DIR]3. dir_open resolves the root path to cwd when szPath is empty -- */
     /* Resolve root path */
     if (szPath == NULL || szPath[0] == '\0')
     {
@@ -1518,6 +1539,7 @@ st_error_t dir_open(const char     *szPath,
     ptView->ptRoot->bExpanded = ST_TRUE;
     ptView->ptRoot->iDepth    = -1;
 
+    /* -- [DIR]4. dir_open loads the root's children honoring bShowHidden -- */
     eResult = dir_node_load_children(ptView->ptRoot, ptView->bShowHidden);
     if (eResult != ST_NO_ERROR)
     {
@@ -1529,6 +1551,7 @@ st_error_t dir_open(const char     *szPath,
 
     dir_flat_rebuild(ptView);
 
+    /* -- [DIR]5. dir_open opens the GUI window and returns the populated view -- */
     /* Open window (blocks until HWND is live, per UC3.1 contract) */
     snprintf(szTitle, sizeof(szTitle),
              "ST4Ever - Dir: %s", szRoot);
@@ -1559,6 +1582,7 @@ st_error_t dir_close(dir_view_t **pptView)
 
     LOG_TRACE("pptView=%p", (void *)pptView);
 
+    /* -- [DIR]6. dir_close rejects NULL pptView -- */
     if (pptView == NULL)
     {
         LOG_ERROR("pptView is NULL");
@@ -1568,11 +1592,13 @@ st_error_t dir_close(dir_view_t **pptView)
     ptView   = *pptView;
     *pptView = NULL;
 
+    /* -- [DIR]7. dir_close is idempotent when *pptView is already NULL -- */
     if (ptView == NULL)
     {
         return ST_NO_ERROR; /* idempotent */
     }
 
+    /* -- [DIR]8. dir_close releases the window, tree and flat list -- */
     /* Close window: posts WM_CLOSE then joins the thread.
      * GUI_EVT_CLOSE callback (window thread) destroys the renderer
      * before the thread exits. */

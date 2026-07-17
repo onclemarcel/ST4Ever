@@ -548,6 +548,34 @@ UC_SCRIPT_CLOSE(pF);
 - R24/R25 (forcer un champ → appeler → vérifier → restaurer) : test ciblé d'une fonction/module isolé, le plus rapide à écrire — reste la technique par défaut.
 - R26 : le test porte spécifiquement sur le chemin de dispatch console lui-même (`line_parse_cmd`/`line_dispatch`/`line_cmd_xxx`) et l'état intermédiaire entre commandes est significatif. Remplace les anciens groupes `[S]` Skipped/`TEST_MANUAL` de dispatch de commande hérités de l'ère R23 (voir Group 5 pré-Test-Strategy-Change-12 de `use_case_02.c`, aujourd'hui disparu).
 
+**R27 — Stratégie de test « D2D spy » : remplacer les vérifications GUI manuelles `[S]` par une capture automatisée des appels de rendu** *(établie 2026-07-17, appliquée à `use_case_03.c`)*
+
+Contexte : jusqu'à présent, une assertion portant sur le contenu *visuel* réellement dessiné dans une fenêtre D2D (texte affiché, rectangle rempli, couleur, position) ne pouvait être vérifiée qu'à l'œil via `TEST_MANUAL`/`[S]` (R16) — `make tests` ne pouvait constater que l'appel `renderer_draw_text()` etc. avait été fait sans savoir avec quels paramètres. R27 ferme cet écart pour le backend Windows en interceptant chaque primitive `renderer_platform_*` juste avant l'appel D2D réel et en enregistrant ses paramètres dans un ring buffer inspectable depuis `use_case_NN.c`.
+
+**Principe** : `win_d2d_ctx_t` porte un tableau `pD2DSpies[WIN_D2D_SPY_MAX_ENTRIES]` (`win.h`) rempli par des helpers statiques `win_D2D_spy_clear/fill_rectangle/draw_rectangle/draw_line/draw_text()` (`win_D2D.c`), appelés uniquement quand `ptCtx->bActiveSpies` est vrai — donc sans coût en exécution normale. Chaque entrée est une structure typée (`win_D2D_spy_draw_text_t`, `..._clear_t`, `..._fill_rectangle_t`, `..._draw_rectangle_t`, `..._draw_line_t`) taguée avec un magic + `st_object_t` (même convention `CHECK_OBJ`/`UC_CHECK_OBJ` que le reste du projet), copiant exactement les paramètres reçus par la primitive `renderer_platform_*` correspondante (rect, couleur, police, alignement, épaisseur de trait…).
+
+**API de test (`win.h`)** :
+- `win_D2D_spy_reset(ptD2D)` — vide le ring buffer et remet `uiSpiesCount` à 0. À appeler juste avant le `gui_invalidate()`/repaint sous test, pour ne capturer que les appels de cette passe.
+- `win_D2D_get_spy(iIndex, ptD2D, type)` — retourne l'entrée à `iIndex` si son `st_object_t` correspond à `type`, sinon `NULL`. `iIndex == -1` : recherche la dernière entrée du buffer qui correspond au `type` demandé (utile pour retrouver, par ex., le dernier `DrawText` d'une passe de rendu qui a dessiné plusieurs éléments).
+
+**Séquence de test type** (voir `use_case_03.c` groupe `[SPY]`) :
+```c
+win_D2D_spy_reset(ptD2D);
+gui_invalidate(hWnd);
+platform_sleep_ms(100);  /* laisser la fenêtre repeindre complètement */
+
+const win_D2D_spy_draw_text_t *ptTxtSpy =
+    (win_D2D_spy_draw_text_t *)win_D2D_get_spy(-1, ptD2D, ST_WIN_D2D_SPY_DT);
+UC_TEST("[N] (TC-RND-063) Spied text is \"ST4Ever UC3\"",
+        ptTxtSpy != NULL && wcsstr(ptTxtSpy->wcText, L"ST4Ever UC3") != NULL);
+```
+
+**Portée et limites** :
+- Spécifique au backend Windows (`win_D2D.c`) — un backend X11 Linux futur devra implémenter son propre mécanisme de spy équivalent (même principe : capturer juste avant l'appel graphique réel, sous un flag actif uniquement en test) pour bénéficier de la même stratégie côté Linux.
+- Ne remplace pas `make manual` pour tout ce qui reste irréductiblement visuel (rendu de police, anti-aliasing, ergonomie perçue) — R27 couvre les *paramètres* envoyés au backend, pas le rendu pixel final.
+- Ne dispense pas de vérifier que la fenêtre s'est bien ouverte et a bien reçu l'événement `GUI_EVT_PAINT` (toujours via l'API `gui_*` publique) avant d'inspecter les spies.
+
+**Règle d'application pour les `use_case_NN.c` futurs** : quand un groupe de tests existant est étiqueté `[S]`/`TEST_MANUAL` uniquement parce qu'il vérifie un rendu D2D (texte/rect/ligne/couleur/position), migrer vers `[N]`/`[R]` avec la stratégie D2D spy plutôt que de le laisser en validation manuelle — suivre la procédure de migration R25 (identifier les fonctions testées, tagger la source `[SPY]N`/`[D2D]N`, réécrire le test avec `Code Coverage:`/tag inline/`INTENT`). Rester en `TEST_MANUAL` uniquement pour ce que R27 ne peut pas couvrir (cf. limites ci-dessus).
 
 ## 6. Use Cases
 
@@ -1762,34 +1790,21 @@ Avis Claude : **REFUSÉ** (dans les deux sens — `st_machine_context_t*` dans `
 
 ---
 
-**R27 — Stratégie de test « D2D spy » : remplacer les vérifications GUI manuelles `[S]` par une capture automatisée des appels de rendu** *(établie 2026-07-17, appliquée à `use_case_03.c`)*
+### Arbitrage — remarque session use_case_04.c / dir.c (2026-07-17)
 
-Contexte : jusqu'à présent, une assertion portant sur le contenu *visuel* réellement dessiné dans une fenêtre D2D (texte affiché, rectangle rempli, couleur, position) ne pouvait être vérifiée qu'à l'œil via `TEST_MANUAL`/`[S]` (R16) — `make tests` ne pouvait constater que l'appel `renderer_draw_text()` etc. avait été fait sans savoir avec quels paramètres. R27 ferme cet écart pour le backend Windows en interceptant chaque primitive `renderer_platform_*` juste avant l'appel D2D réel et en enregistrant ses paramètres dans un ring buffer inspectable depuis `use_case_NN.c`.
+**P69 — Plusieurs vues `dir` concurrentes + sélection par-fenêtre (prérequis futur Drag-and-Drop)** → **ACCEPTÉ DIFFÉRÉ — UC30H**
 
-**Principe** : `win_d2d_ctx_t` porte un tableau `pD2DSpies[WIN_D2D_SPY_MAX_ENTRIES]` (`win.h`) rempli par des helpers statiques `win_D2D_spy_clear/fill_rectangle/draw_rectangle/draw_line/draw_text()` (`win_D2D.c`), appelés uniquement quand `ptCtx->bActiveSpies` est vrai — donc sans coût en exécution normale. Chaque entrée est une structure typée (`win_D2D_spy_draw_text_t`, `..._clear_t`, `..._fill_rectangle_t`, `..._draw_rectangle_t`, `..._draw_line_t`) taguée avec un magic + `st_object_t` (même convention `CHECK_OBJ`/`UC_CHECK_OBJ` que le reste du projet), copiant exactement les paramètres reçus par la primitive `renderer_platform_*` correspondante (rect, couleur, police, alignement, épaisseur de trait…).
+Question posée par Tonton Marcel pendant la migration de `use_case_04.c` (R23-R27) : `line_cmd_dir()` ferme systématiquement la vue `dir` précédente (`g_line_ptCtx.ptDirView`, cf. `[LINE]19`) avant d'en ouvrir une nouvelle — deux commandes `dir` consécutives ne peuvent donc jamais laisser deux fenêtres ouvertes en même temps. Cela semble contre-intuitif pour un futur Drag-and-Drop entre deux répertoires affichés côte à côte, ou simplement pour comparer deux dossiers visuellement.
 
-**API de test (`win.h`)** :
-- `win_D2D_spy_reset(ptD2D)` — vide le ring buffer et remet `uiSpiesCount` à 0. À appeler juste avant le `gui_invalidate()`/repaint sous test, pour ne capturer que les appels de cette passe.
-- `win_D2D_get_spy(iIndex, ptD2D, type)` — retourne l'entrée à `iIndex` si son `st_object_t` correspond à `type`, sinon `NULL`. `iIndex == -1` : recherche la dernière entrée du buffer qui correspond au `type` demandé (utile pour retrouver, par ex., le dernier `DrawText` d'une passe de rendu qui a dessiné plusieurs éléments).
+Analyse Claude : chaque `dir_open()` construit une `dir_view_t` totalement indépendante (thread, arbre `dir_node_t`, renderer propres) — ouvrir plusieurs fenêtres `dir` en parallèle n'est pas un problème de sécurité mémoire. `gui_invalidate()` ne fait que repeindre l'arbre déjà en mémoire de la vue concernée (pas de re-scan disque à chaque repaint), donc pas de race entre deux fenêtres sur le même dossier — seulement un risque de péremption visuelle si le contenu disque change sous les pieds d'une vue non rafraîchie (déjà vrai aujourd'hui avec une seule fenêtre face au vrai système de fichiers, pas aggravé par le multi-fenêtres). Les deux vrais points durs identifiés sont :
+1. `line_context_t.ptDirView` est un pointeur unique, pas une liste — `line_cmd_dir()` n'a nulle part où ranger une deuxième vue sans évolution de structure (tableau, ou abandon du champ dédié au profit d'une recherche dans `gui_context_t.aptWnd[]` par type `GUI_WND_DIR`, cf. `gui_find_window_by_type()` déjà existant).
+2. `szSelected` est un slot unique partagé (`line_set_selected()`/`line_get_selected()`) — ENTER/SPACE dans la fenêtre A et la fenêtre B écrasent la même valeur. Correct pour la sémantique actuelle ("dernière sélection gagne"), mais insuffisant pour un Drag-and-Drop qui doit distinguer la sélection source (fenêtre A) de la fenêtre cible du dépôt (fenêtre B).
 
-**Séquence de test type** (voir `use_case_03.c` groupe `[SPY]`) :
-```c
-win_D2D_spy_reset(ptD2D);
-gui_invalidate(hWnd);
-platform_sleep_ms(100);  /* laisser la fenêtre repeindre complètement */
+Avis Claude : **ACCEPTÉ DIFFÉRÉ** — ne pas modifier le comportement de fermeture systématique de `[LINE]19` maintenant. Construire la plomberie multi-fenêtres/sélection-par-fenêtre sans consommateur concret (le Drag-and-Drop lui-même n'est pas encore planifié) risque de figer la mauvaise forme d'API avant de connaître le vrai besoin. Regroupé avec les autres corrections différées de la campagne R25 : traité dans **UC30H**, ou directement dans l'UC qui implémentera le Drag-and-Drop si celui-ci est planifié avant UC30H.
 
-const win_D2D_spy_draw_text_t *ptTxtSpy =
-    (win_D2D_spy_draw_text_t *)win_D2D_get_spy(-1, ptD2D, ST_WIN_D2D_SPY_DT);
-UC_TEST("[N] (TC-RND-063) Spied text is \"ST4Ever UC3\"",
-        ptTxtSpy != NULL && wcsstr(ptTxtSpy->wcText, L"ST4Ever UC3") != NULL);
-```
-
-**Portée et limites** :
-- Spécifique au backend Windows (`win_D2D.c`) — un backend X11 Linux futur devra implémenter son propre mécanisme de spy équivalent (même principe : capturer juste avant l'appel graphique réel, sous un flag actif uniquement en test) pour bénéficier de la même stratégie côté Linux.
-- Ne remplace pas `make manual` pour tout ce qui reste irréductiblement visuel (rendu de police, anti-aliasing, ergonomie perçue) — R27 couvre les *paramètres* envoyés au backend, pas le rendu pixel final.
-- Ne dispense pas de vérifier que la fenêtre s'est bien ouverte et a bien reçu l'événement `GUI_EVT_PAINT` (toujours via l'API `gui_*` publique) avant d'inspecter les spies.
-
-**Règle d'application pour les `use_case_NN.c` futurs** : quand un groupe de tests existant est étiqueté `[S]`/`TEST_MANUAL` uniquement parce qu'il vérifie un rendu D2D (texte/rect/ligne/couleur/position), migrer vers `[N]`/`[R]` avec la stratégie D2D spy plutôt que de le laisser en validation manuelle — suivre la procédure de migration R25 (identifier les fonctions testées, tagger la source `[SPY]N`/`[D2D]N`, réécrire le test avec `Code Coverage:`/tag inline/`INTENT`). Rester en `TEST_MANUAL` uniquement pour ce que R27 ne peut pas couvrir (cf. limites ci-dessus).
+| Proposition | Décision | UC cible |
+|-------------|----------|----------|
+| P69 (dir multi-fenêtres + sélection par-fenêtre, prérequis Drag-and-Drop) | ACCEPTÉ DIFFÉRÉ | UC30H |
 
 ---
 

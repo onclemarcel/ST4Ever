@@ -1,0 +1,4 @@
+# UC4 Group 3 dir dispatch
+dir --select use_cases/UC04_1/testdata/visible.txt
+dir use_cases/UC04_1/testdata
+dir -a use_cases/UC04_1/testdata

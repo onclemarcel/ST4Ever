@@ -62,8 +62,8 @@ static ST4Ever_context_t *ptCtx;
  *              other use_case_*.c
  *
  *   line.c:
- *   -- [LINE]8. 'trace' with no option toggle the GUI status --
- *   -- [LINE]9. 'trace' with option does not toggle the GUI --
+ *   -- [LINE]9. 'trace' with no option toggle the GUI status --
+ *   -- [LINE]10. 'trace' with option does not toggle the GUI --
  *
  * Parameters:
  *   None
@@ -82,8 +82,8 @@ static void uc02_test_trace_toggle(void)
 
     ptLineCtx->bQuiet = ST_TRUE;    // Do not show console messages during test
 
-    /* -- [LINE]8. 'trace' with no option toggle the GUI status -- */
-	/* -- [LINE]9. 'trace' with option does not toggle the GUI -- */
+    /* -- [LINE]9. 'trace' with no option toggle the GUI status -- */
+	/* -- [LINE]10. 'trace' with option does not toggle the GUI -- */
 	/* INTENT[INT-TRC-009 → TC-TRC-026...033 → REQ-xxx-yyy → UFR-xxx-yyy]:
      * Starting from an open trace console at start of application, 'trace'
 	 * toggles open GUI to close, 'trace' with option does not re-open it,
