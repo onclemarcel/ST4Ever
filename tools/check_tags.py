@@ -39,10 +39,10 @@ This script performs 9 checks (see CLAUDE.md R24):
       description shares little vocabulary with the tag(s) it
       follows - flagged for manual review.
   [6] Coverage report per module and per use_case file. Only
-      use_case_00.c, use_case_01.c and use_case_02.c currently apply
-      the full R24 strategy (Code Coverage header + inline tag +
-      INTENT linking); other use_case_*.c files are reported
-      informationally.
+      use_case_00.c, use_case_01.c, use_case_02.c and use_case_03.c
+      currently apply the full R24 strategy (Code Coverage header +
+      inline tag + INTENT linking); other use_case_*.c files are
+      reported informationally.
   [7] Informational: static functions in src/win/linux with no
       preceding docstring comment (CLAUDE.md 4.6/4.7 expects one).
   [8] Informational: functions (static or public) whose body has
@@ -1025,9 +1025,9 @@ def check6_coverage_report(source_tags, uc_tag_index, functions_by_file,
 
     out.append('')
     out.append('  NOTE: per CLAUDE.md R24/R25, only use_case_00.c,'
-                ' use_case_01.c and use_case_02.c currently implement')
-    out.append('        the full tag traceability strategy (Code Coverage'
-                ' header + inline tag + INTENT linking).')
+                ' use_case_01.c, use_case_02.c and use_case_03.c currently')
+    out.append('        implement the full tag traceability strategy (Code'
+                ' Coverage header + inline tag + INTENT linking).')
     out.append('        Other use_case_*.c files are scanned for inline'
                 ' tag reuse only, informationally.')
 
@@ -1060,10 +1060,11 @@ def main():
                          help='Also print OK entries, not just issues')
     parser.add_argument('--strategy-files', nargs='+',
                          default=['use_case_00.c', 'use_case_01.c',
-                                  'use_case_02.c'],
+                                  'use_case_02.c', 'use_case_03.c'],
                          help='use_case_*.c basenames considered to fully'
                               ' apply the R24 strategy (default:'
-                              ' use_case_00.c use_case_01.c use_case_02.c)')
+                              ' use_case_00.c use_case_01.c use_case_02.c'
+                              ' use_case_03.c)')
     args = parser.parse_args()
 
     src_files = gather_source_files(args.src)

@@ -1762,6 +1762,37 @@ Avis Claude : **REFUSÉ** (dans les deux sens — `st_machine_context_t*` dans `
 
 ---
 
+**R27 — Stratégie de test « D2D spy » : remplacer les vérifications GUI manuelles `[S]` par une capture automatisée des appels de rendu** *(établie 2026-07-17, appliquée à `use_case_03.c`)*
+
+Contexte : jusqu'à présent, une assertion portant sur le contenu *visuel* réellement dessiné dans une fenêtre D2D (texte affiché, rectangle rempli, couleur, position) ne pouvait être vérifiée qu'à l'œil via `TEST_MANUAL`/`[S]` (R16) — `make tests` ne pouvait constater que l'appel `renderer_draw_text()` etc. avait été fait sans savoir avec quels paramètres. R27 ferme cet écart pour le backend Windows en interceptant chaque primitive `renderer_platform_*` juste avant l'appel D2D réel et en enregistrant ses paramètres dans un ring buffer inspectable depuis `use_case_NN.c`.
+
+**Principe** : `win_d2d_ctx_t` porte un tableau `pD2DSpies[WIN_D2D_SPY_MAX_ENTRIES]` (`win.h`) rempli par des helpers statiques `win_D2D_spy_clear/fill_rectangle/draw_rectangle/draw_line/draw_text()` (`win_D2D.c`), appelés uniquement quand `ptCtx->bActiveSpies` est vrai — donc sans coût en exécution normale. Chaque entrée est une structure typée (`win_D2D_spy_draw_text_t`, `..._clear_t`, `..._fill_rectangle_t`, `..._draw_rectangle_t`, `..._draw_line_t`) taguée avec un magic + `st_object_t` (même convention `CHECK_OBJ`/`UC_CHECK_OBJ` que le reste du projet), copiant exactement les paramètres reçus par la primitive `renderer_platform_*` correspondante (rect, couleur, police, alignement, épaisseur de trait…).
+
+**API de test (`win.h`)** :
+- `win_D2D_spy_reset(ptD2D)` — vide le ring buffer et remet `uiSpiesCount` à 0. À appeler juste avant le `gui_invalidate()`/repaint sous test, pour ne capturer que les appels de cette passe.
+- `win_D2D_get_spy(iIndex, ptD2D, type)` — retourne l'entrée à `iIndex` si son `st_object_t` correspond à `type`, sinon `NULL`. `iIndex == -1` : recherche la dernière entrée du buffer qui correspond au `type` demandé (utile pour retrouver, par ex., le dernier `DrawText` d'une passe de rendu qui a dessiné plusieurs éléments).
+
+**Séquence de test type** (voir `use_case_03.c` groupe `[SPY]`) :
+```c
+win_D2D_spy_reset(ptD2D);
+gui_invalidate(hWnd);
+platform_sleep_ms(100);  /* laisser la fenêtre repeindre complètement */
+
+const win_D2D_spy_draw_text_t *ptTxtSpy =
+    (win_D2D_spy_draw_text_t *)win_D2D_get_spy(-1, ptD2D, ST_WIN_D2D_SPY_DT);
+UC_TEST("[N] (TC-RND-063) Spied text is \"ST4Ever UC3\"",
+        ptTxtSpy != NULL && wcsstr(ptTxtSpy->wcText, L"ST4Ever UC3") != NULL);
+```
+
+**Portée et limites** :
+- Spécifique au backend Windows (`win_D2D.c`) — un backend X11 Linux futur devra implémenter son propre mécanisme de spy équivalent (même principe : capturer juste avant l'appel graphique réel, sous un flag actif uniquement en test) pour bénéficier de la même stratégie côté Linux.
+- Ne remplace pas `make manual` pour tout ce qui reste irréductiblement visuel (rendu de police, anti-aliasing, ergonomie perçue) — R27 couvre les *paramètres* envoyés au backend, pas le rendu pixel final.
+- Ne dispense pas de vérifier que la fenêtre s'est bien ouverte et a bien reçu l'événement `GUI_EVT_PAINT` (toujours via l'API `gui_*` publique) avant d'inspecter les spies.
+
+**Règle d'application pour les `use_case_NN.c` futurs** : quand un groupe de tests existant est étiqueté `[S]`/`TEST_MANUAL` uniquement parce qu'il vérifie un rendu D2D (texte/rect/ligne/couleur/position), migrer vers `[N]`/`[R]` avec la stratégie D2D spy plutôt que de le laisser en validation manuelle — suivre la procédure de migration R25 (identifier les fonctions testées, tagger la source `[SPY]N`/`[D2D]N`, réécrire le test avec `Code Coverage:`/tag inline/`INTENT`). Rester en `TEST_MANUAL` uniquement pour ce que R27 ne peut pas couvrir (cf. limites ci-dessus).
+
+---
+
 ## 8. NOTES à propos de l'extension : ST Revival sur Pi Zero Bare Metal
 
 ### 8.1 Vision et objectif

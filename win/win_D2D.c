@@ -46,8 +46,14 @@
 /* ------------------------------------------------------------------
  * Test-only spy capture (R26) - see win.h for the public API.
  * ------------------------------------------------------------------ */
+/*
+ * win_D2D_spy_reset() - Clear the spy ring buffer (see win.h).
+ */
 st_error_t win_D2D_spy_reset(win_d2d_ctx_t *ptCtx)
 {
+    // No LOG_TRACE - R22: test-only spy accessor invoked before every
+    // capture pass in use_case_*.c; tracing it would flood the log
+    // during test runs without adding diagnostic value.
     /* -- [SPY]1. Resets the spies pointers and counter -- */
     for (int i = 0; i < WIN_D2D_SPY_MAX_ENTRIES; i++)
     {
@@ -63,9 +69,17 @@ st_error_t win_D2D_spy_reset(win_d2d_ctx_t *ptCtx)
     return ST_NO_ERROR;
 }
 
+/*
+ * win_D2D_spy_add() - Append an already-allocated spy entry to the
+ *                     ring buffer (see win.h), or count it as dropped
+ *                     once the buffer is full.
+ */
 static void win_D2D_spy_add(void          *data,
                             win_d2d_ctx_t *ptCtx)
 {
+    // No LOG_TRACE - R22: internal helper invoked once per captured
+    // draw primitive - same tight-loop category as the draw calls it
+    // records.
     /* -- [SPY]3. Stops logging spy entries when limit is reached -- */
     if (ptCtx->uiSpiesCount >= WIN_D2D_SPY_MAX_ENTRIES)
     {
@@ -78,6 +92,11 @@ static void win_D2D_spy_add(void          *data,
     ptCtx->uiSpiesCount++;
 }
 
+/*
+ * win_D2D_spy_draw_text() - Capture the parameters of one
+ *                           renderer_platform_draw_text() call into a
+ *                           new win_D2D_spy_draw_text_t entry (R27).
+ */
 static void win_D2D_spy_draw_text(win_d2d_ctx_t          *ptCtx,
                                   const WCHAR            *wcText,
                                   UINT32                  uiLen,
@@ -86,6 +105,9 @@ static void win_D2D_spy_draw_text(win_d2d_ctx_t          *ptCtx,
                                   D2D1_DRAW_TEXT_OPTIONS  eTextOpts,
                                   DWRITE_MEASURING_MODE   eMeasureMode)
 {
+    // No LOG_TRACE - R22: spy capture invoked on every
+    // renderer_platform_draw_text() call - same tight-loop category
+    // as the primitive it records.
     win_D2D_spy_draw_text_t *ptEntry;
     DWRITE_TEXT_ALIGNMENT eAlign = IDWriteTextFormat_GetTextAlignment(pFmt);
     D2D1_COLOR_F          tColor = ptCtx->tColor;
@@ -160,11 +182,19 @@ static void win_D2D_spy_draw_text(win_d2d_ctx_t          *ptCtx,
     win_D2D_spy_add((void*)ptEntry, ptCtx);
 }
 
+/*
+ * win_D2D_spy_clear() - Capture the parameters of one
+ *                       renderer_platform_begin_draw() Clear() call
+ *                       into a new win_D2D_spy_clear_t entry (R27).
+ */
 static void win_D2D_spy_clear(win_d2d_ctx_t  *ptCtx,
                          D2D1_COLOR_F    tColor)
 {
+    // No LOG_TRACE - R22: spy capture invoked on every
+    // renderer_platform_begin_draw() call - same tight-loop category
+    // as the primitive it records.
     win_D2D_spy_clear_t *ptEntry;
-    
+
     /* -- [SPY]9. Create a new spy of type ST_WIN_D2D_SPY_CLR -- */
     ptEntry = (win_D2D_spy_clear_t *)calloc(1, sizeof(win_D2D_spy_clear_t));
     ptEntry->ulMagic = 0xCAFEDECA;
@@ -179,9 +209,19 @@ static void win_D2D_spy_clear(win_d2d_ctx_t  *ptCtx,
     win_D2D_spy_add((void*)ptEntry, ptCtx);
 }
 
+/*
+ * win_D2D_spy_fill_rectangle() - Capture the parameters of one
+ *                                renderer_platform_fill_rect() call
+ *                                into a new
+ *                                win_D2D_spy_fill_rectangle_t entry
+ *                                (R27).
+ */
 static void win_D2D_spy_fill_rectangle(win_d2d_ctx_t     *ptCtx,
                                        const D2D1_RECT_F  tRect)
 {
+    // No LOG_TRACE - R22: spy capture invoked on every
+    // renderer_platform_fill_rect() call - same tight-loop category
+    // as the primitive it records.
     win_D2D_spy_fill_rectangle_t *ptEntry;
     D2D1_COLOR_F         tColor = ptCtx->tColor;
     
@@ -205,10 +245,20 @@ static void win_D2D_spy_fill_rectangle(win_d2d_ctx_t     *ptCtx,
     win_D2D_spy_add((void*)ptEntry, ptCtx);
 }
 
+/*
+ * win_D2D_spy_draw_rectangle() - Capture the parameters of one
+ *                                renderer_platform_draw_rect() call
+ *                                into a new
+ *                                win_D2D_spy_draw_rectangle_t entry
+ *                                (R27).
+ */
 static void win_D2D_spy_draw_rectangle(win_d2d_ctx_t     *ptCtx,
                                        const D2D1_RECT_F  tRect,
                                        float              fStroke)
 {
+    // No LOG_TRACE - R22: spy capture invoked on every
+    // renderer_platform_draw_rect() call - same tight-loop category
+    // as the primitive it records.
     win_D2D_spy_draw_rectangle_t *ptEntry;
     D2D1_COLOR_F         tColor = ptCtx->tColor;
     
@@ -235,11 +285,19 @@ static void win_D2D_spy_draw_rectangle(win_d2d_ctx_t     *ptCtx,
     win_D2D_spy_add((void*)ptEntry, ptCtx);
 }
 
+/*
+ * win_D2D_spy_draw_line() - Capture the parameters of one
+ *                           renderer_platform_draw_line() call into a
+ *                           new win_D2D_spy_draw_line_t entry (R27).
+ */
 static void win_D2D_spy_draw_line(win_d2d_ctx_t      *ptCtx,
                                   const D2D1_POINT_2F tP0,
                                   const D2D1_POINT_2F tP1,
                                   float               fStroke)
 {
+    // No LOG_TRACE - R22: spy capture invoked on every
+    // renderer_platform_draw_line() call - same tight-loop category
+    // as the primitive it records.
     win_D2D_spy_draw_line_t *ptEntry;
     D2D1_COLOR_F    tColor = ptCtx->tColor;
     
@@ -266,12 +324,18 @@ static void win_D2D_spy_draw_line(win_d2d_ctx_t      *ptCtx,
     win_D2D_spy_add((void*)ptEntry, ptCtx);
 }
 
+/*
+ * win_D2D_get_spy() - Retrieve a captured spy entry by index and type
+ *                     (see win.h).
+ */
 const void *win_D2D_get_spy(int iIndex,
                             win_d2d_ctx_t  *ptCtx,
                             st_object_t     type)
 {
     st_bool_t bOK;
 
+    // No LOG_TRACE - R22: query function, called repeatedly by
+    // use_case_*.c assertions.
     /* -- [SPY]6. Return NULL for index out of expected range -- */
     if (iIndex < -1 || iIndex >= ptCtx->uiSpiesCount
                     ||  iIndex >= WIN_D2D_SPY_MAX_ENTRIES)
@@ -321,6 +385,8 @@ const void *win_D2D_get_spy(int iIndex,
 static void win_d2d_set_color(win_d2d_ctx_t          *ptD2D,
                                 const renderer_color_t *ptColor)
 {
+    // No LOG_TRACE - R22: called on every draw primitive (fill/draw
+    // rect/line/text) - same tight-loop category as its callers.
     D2D1_COLOR_F tC;
 
     tC.r = ptColor->r;
@@ -336,6 +402,8 @@ static void win_d2d_set_color(win_d2d_ctx_t          *ptD2D,
  */
 static D2D1_RECT_F win_d2d_make_rect(const renderer_rect_t *ptRect)
 {
+    // No LOG_TRACE - R22: pure coordinate-conversion helper with no
+    // side effect, called on every draw primitive.
     D2D1_RECT_F tR;
 
     tR.left   = ptRect->fX;
@@ -355,6 +423,9 @@ static void win_d2d_measure_mono(win_d2d_ctx_t *ptD2D)
     DWRITE_TEXT_METRICS  tM;
     WCHAR                wM;
     HRESULT              hr;
+
+    /* Lifecycle: called once per renderer_platform_create() */
+    LOG_TRACE("ptD2D=%p", (void *)ptD2D);
 
     wM = L'M';
     hr = IDWriteFactory_CreateTextLayout(ptD2D->pDWFactory,
@@ -390,6 +461,10 @@ static void win_d2d_measure_mono(win_d2d_ctx_t *ptD2D)
  */
 static void win_d2d_cleanup(win_d2d_ctx_t *ptD2D)
 {
+    /* Lifecycle: called once from renderer_platform_destroy() and on
+     * every renderer_platform_create() failure path */
+    LOG_TRACE("ptD2D=%p", (void *)ptD2D);
+
     if (ptD2D == NULL)
     {
         return;
@@ -640,6 +715,9 @@ st_error_t renderer_platform_get_font_metrics(
 {
     win_d2d_ctx_t *ptD2D;
 
+    // No LOG_TRACE - R22 (established table): queried every layout
+    // pass, same tight-loop category as the other renderer_platform_*
+    // draw primitives below.
     if (ptCtx == NULL || piCellW == NULL || piCellH == NULL)
     {
         LOG_ERROR("NULL parameter");
@@ -670,6 +748,9 @@ st_error_t renderer_platform_begin_draw(
     win_d2d_ctx_t *ptD2D;
     D2D1_COLOR_F   tClear;
 
+    // No LOG_TRACE - R22 (established table): called once per
+    // rendered frame, same tight-loop category as the other
+    // renderer_platform_* draw primitives below.
     /* -- [D2D]1. NULL parameter are rejected with ST_ERROR and log message -- */
     if (ptCtx == NULL || ptBgColor == NULL)
     {
@@ -709,6 +790,9 @@ st_error_t renderer_platform_end_draw(struct renderer_s *ptCtx)
     win_d2d_ctx_t *ptD2D;
     HRESULT        hr;
 
+    // No LOG_TRACE - R22 (established table): called once per
+    // rendered frame, same tight-loop category as the other
+    // renderer_platform_* draw primitives.
     /* -- [D2D]4. NULL parameter are rejected with ST_ERROR and log message -- */
     if (ptCtx == NULL)
     {
@@ -743,6 +827,9 @@ st_error_t renderer_platform_fill_rect(
     win_d2d_ctx_t *ptD2D;
     D2D1_RECT_F    tR;
 
+    // No LOG_TRACE - R22 (established table): called once per draw
+    // call inside the paint loop, same tight-loop category as the
+    // other renderer_platform_* draw primitives.
     /* -- [D2D]7. NULL parameter are rejected with ST_ERROR and log message -- */
     if (ptCtx == NULL || ptRect == NULL || ptColor == NULL)
     {
@@ -784,6 +871,9 @@ st_error_t renderer_platform_draw_rect(
     win_d2d_ctx_t *ptD2D;
     D2D1_RECT_F    tR;
 
+    // No LOG_TRACE - R22 (established table): called once per draw
+    // call inside the paint loop, same tight-loop category as the
+    // other renderer_platform_* draw primitives.
     /* -- [D2D]10. NULL parameter are rejected with ST_ERROR and log message -- */
     if (ptCtx == NULL || ptRect == NULL || ptColor == NULL)
     {
@@ -831,6 +921,9 @@ st_error_t renderer_platform_draw_line(
     D2D1_POINT_2F   tP0;
     D2D1_POINT_2F   tP1;
 
+    // No LOG_TRACE - R22 (established table): called once per draw
+    // call inside the paint loop, same tight-loop category as the
+    // other renderer_platform_* draw primitives.
     /* -- [D2D]13. NULL parameter are rejected with ST_ERROR and log message -- */
     if (ptCtx == NULL || ptColor == NULL)
     {
@@ -882,6 +975,9 @@ st_error_t renderer_platform_draw_text(struct renderer_s     *ptCtx,
     D2D1_DRAW_TEXT_OPTIONS eTextOpts = D2D1_DRAW_TEXT_OPTIONS_CLIP;
     DWRITE_MEASURING_MODE  eMeasureMode = DWRITE_MEASURING_MODE_NATURAL;
 
+    // No LOG_TRACE - R22 (established table): called once per draw
+    // call inside the paint loop, same tight-loop category as the
+    // other renderer_platform_* draw primitives.
     /* -- [D2D]16. NULL parameter are rejected with ST_ERROR and log message -- */
     if (ptCtx == NULL || szText == NULL || ptRect == NULL
     ||  ptColor == NULL)
@@ -971,6 +1067,9 @@ st_error_t renderer_platform_draw_bitmap(
     D2D1_RECT_F             tDestR;
     HRESULT                 hr;
 
+    // No LOG_TRACE - R22: called once per rendered frame (screen
+    // emulator refresh, UC27) - same tight-loop category as the other
+    // renderer_platform_* draw primitives above.
     if (ptCtx == NULL || pPixels == NULL || ptDest == NULL
     ||  iSrcW <= 0 || iSrcH <= 0)
     {

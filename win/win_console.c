@@ -186,6 +186,9 @@ static int console_read_byte_timeout_pipe(unsigned char *pByte,
     DWORD dwRead;
     int   iElapsed;
 
+    // No LOG_TRACE - R22: polls every 5 ms in a tight wait loop,
+    // called several times per key (escape sequences) and even with
+    // no key pressed at all.
     iElapsed = 0;
     for (;;)
     {
@@ -219,6 +222,9 @@ static int console_decode_csi(void)
     int           iSeqLen;
     unsigned char ch;
 
+    // No LOG_TRACE - R22: sub-step of the per-key pipe read, called
+    // once per byte of an escape sequence via
+    // console_read_byte_timeout_pipe().
     iSeqLen = 0;
     while (iSeqLen < (int)(sizeof(szSeq) - 1))
     {
@@ -262,6 +268,9 @@ static st_error_t console_read_key_pipe(int *piKey)
     unsigned char byte1;
     unsigned char byte2;
 
+    // No LOG_TRACE - R22: invoked in the 200 ms poll loop of
+    // console_read_key(), would flood the log every timeout tick even
+    // with no key pressed.
     /* Timed read: allows prompt refresh on CON_KEY_TIMEOUT */
     if (console_read_byte_timeout_pipe(&byte1, 200) != 0)
     {
@@ -336,6 +345,8 @@ static st_error_t console_read_key_win32(int *piKey)
     WORD         wVK;
     char         cAscii;
 
+    // No LOG_TRACE - R22: same 200 ms poll loop as
+    // console_read_key_pipe(), cmd.exe path.
     for (;;)
     {
         /* Wait up to 200 ms — returns CON_KEY_TIMEOUT so that
@@ -502,6 +513,9 @@ st_error_t console_restore(void)
 
 st_error_t console_read_key(int *piKey)
 {
+    // No LOG_TRACE - R22: called on every poll cycle of the line
+    // editor's input loop (line_read_rich()), not just on an actual
+    // keypress - would flood the log every 200 ms while idle.
     if (piKey == NULL)
     {
         LOG_ERROR("piKey is NULL");

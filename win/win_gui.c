@@ -52,6 +52,8 @@ static void win_default_size(gui_wnd_type_t eType,
                               int           *piW,
                               int           *piH)
 {
+    // No LOG_TRACE - R22: pure lookup helper, no side effect, invoked
+    // once from win_wnd_thread() which already logs window creation.
     switch (eType)
     {
     case GUI_WND_TRACE:    *piW = 900;  *piH = 500; break;
@@ -75,6 +77,8 @@ static void win_default_size(gui_wnd_type_t eType,
 
 static gui_key_t win_translate_vkey(UINT uVk)
 {
+    // No LOG_TRACE - R22: pure mapping helper called on every
+    // WM_KEYDOWN message.
     switch (uVk)
     {
     case VK_UP:     return GUI_KEY_UP;
@@ -120,6 +124,9 @@ static LRESULT CALLBACK win_wnd_proc(HWND   hWnd,
     struct gui_window_s *ptWnd;
     gui_event_t          tEvt;
 
+    // No LOG_TRACE - R22: Win32 message-pump callback invoked for
+    // every WM_* message (paint/mouse-move included) - same
+    // tight-loop category as the D2D draw primitives.
     ptState = (win_wnd_state_t *)GetWindowLongPtr(hWnd, GWLP_USERDATA);
     ptWnd   = (ptState != NULL) ? ptState->ptWnd : NULL;
 
@@ -369,6 +376,9 @@ static void win_wnd_thread(void *pArg)
     DWORD                dwFgThread;
     DWORD                dwMyThread;
 
+    /* Lifecycle: one call per gui_platform_window_create() */
+    LOG_TRACE("pArg=%p", pArg);
+
     /* COM must be initialised per thread for DirectWrite (UC3.2+) */
     CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
 
@@ -576,6 +586,8 @@ st_error_t gui_platform_window_invalidate(struct gui_window_s *ptWnd)
 {
     win_wnd_state_t *ptState;
 
+    // No LOG_TRACE - R22 (established table): called every repaint
+    // cycle from gui_invalidate().
     if (ptWnd == NULL)
     {
         LOG_ERROR("NULL ptWnd");
@@ -598,6 +610,8 @@ st_error_t gui_platform_window_get_size(struct gui_window_s *ptWnd,
     win_wnd_state_t *ptState;
     RECT             tRect;
 
+    // No LOG_TRACE - R22 (established table): queried on every
+    // GUI_EVT_RESIZE / layout pass.
     if (ptWnd == NULL || piWidth == NULL || piHeight == NULL)
     {
         LOG_ERROR("NULL parameter");
@@ -628,6 +642,9 @@ void *gui_platform_get_native_handle(struct gui_window_s *ptWnd)
 {
     win_wnd_state_t *ptState;
 
+    // No LOG_TRACE - R22 (established table): queried by the D2D
+    // backend on every renderer_platform_create() and by other query
+    // paths, not a user action boundary.
     if (ptWnd == NULL)
     {
         return NULL;
@@ -647,6 +664,8 @@ st_error_t gui_platform_window_set_title(struct gui_window_s *ptWnd,
 {
     win_wnd_state_t *ptState;
 
+    // No LOG_TRACE - R22 (established table): title is refreshed on
+    // every GUI_EVT_PAINT per R18 (status/context in title bar).
     if (ptWnd == NULL || szTitle == NULL)
     {
         LOG_ERROR("NULL parameter");
@@ -680,6 +699,9 @@ st_error_t gui_clipboard_set_text(const char *szText)
     HGLOBAL hGlobal;
     char   *pDst;
     size_t  uiLen;
+
+    /* UX action: once per CTRL+C / copy request from the edit view */
+    LOG_TRACE("szText=%p", (const void *)szText);
 
     if (szText == NULL)
     {
@@ -726,6 +748,9 @@ st_error_t gui_clipboard_get_text(char *szBuf, size_t uiMax)
     HGLOBAL     hGlobal;
     const char *pSrc;
     size_t      uiLen;
+
+    /* UX action: once per CTRL+V / paste request from the edit view */
+    LOG_TRACE("szBuf=%p uiMax=%zu", (void *)szBuf, uiMax);
 
     if (szBuf == NULL || uiMax == 0)
     {

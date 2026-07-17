@@ -25,6 +25,8 @@ st_error_t platform_mutex_create(st_mutex_t **pptMutex)
 {
     CRITICAL_SECTION *pCs;
 
+    // No LOG_TRACE - R22 (established table): mutex primitive, called
+    // from paint/message-pump code paths.
     if (pptMutex == NULL)
     {
         LOG_ERROR("NULL pptMutex");
@@ -55,6 +57,8 @@ st_error_t platform_mutex_create(st_mutex_t **pptMutex)
 
 st_error_t platform_mutex_lock(st_mutex_t *ptMutex)
 {
+    // No LOG_TRACE - R22 (established table): called from the paint
+    // loop and message pump, would flood the log.
     if (ptMutex == NULL || ptMutex->pHandle == NULL)
     {
         LOG_ERROR("NULL ptMutex or pHandle");
@@ -66,6 +70,8 @@ st_error_t platform_mutex_lock(st_mutex_t *ptMutex)
 
 st_error_t platform_mutex_unlock(st_mutex_t *ptMutex)
 {
+    // No LOG_TRACE - R22 (established table): called from the paint
+    // loop and message pump, would flood the log.
     if (ptMutex == NULL || ptMutex->pHandle == NULL)
     {
         LOG_ERROR("NULL ptMutex or pHandle");
@@ -79,6 +85,7 @@ st_error_t platform_mutex_destroy(st_mutex_t **pptMutex)
 {
     CRITICAL_SECTION *pCs;
 
+    // No LOG_TRACE - R22 (established table): mutex primitive.
     if (pptMutex == NULL || *pptMutex == NULL)
     {
         LOG_ERROR("NULL pptMutex or *pptMutex");
@@ -106,10 +113,17 @@ typedef struct
     void         *pArg;
 } win_thread_arg_t;
 
+/*
+ * win_thread_trampoline() - CreateThread() entry point: unwrap the
+ *                           (pfnEntry, pArg) pair and call pfnEntry.
+ */
 static DWORD WINAPI win_thread_trampoline(LPVOID lpParam)
 {
     win_thread_arg_t *ptArg;
 
+    // No LOG_TRACE - R22: internal trampoline that immediately
+    // delegates to pfnEntry(), already traced by
+    // platform_thread_create().
     ptArg = (win_thread_arg_t *)lpParam;
     if (ptArg == NULL) { return 1; }
 
@@ -210,6 +224,8 @@ st_error_t platform_thread_destroy(st_thread_t **pptThread)
 
 void platform_sleep_ms(unsigned int uiMs)
 {
+    // No LOG_TRACE - R22: thin Sleep() wrapper called repeatedly by
+    // poll loops (gui_msg_get spin-wait, console pipe timeout).
     Sleep((DWORD)uiMs);
 }
 
