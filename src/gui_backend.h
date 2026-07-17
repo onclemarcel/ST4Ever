@@ -20,6 +20,12 @@
 #include "common.h"
 #include "renderer.h"
 
+/* Default delay (ms) win_evt_send_*() sleeps after each injected UI
+ * event - long enough for the target window thread to process the
+ * message before the next one is sent. Per-window, tunable via
+ * gui_window_s.uiEventDelayMs to speed up or slow down a test. */
+#define GUI_DEFAULT_EVENT_DELAY_MS 10u
+
 /* ------------------------------------------------------------------
  * Full definition of gui_window_s
  *
@@ -34,7 +40,10 @@ struct gui_window_s
     void           *pPlatform;  /* backend state (win_wnd_state_t etc) */
     st_bool_t       bOpen;      /* ST_FALSE once the window has closed */
     renderer_t      ptRenderer; /* Associated renderer */
-    st_bool_t       bActiveSpies; /* Are spies active for this window  */
+    
+    /* Test-related context variable */
+    st_bool_t     bActiveSpies;   /* Are spies active for this window  */
+    st_u32_t      uiEventDelayMs; /* win_evt_send_*() post-event delay */
 };
 
 /* ------------------------------------------------------------------

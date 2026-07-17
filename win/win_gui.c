@@ -787,4 +787,172 @@ st_error_t gui_clipboard_get_text(char *szBuf, size_t uiMax)
     return ST_NO_ERROR;
 }
 
+/* ------------------------------------------------------------------
+ * Test-only UI event injection (see win.h)
+ * ------------------------------------------------------------------ */
+
+st_error_t win_evt_send_key(struct gui_window_s *ptWnd, int iVk)
+{
+    HWND hNative;
+
+    // No LOG_TRACE - R22: test-only event injector, called repeatedly
+    // by use_case_*.c to drive a real WndProc; tracing it would flood
+    // the log during test runs without adding diagnostic value.
+    if (ptWnd == NULL)
+    {
+        LOG_ERROR("NULL parameter: ptWnd=%p", (void *)ptWnd);
+        return ST_ERROR;
+    }
+
+    hNative = (HWND)gui_platform_get_native_handle(ptWnd);
+    if (hNative == NULL)
+    {
+        LOG_ERROR("gui_platform_get_native_handle failed: ptWnd=%p",
+                  (void *)ptWnd);
+        return ST_ERROR;
+    }
+
+    /* -- [EVT]1. Inject a real WM_KEYDOWN and wait uiEventDelayMs -- */
+    SendMessageA(hNative, WM_KEYDOWN, (WPARAM)iVk, 0);
+    platform_sleep_ms(ptWnd->uiEventDelayMs);
+    return ST_NO_ERROR;
+}
+
+st_error_t win_evt_send_char(struct gui_window_s *ptWnd, char cChar)
+{
+    HWND hNative;
+
+    // No LOG_TRACE - R22: test-only event injector.
+    if (ptWnd == NULL)
+    {
+        LOG_ERROR("NULL parameter: ptWnd=%p", (void *)ptWnd);
+        return ST_ERROR;
+    }
+
+    hNative = (HWND)gui_platform_get_native_handle(ptWnd);
+    if (hNative == NULL)
+    {
+        LOG_ERROR("gui_platform_get_native_handle failed: ptWnd=%p",
+                  (void *)ptWnd);
+        return ST_ERROR;
+    }
+
+    /* -- [EVT]2. Inject a real WM_CHAR and wait uiEventDelayMs -- */
+    SendMessageA(hNative, WM_CHAR, (WPARAM)cChar, 0);
+    platform_sleep_ms(ptWnd->uiEventDelayMs);
+    return ST_NO_ERROR;
+}
+
+st_error_t win_evt_send_click(struct gui_window_s *ptWnd, int iX, int iY)
+{
+    HWND   hNative;
+    LPARAM lParam;
+
+    // No LOG_TRACE - R22: test-only event injector.
+    if (ptWnd == NULL)
+    {
+        LOG_ERROR("NULL parameter: ptWnd=%p", (void *)ptWnd);
+        return ST_ERROR;
+    }
+
+    hNative = (HWND)gui_platform_get_native_handle(ptWnd);
+    if (hNative == NULL)
+    {
+        LOG_ERROR("gui_platform_get_native_handle failed: ptWnd=%p",
+                  (void *)ptWnd);
+        return ST_ERROR;
+    }
+
+    /* -- [EVT]3. Inject a real WM_LBUTTONDOWN and wait uiEventDelayMs -- */
+    lParam = (LPARAM)((iY << 16) | (iX & 0xFFFF));
+    SendMessageA(hNative, WM_LBUTTONDOWN, MK_LBUTTON, lParam);
+    platform_sleep_ms(ptWnd->uiEventDelayMs);
+    return ST_NO_ERROR;
+}
+
+st_error_t win_evt_send_wheel(struct gui_window_s *ptWnd, int iNotches)
+{
+    HWND   hNative;
+    WPARAM wParam;
+
+    // No LOG_TRACE - R22: test-only event injector.
+    if (ptWnd == NULL)
+    {
+        LOG_ERROR("NULL parameter: ptWnd=%p", (void *)ptWnd);
+        return ST_ERROR;
+    }
+
+    hNative = (HWND)gui_platform_get_native_handle(ptWnd);
+    if (hNative == NULL)
+    {
+        LOG_ERROR("gui_platform_get_native_handle failed: ptWnd=%p",
+                  (void *)ptWnd);
+        return ST_ERROR;
+    }
+
+    /* -- [EVT]4. Inject a real WM_MOUSEWHEEL and wait uiEventDelayMs -- */
+    wParam = (WPARAM)((short)(iNotches * WHEEL_DELTA) << 16);
+    SendMessageA(hNative, WM_MOUSEWHEEL, wParam, 0);
+    platform_sleep_ms(ptWnd->uiEventDelayMs);
+    return ST_NO_ERROR;
+}
+
+st_error_t win_evt_send_ctrl_key(struct gui_window_s *ptWnd, int iVk)
+{
+    HWND hNative;
+
+    // No LOG_TRACE - R22: test-only event injector.
+    if (ptWnd == NULL)
+    {
+        LOG_ERROR("NULL parameter: ptWnd=%p", (void *)ptWnd);
+        return ST_ERROR;
+    }
+
+    hNative = (HWND)gui_platform_get_native_handle(ptWnd);
+    if (hNative == NULL)
+    {
+        LOG_ERROR("gui_platform_get_native_handle failed: ptWnd=%p",
+                  (void *)ptWnd);
+        return ST_ERROR;
+    }
+
+    /* -- [EVT]5. Inject a real CTRL+<key> chord via bracketing keybd_event() -- */
+    keybd_event((BYTE)VK_CONTROL, 0, 0, 0);
+    platform_sleep_ms(ptWnd->uiEventDelayMs);
+    SendMessageA(hNative, WM_KEYDOWN, (WPARAM)iVk, 0);
+    platform_sleep_ms(ptWnd->uiEventDelayMs);
+    keybd_event((BYTE)VK_CONTROL, 0, KEYEVENTF_KEYUP, 0);
+    platform_sleep_ms(ptWnd->uiEventDelayMs);
+    return ST_NO_ERROR;
+}
+
+st_error_t win_evt_send_alt_key(struct gui_window_s *ptWnd, int iVk)
+{
+    HWND hNative;
+
+    // No LOG_TRACE - R22: test-only event injector.
+    if (ptWnd == NULL)
+    {
+        LOG_ERROR("NULL parameter: ptWnd=%p", (void *)ptWnd);
+        return ST_ERROR;
+    }
+
+    hNative = (HWND)gui_platform_get_native_handle(ptWnd);
+    if (hNative == NULL)
+    {
+        LOG_ERROR("gui_platform_get_native_handle failed: ptWnd=%p",
+                  (void *)ptWnd);
+        return ST_ERROR;
+    }
+
+    /* -- [EVT]6. Inject a real ALT+<key> chord via bracketing keybd_event() -- */
+    keybd_event((BYTE)VK_MENU, 0, 0, 0);
+    platform_sleep_ms(ptWnd->uiEventDelayMs);
+    SendMessageA(hNative, WM_KEYDOWN, (WPARAM)iVk, 0);
+    platform_sleep_ms(ptWnd->uiEventDelayMs);
+    keybd_event((BYTE)VK_MENU, 0, KEYEVENTF_KEYUP, 0);
+    platform_sleep_ms(ptWnd->uiEventDelayMs);
+    return ST_NO_ERROR;
+}
+
 #endif /* ST_PLATFORM_WINDOWS */

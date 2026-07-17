@@ -186,6 +186,7 @@ st_error_t gui_open_window(const gui_wnd_desc_t *ptDesc,
     memset(ptWnd, 0, sizeof(struct gui_window_s));
     ptWnd->tDesc  = *ptDesc;
     ptWnd->bOpen  = ST_FALSE;
+    ptWnd->uiEventDelayMs = GUI_DEFAULT_EVENT_DELAY_MS;
     if (g_gui_ptCtx.bActiveSpies == ST_TRUE)
     {
         ptWnd->bActiveSpies = ST_TRUE;

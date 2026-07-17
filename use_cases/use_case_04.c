@@ -419,65 +419,6 @@ static void uc04_test_console_dispatch(void)
 
 #ifdef ST_PLATFORM_WINDOWS
 
-/* Send a non-printable key (arrows, ENTER, ESC, F5, SPACE...) as a
- * real WM_KEYDOWN, synchronously (SendMessageA blocks until the
- * window thread's real dir_handle_key() has returned). */
-static void uc04_send_key(HWND hNative, int iVk)
-{
-    SendMessageA(hNative, WM_KEYDOWN, (WPARAM)iVk, 0);
-    platform_sleep_ms(10);
-}
-
-/* Send a printable character (e.g. 'H'/'h') as a real WM_CHAR. */
-static void uc04_send_char(HWND hNative, char cChar)
-{
-    SendMessageA(hNative, WM_CHAR, (WPARAM)cChar, 0);
-    platform_sleep_ms(10);
-}
-
-/* Send a left mouse click at (iX,iY) client coordinates. */
-static void uc04_send_click(HWND hNative, int iX, int iY)
-{
-    LPARAM lParam = (LPARAM)((iY << 16) | (iX & 0xFFFF));
-    SendMessageA(hNative, WM_LBUTTONDOWN, MK_LBUTTON, lParam);
-    platform_sleep_ms(10);
-}
-
-/* Send one mouse-wheel notch (iNotches>0 = scroll up). */
-static void uc04_send_wheel(HWND hNative, int iNotches)
-{
-    WPARAM wParam = (WPARAM)((short)(iNotches * WHEEL_DELTA) << 16);
-    SendMessageA(hNative, WM_MOUSEWHEEL, wParam, 0);
-    platform_sleep_ms(10);
-}
-
-/* CTRL+SPACE (P14/P60): dir_handle_key() reads the real OS modifier
- * state via GetKeyState(VK_CONTROL) - inject a genuine, brief CTRL
- * press bracketing the SPACE key (standard Win32 UI-automation
- * technique; requires the window to hold real OS focus, guaranteed
- * by dir_open()'s P16 SetForegroundWindow/SetFocus). */
-static void uc04_send_ctrl_space(HWND hNative)
-{
-    keybd_event((BYTE)VK_CONTROL, 0, 0, 0);
-    platform_sleep_ms(10);
-    SendMessageA(hNative, WM_KEYDOWN, VK_SPACE, 0);
-    platform_sleep_ms(10);
-    keybd_event((BYTE)VK_CONTROL, 0, KEYEVENTF_KEYUP, 0);
-    platform_sleep_ms(10);
-}
-
-/* ALT+LEFT / ALT+RIGHT (P10): same real-modifier technique as
- * uc04_send_ctrl_space() above, for VK_MENU (ALT). */
-static void uc04_send_alt_key(HWND hNative, int iVk)
-{
-    keybd_event((BYTE)VK_MENU, 0, 0, 0);
-    platform_sleep_ms(10);
-    SendMessageA(hNative, WM_KEYDOWN, (WPARAM)iVk, 0);
-    platform_sleep_ms(10);
-    keybd_event((BYTE)VK_MENU, 0, KEYEVENTF_KEYUP, 0);
-    platform_sleep_ms(10);
-}
-
 /*
  * uc04_test_window_interaction() - real Win32 keyboard/mouse events
  * driving the real, static dir_handle_key()/dir_handle_click()/
@@ -503,6 +444,13 @@ static void uc04_send_alt_key(HWND hNative, int iVk)
  *   -- [DIR]25. dir_render: P14 purple background marks multi-selected files --
  *   -- [DIR]26. dir_render: blue background marks the keyboard cursor selection --
  *   -- [DIR]27. dir_render: rows are drawn as ".." / "[+/-] dir/" / file name --
+ *   win_gui.c:
+ *   -- [EVT]1. Inject a real WM_KEYDOWN and wait uiEventDelayMs --
+ *   -- [EVT]2. Inject a real WM_CHAR and wait uiEventDelayMs --
+ *   -- [EVT]3. Inject a real WM_LBUTTONDOWN and wait uiEventDelayMs --
+ *   -- [EVT]4. Inject a real WM_MOUSEWHEEL and wait uiEventDelayMs --
+ *   -- [EVT]5. Inject a real CTRL+<key> chord via bracketing keybd_event() --
+ *   -- [EVT]6. Inject a real ALT+<key> chord via bracketing keybd_event() --
  *
  * Parameters:
  *   None
@@ -558,19 +506,20 @@ static void uc04_test_window_interaction(void)
     }
 
     /* -- [DIR]13. dir_handle_key: UP/DOWN move the cursor selection -- */
+    /* -- [EVT]1. Inject a real WM_KEYDOWN and wait uiEventDelayMs -- */
     /* INTENT[INT-DIR-014 → TC-DIR-028...031 → REQ-xxx-yyy → UFR-xxx-yyy]:
      * real WM_KEYDOWN(VK_DOWN)/WM_KEYDOWN(VK_UP) events move
      * ptView->iSelectedFlat through the real dir_handle_key() code
      * path (default selection is -1, the ".." row) */
     UC_TEST("[N] (TC-DIR-028) initial selection is '..' (iSelectedFlat==-1)",
             ptView->iSelectedFlat == -1);
-    uc04_send_key(hNative, VK_DOWN);
+    win_evt_send_key(ptWnd, VK_DOWN);
     UC_TEST("[N] (TC-DIR-029) DOWN selects flat index 0 (visible_dir)",
             ptView->iSelectedFlat == 0);
-    uc04_send_key(hNative, VK_DOWN);
+    win_evt_send_key(ptWnd, VK_DOWN);
     UC_TEST("[N] (TC-DIR-030) DOWN again selects flat index 1 (visible.txt)",
             ptView->iSelectedFlat == 1);
-    uc04_send_key(hNative, VK_UP);
+    win_evt_send_key(ptWnd, VK_UP);
     UC_TEST("[N] (TC-DIR-031) UP moves back to flat index 0",
             ptView->iSelectedFlat == 0);
 
@@ -580,16 +529,16 @@ static void uc04_test_window_interaction(void)
     /* INTENT[INT-DIR-015 → TC-DIR-032...035 → REQ-xxx-yyy → UFR-xxx-yyy]:
      * on the selected directory row (visible_dir, flat index 0): RIGHT
      * expands, LEFT collapses, ENTER toggles again via dir_activate_sel */
-    uc04_send_key(hNative, VK_RIGHT);
+    win_evt_send_key(ptWnd, VK_RIGHT);
     UC_TEST("[N] (TC-DIR-032) RIGHT expands visible_dir",
             ptView->aptFlat[0].ptNode->bExpanded == ST_TRUE);
-    uc04_send_key(hNative, VK_LEFT);
+    win_evt_send_key(ptWnd, VK_LEFT);
     UC_TEST("[N] (TC-DIR-033) LEFT collapses visible_dir",
             ptView->aptFlat[0].ptNode->bExpanded == ST_FALSE);
-    uc04_send_key(hNative, VK_RETURN);
+    win_evt_send_key(ptWnd, VK_RETURN);
     UC_TEST("[N] (TC-DIR-034) ENTER toggles visible_dir back to expanded",
             ptView->aptFlat[0].ptNode->bExpanded == ST_TRUE);
-    uc04_send_key(hNative, VK_RETURN);
+    win_evt_send_key(ptWnd, VK_RETURN);
     UC_TEST("[N] (TC-DIR-035) ENTER toggles visible_dir back to collapsed",
             ptView->aptFlat[0].ptNode->bExpanded == ST_FALSE);
 
@@ -597,10 +546,10 @@ static void uc04_test_window_interaction(void)
     /* INTENT[INT-DIR-016 → TC-DIR-036...038 → REQ-xxx-yyy → UFR-xxx-yyy]:
      * ENTER on a file row commits the selection to both
      * ptView->szLastSelected (P11) and the console's szSelected */
-    uc04_send_key(hNative, VK_DOWN); /* -> flat index 1 (visible.txt) */
+    win_evt_send_key(ptWnd, VK_DOWN); /* -> flat index 1 (visible.txt) */
     UC_TEST("[N] (TC-DIR-036) DOWN selects visible.txt",
             ptView->iSelectedFlat == 1);
-    uc04_send_key(hNative, VK_RETURN);
+    win_evt_send_key(ptWnd, VK_RETURN);
     UC_TEST("[N] (TC-DIR-037) ENTER on file: szLastSelected has "
             "'visible.txt'", strstr(ptView->szLastSelected, "visible.txt")
             != NULL);
@@ -616,8 +565,8 @@ static void uc04_test_window_interaction(void)
     /* INTENT[INT-DIR-017 → TC-DIR-039...040 → REQ-xxx-yyy → UFR-xxx-yyy]:
      * dir_handle_key() SPACE (no CTRL) selects the directory row and
      * clears any multi-selection, without toggling expand/collapse */
-    uc04_send_key(hNative, VK_UP); /* -> flat index 0 (visible_dir) */
-    uc04_send_key(hNative, VK_SPACE);
+    win_evt_send_key(ptWnd, VK_UP); /* -> flat index 0 (visible_dir) */
+    win_evt_send_key(ptWnd, VK_SPACE);
     UC_TEST("[N] (TC-DIR-039) SPACE on visible_dir: szLastSelected has "
             "'visible_dir'", strstr(ptView->szLastSelected, "visible_dir")
             != NULL);
@@ -625,11 +574,12 @@ static void uc04_test_window_interaction(void)
             ptView->aptFlat[0].ptNode->bExpanded == ST_FALSE);
 
     /* -- [DIR]16. dir_handle_key: CTRL+SPACE toggles multi-selection on files (P14/P60) -- */
+    /* -- [EVT]5. Inject a real CTRL+<key> chord via bracketing keybd_event() -- */
     /* INTENT[INT-DIR-018 → TC-DIR-041...043 → REQ-xxx-yyy → UFR-xxx-yyy]:
      * CTRL+SPACE on a file toggles multi-selection (P14) and clears
      * the single (green) selection first (P60 exclusivity) */
-    uc04_send_key(hNative, VK_DOWN); /* -> flat index 1 (visible.txt) */
-    uc04_send_ctrl_space(hNative);
+    win_evt_send_key(ptWnd, VK_DOWN); /* -> flat index 1 (visible.txt) */
+    win_evt_send_ctrl_key(ptWnd, VK_SPACE);
     UC_TEST("[N] (TC-DIR-041) CTRL+SPACE on visible.txt: "
             "iMultiSelCount == 1", ptView->iMultiSelCount == 1);
     UC_TEST("[N] (TC-DIR-042) CTRL+SPACE: aszMultiSel[0] has "
@@ -643,37 +593,40 @@ static void uc04_test_window_interaction(void)
     /* INTENT[INT-DIR-019 → TC-DIR-044 → REQ-xxx-yyy → UFR-xxx-yyy]:
      * a later plain SPACE clears the multi-selection set (P60
      * exclusivity, the other direction) */
-    uc04_send_key(hNative, VK_UP); /* -> flat index 0 (visible_dir) */
-    uc04_send_key(hNative, VK_SPACE);
+    win_evt_send_key(ptWnd, VK_UP); /* -> flat index 0 (visible_dir) */
+    win_evt_send_key(ptWnd, VK_SPACE);
     UC_TEST("[N] (TC-DIR-044) plain SPACE clears multi-selection "
             "(iMultiSelCount == 0)", ptView->iMultiSelCount == 0);
 
     /* -- [DIR]22. dir_handle_click: left-click selects a row and expands directories -- */
+    /* -- [EVT]3. Inject a real WM_LBUTTONDOWN and wait uiEventDelayMs -- */
     /* INTENT[INT-DIR-020 → TC-DIR-045 → REQ-xxx-yyy → UFR-xxx-yyy]:
      * a left-click on the visible_dir row (row 1, below the ".." row 0)
      * selects it and toggles expand via dir_activate_sel */
     iClickY = ptView->iCellH + (ptView->iCellH / 2);
-    uc04_send_click(hNative, 20, iClickY);
+    win_evt_send_click(ptWnd, 20, iClickY);
     UC_TEST("[N] (TC-DIR-045) click on visible_dir row: iSelectedFlat == 0",
             ptView->iSelectedFlat == 0);
 
     /* -- [DIR]23. dir_handle_scroll: mouse wheel adjusts iScrollOffset within bounds -- */
+    /* -- [EVT]4. Inject a real WM_MOUSEWHEEL and wait uiEventDelayMs -- */
     /* INTENT[INT-DIR-021 → TC-DIR-046 → REQ-xxx-yyy → UFR-xxx-yyy]:
      * mouse-wheel scroll is clamped to [0, iMaxScroll]; with only 3
      * visible rows the offset stays at 0 in both directions */
-    uc04_send_wheel(hNative, -1);
-    uc04_send_wheel(hNative, 1);
+    win_evt_send_wheel(ptWnd, -1);
+    win_evt_send_wheel(ptWnd, 1);
     UC_TEST("[N] (TC-DIR-046) wheel scroll stays clamped at 0 "
             "(short list)", ptView->iScrollOffset == 0);
 
     /* -- [DIR]21. dir_handle_key: 'H'/'h' toggles hidden-file visibility (P21) -- */
+    /* -- [EVT]2. Inject a real WM_CHAR and wait uiEventDelayMs -- */
     /* INTENT[INT-DIR-022 → TC-DIR-047...048 → REQ-xxx-yyy → UFR-xxx-yyy]:
      * 'H' toggles bShowHidden on, reloading with the hidden entries
      * (iFlatCount 2 -> 4); 'h' toggles it back off */
-    uc04_send_char(hNative, 'H');
+    win_evt_send_char(ptWnd, 'H');
     UC_TEST("[N] (TC-DIR-047) 'H' toggles bShowHidden ON, iFlatCount == 4",
             ptView->bShowHidden == ST_TRUE && ptView->iFlatCount == 4);
-    uc04_send_char(hNative, 'h');
+    win_evt_send_char(ptWnd, 'h');
     UC_TEST("[N] (TC-DIR-048) 'h' toggles bShowHidden back OFF, "
             "iFlatCount == 2",
             ptView->bShowHidden == ST_FALSE && ptView->iFlatCount == 2);
@@ -682,33 +635,34 @@ static void uc04_test_window_interaction(void)
     /* INTENT[INT-DIR-023 → TC-DIR-049 → REQ-xxx-yyy → UFR-xxx-yyy]:
      * F5 reloads the tree from disk without crashing; the entry count
      * is unchanged since nothing changed on disk */
-    uc04_send_key(hNative, VK_F5);
+    win_evt_send_key(ptWnd, VK_F5);
     UC_TEST("[N] (TC-DIR-049) F5 refresh: iFlatCount unchanged (== 2)",
             ptView->iFlatCount == 2);
 
     /* -- [DIR]10. dir_activate_sel: ".." row navigates to the parent directory -- */
     /* -- [DIR]18. dir_handle_key: ALT+LEFT/RIGHT navigate the history stack (P10) -- */
+    /* -- [EVT]6. Inject a real ALT+<key> chord via bracketing keybd_event() -- */
     /* INTENT[INT-DIR-024 → TC-DIR-050...053 → REQ-xxx-yyy → UFR-xxx-yyy]:
      * ENTER on the ".." row navigates up (dir_navigate_up), pushing a
      * new history entry; ALT+LEFT then goes back to the original
      * root, ALT+RIGHT goes forward to the parent again */
-    uc04_send_key(hNative, VK_HOME); /* -> select '..' row */
+    win_evt_send_key(ptWnd, VK_HOME); /* -> select '..' row */
     UC_TEST("[N] (TC-DIR-050) HOME selects '..' (iSelectedFlat==-1)",
             ptView->iSelectedFlat == -1);
-    uc04_send_key(hNative, VK_RETURN);
+    win_evt_send_key(ptWnd, VK_RETURN);
     UC_TEST("[N] (TC-DIR-051) ENTER on '..': iNavHistCount == 2",
             ptView->iNavHistCount == 2 && ptView->iNavHistHead == 1);
-    uc04_send_alt_key(hNative, VK_LEFT);
+    win_evt_send_alt_key(ptWnd, VK_LEFT);
     UC_TEST("[N] (TC-DIR-052) ALT+LEFT: history back "
             "(iNavHistHead == 0, root path restored)",
             ptView->iNavHistHead == 0
             && strstr(ptView->szRootPath, "testdata") != NULL);
-    uc04_send_alt_key(hNative, VK_RIGHT);
+    win_evt_send_alt_key(ptWnd, VK_RIGHT);
     UC_TEST("[N] (TC-DIR-053) ALT+RIGHT: history forward "
             "(iNavHistHead == 1)", ptView->iNavHistHead == 1);
     /* Go back once more so the remaining assertions use the small,
      * predictable testdata/ fixture again. */
-    uc04_send_alt_key(hNative, VK_LEFT);
+    win_evt_send_alt_key(ptWnd, VK_LEFT);
 
     /* -- [DIR]27. dir_render: rows are drawn as ".." / "[+/-] dir/" / file name -- */
     /* -- [DIR]24. dir_render: P11 green background marks the last committed selection -- */
@@ -730,9 +684,9 @@ static void uc04_test_window_interaction(void)
          * on ".."/ALT navigation sequence leaves the selection in an
          * unpredictable state - HOME then DOWN deterministically
          * selects flat index 0 (visible_dir). */
-        uc04_send_key(hNative, VK_HOME);
-        uc04_send_key(hNative, VK_DOWN);   /* -> flat idx 0 (visible_dir) */
-        uc04_send_key(hNative, VK_SPACE);  /* commits green on visible_dir */
+        win_evt_send_key(ptWnd, VK_HOME);
+        win_evt_send_key(ptWnd, VK_DOWN);   /* -> flat idx 0 (visible_dir) */
+        win_evt_send_key(ptWnd, VK_SPACE);  /* commits green on visible_dir */
         win_D2D_spy_reset(ptD2D);
         gui_invalidate((gui_window_t)ptWnd);
         platform_sleep_ms(150);
@@ -776,8 +730,8 @@ static void uc04_test_window_interaction(void)
          * files (dir.c [DIR]16 guards on !bIsDir), so the cursor must
          * be moved from visible_dir (flat idx 0) to visible.txt
          * (flat idx 1) first. */
-        uc04_send_key(hNative, VK_DOWN); /* -> flat idx 1 (visible.txt) */
-        uc04_send_ctrl_space(hNative);
+        win_evt_send_key(ptWnd, VK_DOWN); /* -> flat idx 1 (visible.txt) */
+        win_evt_send_ctrl_key(ptWnd, VK_SPACE);
         win_D2D_spy_reset(ptD2D);
         gui_invalidate((gui_window_t)ptWnd);
         platform_sleep_ms(150);
@@ -796,7 +750,7 @@ static void uc04_test_window_interaction(void)
     /* INTENT[INT-DIR-026 → TC-DIR-061 → REQ-xxx-yyy → UFR-xxx-yyy]:
      * ESCAPE requests a non-blocking close (P9); dir_close() afterwards
      * is a safe no-op join, as documented in dir.h */
-    uc04_send_key(hNative, VK_ESCAPE);
+    win_evt_send_key(ptWnd, VK_ESCAPE);
     platform_sleep_ms(200);
     eResult = dir_close(&ptView);
     UC_TEST("[N] (TC-DIR-061) dir_close() after ESC is safe "

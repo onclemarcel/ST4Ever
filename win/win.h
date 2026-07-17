@@ -211,4 +211,102 @@ st_bool_t win_D2D_spy_find_fill_rect_color(float           fR,
                                             float           fA,
                                             win_d2d_ctx_t  *ptCtx);
 
+/* ------------------------------------------------------------------
+ * Test-only UI event injection API
+ * ------------------------------------------------------------------
+ * Functions that inject real Win32 UI events (WM_KEYDOWN, WM_CHAR,
+ * WM_LBUTTONDOWN, WM_MOUSEWHEEL, keybd_event()) into an open window's
+ * real WndProc, so use_case_*.c binaries can drive the real, static
+ * event handlers (dir_handle_key(), dir_handle_click()...) exactly as
+ * a human would - the technique R27 uses for GUI event dispatch.
+ *
+ * Each call sleeps ptWnd->uiEventDelayMs milliseconds afterwards
+ * (gui_backend.h; GUI_DEFAULT_EVENT_DELAY_MS by default) so the target
+ * window thread has processed the message before the next one is
+ * sent. Set ptWnd->uiEventDelayMs directly (white-box, same pattern as
+ * bActiveSpies) to speed up or slow down a given test.
+ * ------------------------------------------------------------------ */
+
+/*
+ * win_evt_send_key() - Inject a non-printable key (arrows, ENTER, ESC,
+ * F5, SPACE...) as a real WM_KEYDOWN.
+ *
+ * Parameters:
+ *   ptWnd [in] : Open window to send the event to.
+ *   iVk   [in] : Win32 virtual-key code (VK_UP, VK_RETURN, ...).
+ *
+ * Returns:
+ *   ST_NO_ERROR on success, ST_ERROR if ptWnd has no native handle.
+ */
+st_error_t win_evt_send_key(struct gui_window_s *ptWnd, int iVk);
+
+/*
+ * win_evt_send_char() - Inject a printable character as a real
+ * WM_CHAR.
+ *
+ * Parameters:
+ *   ptWnd [in] : Open window to send the event to.
+ *   cChar [in] : Character to send (e.g. 'H', 'h').
+ *
+ * Returns:
+ *   ST_NO_ERROR on success, ST_ERROR if ptWnd has no native handle.
+ */
+st_error_t win_evt_send_char(struct gui_window_s *ptWnd, char cChar);
+
+/*
+ * win_evt_send_click() - Inject a left mouse click at (iX,iY) client
+ * coordinates as a real WM_LBUTTONDOWN.
+ *
+ * Parameters:
+ *   ptWnd [in] : Open window to send the event to.
+ *   iX/iY [in] : Client-area coordinates of the click.
+ *
+ * Returns:
+ *   ST_NO_ERROR on success, ST_ERROR if ptWnd has no native handle.
+ */
+st_error_t win_evt_send_click(struct gui_window_s *ptWnd, int iX, int iY);
+
+/*
+ * win_evt_send_wheel() - Inject one mouse-wheel notch as a real
+ * WM_MOUSEWHEEL.
+ *
+ * Parameters:
+ *   ptWnd    [in] : Open window to send the event to.
+ *   iNotches [in] : Notch count, >0 scrolls up, <0 scrolls down.
+ *
+ * Returns:
+ *   ST_NO_ERROR on success, ST_ERROR if ptWnd has no native handle.
+ */
+st_error_t win_evt_send_wheel(struct gui_window_s *ptWnd, int iNotches);
+
+/*
+ * win_evt_send_ctrl_key() - Inject a real CTRL+<key> chord: a genuine
+ * CTRL keybd_event() press brackets the WM_KEYDOWN, since the target
+ * WndProc reads the live OS modifier state via GetKeyState(VK_CONTROL)
+ * rather than a message flag. Requires the window to hold real OS
+ * focus (guaranteed by e.g. dir_open()'s P16 SetForegroundWindow/
+ * SetFocus).
+ *
+ * Parameters:
+ *   ptWnd [in] : Open window to send the event to (must hold OS focus).
+ *   iVk   [in] : Virtual-key code to chord with CTRL (e.g. VK_SPACE).
+ *
+ * Returns:
+ *   ST_NO_ERROR on success, ST_ERROR if ptWnd has no native handle.
+ */
+st_error_t win_evt_send_ctrl_key(struct gui_window_s *ptWnd, int iVk);
+
+/*
+ * win_evt_send_alt_key() - Same real-modifier technique as
+ * win_evt_send_ctrl_key(), for VK_MENU (ALT).
+ *
+ * Parameters:
+ *   ptWnd [in] : Open window to send the event to (must hold OS focus).
+ *   iVk   [in] : Virtual-key code to chord with ALT (e.g. VK_LEFT).
+ *
+ * Returns:
+ *   ST_NO_ERROR on success, ST_ERROR if ptWnd has no native handle.
+ */
+st_error_t win_evt_send_alt_key(struct gui_window_s *ptWnd, int iVk);
+
 #endif /* WIN_H */
