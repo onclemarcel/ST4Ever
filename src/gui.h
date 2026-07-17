@@ -49,6 +49,10 @@ typedef struct gui_context_s
     st_mutex_t          *ptMutex;           /* Protects windows list    */
     st_error_t           eGUIPtfInit;       /* Success of platform-init */
     st_bool_t            bInit;             /* Trace of initialization  */
+
+    // Test-related context variables
+    size_t     uiLastOpenWindow;       /* index of the last open window */
+    st_bool_t  bActiveSpies;     /* Activate the platform-related spies */
 } gui_context_t;
 
 /* ------------------------------------------------------------------

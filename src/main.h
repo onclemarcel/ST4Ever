@@ -27,6 +27,7 @@ typedef struct ST4Ever_context_s
     st_u64_t    ptSTLoadCtx;               /* ST Machine Load Context   */
     st_u64_t    ptSTExecCtx;               /* ST Machine Exec Context   */
     st_u64_t    ptConsoleCtx;              /* Console Context           */
+
 } ST4Ever_context_t;
 
 

@@ -15,91 +15,16 @@
  */
 
 #include "renderer_backend.h"
+#include "gui_backend.h"
 #include "trace.h"
 #include <stdlib.h>
 #include <string.h>
 
-#ifdef ST_TEST_FWK
 /* ------------------------------------------------------------------
- * Test-only spy capture (R26) - see renderer.h for the public API.
+ * Portable renderer public functions
  * ------------------------------------------------------------------ */
-static renderer_spy_draw_text_t g_aRendererSpyDrawText[RENDERER_SPY_MAX_ENTRIES];
-static int                      g_iRendererSpyDrawTextCount = 0;
-
-/* Record a draw_text() call into the spy ring buffer (called from the
- * [RND]11 capture point inside renderer_draw_text()) */
-static void renderer_spy_draw_text(const char             *szText,
-                                    const renderer_rect_t  *ptRect,
-                                    const renderer_color_t *ptColor,
-                                    renderer_font_id_t      eFontId,
-                                    renderer_align_t        eAlign)
-{
-    renderer_spy_draw_text_t *ptEntry;
-
-    if (g_iRendererSpyDrawTextCount >= RENDERER_SPY_MAX_ENTRIES)
-    {
-        g_iRendererSpyDrawTextCount++;
-        return;
-    }
-
-    ptEntry = &g_aRendererSpyDrawText[g_iRendererSpyDrawTextCount];
-    strncpy(ptEntry->szText, szText, RENDERER_SPY_TEXT_LEN - 1);
-    ptEntry->szText[RENDERER_SPY_TEXT_LEN - 1] = '\0';
-    ptEntry->tRect   = *ptRect;
-    ptEntry->tColor  = *ptColor;
-    ptEntry->eFontId = eFontId;
-    ptEntry->eAlign  = eAlign;
-
-    g_iRendererSpyDrawTextCount++;
-}
-
-void renderer_spy_reset(void)
-{
-    g_iRendererSpyDrawTextCount = 0;
-}
-
-int renderer_spy_draw_text_count(void)
-{
-    return g_iRendererSpyDrawTextCount;
-}
-
-int renderer_spy_find_text(const char *szNeedle)
-{
-    int iIdx;
-    int iMax;
-
-    if (szNeedle == NULL)
-    {
-        return -1;
-    }
-
-    iMax = g_iRendererSpyDrawTextCount;
-    if (iMax > RENDERER_SPY_MAX_ENTRIES)
-    {
-        iMax = RENDERER_SPY_MAX_ENTRIES;
-    }
-
-    for (iIdx = 0; iIdx < iMax; iIdx++)
-    {
-        if (strstr(g_aRendererSpyDrawText[iIdx].szText, szNeedle) != NULL)
-        {
-            return iIdx;
-        }
-    }
-    return -1;
-}
-
-const renderer_spy_draw_text_t *renderer_spy_get_draw_text(int iIndex)
-{
-    if (iIndex < 0 || iIndex >= g_iRendererSpyDrawTextCount
-    ||  iIndex >= RENDERER_SPY_MAX_ENTRIES)
-    {
-        return NULL;
-    }
-    return &g_aRendererSpyDrawText[iIndex];
-}
-#endif /* ST_TEST_FWK */
-
+////////////////////////////////////////////////////////////////////////
+//
 st_error_t renderer_create(gui_window_t hWnd, renderer_t *phCtx)
 {
     struct renderer_s *ptCtx;
@@ -115,7 +40,9 @@ st_error_t renderer_create(gui_window_t hWnd, renderer_t *phCtx)
         return ST_ERROR;
     }
 
-    *phCtx = NULL;
+  
+    /* -- [RND]12. renderer_create returns any platform-related error -- */
+   *phCtx = NULL;
 
     ptCtx = (struct renderer_s *)malloc(sizeof(struct renderer_s));
     if (ptCtx == NULL)
@@ -133,11 +60,20 @@ st_error_t renderer_create(gui_window_t hWnd, renderer_t *phCtx)
         return ST_ERROR;
     }
 
-    *phCtx = (renderer_t)ptCtx;
+    /* -- [RND]13. renderer_create returns platform-related context -- */
+	if (hWnd->bActiveSpies == ST_TRUE)
+    {
+        ptCtx->bActiveSpies = ST_TRUE;
+    }
+    *phCtx = (renderer_t)ptCtx;        
+    struct gui_window_s *ptWnd = (struct gui_window_s*)hWnd;
+    ptWnd->ptRenderer = (renderer_t)ptCtx;
     LOG_INFO("renderer created for window %p", (void *)hWnd);
     return ST_NO_ERROR;
 }
 
+////////////////////////////////////////////////////////////////////////
+//
 st_error_t renderer_resize(renderer_t hCtx, int iWidth, int iHeight)
 {
     LOG_TRACE("hCtx=%p %dx%d", (void *)hCtx, iWidth, iHeight);
@@ -149,10 +85,13 @@ st_error_t renderer_resize(renderer_t hCtx, int iWidth, int iHeight)
         return ST_ERROR;
     }
 
+    /* -- [RND]15. Call platform-specific resize rendering function -- */
     return renderer_platform_resize(
                (struct renderer_s *)hCtx, iWidth, iHeight);
 }
 
+////////////////////////////////////////////////////////////////////////
+//
 st_error_t renderer_get_font_metrics(renderer_t         hCtx,
                                       renderer_font_id_t eFontId,
                                       int               *piCellW,
@@ -165,10 +104,13 @@ st_error_t renderer_get_font_metrics(renderer_t         hCtx,
         return ST_ERROR;
     }
 
+    /* -- [RND]16. Call platform-specific font metrics get function -- */
     return renderer_platform_get_font_metrics(
                (struct renderer_s *)hCtx, eFontId, piCellW, piCellH);
 }
 
+////////////////////////////////////////////////////////////////////////
+//
 st_error_t renderer_begin_draw(renderer_t             hCtx,
                                 const renderer_color_t *ptBgColor)
 {
@@ -179,10 +121,13 @@ st_error_t renderer_begin_draw(renderer_t             hCtx,
         return ST_ERROR;
     }
 
+    /* -- [RND]17. Call platform-specific draw init function -- */
     return renderer_platform_begin_draw(
                (struct renderer_s *)hCtx, ptBgColor);
 }
 
+////////////////////////////////////////////////////////////////////////
+//
 st_error_t renderer_end_draw(renderer_t hCtx)
 {
     /* -- [RND]5. renderer_end_draw rejects NULL hCtx -- */
@@ -192,9 +137,12 @@ st_error_t renderer_end_draw(renderer_t hCtx)
         return ST_ERROR;
     }
 
+	/* -- [RND]18. Call platform-specific draw end function -- */
     return renderer_platform_end_draw((struct renderer_s *)hCtx);
 }
 
+////////////////////////////////////////////////////////////////////////
+//
 st_error_t renderer_fill_rect(renderer_t             hCtx,
                                 const renderer_rect_t  *ptRect,
                                 const renderer_color_t *ptColor)
@@ -206,10 +154,13 @@ st_error_t renderer_fill_rect(renderer_t             hCtx,
         return ST_ERROR;
     }
 
-    return renderer_platform_fill_rect(
+    /* -- [RND]19. Call platform-specific fill rect function -- */
+	return renderer_platform_fill_rect(
                (struct renderer_s *)hCtx, ptRect, ptColor);
 }
 
+////////////////////////////////////////////////////////////////////////
+//
 st_error_t renderer_draw_rect(renderer_t             hCtx,
                                 const renderer_rect_t  *ptRect,
                                 const renderer_color_t *ptColor,
@@ -222,10 +173,13 @@ st_error_t renderer_draw_rect(renderer_t             hCtx,
         return ST_ERROR;
     }
 
-    return renderer_platform_draw_rect(
+    /* -- [RND]20. Call platform-specific draw rect function -- */
+	return renderer_platform_draw_rect(
                (struct renderer_s *)hCtx, ptRect, ptColor, fStroke);
 }
 
+////////////////////////////////////////////////////////////////////////
+//
 st_error_t renderer_draw_line(renderer_t             hCtx,
                                 float                  fX1,
                                 float                  fY1,
@@ -241,11 +195,14 @@ st_error_t renderer_draw_line(renderer_t             hCtx,
         return ST_ERROR;
     }
 
-    return renderer_platform_draw_line(
+    /* -- [RND]21. Call platform-specific draw line function -- */
+	return renderer_platform_draw_line(
                (struct renderer_s *)hCtx,
                fX1, fY1, fX2, fY2, ptColor, fStroke);
 }
 
+////////////////////////////////////////////////////////////////////////
+//
 st_error_t renderer_draw_text(renderer_t              hCtx,
                                 const char             *szText,
                                 const renderer_rect_t  *ptRect,
@@ -261,16 +218,14 @@ st_error_t renderer_draw_text(renderer_t              hCtx,
         return ST_ERROR;
     }
 
-#ifdef ST_TEST_FWK
-    /* -- [RND]11. renderer_draw_text spy capture (test builds only) -- */
-    renderer_spy_draw_text(szText, ptRect, ptColor, eFontId, eAlign);
-#endif
-
+    /* -- [RND]11. Call platform-specific draw text function -- */
     return renderer_platform_draw_text(
                (struct renderer_s *)hCtx,
                szText, ptRect, ptColor, eFontId, eAlign);
 }
 
+////////////////////////////////////////////////////////////////////////
+//
 st_error_t renderer_draw_bitmap(renderer_t            hCtx,
                                   const st_u8_t        *pPixels,
                                   int                   iSrcW,
@@ -288,6 +243,8 @@ st_error_t renderer_draw_bitmap(renderer_t            hCtx,
                pPixels, iSrcW, iSrcH, ptDest);
 }
 
+////////////////////////////////////////////////////////////////////////
+//
 st_error_t renderer_destroy(renderer_t *phCtx)
 {
     struct renderer_s *ptCtx;
@@ -301,7 +258,8 @@ st_error_t renderer_destroy(renderer_t *phCtx)
         return ST_ERROR;
     }
 
-    ptCtx = (struct renderer_s *)*phCtx;
+    /* -- [RND]14. renderer_destroy frees the platform structure -- */
+	ptCtx = (struct renderer_s *)*phCtx;
     renderer_platform_destroy(ptCtx);
     free(ptCtx);
     *phCtx = NULL;

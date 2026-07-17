@@ -63,11 +63,12 @@ static void ST4Ever_print_usage(const char *szArgv0)
     LOG_TRACE("szArgv0=%p", szArgv0);
 
     /* -- [MAIN]23. Show the help message (only in release mode) -- */
+#ifndef ST_TEST_FWK
     const char *szName;
 
     szName = (szArgv0 != NULL) ? szArgv0 : ST_APP_NAME;
 
-#ifndef ST_TEST_FWK
+
     printf("Usage: %s [options]\n\n", szName);
     printf("Options:\n");
     printf("  -t              Open the trace console at startup\n");
@@ -193,7 +194,7 @@ st_u64_t ST4Ever_init(int argc, char *argv[])
              ST_APP_NAME, ST_APP_VERSION,
              argc,
              g_main_ptCtx.bTraceAtStart == ST_TRUE ? "yes" : "no",
-             g_main_ptCtx.szScriptFile[0] == "\0"  ? "none":
+             g_main_ptCtx.szScriptFile[0] == '\0'  ? "none":
              g_main_ptCtx.szScriptFile);
 
     /* -- [MAIN]4. Init GUI Module -- */

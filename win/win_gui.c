@@ -35,6 +35,7 @@
 #include <objbase.h>   /* CoInitializeEx / CoUninitialize */
 #include <stdlib.h>
 #include <string.h>
+#include "win.h"
 
 /* ------------------------------------------------------------------
  * Constants
@@ -67,17 +68,6 @@ static void win_default_size(gui_wnd_type_t eType,
     }
 }
 
-/* ------------------------------------------------------------------
- * Platform window state  (one per open gui_window_t)
- * ------------------------------------------------------------------ */
-
-typedef struct
-{
-    HWND                 hWnd;       /* Win32 window handle             */
-    HANDLE               hReady;    /* CreateEvent, signaled on ready  */
-    struct gui_window_s *ptWnd;     /* back-pointer to portable record */
-    HWND                 hPrevFgWnd; /* foreground window before open  */
-} win_wnd_state_t;
 
 /* ------------------------------------------------------------------
  * VKey → gui_key_t translation

@@ -37,7 +37,7 @@ typedef struct disasm_result_s
     st_u16_t auWords[5];             /* Raw opcode + extension words  */
     int      iWordCount;             /* Number of words consumed      */
     char     szMnemonic[16];         /* e.g. "MOVE.L"                 */
-    char     szOperands[96];         /* e.g. "D0,-(A1)"              */
+    char     szOperands[104];         /* e.g. "D0,-(A1)"              */
     char     szLine[DISASM_LINE_MAX];/* Full formatted line           */
     st_bool_t bValid;                /* ST_FALSE = DC.W fallback      */
 } disasm_result_t;

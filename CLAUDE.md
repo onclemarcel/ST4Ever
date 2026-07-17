@@ -433,7 +433,7 @@ Sur Linux, `termios` reste la stratégie unique (dans `linux/lx_console.c`). Cet
 
 **Règle d'application pour les UCs futurs** : avant d'ajouter `LOG_TRACE` dans une nouvelle fonction, vérifier si elle peut être appelée plus d'une fois par action utilisateur (paint loop, mutex, query) — si oui, omettre le LOG_TRACE.
 
-**R23 — Modèle de test `use_case_NN.c` : `UC_TEST` / `UC_CHECK` / `INTENT`** *(établie 2026-07-01)*
+**R23 — Modèle de test `use_case_NN.c` : `UC_INFO`, `UC_TEST` / `UC_CHECK` / `INTENT`** *(établie 2026-07-01)*
 
 `use_case_00.c` est le modèle de référence à appliquer progressivement dans tous les `use_case_NN.c`. Structure canonique :
 
@@ -464,7 +464,8 @@ Sur Linux, `termios` reste la stratégie unique (dans `linux/lx_console.c`). Cet
 
 7. **Macros de test** :
    - `UC_TEST("[N] (TC-xxx-NNN) texte", condition)` — test nominal ou robustesse `[R]`
-   - `UC_CHECK("[N] texte", appel)` — vérifie retour ≠ `ST_ERROR`
+   - `UC_CHECK("(INT-xxx-NNN) [Chk] texte", appel)` — introduit l'objectif de l'intent au travers de checks préliminaires et vérifie retour ≠ `ST_ERROR`
+   - `UC_INFO("(INT-xxx-NNN) text")` - indique le contexte et intent quand UC_CHECK n'est pas nécessaire avant un groupe UC_TEST (permet d'identifier le tag INT-xxx-NNN regroupant les TC-xxx-NNN dans le rapport de test)
    - `UC_CHECK_OBJ(ptr, TYPE)` — vérifie magic + type d'une structure ST4Ever
 
 8. **Helpers locaux** préfixés `ucNN_` (ex: `uc01_load_prg_text()`, `uc01_check_log_entry()`). Utilisés pour vérifier des effets de bord non accessibles via les macros (fichier de log, état RAM, etc.).
@@ -475,7 +476,7 @@ Sur Linux, `termios` reste la stratégie unique (dans `linux/lx_console.c`). Cet
 
 **R24 — Couverture par tags source : approche progressive** *(établie 2026-07-01)*
 
-Les fichiers `.c` contiennent des tags commentaires de la forme `/* -- [MODULE]N. Description -- */` qui balisent les blocs de code à couvrir. Chaque fonction de test dans `use_case_NN.c` documente dans son docstring (section `Code Coverage`) les tags qu'elle est censée couvrir. Tonton Marcel transmet les tags un par un — une nouvelle discussion peut reprendre en lisant les `Code Coverage` des docstrings pour identifier les tags déjà couverts.
+Les fichiers `.c` contiennent des tags commentaires de la forme `/* -- [MODULE]N. Description -- */` qui balisent les blocs de code à couvrir. Chaque fonction de test dans `use_case_NN.c` documente dans son docstring (section `Code Coverage`) les tags qu'elle est censée couvrir. 
 
 **Template d'un bloc de test couvrant un tag source** : le tag est recopié tel quel juste avant le commentaire INTENT — cela établit un lien visuel direct entre la portion de code source et le test :
 

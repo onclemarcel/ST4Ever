@@ -41,22 +41,275 @@
 #include <dwrite.h>
 #include <stdlib.h>
 #include <string.h>
+#include "win.h"
 
 /* ------------------------------------------------------------------
- * Internal context
+ * Test-only spy capture (R26) - see win.h for the public API.
  * ------------------------------------------------------------------ */
-
-typedef struct
+st_error_t win_D2D_spy_reset(win_d2d_ctx_t *ptCtx)
 {
-    ID2D1Factory            *pFactory;
-    ID2D1HwndRenderTarget   *pRT;
-    IDWriteFactory          *pDWFactory;
-    IDWriteTextFormat       *pFmtMono;
-    IDWriteTextFormat       *pFmtUI;
-    ID2D1SolidColorBrush    *pBrush;
-    float                    fMonoCellW;
-    float                    fMonoCellH;
-} win_d2d_ctx_t;
+    /* -- [SPY]1. Resets the spies pointers and counter -- */
+    for (int i = 0; i < WIN_D2D_SPY_MAX_ENTRIES; i++)
+    {
+        /* -- [SPY]2. Free memory for each allocated spy -- */
+        if (ptCtx->pD2DSpies[i] != NULL)
+        {
+            free(ptCtx->pD2DSpies[i]);
+        }
+        ptCtx->pD2DSpies[i] = NULL;
+    }
+    ptCtx->uiSpiesCount = 0;
+
+    return ST_NO_ERROR;
+}
+
+static void win_D2D_spy_add(void          *data,
+                            win_d2d_ctx_t *ptCtx)
+{
+    /* -- [SPY]3. Stops logging spy entries when limit is reached -- */
+    if (ptCtx->uiSpiesCount >= WIN_D2D_SPY_MAX_ENTRIES)
+    {
+        ptCtx->uiSpiesCount++;
+        return;
+    }
+
+    /* -- [SPY]4. Add a new spy into the ring buffer -- */
+    ptCtx->pD2DSpies[ptCtx->uiSpiesCount] = data;
+    ptCtx->uiSpiesCount++;
+}
+
+static void win_D2D_spy_draw_text(win_d2d_ctx_t          *ptCtx,
+                                  const WCHAR            *wcText,
+                                  UINT32                  uiLen,
+                                  IDWriteTextFormat      *pFmt,
+                                  const D2D1_RECT_F       tRect,
+                                  D2D1_DRAW_TEXT_OPTIONS  eTextOpts,
+                                  DWRITE_MEASURING_MODE   eMeasureMode)
+{
+    win_D2D_spy_draw_text_t *ptEntry;
+    DWRITE_TEXT_ALIGNMENT eAlign = IDWriteTextFormat_GetTextAlignment(pFmt);
+    D2D1_COLOR_F          tColor = ptCtx->tColor;
+    
+    /* -- [SPY]5. Create a new spy of type ST_WIN_D2D_SPY_DT -- */
+    ptEntry = (win_D2D_spy_draw_text_t *)calloc(1, sizeof(win_D2D_spy_draw_text_t));
+    ptEntry->ulMagic = 0xCAFEDECA;
+    ptEntry->eObject = ST_WIN_D2D_SPY_DT;
+    
+    // Catch sent text (wchar_t)
+    wcsncpy(ptEntry->wcText, wcText, WIN_D2D_SPY_TEXT_LEN);
+    ptEntry->uiLen   = uiLen;
+
+    // Catch used font and alignment
+    ptEntry->eFontId = (pFmt == ptCtx->pFmtUI) ? RENDERER_FONT_UI : RENDERER_FONT_MONO;
+    switch (eAlign)
+    {
+        case DWRITE_TEXT_ALIGNMENT_CENTER:
+            ptEntry->eAlign = RENDERER_ALIGN_CENTER;
+            break;
+        case DWRITE_TEXT_ALIGNMENT_TRAILING:
+            ptEntry->eAlign = RENDERER_ALIGN_RIGHT;
+            break;
+        case DWRITE_TEXT_ALIGNMENT_LEADING:
+            ptEntry->eAlign = RENDERER_ALIGN_LEFT;
+            break;
+        default:
+            ptEntry->eAlign = RENDERER_ALIGN_OTHER;
+            break;
+    }
+
+    // Catch text rectangle area
+    ptEntry->tRect.fX = tRect.left;
+    ptEntry->tRect.fY = tRect.top;
+    ptEntry->tRect.fW = tRect.right - tRect.left;
+    ptEntry->tRect.fH = tRect.bottom - tRect.top;
+
+    // Catch text color
+    ptEntry->tColor.r = tColor.r;
+    ptEntry->tColor.g = tColor.g;
+    ptEntry->tColor.b = tColor.b;
+    ptEntry->tColor.a = tColor.a;
+    
+    // Retrieve text options
+    switch(eTextOpts)
+    {
+        case D2D1_DRAW_TEXT_OPTIONS_NONE:
+            ptEntry->eClip = RENDERER_TEXT_OPT_NONE;
+            break;
+        case D2D1_DRAW_TEXT_OPTIONS_NO_SNAP:
+            ptEntry->eClip = RENDERER_TEXT_OPT_NO_SNAP;
+            break;
+        case D2D1_DRAW_TEXT_OPTIONS_CLIP:
+            ptEntry->eClip = RENDERER_TEXT_OPT_CLIP;
+            break;
+        default:
+            ptEntry->eClip = RENDERER_TEXT_OPT_UNKNOWN;
+            break;
+    }
+
+    // Retrieve the measuring mode
+    switch(eMeasureMode)
+    {
+        case DWRITE_MEASURING_MODE_NATURAL:
+            ptEntry->eMeasure = RENDERER_MEASURING_NATURAL;
+            break;
+        default:
+            ptEntry->eMeasure = RENDERER_MEASURING_OTHER;
+            break;
+    }
+
+    win_D2D_spy_add((void*)ptEntry, ptCtx);
+}
+
+static void win_D2D_spy_clear(win_d2d_ctx_t  *ptCtx,
+                         D2D1_COLOR_F    tColor)
+{
+    win_D2D_spy_clear_t *ptEntry;
+    
+    /* -- [SPY]9. Create a new spy of type ST_WIN_D2D_SPY_CLR -- */
+    ptEntry = (win_D2D_spy_clear_t *)calloc(1, sizeof(win_D2D_spy_clear_t));
+    ptEntry->ulMagic = 0xCAFEDECA;
+    ptEntry->eObject = ST_WIN_D2D_SPY_CLR;
+    
+    // Catch background color
+    ptEntry->tColor.r = tColor.r;
+    ptEntry->tColor.g = tColor.g;
+    ptEntry->tColor.b = tColor.b;
+    ptEntry->tColor.a = tColor.a;
+    
+    win_D2D_spy_add((void*)ptEntry, ptCtx);
+}
+
+static void win_D2D_spy_fill_rectangle(win_d2d_ctx_t     *ptCtx,
+                                       const D2D1_RECT_F  tRect)
+{
+    win_D2D_spy_fill_rectangle_t *ptEntry;
+    D2D1_COLOR_F         tColor = ptCtx->tColor;
+    
+    /* -- [SPY]10. Create a new spy of type ST_WIN_D2D_SPY_FR -- */
+    ptEntry = (win_D2D_spy_fill_rectangle_t*)calloc(1, sizeof(win_D2D_spy_fill_rectangle_t));
+    ptEntry->ulMagic = 0xCAFEDECA;
+    ptEntry->eObject = ST_WIN_D2D_SPY_FR;
+    
+    // Catch text rectangle area
+    ptEntry->tRect.fX = tRect.left;
+    ptEntry->tRect.fY = tRect.top;
+    ptEntry->tRect.fW = tRect.right - tRect.left;
+    ptEntry->tRect.fH = tRect.bottom - tRect.top;
+
+    // Catch text color
+    ptEntry->tColor.r = tColor.r;
+    ptEntry->tColor.g = tColor.g;
+    ptEntry->tColor.b = tColor.b;
+    ptEntry->tColor.a = tColor.a;
+    
+    win_D2D_spy_add((void*)ptEntry, ptCtx);
+}
+
+static void win_D2D_spy_draw_rectangle(win_d2d_ctx_t     *ptCtx,
+                                       const D2D1_RECT_F  tRect,
+                                       float              fStroke)
+{
+    win_D2D_spy_draw_rectangle_t *ptEntry;
+    D2D1_COLOR_F         tColor = ptCtx->tColor;
+    
+    /* -- [SPY]11. Create a new spy of type ST_WIN_D2D_SPY_DR -- */
+    ptEntry = (win_D2D_spy_draw_rectangle_t*)calloc(1, sizeof(win_D2D_spy_draw_rectangle_t));
+    ptEntry->ulMagic = 0xCAFEDECA;
+    ptEntry->eObject = ST_WIN_D2D_SPY_DR;
+    
+    // Catch text rectangle area
+    ptEntry->tRect.fX = tRect.left;
+    ptEntry->tRect.fY = tRect.top;
+    ptEntry->tRect.fW = tRect.right - tRect.left;
+    ptEntry->tRect.fH = tRect.bottom - tRect.top;
+
+    // Catch text color
+    ptEntry->tColor.r = tColor.r;
+    ptEntry->tColor.g = tColor.g;
+    ptEntry->tColor.b = tColor.b;
+    ptEntry->tColor.a = tColor.a;
+
+    // Retrieve stroke width
+    ptEntry->fStroke = fStroke;
+    
+    win_D2D_spy_add((void*)ptEntry, ptCtx);
+}
+
+static void win_D2D_spy_draw_line(win_d2d_ctx_t      *ptCtx,
+                                  const D2D1_POINT_2F tP0,
+                                  const D2D1_POINT_2F tP1,
+                                  float               fStroke)
+{
+    win_D2D_spy_draw_line_t *ptEntry;
+    D2D1_COLOR_F    tColor = ptCtx->tColor;
+    
+    /* -- [SPY]12. Create a new spy of type ST_WIN_D2D_SPY_DL -- */
+    ptEntry = (win_D2D_spy_draw_line_t*)calloc(1, sizeof(win_D2D_spy_draw_line_t));
+    ptEntry->ulMagic = 0xCAFEDECA;
+    ptEntry->eObject = ST_WIN_D2D_SPY_DL;
+    
+    // Catch text rectangle area
+    ptEntry->fX1 = tP0.x;
+    ptEntry->fY1 = tP0.y;
+    ptEntry->fX2 = tP1.x;
+    ptEntry->fY2 = tP1.y;
+
+    // Catch text color
+    ptEntry->tColor.r = tColor.r;
+    ptEntry->tColor.g = tColor.g;
+    ptEntry->tColor.b = tColor.b;
+    ptEntry->tColor.a = tColor.a;
+
+    // Retrieve stroke width
+    ptEntry->fStroke = fStroke;
+    
+    win_D2D_spy_add((void*)ptEntry, ptCtx);
+}
+
+const void *win_D2D_get_spy(int iIndex,
+                            win_d2d_ctx_t  *ptCtx,
+                            st_object_t     type)
+{
+    st_bool_t bOK;
+
+    /* -- [SPY]6. Return NULL for index out of expected range -- */
+    if (iIndex < -1 || iIndex >= ptCtx->uiSpiesCount
+                    ||  iIndex >= WIN_D2D_SPY_MAX_ENTRIES)
+    {
+        return NULL;
+    }
+    
+    /* -- [SPY]7. Look for last spy of corresponding type, if index is -1 -- */
+    if (iIndex == -1)
+    {
+        for (int i = (ptCtx->uiSpiesCount - 1); i >= 0; i--)
+        {
+            CHECK_OBJ(ptCtx->pD2DSpies[i], type, bOK);
+            if (bOK) 
+            {
+                return ptCtx->pD2DSpies[i];
+            }
+        }
+        return NULL;    // No entry of type ST_WIN_D2D_SPY_DT has been found
+    }
+    else
+    {
+        /* -- [SPY]8. Return entry if type is confirmed, otherwise return NULL -- */
+        CHECK_OBJ(ptCtx->pD2DSpies[iIndex], type, bOK);
+        if (bOK) 
+        {
+            return ptCtx->pD2DSpies[iIndex];
+        }
+        else 
+        {
+            return NULL;
+        }
+    }
+}
+
+/* ------------------------------------------------------------------
+ * END OF TEST RELATED SECTION
+ * ------------------------------------------------------------------ */
 
 /* ------------------------------------------------------------------
  * Internal helpers
@@ -75,6 +328,7 @@ static void win_d2d_set_color(win_d2d_ctx_t          *ptD2D,
     tC.b = ptColor->b;
     tC.a = ptColor->a;
     ID2D1SolidColorBrush_SetColor(ptD2D->pBrush, &tC);
+    ptD2D->tColor = tC;
 }
 
 /*
@@ -174,7 +428,7 @@ static void win_d2d_cleanup(win_d2d_ctx_t *ptD2D)
  * ------------------------------------------------------------------ */
 
 st_error_t renderer_platform_create(struct renderer_s *ptCtx,
-                                      gui_window_t       hWnd)
+                                      gui_window_t     hWnd)
 {
     win_d2d_ctx_t                       *ptD2D;
     HWND                                 hNative;
@@ -207,6 +461,10 @@ st_error_t renderer_platform_create(struct renderer_s *ptCtx,
         LOG_ERROR("malloc failed for win_d2d_ctx_t");
         return ST_ERROR;
     }
+
+    /* Init the object magic & key */
+    ptD2D->ulMagic = 0xCAFEDECA;
+    ptD2D->eObject = ST_WIN_D2D_CTX;
 
     /* D2D factory (multi-threaded: safe to use from any thread) */
     hr = D2D1CreateFactory(D2D1_FACTORY_TYPE_MULTI_THREADED,
@@ -412,26 +670,37 @@ st_error_t renderer_platform_begin_draw(
     win_d2d_ctx_t *ptD2D;
     D2D1_COLOR_F   tClear;
 
+    /* -- [D2D]1. NULL parameter are rejected with ST_ERROR and log message -- */
     if (ptCtx == NULL || ptBgColor == NULL)
     {
         LOG_ERROR("NULL parameter");
         return ST_ERROR;
     }
 
+    /* -- [D2D]2. NULL platform-specific context is rejected with ST_ERROR -- */
     ptD2D = (win_d2d_ctx_t *)ptCtx->pPlatform;
     if (ptD2D == NULL || ptD2D->pRT == NULL)
     {
-        LOG_ERROR("renderer not initialised");
+        LOG_ERROR("renderer not initialised - use renderer_create() first");
         return ST_ERROR;
     }
 
+    /* -- [D2D]3. Call D2D primitives BeginDraw & Clear -- */
     tClear.r = ptBgColor->r;
     tClear.g = ptBgColor->g;
     tClear.b = ptBgColor->b;
     tClear.a = ptBgColor->a;
 
+    /* D2D Primitives */
     ID2D1RenderTarget_BeginDraw((ID2D1RenderTarget *)ptD2D->pRT);
     ID2D1RenderTarget_Clear((ID2D1RenderTarget *)ptD2D->pRT, &tClear);
+
+    if (ptCtx->bActiveSpies)
+    {
+        /* -- [D2D]22. Spy parameters sent to Win D2D Clear -- */
+        win_D2D_spy_clear(ptD2D, tClear);
+    }
+        
     return ST_NO_ERROR;
 }
 
@@ -440,21 +709,23 @@ st_error_t renderer_platform_end_draw(struct renderer_s *ptCtx)
     win_d2d_ctx_t *ptD2D;
     HRESULT        hr;
 
+    /* -- [D2D]4. NULL parameter are rejected with ST_ERROR and log message -- */
     if (ptCtx == NULL)
     {
         LOG_ERROR("NULL ptCtx");
         return ST_ERROR;
     }
 
+    /* -- [D2D]5. NULL platform-specific context is rejected with ST_ERROR -- */
     ptD2D = (win_d2d_ctx_t *)ptCtx->pPlatform;
     if (ptD2D == NULL || ptD2D->pRT == NULL)
     {
-        LOG_ERROR("renderer not initialised");
+        LOG_ERROR("renderer not initialised - use renderer_create() first");
         return ST_ERROR;
     }
 
-    hr = ID2D1RenderTarget_EndDraw(
-             (ID2D1RenderTarget *)ptD2D->pRT, NULL, NULL);
+    /* -- [D2D]6. Call D2D primitive EndDraw -- */
+    hr = ID2D1RenderTarget_EndDraw((ID2D1RenderTarget *)ptD2D->pRT, NULL, NULL);
     if (FAILED(hr))
     {
         LOG_ERROR("EndDraw failed: hr=0x%08lX", (unsigned long)hr);
@@ -472,24 +743,35 @@ st_error_t renderer_platform_fill_rect(
     win_d2d_ctx_t *ptD2D;
     D2D1_RECT_F    tR;
 
+    /* -- [D2D]7. NULL parameter are rejected with ST_ERROR and log message -- */
     if (ptCtx == NULL || ptRect == NULL || ptColor == NULL)
     {
         LOG_ERROR("NULL parameter");
         return ST_ERROR;
     }
 
+    /* -- [D2D]8. NULL platform-specific context is rejected with ST_ERROR -- */
     ptD2D = (win_d2d_ctx_t *)ptCtx->pPlatform;
     if (ptD2D == NULL)
     {
+        LOG_ERROR("renderer not initialised - use renderer_create() first");
         return ST_ERROR;
     }
 
+    /* -- [D2D]9. Call D2D Primitive FillRectangle -- */
     tR = win_d2d_make_rect(ptRect);
     win_d2d_set_color(ptD2D, ptColor);
     ID2D1RenderTarget_FillRectangle(
         (ID2D1RenderTarget *)ptD2D->pRT,
         &tR,
         (ID2D1Brush *)ptD2D->pBrush);
+
+    if (ptCtx->bActiveSpies)
+    {
+        /* -- [D2D]23. Spy parameters sent to Win D2D FillRectangle -- */
+        win_D2D_spy_fill_rectangle(ptD2D, tR);
+    }
+        
     return ST_NO_ERROR;
 }
 
@@ -502,18 +784,22 @@ st_error_t renderer_platform_draw_rect(
     win_d2d_ctx_t *ptD2D;
     D2D1_RECT_F    tR;
 
+    /* -- [D2D]10. NULL parameter are rejected with ST_ERROR and log message -- */
     if (ptCtx == NULL || ptRect == NULL || ptColor == NULL)
     {
         LOG_ERROR("NULL parameter");
         return ST_ERROR;
     }
 
+    /* -- [D2D]11. NULL platform-specific context is rejected with ST_ERROR -- */
     ptD2D = (win_d2d_ctx_t *)ptCtx->pPlatform;
     if (ptD2D == NULL)
     {
+        LOG_ERROR("renderer not initialised - use renderer_create() first");
         return ST_ERROR;
     }
 
+    /* -- [D2D]12. Call D2D Primitive DrawRectangle -- */
     tR = win_d2d_make_rect(ptRect);
     win_d2d_set_color(ptD2D, ptColor);
     ID2D1RenderTarget_DrawRectangle(
@@ -522,6 +808,13 @@ st_error_t renderer_platform_draw_rect(
         (ID2D1Brush *)ptD2D->pBrush,
         fStroke,
         NULL);
+    
+    if (ptCtx->bActiveSpies)
+    {
+        /* -- [D2D]24. Spy parameters sent to Win D2D DrawRectangle -- */
+        win_D2D_spy_draw_rectangle(ptD2D, tR, fStroke);
+    }
+    
     return ST_NO_ERROR;
 }
 
@@ -538,18 +831,22 @@ st_error_t renderer_platform_draw_line(
     D2D1_POINT_2F   tP0;
     D2D1_POINT_2F   tP1;
 
+    /* -- [D2D]13. NULL parameter are rejected with ST_ERROR and log message -- */
     if (ptCtx == NULL || ptColor == NULL)
     {
         LOG_ERROR("NULL parameter");
         return ST_ERROR;
     }
 
+    /* -- [D2D]14. NULL platform-specific context is rejected with ST_ERROR -- */
     ptD2D = (win_d2d_ctx_t *)ptCtx->pPlatform;
     if (ptD2D == NULL)
     {
+        LOG_ERROR("renderer not initialised - use renderer_create() first");
         return ST_ERROR;
     }
 
+    /* -- [D2D]15. Call D2D Primitive DrawLine -- */
     tP0.x = fX1; tP0.y = fY1;
     tP1.x = fX2; tP1.y = fY2;
     win_d2d_set_color(ptD2D, ptColor);
@@ -559,11 +856,17 @@ st_error_t renderer_platform_draw_line(
         (ID2D1Brush *)ptD2D->pBrush,
         fStroke,
         NULL);
+
+    if (ptCtx->bActiveSpies)
+    {
+        /* -- [D2D]25. Spy parameters sent to Win D2D DrawLine -- */
+        win_D2D_spy_draw_line(ptD2D, tP0, tP1, fStroke);
+    }
+    
     return ST_NO_ERROR;
 }
 
-st_error_t renderer_platform_draw_text(
-                                      struct renderer_s      *ptCtx,
+st_error_t renderer_platform_draw_text(struct renderer_s     *ptCtx,
                                       const char             *szText,
                                       const renderer_rect_t  *ptRect,
                                       const renderer_color_t *ptColor,
@@ -575,8 +878,11 @@ st_error_t renderer_platform_draw_text(
     DWRITE_TEXT_ALIGNMENT   eDWAlign;
     D2D1_RECT_F             tR;
     WCHAR                   awBuf[ST_MAX_MSG];
-    int                     iLen;
+    UINT32                  uiLen;
+    D2D1_DRAW_TEXT_OPTIONS eTextOpts = D2D1_DRAW_TEXT_OPTIONS_CLIP;
+    DWRITE_MEASURING_MODE  eMeasureMode = DWRITE_MEASURING_MODE_NATURAL;
 
+    /* -- [D2D]16. NULL parameter are rejected with ST_ERROR and log message -- */
     if (ptCtx == NULL || szText == NULL || ptRect == NULL
     ||  ptColor == NULL)
     {
@@ -584,17 +890,20 @@ st_error_t renderer_platform_draw_text(
         return ST_ERROR;
     }
 
+    /* -- [D2D]17. NULL platform-specific context is rejected with ST_ERROR -- */
     ptD2D = (win_d2d_ctx_t *)ptCtx->pPlatform;
     if (ptD2D == NULL)
     {
+        LOG_ERROR("renderer not initialised - use renderer_create() first");
         return ST_ERROR;
     }
 
+    /* -- [D2D]18. Draw text manages MONO FONT or UI internal font -- */
     pFmt = (eFontId == RENDERER_FONT_MONO)
            ? ptD2D->pFmtMono
            : ptD2D->pFmtUI;
 
-    /* Map alignment */
+    /* -- [D2D]19. Draw text manages Text Alignment -- */
     switch (eAlign)
     {
     case RENDERER_ALIGN_CENTER:
@@ -610,10 +919,11 @@ st_error_t renderer_platform_draw_text(
 
     IDWriteTextFormat_SetTextAlignment(pFmt, eDWAlign);
 
+    /* -- [D2D]20. Call D2D Primitive DrawText -- */
     /* UTF-8 → wide string */
-    iLen = MultiByteToWideChar(CP_UTF8, 0, szText, -1,
+    uiLen = MultiByteToWideChar(CP_UTF8, 0, szText, -1,
                                 awBuf, ST_MAX_MSG - 1);
-    if (iLen <= 0)
+    if (uiLen <= 0)
     {
         LOG_ERROR("MultiByteToWideChar failed: %lu", GetLastError());
         IDWriteTextFormat_SetTextAlignment(
@@ -627,13 +937,19 @@ st_error_t renderer_platform_draw_text(
     ID2D1RenderTarget_DrawText(
         (ID2D1RenderTarget *)ptD2D->pRT,
         awBuf,
-        (UINT32)(iLen - 1),  /* exclude null terminator */
+        (UINT32)(uiLen - 1),  /* exclude null terminator */
         pFmt,
         &tR,
         (ID2D1Brush *)ptD2D->pBrush,
-        D2D1_DRAW_TEXT_OPTIONS_CLIP,
-        DWRITE_MEASURING_MODE_NATURAL);
+        eTextOpts,
+        eMeasureMode);
 
+    if (ptCtx->bActiveSpies)
+    {
+        /* -- [D2D]21. Spy parameters sent to Win D2D DrawText -- */
+        win_D2D_spy_draw_text(ptD2D, awBuf, uiLen - 1, pFmt, tR, eTextOpts, eMeasureMode);
+    }
+    
     /* Reset to default alignment for next caller */
     IDWriteTextFormat_SetTextAlignment(
         pFmt, DWRITE_TEXT_ALIGNMENT_LEADING);

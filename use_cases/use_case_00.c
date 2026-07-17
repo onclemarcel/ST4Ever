@@ -4,6 +4,12 @@
  * Traceability chain per INTENT block:
  *   INTENT[INT-xxx-NNN → TC-xxx-NNN → REQ-xxx-NNN -> UFR-xxx-NNN]
  *
+ * Test Strategy explained in R23/R24/R25: The objective of this use case is
+ * to test the access to the ST4Ever modules global context strutures for
+ * test purpose. Context structures are provided as return from xxx_init()
+ * functions or equivalent initialization function. Those context strucures
+ * are escalated into the main structure returned by ST4Ever_init()
+ *  
  * TEST MATRIX:
  *   [N] Nominal    : 62 tests  - all public functions & static functions
  *   [R] Robustness : 7  tests  - NULL params, out-of-bounds addresses,

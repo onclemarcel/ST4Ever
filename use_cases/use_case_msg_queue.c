@@ -1,9 +1,16 @@
 /*
- * use_case_03_1.c - UC3.1 Validation: GUI message queue + Win32 window
+ * use_case_msg_queue.c - UC3.1 Validation: GUI message queue + Win32 window
  *
  * Traceability chain per INTENT block:
  *   INTENT[INT-xxx-NNN → TC-xxx-NNN → REQ-xxx-NNN -> UFR-xxx-NNN]
  *
+ * NOTE: The GUI message queue is developped but not used yet in ST4Ever
+ *       It was foreseen for communication from the main console to the
+ *       GUI windows open from the console (e.g. trace, dir, edit_hex, ...)
+ * 
+ * This use_case_msg_queue.c is temporarily managed out of the other use_cases_nn.c
+ * series of test cases.
+ * 
  * TEST MATRIX - UC3.1:
  *   [N] Nominal    : 12 tests - gui_msg_queue_t full lifecycle (incl.
  *                               loop assertions), gui_init/shutdown

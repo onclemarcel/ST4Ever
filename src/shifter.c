@@ -243,7 +243,7 @@ st_error_t shifter_render( st_u32_t           *auPixels,
         return ST_ERROR;
     }
 
-    pFB = st_get_ram_pointer(0) + st_get_screen_base();
+    pFB = st_get_ram_pointer(st_get_screen_base());
 
     for (i = 0; i < ST_PALETTE_COLORS; ++i)
     {

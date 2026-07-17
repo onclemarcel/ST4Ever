@@ -4,7 +4,15 @@
  * Traceability chain per INTENT block:
  *   INTENT[INT-xxx-NNN → TC-xxx-NNN → REQ-xxx-NNN -> UFR-xxx-NNN]
  *
- * Strategy: line_cmd_trace() and line_dispatch() are static.
+ * R23/R24/R25: migrated from a free-standing trace_init()/trace_gui_open()
+ * driver to the ST4Ever_init() context-access pattern (R24 §"Accès aux
+ * contextes de modules") - ptCtx->ptTraceCtx is captured once in main()
+ * and reused by every group, exactly like use_case_01.c's uc01_test_trace().
+ * INT-TRC-xxx/TC-TRC-xxx numbering continues from the highest id used in
+ * use_case_00.c/use_case_01.c (INT-TRC-008, TC-TRC-025) - the only two
+ * other files already migrated to R24 at the time of writing.
+ 
+ * Strategy R26: line_cmd_trace() and line_dispatch() are static.
  * UC2 validates behavioral contracts by driving the *real* 
  * line_dispatch()/line_cmd_trace() code path end-to-end, via 
  * line_run() in script (batch) mode (UC4.3's `--script` mechanism) with
@@ -20,13 +28,6 @@
  *   - line_disable_script_debug() to come back to full script run mode
  *   - line_run() completes the script in headless mode
  * 
- * R23/R24/R25: migrated from a free-standing trace_init()/trace_gui_open()
- * driver to the ST4Ever_init() context-access pattern (R24 §"Accès aux
- * contextes de modules") - ptCtx->ptTraceCtx is captured once in main()
- * and reused by every group, exactly like use_case_01.c's uc01_test_trace().
- * INT-TRC-xxx/TC-TRC-xxx numbering continues from the highest id used in
- * use_case_00.c/use_case_01.c (INT-TRC-008, TC-TRC-025) - the only two
- * other files already migrated to R24 at the time of writing.
  *
  * TEST MATRIX:
  *   [N] Nominal    : 16 tests  - toggle, state consistency,
@@ -79,12 +80,15 @@ static void uc02_test_trace_toggle(void)
 
     printf("\n--- Test group 1: trace toggle (start with -t) ---\n");
 
+    ptLineCtx->bQuiet = ST_TRUE;    // Do not show console messages during test
+
     /* -- [LINE]8. 'trace' with no option toggle the GUI status -- */
 	/* -- [LINE]9. 'trace' with option does not toggle the GUI -- */
 	/* INTENT[INT-TRC-009 → TC-TRC-026...033 → REQ-xxx-yyy → UFR-xxx-yyy]:
      * Starting from an open trace console at start of application, 'trace'
-	 * command closes the open console, 'trace <arg>' does not re-open it,
-     * 'trace' opens	 */
+	 * toggles open GUI to close, 'trace' with option does not re-open it,
+     * 'trace' with no argument re-opens, and finally 'trace' with invalid
+     * argument do not toggle the GUI	 */
     UC_TEST("(INT-TRC-009) [Chk] console open at startup (-t/--trace)",
             ptTraceCtx->bOpen == ST_TRUE);
 

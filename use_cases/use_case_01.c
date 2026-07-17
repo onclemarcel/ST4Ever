@@ -4,6 +4,17 @@
  * Traceability chain per INTENT block:
  *   INTENT[INT-xxx-NNN → TC-xxx-NNN → REQ-xxx-NNN -> UFR-xxx-NNN]
  *
+ * Test Strategy explained in R23/R24/R25: The objective of this use case is
+ * to test the preliminary functions implemented as part of UC01 (see CLAUDE.md).
+ * Context structures are provided as return from xxx_init() (see use_case_00.c)
+ * There is no need to use local xxx_init() functions, the main() already launches
+ * ST4Ever_init() and checks the returned context structure pointer. 
+ *
+ * This test also introduces the LOG_xxx check helper for automatic retrieval of
+ * log messages into the log file. This helps checking that INFO, ERR or TODO 
+ * messages are effectively sent, as per the "-- [MODULE]n. <texte> --" comment
+ * tags in *.c files
+ *
  * TEST MATRIX:
  *   [N] Nominal    : 50 tests  - See test groups description below
  *   [R] Robustness : 20 tests  - NULL params, out-of-bounds addresses,
@@ -581,7 +592,7 @@ static void uc01_test_cpu(void)
  * Code Coverage:
  *   disassembler.c:
  *   -- [DISAMS]1. Reject any NULL pointer in parameter with ST_ERROR --
- *   
+ *   -- [DISAMS]2. Disassemble each instruction until end of buffer --   
  *
  * Parameters:
  *   None

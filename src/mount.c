@@ -1046,7 +1046,7 @@ st_error_t mount_save_image(mount_view_t    *ptView,
     case MOUNT_SAVE_DIR:
     {
         image_st_dirent_t  aSubEntries[IST_RDE];
-        char               szSubDir[ST_MAX_PATH];
+        char               szSubDir[ST_MAX_PATH - 14];
         int                iSubCount;
         int                j;
 

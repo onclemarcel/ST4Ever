@@ -51,7 +51,7 @@ static void exec_mon_render(exec_mon_view_t *ptView)
     int                iH;
     int                iY;
     int                iX;
-    char               szBuf[256];
+    char               szBuf[512];
     int                i;
     renderer_rect_t    tFull;
     renderer_rect_t    tRect;

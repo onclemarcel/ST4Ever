@@ -71,8 +71,7 @@ PLAT_FILES := $(wildcard $(PLATFORM)/*.c)
 UC_FILES   := $(UC_DIR)/use_case_00.c \
               $(UC_DIR)/use_case_01.c \
               $(UC_DIR)/use_case_02.c \
-			  $(UC_DIR)/use_case_03_1.c \
-			  $(UC_DIR)/use_case_03_2.c
+			  $(UC_DIR)/use_case_03.c
 
 SRC_OBJS   := $(patsubst src/%.c,          $(BUILD)/s_%.o, $(SRC_FILES))
 PLAT_OBJS  := $(patsubst $(PLATFORM)/%.c,  $(BUILD)/p_%.o, $(PLAT_FILES))
@@ -80,20 +79,12 @@ ALL_OBJS   := $(SRC_OBJS) $(PLAT_OBJS)
 
 # Library objects = everything except main.o (used by test programs)
 LIB_OBJS   := $(filter-out $(BUILD)/s_main.o, $(ALL_OBJS))
-LIB_OBJS   := $(filter-out $(BUILD)/s_line.o, $(LIB_OBJS))
-LIB_OBJS   := $(filter-out $(BUILD)/s_renderer.o, $(LIB_OBJS))
 
 # Special build of main.c with -DST_TEST_FWK: compiles all funcions
 # but excludes the real main() symbol, so a test executable that needs
 # to drive the full app lifecycle can supply its own main() without a
 # symbol collision.
 TEST_MAIN_OBJ     := $(BUILD)/s_main_testing.o
-TEST_LINE_OBJ     := $(BUILD)/s_line_testing.o
-# src/renderer.c recompiled with -DST_TEST_FWK: enables the draw_text
-# spy capture ring buffer (R26) used by use_case_03_2.c. Compiled out
-# entirely (zero cost) in the release TARGET, which links plain
-# build/s_renderer.o instead.
-TEST_RENDERER_OBJ := $(BUILD)/s_renderer_testing.o
 
 # Final targets
 TARGET     := $(RELEASE)/st4ever$(EXE)
@@ -142,16 +133,6 @@ $(BUILD)/p_%.o: $(PLATFORM)/%.c
 $(TEST_MAIN_OBJ): src/main.c
 	$(CC) $(CFLAGS) -DST_TEST_FWK -c $< -o $@
 
-#src/line.c, recompile with -DST_TEST_FWK -> build/s_line_testing.objects
-#Exclude online messages to avoid cluttering tests reports
-$(TEST_LINE_OBJ): src/line.c
-	$(CC) $(CFLAGS) -DST_TEST_FWK -c $< -o $@
-
-# src/renderer.c, recompile with -DST_TEST_FWK -> build/s_renderer_testing.o
-# Enables the draw_text spy capture ring buffer (R26).
-$(TEST_RENDERER_OBJ): src/renderer.c
-	$(CC) $(CFLAGS) -DST_TEST_FWK -c $< -o $@
-
 # -----------------------------------------------------------------------------
 # Link rules
 # -----------------------------------------------------------------------------
@@ -164,8 +145,8 @@ $(TARGET): $(ALL_OBJS)
 # Each use_case_NN.c linked against the library objects (no main.o)
 # NOTE: run 'make tests' from the project root - test binaries use
 #       relative paths (e.g. use_cases/UC01/hello.prg).
-$(TDIR)/%$(EXE): $(UC_DIR)/%.c $(LIB_OBJS) $(TEST_MAIN_OBJ) $(TEST_LINE_OBJ) $(TEST_RENDERER_OBJ)
-	$(CC) $(CFLAGS) -DST_TEST_FWK $< $(TEST_MAIN_OBJ) $(TEST_LINE_OBJ) $(TEST_RENDERER_OBJ) $(LIB_OBJS) -o $@ $(LDFLAGS)
+$(TDIR)/%$(EXE): $(UC_DIR)/%.c $(LIB_OBJS) $(TEST_MAIN_OBJ)
+	$(CC) $(CFLAGS) -DST_TEST_FWK $< $(TEST_MAIN_OBJ) $(LIB_OBJS) -o $@ $(LDFLAGS)
 	@echo "  --> $@"
 
 # -----------------------------------------------------------------------------

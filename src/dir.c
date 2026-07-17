@@ -1432,7 +1432,6 @@ st_error_t dir_open(const char     *szPath,
 {
     dir_view_t    *ptView;
     gui_wnd_desc_t tDesc;
-    st_bool_t      bIsLineCtx;
     st_error_t     eResult;
     char           szCwd[ST_MAX_PATH];
     char           szTitle[ST_MAX_PATH + 32];

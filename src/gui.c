@@ -48,11 +48,13 @@ static st_error_t gui_list_add(struct gui_window_s *ptWnd)
 {
     size_t uiIdx;
 
+    /* -- [GUI]9. Lock the GUI context structure -- */
     if (platform_mutex_lock(g_gui_ptCtx.ptMutex) != ST_NO_ERROR)
     {
         return ST_ERROR;
     }
 
+    /* -- [GUI]10. Return ST_ERROR if max number is reached -- */
     if (g_gui_ptCtx.uiWndCount >= GUI_MAX_WINDOWS)
     {
         platform_mutex_unlock(g_gui_ptCtx.ptMutex);
@@ -60,11 +62,13 @@ static st_error_t gui_list_add(struct gui_window_s *ptWnd)
         return ST_ERROR;
     }
 
+    /* -- [GUI]11. Create a new entry & increment number of windows -- */
     for (uiIdx = 0; uiIdx < GUI_MAX_WINDOWS; uiIdx++)
     {
         if (g_gui_ptCtx.aptWnd[uiIdx] == NULL)
         {
             g_gui_ptCtx.aptWnd[uiIdx] = ptWnd;
+            g_gui_ptCtx.uiLastOpenWindow = uiIdx;
             g_gui_ptCtx.uiWndCount++;
             break;
         }
@@ -152,6 +156,7 @@ st_error_t gui_open_window(const gui_wnd_desc_t *ptDesc,
     struct gui_window_s *ptWnd;
     st_error_t           eResult;
 
+    /* -- [GUI]6. NULL pointers leads to ST_ERROR and message in log file -- */
     LOG_TRACE("ptDesc=%p phWnd=%p", (void *)ptDesc, (void *)phWnd);
 
     if (ptDesc == NULL || phWnd == NULL)
@@ -161,12 +166,15 @@ st_error_t gui_open_window(const gui_wnd_desc_t *ptDesc,
         return ST_ERROR;
     }
 
+    /* -- [GUI]7. Opening a window without GUI initialized returns ST_ERROR -- */
     if (g_gui_ptCtx.bInit == ST_FALSE)
     {
         LOG_ERROR("gui_open_window called before gui_init");
         return ST_ERROR;
     }
 
+    
+    /* -- [GUI]8. Create an OS window & add it in the GUI context structure -- */
     *phWnd = NULL;
 
     ptWnd = (struct gui_window_s *)malloc(sizeof(struct gui_window_s));
@@ -178,7 +186,11 @@ st_error_t gui_open_window(const gui_wnd_desc_t *ptDesc,
     memset(ptWnd, 0, sizeof(struct gui_window_s));
     ptWnd->tDesc  = *ptDesc;
     ptWnd->bOpen  = ST_FALSE;
-
+    if (g_gui_ptCtx.bActiveSpies == ST_TRUE)
+    {
+        ptWnd->bActiveSpies = ST_TRUE;
+    }
+            
     /* Platform creates the OS window + spawns event thread */
     eResult = gui_platform_window_create(ptWnd);
     if (eResult != ST_NO_ERROR)

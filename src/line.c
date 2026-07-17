@@ -3956,15 +3956,16 @@ void line_print_msg(const char *szFmt, ...)
         return;
     }
 
-#ifndef ST_TEST_FWK		/* Be silent in test mode */
-    va_list vaArgs;
+    if (!(g_line_ptCtx.bQuiet))
+    {
+        va_list vaArgs;
 
-    printf("  ");
-    va_start(vaArgs, szFmt);
-    vprintf(szFmt, vaArgs);
-    va_end(vaArgs);
-    printf("\n");
-#endif 
+        printf("  ");
+        va_start(vaArgs, szFmt);
+        vprintf(szFmt, vaArgs);
+        va_end(vaArgs);
+        printf("\n");
+    }
 }
 
 void line_print_warning(const char *szFmt, ...)
@@ -3974,15 +3975,16 @@ void line_print_warning(const char *szFmt, ...)
         return;
     }
 
-#ifndef ST_TEST_FWK		/* Be silent in test mode */
-    va_list vaArgs;
+    if (!(g_line_ptCtx.bQuiet))
+    {
+        va_list vaArgs;
 
-    printf("%s  Warning: ", c_yellow());
-    va_start(vaArgs, szFmt);
-    vprintf(szFmt, vaArgs);
-    va_end(vaArgs);
-    printf("%s\n", c_reset());
-#endif
+        printf("%s  Warning: ", c_yellow());
+        va_start(vaArgs, szFmt);
+        vprintf(szFmt, vaArgs);
+        va_end(vaArgs);
+        printf("%s\n", c_reset());
+    }
 }
 
 void line_print_error(const char *szFmt, ...)
@@ -3992,15 +3994,16 @@ void line_print_error(const char *szFmt, ...)
         return;
     }
 
-#ifndef ST_TEST_FWK		/* Be silent in test mode */
-    va_list vaArgs;
+    if (!(g_line_ptCtx.bQuiet))
+    {
+        va_list vaArgs;
 
-    printf("%s  Error: ", c_red());
-    va_start(vaArgs, szFmt);
-    vprintf(szFmt, vaArgs);
-    va_end(vaArgs);
-    printf("%s\n", c_reset());
-#endif
+        printf("%s  Error: ", c_red());
+        va_start(vaArgs, szFmt);
+        vprintf(szFmt, vaArgs);
+        va_end(vaArgs);
+        printf("%s\n", c_reset());
+    }
 }
 
 char* line_get_current_dir()

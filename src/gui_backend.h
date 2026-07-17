@@ -18,6 +18,7 @@
 
 #include "gui.h"
 #include "common.h"
+#include "renderer.h"
 
 /* ------------------------------------------------------------------
  * Full definition of gui_window_s
@@ -32,6 +33,8 @@ struct gui_window_s
     st_thread_t    *ptThread;   /* window / event-loop thread          */
     void           *pPlatform;  /* backend state (win_wnd_state_t etc) */
     st_bool_t       bOpen;      /* ST_FALSE once the window has closed */
+    renderer_t      ptRenderer; /* Associated renderer */
+    st_bool_t       bActiveSpies; /* Are spies active for this window  */
 };
 
 /* ------------------------------------------------------------------

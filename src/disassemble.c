@@ -402,24 +402,6 @@ static void disasm_no_operand(const st_u8_t *pBuf, st_u32_t uiAddr,
 }
 
 /* ------------------------------------------------------------------
- * EA extension word count for DC.W fallback — modes 5/6/7.0-7.3 only.
- * Mode 7.4 (#imm) is intentionally excluded: special 1-word opcodes
- * like ILLEGAL ($4AFC) land on mode 7.4 and must stay iWordCount=1.
- * ------------------------------------------------------------------ */
-
-static int disasm_ea_ext_cnt(int iMode, int iReg)
-{
-    if (iMode == 5) return 1;               /* d16(An)   */
-    if (iMode == 6) return 1;               /* d8(An,Xn) */
-    if (iMode != 7) return 0;
-    if (iReg == 0)  return 1;               /* abs.W     */
-    if (iReg == 1)  return 2;               /* abs.L     */
-    if (iReg == 2)  return 1;               /* d16(PC)   */
-    if (iReg == 3)  return 1;               /* d8(PC,Xn) */
-    return 0;  /* iReg==4 (#imm) intentionally excluded */
-}
-
-/* ------------------------------------------------------------------
  * UC14A: MOVEM register list formatter
  *
  * uiMask   : 16-bit register mask from the opcode extension word

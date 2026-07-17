@@ -110,6 +110,10 @@ typedef struct line_context_s
     st_bool_t   bDebugSteps;               /* line by line script mode  */
     FILE       *pfScript;                  /* Script file pointer       */
     int         iScriptLine;               /* Current script line read  */
+
+    // Test-related values
+    st_bool_t   bQuiet;   /* Quiet mode requested by use_case_*.c tests */
+
 } line_context_t;
 
 /* ------------------------------------------------------------------

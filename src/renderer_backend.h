@@ -36,6 +36,7 @@
 struct renderer_s
 {
     void *pPlatform;  /* win_d2d_ctx_t* (Win32) or lx_rnd_ctx_t* (Linux) */
+    st_bool_t bActiveSpies; /* Test-related boolean to activate spies */
 };
 
 /* ------------------------------------------------------------------

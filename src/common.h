@@ -72,7 +72,13 @@ typedef enum st_bool_s
     ST_CPU_CTX         = 0x51u,
     ST_LOAD_CTX        = 0x55u,
     ST_EXEC_CTX        = 0x60u,
-    ST_WIN_CONSOLE_CTX = 0x80u
+    ST_WIN_CONSOLE_CTX = 0x80u,
+    ST_WIN_D2D_CTX     = 0x81u,
+    ST_WIN_D2D_SPY_DT  = 0x82u,
+    ST_WIN_D2D_SPY_CLR = 0x83u,
+    ST_WIN_D2D_SPY_FR  = 0x84u,
+    ST_WIN_D2D_SPY_DR  = 0x85u,
+    ST_WIN_D2D_SPY_DL  = 0x86u
  } st_object_t;
 
  #define OBJ_MAGIC  0xCAFEDECA
