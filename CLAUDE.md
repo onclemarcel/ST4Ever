@@ -577,6 +577,27 @@ UC_TEST("[N] (TC-RND-063) Spied text is \"ST4Ever UC3\"",
 
 **Règle d'application pour les `use_case_NN.c` futurs** : quand un groupe de tests existant est étiqueté `[S]`/`TEST_MANUAL` uniquement parce qu'il vérifie un rendu D2D (texte/rect/ligne/couleur/position), migrer vers `[N]`/`[R]` avec la stratégie D2D spy plutôt que de le laisser en validation manuelle — suivre la procédure de migration R25 (identifier les fonctions testées, tagger la source `[SPY]N`/`[D2D]N`, réécrire le test avec `Code Coverage:`/tag inline/`INTENT`). Rester en `TEST_MANUAL` uniquement pour ce que R27 ne peut pas couvrir (cf. limites ci-dessus).
 
+**R28 — Injection d'événements UI Win32 réutilisable : `win_evt_send_*()` + délai configurable par fenêtre** *(établie 2026-07-17, appliquée à `use_case_04.c`)*
+
+Contexte : `use_case_04.c` avait initialement 6 helpers `static` (`uc04_send_key/char/click/wheel/ctrl_space/alt_key()`) dupliquant le boilerplate Win32 (`SendMessageA(WM_KEYDOWN/WM_CHAR/WM_LBUTTONDOWN/WM_MOUSEWHEEL)`, `keybd_event()` pour les chords CTRL/ALT bracketés) pour piloter le vrai `WndProc` d'une fenêtre GUI ouverte, exactement comme R27 le fait pour les spies D2D côté rendu. Ces helpers ne sont pas spécifiques à `dir.c` — toute future vue (`edit`, `mount`, `execute`…) aura besoin d'injecter les mêmes événements Win32 dans ses propres tests.
+
+**Principe** : les helpers sont relocalisés dans `win_gui.c` sous le nom `win_evt_send_*()` (préfixe reconnaissable, symétrique de `win_D2D_spy_*()` en R27) et prennent un `struct gui_window_s *ptWnd` — pas un `HWND` brut — pour rester au niveau d'abstraction portable déjà utilisé par le reste du fichier (`gui_platform_get_native_handle()` est appelé en interne). Chaque fonction retourne `st_error_t` (convention §4.4) : `ST_ERROR` si `ptWnd` est `NULL` ou n'a pas de handle natif.
+
+**Délai configurable (`gui_backend.h`)** : chaque `win_evt_send_*()` dort `ptWnd->uiEventDelayMs` millisecondes après l'événement injecté, au lieu d'un `platform_sleep_ms(10)` figé en dur. Le champ `uiEventDelayMs` est un "test-related context variable" de `struct gui_window_s` (même catégorie que `bActiveSpies`), initialisé à `GUI_DEFAULT_EVENT_DELAY_MS` (10 ms) dans `gui_open_window()`. Un test peut l'écraser directement (accès white-box, même pattern que `ptGUICtx->bActiveSpies = ST_TRUE;`) pour accélérer ou ralentir sa séquence d'événements :
+```c
+ptWnd->uiEventDelayMs = 2;   /* accélère une longue séquence de touches */
+```
+
+**API (`win.h`)** : `win_evt_send_key(ptWnd, iVk)`, `win_evt_send_char(ptWnd, cChar)`, `win_evt_send_click(ptWnd, iX, iY)`, `win_evt_send_wheel(ptWnd, iNotches)`, `win_evt_send_ctrl_key(ptWnd, iVk)`, `win_evt_send_alt_key(ptWnd, iVk)`. Les deux derniers sont génériques (n'importe quel `iVk`, pas seulement `VK_SPACE`/`VK_LEFT`/`VK_RIGHT`) — contrairement aux anciens helpers `use_case_04.c` taillés sur mesure pour un seul appelant.
+
+**Tags `[EVT]N`** : chaque fonction porte un tag `-- [EVT]N. ... --` dans `win_gui.c`, recopié inline dans `use_case_NN.c` à son premier point d'usage (même convention que `[SPY]N` en R27) — cf. `use_case_04.c` groupe 4 pour l'exemple de référence.
+
+**Portée et limites** :
+- Spécifique au backend Windows (`win_gui.c`) — un backend X11 Linux futur devra implémenter son propre `win_evt_send_*()` équivalent dans `lx_gui.c` pour bénéficier de la même stratégie côté Linux (cf. limite similaire en R27).
+- Ne couvre que les événements déjà nécessaires (clavier simple, CTRL/ALT+touche, clic gauche, molette) — un nouveau type d'événement (clic droit, drag, resize…) s'ajoute à `win_gui.c` avec un nouveau tag `[EVT]N+1`, jamais dupliqué localement dans un `use_case_NN.c`.
+
+**Règle d'application pour les `use_case_NN.c` futurs** : ne jamais recréer un helper `static uc0N_send_xxx()` local pour injecter un événement Win32 déjà couvert par `win_evt_send_*()` — l'appeler directement. Si un nouveau type d'événement est nécessaire, l'ajouter à `win_gui.c` (avec son tag `[EVT]N` et sa doc dans `win.h`) plutôt que de le dupliquer dans le fichier de test. R23 à R28 forment ensemble la stratégie de test complète du projet (script debug pas-à-pas, tagging incrémental, D2D spy, injection d'événements) — s'y référer comme un tout lors de la reprise d'un nouveau contexte de conversation.
+
 ## 6. Use Cases
 
 Les étapes de développement fonctionnelles sont formalisées en Use Cases, permettant de développer et valider chaque cas d'usage de l'application et d'enrichir le projet avec de plus amples détails, dont les recommendations Claude AI de la section 4, et planifier le reste des Use Cases en TODO/stubs dans le projet. La liste actuelle des Use Cases est:
@@ -1805,6 +1826,28 @@ Avis Claude : **ACCEPTÉ DIFFÉRÉ** — ne pas modifier le comportement de ferm
 | Proposition | Décision | UC cible |
 |-------------|----------|----------|
 | P69 (dir multi-fenêtres + sélection par-fenêtre, prérequis Drag-and-Drop) | ACCEPTÉ DIFFÉRÉ | UC30H |
+
+---
+
+### Arbitrage — remarque session use_case_04.c / dir.c (2026-07-18)
+
+**P70 — Trois moyens de désélectionner un fichier/répertoire dans la vue `dir`** → **ACCEPTÉ — IMPLÉMENTÉ immédiatement (UC4, pas différé UC30H)**
+
+Question posée par Tonton Marcel en relisant `dir_set_selected()`/`dir.c:1151` pendant la même migration `use_case_04.c` que P69 : il n'existe actuellement qu'un seul moyen de remettre `g_line_ptCtx.szSelected` à vide — démarrer une multi-sélection (CTRL+SPACE efface la sélection simple, P60). Proposition en trois moyens complémentaires :
+
+1. **Existant** : démarrer une multi-sélection (CTRL+SPACE) efface la sélection simple (P60, déjà implémenté).
+2. **Nouveau** : appuyer SPACE sur un fichier/répertoire déjà sélectionné (vert) le désélectionne au lieu de re-committer le même chemin (toggle).
+3. **Nouveau** : option console `dir --unselect`, headless, pour scripts (`--script`/`script`) — symétrique de `dir --select <path>` (P50/UC24E).
+
+Analyse Claude : contrairement à P69 (même session), ce correctif n'a ni risque architectural (pas de nouvelle structure de données, pas de pointeur unique à faire évoluer en liste) ni périmètre large (P68 touchait 28 sites d'appel) — les trois mécanismes sont indépendants et tiennent chacun en quelques lignes :
+- Mécanisme 2 : un seul test `strcmp(ptView->szLastSelected, ptNode->szPath)` ajouté dans la branche SPACE (sans CTRL) de `dir_handle_key()` (`dir.c`, nouveau tag `[DIR]32`), avant l'appel à `dir_commit_file_selection()`.
+- Mécanisme 3 : nouveau flag `bUnselectOnly` dans `line_cmd_dir()` (`line.c`, nouveau tag `[LINE]22`), miroir exact du bloc `--select` existant (`[LINE]18`) — `line_set_selected("")` + effacement de `ptDirView->szLastSelected` et `gui_invalidate()` si une vue est déjà ouverte, pour que le vert de la fenêtre reste cohérent avec la console.
+
+Avis Claude : **ACCEPTÉ — implémenté immédiatement** plutôt que différé à UC30H. `use_case_04.c` est encore ouvert (Phase 1 en cours, R25) et touche exactement `dir_handle_key()`/`line_cmd_dir()` — l'intégrer maintenant évite une deuxième passe de tagging sur les mêmes fonctions plus tard. Tags source `[DIR]32`/`[LINE]22` ajoutés ; tests `TC-DIR-065` (toggle SPACE, Groupe 4 fenêtre) et `TC-DIR-066` (`dir --unselect`, Groupe 3 dispatch console) ajoutés à `use_case_04.c` selon R25/R26.
+
+| Proposition | Décision | UC cible |
+|-------------|----------|----------|
+| P70 (3 moyens de désélection : multi-sel existant + toggle SPACE + `dir --unselect`) | ACCEPTÉ — IMPLÉMENTÉ | ✓ clos (UC4, session 2026-07-18) |
 
 ---
 

@@ -34,10 +34,11 @@
  *     dir_open() already guarantees (P16: SetForegroundWindow/SetFocus).
  *
  * TEST MATRIX - UC4:
- *   [N] Nominal    : 53 tests - dir_open/dir_close lifecycle (incl. the
+ *   [N] Nominal    : 56 tests - dir_open/dir_close lifecycle (incl. the
  *                    szPath="" -> cwd resolution), bShowHidden filter,
- *                    real console dispatch (dir/-a/--select), real
- *                    keyboard/mouse navigation and selection, D2D spy
+ *                    real console dispatch (dir/-a/--select/--unselect),
+ *                    real keyboard/mouse navigation and selection
+ *                    (incl. P70 SPACE toggle-deselect), D2D spy
  *                    verification of rendered rows and selection layers
  *   [R] Robustness :  8 tests - NULL pptView, bIsLineRunning==ST_FALSE,
  *                    dir_close idempotency, non-existent path (empty
@@ -311,14 +312,16 @@ static void uc04_test_hidden_filter(void)
 
 /*
  * uc04_test_console_dispatch() - drive the real `dir`/`dir -a`/
- * `dir --select` console commands through line_parse_cmd()/
- * line_dispatch()/line_cmd_dir() one line at a time (R26).
+ * `dir --select`/`dir --unselect` console commands through
+ * line_parse_cmd()/line_dispatch()/line_cmd_dir() one line at a time
+ * (R26).
  *
  * Code Coverage:
  *   line.c:
  *   -- [LINE]18. 'dir --select <path>' sets szSelected headlessly --
  *   -- [LINE]19. 'dir' closes any previously open view before opening a new one --
  *   -- [LINE]20. 'dir -a' opens the view with hidden files shown --
+ *   -- [LINE]22. 'dir --unselect' clears szSelected headlessly (P70) --
  *
  * Parameters:
  *   None
@@ -333,14 +336,18 @@ static void uc04_test_console_dispatch(void)
     line_context_t  *ptLineCtx = (line_context_t *)ptCtx->ptConsoleCtx;
     char             szBuf[ST_MAX_PATH];
 
-    printf("\n--- Test group 3: real console dispatch (dir/-a/--select) ---\n");
+    printf("\n--- Test group 3: real console dispatch (dir/-a/--select/--unselect) ---\n");
 
-    ptLineCtx->bQuiet = ST_TRUE;
+    /*************************************************************************/
+    // Setup of the test script - 4 calls to 'dir' command with several options
+    //
+    ptLineCtx->bQuiet = ST_TRUE;      // Remove online info messages (see log file)
 
     UC_SCRIPT_CREATE(szPath, sizeof(szPath),
                       "use_cases/UC04/dir_dispatch.txt", pF);
     UC_SCRIPT_ADD_LINE(pF, "# UC4 Group 3 dir dispatch\n");
-    UC_SCRIPT_ADD_LINE(pF, "dir --select " UC04_TESTDATA "/visible.txt\n");
+    UC_SCRIPT_ADD_LINE(pF, "dir -a --select " UC04_TESTDATA "/visible.txt\n");
+    UC_SCRIPT_ADD_LINE(pF, "dir --unselect\n");
     UC_SCRIPT_ADD_LINE(pF, "dir " UC04_TESTDATA "\n");
     UC_SCRIPT_ADD_LINE(pF, "dir -a " UC04_TESTDATA "\n");
     UC_SCRIPT_CLOSE(pF);
@@ -350,7 +357,10 @@ static void uc04_test_console_dispatch(void)
 
     line_enable_script_debug();
     line_run();  // Silently skip the first #Comment line
-
+    //
+    // End of the test script setup
+    /*************************************************************************/
+    
     /* -- [LINE]18. 'dir --select <path>' sets szSelected headlessly -- */
     /* INTENT[INT-DIR-009 → TC-DIR-021...022 → REQ-xxx-yyy → UFR-xxx-yyy]:
      * 'dir --select <path>' updates szSelected via the real
@@ -363,46 +373,59 @@ static void uc04_test_console_dispatch(void)
     UC_TEST("[N] (TC-DIR-022) dir --select: no window opened "
             "(ptDirView == NULL)", ptLineCtx->ptDirView == NULL);
 
+    /* -- [LINE]22. 'dir --unselect' clears szSelected headlessly (P70) -- */
+    /* INTENT[INT-DIR-010 → TC-DIR-023 → REQ-xxx-yyy → UFR-xxx-yyy]:
+     * 'dir --unselect' clears szSelected via the real line_cmd_dir()
+     * dispatch, without opening a GUI window (P70, third means of
+     * resetting a selection) */
+    UC_CHECK("(INT-DIR-010) [Chk] line_run() [dir --unselect]", line_run());
+    memset(szBuf, 0, sizeof(szBuf));
+    line_get_selected(szBuf, sizeof(szBuf));
+    UC_TEST("[N] (TC-DIR-023) dir --unselect: szSelected is now empty",
+            szBuf[0] == '\0');
+
     /* -- [LINE]19. 'dir' closes any previously open view before opening a new one -- */
-    /* INTENT[INT-DIR-010 → TC-DIR-023...024 → REQ-xxx-yyy → UFR-xxx-yyy]:
+    /* INTENT[INT-DIR-011 → TC-DIR-024...025 → REQ-xxx-yyy → UFR-xxx-yyy]:
      * 'dir <path>' opens a real GUI window for that path, with hidden
      * files not shown by default */
-    UC_CHECK("(INT-DIR-010) [Chk] line_run() [dir <path>]", line_run());
-    UC_TEST("[N] (TC-DIR-023) dir <path>: ptDirView != NULL",
+    UC_CHECK("(INT-DIR-011) [Chk] line_run() [dir <path>]", line_run());
+    UC_TEST("[N] (TC-DIR-024) dir <path>: ptDirView != NULL",
             ptLineCtx->ptDirView != NULL);
     if (ptLineCtx->ptDirView != NULL)
     {
-        UC_TEST("[N] (TC-DIR-024) dir <path>: bShowHidden == ST_FALSE, "
+        UC_TEST("[N] (TC-DIR-025) dir <path>: bShowHidden == ST_FALSE, "
                 "iFlatCount == 2",
                 ptLineCtx->ptDirView->bShowHidden == ST_FALSE
                 && ptLineCtx->ptDirView->iFlatCount == 2);
     }
     else
     {
-        TEST_SKIP("[N] (TC-DIR-024) dir <path>: bShowHidden/iFlatCount");
+        TEST_SKIP("[N] (TC-DIR-025) dir <path>: bShowHidden/iFlatCount");
     }
 
     /* -- [LINE]20. 'dir -a' opens the view with hidden files shown -- */
-    /* INTENT[INT-DIR-011 → TC-DIR-025...026 → REQ-xxx-yyy → UFR-xxx-yyy]:
+    /* INTENT[INT-DIR-012 → TC-DIR-026...027 → REQ-xxx-yyy → UFR-xxx-yyy]:
      * 'dir -a <path>' closes the previous view (LINE15) and reopens
      * with hidden files shown */
-    UC_CHECK("(INT-DIR-011) [Chk] line_run() [dir -a <path>]", line_run());
-    UC_TEST("[N] (TC-DIR-025) dir -a: ptDirView != NULL",
+    UC_CHECK("(INT-DIR-012) [Chk] line_run() [dir -a <path>]", line_run());
+    UC_TEST("[N] (TC-DIR-026) dir -a: ptDirView != NULL",
             ptLineCtx->ptDirView != NULL);
     if (ptLineCtx->ptDirView != NULL)
     {
-        UC_TEST("[N] (TC-DIR-026) dir -a: bShowHidden == ST_TRUE, "
+        UC_TEST("[N] (TC-DIR-027) dir -a: bShowHidden == ST_TRUE, "
                 "iFlatCount == 4",
                 ptLineCtx->ptDirView->bShowHidden == ST_TRUE
                 && ptLineCtx->ptDirView->iFlatCount == 4);
     }
     else
     {
-        TEST_SKIP("[N] (TC-DIR-026) dir -a: bShowHidden/iFlatCount");
+        TEST_SKIP("[N] (TC-DIR-027) dir -a: bShowHidden/iFlatCount");
     }
 
-    /* R26: one more line_run() call past the last physical line closes
-     * the script file and resets bDebugSteps automatically. */
+    /*************************************************************************/
+    // Epilogue of test script run
+    // R26: one more line_run() call past the last physical line closes
+    // the script file and resets bDebugSteps automatically.
     line_run();   // Silently run to complete the debugging steps
 
     /* Teardown: close the view opened by the script above */
@@ -410,7 +433,10 @@ static void uc04_test_console_dispatch(void)
     {
         dir_close(&ptLineCtx->ptDirView);
     }
-    ptLineCtx->bQuiet = ST_FALSE;
+    ptLineCtx->bQuiet = ST_FALSE;   // Reset on-line info messages
+    //
+    // Epilogue of test script run
+    /*************************************************************************/
 }
 
 /* ------------------------------------------------------------------
@@ -425,7 +451,11 @@ static void uc04_test_console_dispatch(void)
  * dir_handle_scroll(), plus D2D spy verification of dir_render().
  *
  * Code Coverage:
+ *   line.c:
+ *   -- [LINE]19. 'dir' closes any previously open view before opening a new one --
+ * 
  *   dir.c:
+ *   -- [DIR]5. dir_open opens the GUI window and returns the populated view --
  *   -- [DIR]10. dir_activate_sel: ".." row navigates to the parent directory --
  *   -- [DIR]11. dir_activate_sel: directory entry toggles expand/collapse --
  *   -- [DIR]12. dir_activate_sel: file entry commits selection (P11) --
@@ -444,6 +474,12 @@ static void uc04_test_console_dispatch(void)
  *   -- [DIR]25. dir_render: P14 purple background marks multi-selected files --
  *   -- [DIR]26. dir_render: blue background marks the keyboard cursor selection --
  *   -- [DIR]27. dir_render: rows are drawn as ".." / "[+/-] dir/" / file name --
+ *   -- [DIR]28. Dir GUI react on GUI_EVT_PAINT, first event creates renderer --
+ *   -- [DIR]29. Dir GUI react on GUI_EVT_RESIZE --
+ *   -- [DIR]30. Dir GUI react on GUI_EVT_KEY_DOWN and dispatch --
+ *   -- [DIR]31. writes selected file path to the console selection --
+ *   -- [DIR]32. dir_handle_key: SPACE on the already-selected entry toggles deselection (P70) --
+ *
  *   win_gui.c:
  *   -- [EVT]1. Inject a real WM_KEYDOWN and wait uiEventDelayMs --
  *   -- [EVT]2. Inject a real WM_CHAR and wait uiEventDelayMs --
@@ -451,7 +487,11 @@ static void uc04_test_console_dispatch(void)
  *   -- [EVT]4. Inject a real WM_MOUSEWHEEL and wait uiEventDelayMs --
  *   -- [EVT]5. Inject a real CTRL+<key> chord via bracketing keybd_event() --
  *   -- [EVT]6. Inject a real ALT+<key> chord via bracketing keybd_event() --
+ *   -- [EVT]7. Inject a real WM_SIZE and wait uiEventDelayMs --
  *
+ *   win_D2D.c:
+ *   -- [SPY]13. Scan the ring buffer for the last DrawText spy containing szNeedle --
+ * 
  * Parameters:
  *   None
  *
@@ -460,31 +500,67 @@ static void uc04_test_console_dispatch(void)
  */
 static void uc04_test_window_interaction(void)
 {
-    line_context_t *ptLineCtx = (line_context_t *)ptCtx->ptConsoleCtx;
-    gui_context_t  *ptGUICtx  = (gui_context_t *)ptCtx->ptGUICtx;
-    dir_view_t      *ptView;
-    st_error_t       eResult;
+    // Line & GUI context variables
+    line_context_t      *ptLineCtx = (line_context_t *)ptCtx->ptConsoleCtx;
+    gui_context_t       *ptGUICtx  = (gui_context_t *)ptCtx->ptGUICtx;
+    dir_view_t          *ptView;
     struct gui_window_s *ptWnd;
+
+    // Function return variable
+    st_error_t       eResult;
+    
+    // Debug script variables
+    static char      szPath[ST_MAX_PATH];
+    FILE            *pF;
+
+    // Renderer & Spies & Events variables
     HWND             hNative;
+    int              iClickY;
     renderer_t       ptRenderer;
     win_d2d_ctx_t   *ptD2D;
-    int              iClickY;
-
-    printf("\n--- Test group 4: real window keyboard/mouse + D2D spy ---\n");
+    int              iFound;    // Index of found D2D Spy (text, fill, ...)
+    int              iNewFound; // Index of another D2D Spy of the same category
 
     ptGUICtx->bActiveSpies = ST_TRUE;
 
-    ptView = NULL;
-    eResult = dir_open(UC04_TESTDATA, ptLineCtx->bRunning, ST_FALSE, &ptView);
-    UC_CHECK("(INT-DIR-013) [Chk] dir_open() for window interaction group",
-             eResult);
+    printf("\n--- Test group 4: real window keyboard/mouse + D2D spy ---\n");
+
+    /*************************************************************************/
+    // Setup of the test script - one single 'dir <path>' call
+    //
+    ptLineCtx->bQuiet = ST_TRUE;      // Remove online info messages (see log file)
+
+    UC_SCRIPT_CREATE(szPath, sizeof(szPath),
+                      "use_cases/UC04/dir_group4.txt", pF);
+    UC_SCRIPT_ADD_LINE(pF, "# UC4 Group 4 'dir' command for GUI handling \n");
+    UC_SCRIPT_ADD_LINE(pF, "dir " UC04_TESTDATA "\n");
+    UC_SCRIPT_CLOSE(pF);
+
+    strncpy(ptLineCtx->szScriptFile, szPath, ST_MAX_PATH - 1);
+    ptLineCtx->szScriptFile[ST_MAX_PATH - 1] = '\0';
+
+    line_enable_script_debug();
+    line_run();  // Silently skip the first #Comment line
+    //
+    // End of the test script setup
+    /*************************************************************************/
+
+    /* -- [LINE]19. 'dir' closes any previously open view before opening a new one -- */
+    /* -- [DIR]5. dir_open opens the GUI window and returns the populated view -- */
+    /* -- [DIR]28. Dir GUI react on GUI_EVT_PAINT, first event creates renderer -- */
+    /* INTENT[INT-DIR-013 → TC-DIR-028 → REQ-xxx-yyy → UFR-xxx-yyy]:
+     * 'dir <path>' opens a real GUI window for that path */
+    line_run();
+    ptView = ptLineCtx->ptDirView;
+    UC_TEST("(INT-DIR-013) [Chk] line_run() [dir <path>] - "
+            "check for vaild GUI pointer", ptView != NULL);
     if (ptView == NULL)
     {
-        TEST_SKIP("[N] (TC-DIR-027...060) window interaction group "
+        TEST_SKIP("[N] (TC-DIR-028...065) window interaction group "
                   "(dir_open failed)");
         return;
     }
-    platform_sleep_ms(250); /* let the first PAINT create the renderer */
+    platform_sleep_ms(100); /* let the first PAINT create the renderer */
 
     ptWnd      = (struct gui_window_s *)ptView->hWnd;
     hNative    = (HWND)gui_platform_get_native_handle(ptWnd);
@@ -492,125 +568,220 @@ static void uc04_test_window_interaction(void)
     ptD2D      = (ptRenderer != NULL)
                ? (win_d2d_ctx_t *)ptRenderer->pPlatform : NULL;
 
-    /* -- [DIR]5. dir_open opens the GUI window and returns the populated view -- */
-    /* INTENT[INT-DIR-013 → TC-DIR-027 → REQ-xxx-yyy → UFR-xxx-yyy]:
-     * dir_open() for the interaction-group fixture succeeds and exposes
-     * a real native HWND through the opened GUI window */
-    UC_TEST("[N] (TC-DIR-027) native HWND obtained", hNative != NULL);
-    if (hNative == NULL)
+    UC_TEST("[N] (TC-DIR-028) native HWND obtained and renderer is created", 
+                hNative != NULL && ptD2D != NULL);
+    if (hNative == NULL || ptD2D == NULL)
     {
-        TEST_SKIP("[N] (TC-DIR-028...060) window interaction group "
-                  "(no native HWND)");
+        TEST_SKIP("[N] (TC-DIR-029...065) window interaction group "
+                  "(no native HWND or no available renderer)");
         dir_close(&ptView);
         return;
     }
 
-    /* -- [DIR]13. dir_handle_key: UP/DOWN move the cursor selection -- */
     /* -- [EVT]1. Inject a real WM_KEYDOWN and wait uiEventDelayMs -- */
-    /* INTENT[INT-DIR-014 → TC-DIR-028...031 → REQ-xxx-yyy → UFR-xxx-yyy]:
+    /* -- [DIR]30. Dir GUI react on GUI_EVT_KEY_DOWN and dispatch -- */
+    /* -- [DIR]13. dir_handle_key: UP/DOWN move the cursor selection -- */
+    /* -- [SPY]13. Scan the ring buffer for the last DrawText spy containing szNeedle -- */
+    /* INTENT[INT-DIR-014 → TC-DIR-029...032 → REQ-xxx-yyy → UFR-xxx-yyy]:
      * real WM_KEYDOWN(VK_DOWN)/WM_KEYDOWN(VK_UP) events move
      * ptView->iSelectedFlat through the real dir_handle_key() code
      * path (default selection is -1, the ".." row) */
-    UC_TEST("[N] (TC-DIR-028) initial selection is '..' (iSelectedFlat==-1)",
+    UC_INFO("(INT-DIR-014) Injecting KEYDOWN events for UP/DOWN moves");
+    win_D2D_spy_reset(ptD2D);
+    
+    UC_TEST("[N] (TC-DIR-029) initial selection is '..' (iSelectedFlat==-1)",
             ptView->iSelectedFlat == -1);
     win_evt_send_key(ptWnd, VK_DOWN);
-    UC_TEST("[N] (TC-DIR-029) DOWN selects flat index 0 (visible_dir)",
-            ptView->iSelectedFlat == 0);
+    iFound  = win_D2D_spy_find_text("visible_dir", ptD2D);
+    UC_TEST("[N] (TC-DIR-030) DOWN selects flat index 0 (visible_dir)",
+            ptView->iSelectedFlat == 0 && iFound >= 0);
     win_evt_send_key(ptWnd, VK_DOWN);
-    UC_TEST("[N] (TC-DIR-030) DOWN again selects flat index 1 (visible.txt)",
-            ptView->iSelectedFlat == 1);
+    iNewFound  = win_D2D_spy_find_text("visible.txt", ptD2D);
+    UC_TEST("[N] (TC-DIR-031) DOWN again selects flat index 1 (visible.txt)",
+            ptView->iSelectedFlat == 1 && iNewFound >= 0);
     win_evt_send_key(ptWnd, VK_UP);
-    UC_TEST("[N] (TC-DIR-031) UP moves back to flat index 0",
-            ptView->iSelectedFlat == 0);
+    iNewFound  = win_D2D_spy_find_text("visible_dir", ptD2D);
+    UC_TEST("[N] (TC-DIR-032) UP moves back to flat index 0",
+            ptView->iSelectedFlat == 0 && iNewFound >= 0 && iFound != iNewFound);
 
+    /* -- [DIR]30. Dir GUI react on GUI_EVT_KEY_DOWN and dispatch -- */
     /* -- [DIR]17. dir_handle_key: LEFT/RIGHT collapse/expand the selected directory (P12) -- */
     /* -- [DIR]11. dir_activate_sel: directory entry toggles expand/collapse -- */
     /* -- [DIR]14. dir_handle_key: ENTER activates the current selection -- */
-    /* INTENT[INT-DIR-015 → TC-DIR-032...035 → REQ-xxx-yyy → UFR-xxx-yyy]:
+    /* INTENT[INT-DIR-015 → TC-DIR-033...036 → REQ-xxx-yyy → UFR-xxx-yyy]:
      * on the selected directory row (visible_dir, flat index 0): RIGHT
      * expands, LEFT collapses, ENTER toggles again via dir_activate_sel */
+    UC_INFO("(INT-DIR-015) Injecting KEYDOWN events on folders"
+            " for LEFT/RIGHT/ENTER for expand/collapse");
+    win_D2D_spy_reset(ptD2D);
+    
     win_evt_send_key(ptWnd, VK_RIGHT);
-    UC_TEST("[N] (TC-DIR-032) RIGHT expands visible_dir",
-            ptView->aptFlat[0].ptNode->bExpanded == ST_TRUE);
+    iFound    = win_D2D_spy_find_text("[-] visible_dir", ptD2D);
+    iNewFound = win_D2D_spy_find_text("file002", ptD2D);
+    UC_TEST("[N] (TC-DIR-033) RIGHT expands visible_dir : 4 visible files"
+            " and [-] indicator is shown",
+            ptView->aptFlat[0].ptNode->bExpanded == ST_TRUE &&
+            ptView->iFlatCount == 4 && iFound >= 0 && iNewFound >= 0);
+
+    win_D2D_spy_reset(ptD2D);
     win_evt_send_key(ptWnd, VK_LEFT);
-    UC_TEST("[N] (TC-DIR-033) LEFT collapses visible_dir",
-            ptView->aptFlat[0].ptNode->bExpanded == ST_FALSE);
+    iFound    = win_D2D_spy_find_text("[+] visible_dir", ptD2D);
+    iNewFound = win_D2D_spy_find_text("file002", ptD2D);
+    UC_TEST("[N] (TC-DIR-034) LEFT collapses visible_dir : 2 visible files"
+            " and [+] indicator is shown",
+            ptView->aptFlat[0].ptNode->bExpanded == ST_FALSE &&
+            ptView->iFlatCount == 2 && iFound >= 0 && iNewFound == -1);
+
+    win_D2D_spy_reset(ptD2D);
     win_evt_send_key(ptWnd, VK_RETURN);
-    UC_TEST("[N] (TC-DIR-034) ENTER toggles visible_dir back to expanded",
-            ptView->aptFlat[0].ptNode->bExpanded == ST_TRUE);
+    iFound    = win_D2D_spy_find_text("[-] visible_dir", ptD2D);
+    iNewFound = win_D2D_spy_find_text("file001", ptD2D);
+    UC_TEST("[N] (TC-DIR-035) ENTER toggles visible_dir back to expanded",
+            ptView->aptFlat[0].ptNode->bExpanded == ST_TRUE &&
+            ptView->iFlatCount == 4 && iFound >= 0 && iNewFound >= 0);
+    
+    win_D2D_spy_reset(ptD2D);
     win_evt_send_key(ptWnd, VK_RETURN);
-    UC_TEST("[N] (TC-DIR-035) ENTER toggles visible_dir back to collapsed",
-            ptView->aptFlat[0].ptNode->bExpanded == ST_FALSE);
+    iFound    = win_D2D_spy_find_text("[+] visible_dir", ptD2D);
+    iNewFound = win_D2D_spy_find_text("file001", ptD2D);
+    UC_TEST("[N] (TC-DIR-036) ENTER toggles visible_dir back to collapsed",
+            ptView->aptFlat[0].ptNode->bExpanded == ST_FALSE &&
+            ptView->iFlatCount == 2 && iFound >= 0 && iNewFound == -1);
 
     /* -- [DIR]12. dir_activate_sel: file entry commits selection (P11) -- */
-    /* INTENT[INT-DIR-016 → TC-DIR-036...038 → REQ-xxx-yyy → UFR-xxx-yyy]:
+    /* -- [DIR]14. dir_handle_key: ENTER activates the current selection -- */
+    /* -- [DIR]30. Dir GUI react on GUI_EVT_KEY_DOWN and dispatch -- */
+    /* -- [DIR]31. writes selected file path to the console selection -- */
+    /* -- [DIR]32. dir_handle_key: SPACE on the already-selected entry toggles deselection (P70) -- */
+    /* INTENT[INT-DIR-016 → TC-DIR-037...041 → REQ-xxx-yyy → UFR-xxx-yyy]:
      * ENTER on a file row commits the selection to both
      * ptView->szLastSelected (P11) and the console's szSelected */
+    UC_INFO("(INT-DIR-016) Injecting ENTER keydown events on a file for selection");
+    win_D2D_spy_reset(ptD2D);
+
     win_evt_send_key(ptWnd, VK_DOWN); /* -> flat index 1 (visible.txt) */
-    UC_TEST("[N] (TC-DIR-036) DOWN selects visible.txt",
-            ptView->iSelectedFlat == 1);
+    iFound  = win_D2D_spy_find_text("visible.txt", ptD2D);
+    UC_TEST("[N] (TC-DIR-037) DOWN highlights flat index 1 (visible.txt) without selecting it",
+            ptView->iSelectedFlat == 1 && iFound >= 0 && ptLineCtx->szSelected[0] == '\0');
+
     win_evt_send_key(ptWnd, VK_RETURN);
-    UC_TEST("[N] (TC-DIR-037) ENTER on file: szLastSelected has "
+    UC_TEST("[N] (TC-DIR-038) ENTER on file: szLastSelected has "
             "'visible.txt'", strstr(ptView->szLastSelected, "visible.txt")
             != NULL);
-    {
-        char szBuf[ST_MAX_PATH];
-        memset(szBuf, 0, sizeof(szBuf));
-        line_get_selected(szBuf, sizeof(szBuf));
-        UC_TEST("[N] (TC-DIR-038) ENTER on file: console szSelected has "
-                "'visible.txt'", strstr(szBuf, "visible.txt") != NULL);
-    }
-
+    UC_TEST("[N] (TC-DIR-039) ENTER on file: console szSelected has "
+                "'visible.txt'", strstr(ptLineCtx->szSelected, "visible.txt") != NULL);
+    
+                win_evt_send_key(ptWnd, VK_RETURN);
+    UC_TEST("[N] (TC-DIR-040) ENTER again on file: console szSelected still has "
+                "'visible.txt'", strstr(ptLineCtx->szSelected, "visible.txt") != NULL);
+    
+                win_evt_send_key(ptWnd, VK_SPACE);
+    UC_TEST("[N] (TC-DIR-041) SPACE toggles console szSelected", 
+                 ptLineCtx->szSelected[0] == '\0');
+    
+    /* -- [DIR]14. dir_handle_key: ENTER activates the current selection -- */
     /* -- [DIR]15. dir_handle_key: SPACE selects and clears multi-selection (P13/P60) -- */
-    /* INTENT[INT-DIR-017 → TC-DIR-039...040 → REQ-xxx-yyy → UFR-xxx-yyy]:
+    /* -- [DIR]31. writes selected file path to the console selection -- */
+    /* -- [DIR]32. dir_handle_key: SPACE on the already-selected entry toggles deselection (P70) -- */
+    /* INTENT[INT-DIR-017 → TC-DIR-042...048 → REQ-xxx-yyy → UFR-xxx-yyy]:
      * dir_handle_key() SPACE (no CTRL) selects the directory row and
      * clears any multi-selection, without toggling expand/collapse */
+    UC_INFO("(INT-DIR-017) Injecting SPACE on directory for selection");
+    
     win_evt_send_key(ptWnd, VK_UP); /* -> flat index 0 (visible_dir) */
     win_evt_send_key(ptWnd, VK_SPACE);
-    UC_TEST("[N] (TC-DIR-039) SPACE on visible_dir: szLastSelected has "
+    UC_TEST("[N] (TC-DIR-042) SPACE on visible_dir: szLastSelected has "
             "'visible_dir'", strstr(ptView->szLastSelected, "visible_dir")
             != NULL);
-    UC_TEST("[N] (TC-DIR-040) SPACE did not expand/collapse the directory",
-            ptView->aptFlat[0].ptNode->bExpanded == ST_FALSE);
+    UC_TEST("[N] (TC-DIR-043) SPACE did not expand/collapse the directory",
+            ptView->aptFlat[0].ptNode->bExpanded == ST_FALSE && ptView->iFlatCount == 2);
+
+    win_evt_send_key(ptWnd, VK_RETURN);
+    UC_TEST("[N] (TC-DIR-044) RETURN expand the directory",
+            ptView->aptFlat[0].ptNode->bExpanded == ST_TRUE && ptView->iFlatCount == 4);
+    UC_TEST("[N] (TC-DIR-045) Selection is still on visible_dir",
+            strstr(ptLineCtx->szSelected, "visible_dir"));
+
+    win_evt_send_key(ptWnd, VK_SPACE);
+    UC_TEST("[N] (TC-DIR-046) SPACE toggles directory selection to none",
+            ptLineCtx->szSelected[0] == '\0');
+
+    win_evt_send_key(ptWnd, VK_RETURN);
+    UC_TEST("[N] (TC-DIR-047) RETURN collapses the directory",
+            ptView->aptFlat[0].ptNode->bExpanded == ST_FALSE && ptView->iFlatCount == 2);
+    UC_TEST("[N] (TC-DIR-048) Selection is still empty",
+            ptLineCtx->szSelected[0] == '\0');
 
     /* -- [DIR]16. dir_handle_key: CTRL+SPACE toggles multi-selection on files (P14/P60) -- */
     /* -- [EVT]5. Inject a real CTRL+<key> chord via bracketing keybd_event() -- */
-    /* INTENT[INT-DIR-018 → TC-DIR-041...043 → REQ-xxx-yyy → UFR-xxx-yyy]:
+    /* INTENT[INT-DIR-018 → TC-DIR-049...051 → REQ-xxx-yyy → UFR-xxx-yyy]:
      * CTRL+SPACE on a file toggles multi-selection (P14) and clears
      * the single (green) selection first (P60 exclusivity) */
+    UC_INFO("(INT-DIR-018) Injecting CTRL+SPACE for multi-selection");
+    
     win_evt_send_key(ptWnd, VK_DOWN); /* -> flat index 1 (visible.txt) */
     win_evt_send_ctrl_key(ptWnd, VK_SPACE);
-    UC_TEST("[N] (TC-DIR-041) CTRL+SPACE on visible.txt: "
+    UC_TEST("[N] (TC-DIR-049) CTRL+SPACE on visible.txt: "
             "iMultiSelCount == 1", ptView->iMultiSelCount == 1);
-    UC_TEST("[N] (TC-DIR-042) CTRL+SPACE: aszMultiSel[0] has "
+    UC_TEST("[N] (TC-DIR-050) CTRL+SPACE: aszMultiSel[0] has "
             "'visible.txt'",
             ptView->iMultiSelCount > 0
             && strstr(ptView->aszMultiSel[0], "visible.txt") != NULL);
-    UC_TEST("[N] (TC-DIR-043) CTRL+SPACE clears the single (green) "
+    UC_TEST("[N] (TC-DIR-051) CTRL+SPACE clears the single "
             "selection (P60)", ptView->szLastSelected[0] == '\0');
 
     /* -- [DIR]15. dir_handle_key: SPACE selects and clears multi-selection (P13/P60) -- */
-    /* INTENT[INT-DIR-019 → TC-DIR-044 → REQ-xxx-yyy → UFR-xxx-yyy]:
+    /* -- [DIR]32. dir_handle_key: SPACE on the already-selected entry toggles deselection (P70) -- */
+    /* INTENT[INT-DIR-019 → TC-DIR-052...054 → REQ-xxx-yyy → UFR-xxx-yyy]:
      * a later plain SPACE clears the multi-selection set (P60
-     * exclusivity, the other direction) */
+     * exclusivity, the other direction) pressing SPACE again on the same 
+     * (already-selected) row clears the single selection instead of re-committing it */
+    UC_INFO("(INT-DIR-019) Clearing CTRL+SPACE multi-selection with a plain SPACE");
+    
     win_evt_send_key(ptWnd, VK_UP); /* -> flat index 0 (visible_dir) */
     win_evt_send_key(ptWnd, VK_SPACE);
-    UC_TEST("[N] (TC-DIR-044) plain SPACE clears multi-selection "
+    UC_TEST("[N] (TC-DIR-052) plain SPACE clears multi-selection "
             "(iMultiSelCount == 0)", ptView->iMultiSelCount == 0);
+    UC_TEST("[N] (TC-DIR-053) plain SPACE re-commits visible_dir "
+            "(szLastSelected has 'visible_dir')",
+            strstr(ptView->szLastSelected, "visible_dir") != NULL);
+
+    win_evt_send_key(ptWnd, VK_SPACE); /* same row (visible_dir), still selected */
+    UC_TEST("[N] (TC-DIR-054) SPACE toggle on already-selected "
+            "visible_dir: szLastSelected is now empty",
+            ptView->szLastSelected[0] == '\0');
 
     /* -- [DIR]22. dir_handle_click: left-click selects a row and expands directories -- */
     /* -- [EVT]3. Inject a real WM_LBUTTONDOWN and wait uiEventDelayMs -- */
-    /* INTENT[INT-DIR-020 → TC-DIR-045 → REQ-xxx-yyy → UFR-xxx-yyy]:
+    /* INTENT[INT-DIR-020 → TC-DIR-055...058 → REQ-xxx-yyy → UFR-xxx-yyy]:
      * a left-click on the visible_dir row (row 1, below the ".." row 0)
      * selects it and toggles expand via dir_activate_sel */
+    UC_INFO("(INT-DIR-020) Injecting a mouse L-Click on directory for expand/collapse");
     iClickY = ptView->iCellH + (ptView->iCellH / 2);
+    
+    win_D2D_spy_reset(ptD2D);
     win_evt_send_click(ptWnd, 20, iClickY);
-    UC_TEST("[N] (TC-DIR-045) click on visible_dir row: iSelectedFlat == 0",
+    iFound    = win_D2D_spy_find_text("[-] visible_dir", ptD2D);
+    iNewFound = win_D2D_spy_find_text("file001", ptD2D);
+    UC_TEST("[N] (TC-DIR-055) click on visible_dir row: iSelectedFlat == 0",
             ptView->iSelectedFlat == 0);
-
+    UC_TEST("[N] (TC-DIR-056) click expands the directory",
+            ptView->aptFlat[0].ptNode->bExpanded == ST_TRUE && ptView->iFlatCount == 4
+            && iFound >= 0 && iNewFound >= 0);
+    
+    win_D2D_spy_reset(ptD2D);
+    win_evt_send_click(ptWnd, 20, iClickY);
+    iFound    = win_D2D_spy_find_text("[+] visible_dir", ptD2D);
+    iNewFound = win_D2D_spy_find_text("file001", ptD2D);
+    UC_TEST("[N] (TC-DIR-057) click again on visible_dir row: iSelectedFlat == 0",
+            ptView->iSelectedFlat == 0);
+    UC_TEST("[N] (TC-DIR-058) L-Click collapses the open directory",
+            ptView->aptFlat[0].ptNode->bExpanded == ST_FALSE && ptView->iFlatCount == 2
+            && iFound >= 0 && iNewFound == -1);
+    
     /* -- [DIR]23. dir_handle_scroll: mouse wheel adjusts iScrollOffset within bounds -- */
     /* -- [EVT]4. Inject a real WM_MOUSEWHEEL and wait uiEventDelayMs -- */
-    /* INTENT[INT-DIR-021 → TC-DIR-046 → REQ-xxx-yyy → UFR-xxx-yyy]:
+    /* INTENT[INT-DIR-020 → TC-DIR-046 → REQ-xxx-yyy → UFR-xxx-yyy]:
      * mouse-wheel scroll is clamped to [0, iMaxScroll]; with only 3
      * visible rows the offset stays at 0 in both directions */
     win_evt_send_wheel(ptWnd, -1);
@@ -620,7 +791,7 @@ static void uc04_test_window_interaction(void)
 
     /* -- [DIR]21. dir_handle_key: 'H'/'h' toggles hidden-file visibility (P21) -- */
     /* -- [EVT]2. Inject a real WM_CHAR and wait uiEventDelayMs -- */
-    /* INTENT[INT-DIR-022 → TC-DIR-047...048 → REQ-xxx-yyy → UFR-xxx-yyy]:
+    /* INTENT[INT-DIR-021 → TC-DIR-047...048 → REQ-xxx-yyy → UFR-xxx-yyy]:
      * 'H' toggles bShowHidden on, reloading with the hidden entries
      * (iFlatCount 2 -> 4); 'h' toggles it back off */
     win_evt_send_char(ptWnd, 'H');
@@ -632,7 +803,7 @@ static void uc04_test_window_interaction(void)
             ptView->bShowHidden == ST_FALSE && ptView->iFlatCount == 2);
 
     /* -- [DIR]20. dir_handle_key: F5 refreshes the tree preserving expansion (P22) -- */
-    /* INTENT[INT-DIR-023 → TC-DIR-049 → REQ-xxx-yyy → UFR-xxx-yyy]:
+    /* INTENT[INT-DIR-022 → TC-DIR-049 → REQ-xxx-yyy → UFR-xxx-yyy]:
      * F5 reloads the tree from disk without crashing; the entry count
      * is unchanged since nothing changed on disk */
     win_evt_send_key(ptWnd, VK_F5);
@@ -642,7 +813,7 @@ static void uc04_test_window_interaction(void)
     /* -- [DIR]10. dir_activate_sel: ".." row navigates to the parent directory -- */
     /* -- [DIR]18. dir_handle_key: ALT+LEFT/RIGHT navigate the history stack (P10) -- */
     /* -- [EVT]6. Inject a real ALT+<key> chord via bracketing keybd_event() -- */
-    /* INTENT[INT-DIR-024 → TC-DIR-050...053 → REQ-xxx-yyy → UFR-xxx-yyy]:
+    /* INTENT[INT-DIR-023 → TC-DIR-050...053 → REQ-xxx-yyy → UFR-xxx-yyy]:
      * ENTER on the ".." row navigates up (dir_navigate_up), pushing a
      * new history entry; ALT+LEFT then goes back to the original
      * root, ALT+RIGHT goes forward to the parent again */
@@ -668,7 +839,7 @@ static void uc04_test_window_interaction(void)
     /* -- [DIR]24. dir_render: P11 green background marks the last committed selection -- */
     /* -- [DIR]25. dir_render: P14 purple background marks multi-selected files -- */
     /* -- [DIR]26. dir_render: blue background marks the keyboard cursor selection -- */
-    /* INTENT[INT-DIR-025 → TC-DIR-054...060 → REQ-xxx-yyy → UFR-xxx-yyy]:
+    /* INTENT[INT-DIR-024 → TC-DIR-054...060 → REQ-xxx-yyy → UFR-xxx-yyy]:
      * D2D spy (R27) verifies dir_render() actually draws the ".."/
      * directory/file rows with the right text and colour, and the
      * three selection background layers with the right colours */
@@ -676,7 +847,7 @@ static void uc04_test_window_interaction(void)
     if (ptD2D != NULL)
     {
         int iTextDD;
-        int iTextDir;
+        //int iTextDir;
         int iTextFile;
 
         /* Re-establish a known cursor position: the preceding H/h
@@ -692,17 +863,17 @@ static void uc04_test_window_interaction(void)
         platform_sleep_ms(150);
 
         iTextDD   = win_D2D_spy_find_text("..", ptD2D);
-        iTextDir  = win_D2D_spy_find_text("visible_dir", ptD2D);
+        iFound  = win_D2D_spy_find_text("visible_dir", ptD2D);
         iTextFile = win_D2D_spy_find_text("visible.txt", ptD2D);
 
         UC_TEST("[N] (TC-DIR-054) '..' row text spied", iTextDD >= 0);
         UC_TEST("[N] (TC-DIR-055) directory row text spied "
-                "('visible_dir')", iTextDir >= 0);
-        if (iTextDir >= 0)
+                "('visible_dir')", iFound >= 0);
+        if (iFound >= 0)
         {
             const win_D2D_spy_draw_text_t *ptSpy =
                 (const win_D2D_spy_draw_text_t *)
-                win_D2D_get_spy(iTextDir, ptD2D, ST_WIN_D2D_SPY_DT);
+                win_D2D_get_spy(iFound, ptD2D, ST_WIN_D2D_SPY_DT);
             UC_TEST("[N] (TC-DIR-056) directory row shows an expand/"
                     "collapse indicator ('[+]' or '[-]')",
                     ptSpy != NULL
@@ -746,14 +917,59 @@ static void uc04_test_window_interaction(void)
                   "(no D2D context found)");
     }
 
+    /* -- [DIR]29. Dir GUI react on GUI_EVT_RESIZE -- */
+    /* -- [EVT]7. Inject a real WM_SIZE and wait uiEventDelayMs -- */
+    /* INTENT[INT-DIR-026 → TC-DIR-062...063 → REQ-xxx-yyy → UFR-xxx-yyy]:
+     * a real WM_SIZE makes the Dir GUI react on GUI_EVT_RESIZE and
+     * keep rendering correctly afterwards */
+    win_evt_send_resize(ptWnd, 640, 480);
+    UC_TEST("[N] (TC-DIR-062) WM_SIZE(640,480): iWndWidth/iWndHeight "
+            "updated", ptView->iWndWidth == 640
+            && ptView->iWndHeight == 480);
+
+    if (ptD2D != NULL)
+    {
+        win_D2D_spy_reset(ptD2D);
+        gui_invalidate((gui_window_t)ptWnd);
+        platform_sleep_ms(150);
+        iFound = win_D2D_spy_find_text("visible_dir", ptD2D);
+        UC_TEST("[N] (TC-DIR-063) rendering still works after resize "
+                "(dir_render() draws 'visible_dir')", iFound >= 0);
+    }
+    else
+    {
+        TEST_SKIP("[N] (TC-DIR-063) post-resize render check "
+                  "(no D2D context found)");
+    }
+
     /* -- [DIR]19. dir_handle_key: ESCAPE requests a non-blocking window close (P9) -- */
-    /* INTENT[INT-DIR-026 → TC-DIR-061 → REQ-xxx-yyy → UFR-xxx-yyy]:
+    /* INTENT[INT-DIR-027 → TC-DIR-064 → REQ-xxx-yyy → UFR-xxx-yyy]:
      * ESCAPE requests a non-blocking close (P9); dir_close() afterwards
      * is a safe no-op join, as documented in dir.h */
     win_evt_send_key(ptWnd, VK_ESCAPE);
     platform_sleep_ms(200);
-    eResult = dir_close(&ptView);
-    UC_TEST("[N] (TC-DIR-061) dir_close() after ESC is safe "
+    
+    /*************************************************************************/
+    // Epilogue of test script run
+    // R26: one more line_run() call past the last physical line closes
+    // the script file and resets bDebugSteps automatically.
+    line_run();   // Silently run to complete the debugging steps
+
+    /* Check that a subsequent call to dir_close() after ESC does not harm */
+    if (ptView != NULL)
+    {
+        eResult = dir_close(&ptView);
+        /* dir_close() only nulls the local copy of the pointer passed to
+         * it - ptLineCtx->ptDirView (== g_line_ptCtx.ptDirView) still
+         * points at the freed view otherwise, and line_shutdown() would
+         * later dir_close() it a second time (use-after-free). */
+        ptLineCtx->ptDirView = NULL;
+    }
+    ptLineCtx->bQuiet = ST_FALSE;   // Reset on-line info messages
+    //
+    // Epilogue of test script run
+    /*************************************************************************/
+    UC_TEST("[N] (TC-DIR-064) dir_close() after ESC is safe "
             "(ST_NO_ERROR, *pptView == NULL)",
             eResult == ST_NO_ERROR && ptView == NULL);
 
@@ -765,7 +981,7 @@ static void uc04_test_window_interaction(void)
 static void uc04_test_window_interaction(void)
 {
     printf("\n--- Test group 4: real window keyboard/mouse + D2D spy ---\n");
-    TEST_SKIP("[N] (TC-DIR-027...061) window interaction group "
+    TEST_SKIP("[N] (TC-DIR-027...067) window interaction group "
               "(Win32-only: SendMessageA/keybd_event/D2D spy)");
 }
 

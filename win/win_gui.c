@@ -955,4 +955,32 @@ st_error_t win_evt_send_alt_key(struct gui_window_s *ptWnd, int iVk)
     return ST_NO_ERROR;
 }
 
+st_error_t win_evt_send_resize(struct gui_window_s *ptWnd,
+                                 int iWidth, int iHeight)
+{
+    HWND   hNative;
+    LPARAM lParam;
+
+    // No LOG_TRACE - R22: test-only event injector.
+    if (ptWnd == NULL)
+    {
+        LOG_ERROR("NULL parameter: ptWnd=%p", (void *)ptWnd);
+        return ST_ERROR;
+    }
+
+    hNative = (HWND)gui_platform_get_native_handle(ptWnd);
+    if (hNative == NULL)
+    {
+        LOG_ERROR("gui_platform_get_native_handle failed: ptWnd=%p",
+                  (void *)ptWnd);
+        return ST_ERROR;
+    }
+
+    /* -- [EVT]7. Inject a real WM_SIZE and wait uiEventDelayMs -- */
+    lParam = (LPARAM)(((iHeight & 0xFFFF) << 16) | (iWidth & 0xFFFF));
+    SendMessageA(hNative, WM_SIZE, SIZE_RESTORED, lParam);
+    platform_sleep_ms(ptWnd->uiEventDelayMs);
+    return ST_NO_ERROR;
+}
+
 #endif /* ST_PLATFORM_WINDOWS */

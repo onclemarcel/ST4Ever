@@ -309,4 +309,21 @@ st_error_t win_evt_send_ctrl_key(struct gui_window_s *ptWnd, int iVk);
  */
 st_error_t win_evt_send_alt_key(struct gui_window_s *ptWnd, int iVk);
 
+/*
+ * win_evt_send_resize() - Inject a client-area resize as a real
+ * WM_SIZE, the same message Windows sends when the user drags an
+ * edge/corner or the window is maximized/restored.
+ *
+ * Parameters:
+ *   ptWnd            [in] : Open window to send the event to.
+ *   iWidth/iHeight   [in] : New client-area size in pixels (each must
+ *                           fit a 16-bit WORD, per WM_SIZE's LOWORD/
+ *                           HIWORD lParam encoding).
+ *
+ * Returns:
+ *   ST_NO_ERROR on success, ST_ERROR if ptWnd has no native handle.
+ */
+st_error_t win_evt_send_resize(struct gui_window_s *ptWnd,
+                                 int iWidth, int iHeight);
+
 #endif /* WIN_H */

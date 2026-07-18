@@ -97,6 +97,11 @@ static void dir_scroll_to_sel(dir_view_t *ptView);
 static void dir_activate_sel(dir_view_t *ptView, gui_window_t hWnd);
 static void dir_navigate_up(dir_view_t *ptView, gui_window_t hWnd);
 
+/* P11: commit a file selection to the console + last-selected indicator
+ * (shared by dir_activate_sel's ENTER path and dir_handle_key's SPACE) */
+static void dir_commit_file_selection(dir_view_t       *ptView,
+                                        const dir_node_t *ptNode);
+
 /* P10: nav history helpers */
 static void dir_nav_history_push(dir_view_t *ptView, const char *szNewPath);
 static void dir_navigate_to(dir_view_t  *ptView, const char *szNewPath,
@@ -847,6 +852,20 @@ static void dir_toggle_multi_sel(dir_view_t *ptView, const char *szPath)
     }
 }
 
+/* -- [DIR]31. writes selected file path to the console selection -- */
+/* P11: commit a file selection to the console + last-selected indicator
+ * (shared by dir_activate_sel's ENTER path and dir_handle_key's SPACE) */
+static void dir_commit_file_selection(dir_view_t       *ptView,
+                                        const dir_node_t *ptNode)
+{
+    if (!ptView->bIsLineRunning) return;
+
+    line_set_selected(ptNode->szPath);
+    strncpy(ptView->szLastSelected, ptNode->szPath, ST_MAX_PATH - 1);
+    ptView->szLastSelected[ST_MAX_PATH - 1] = '\0';
+    LOG_INFO("dir: selected '%s'", ptNode->szPath);
+}
+
 static void dir_activate_sel(dir_view_t *ptView, gui_window_t hWnd)
 {
     dir_flat_entry_t *ptEntry;
@@ -887,15 +906,7 @@ static void dir_activate_sel(dir_view_t *ptView, gui_window_t hWnd)
     {
         /* -- [DIR]12. dir_activate_sel: file entry commits selection (P11) -- */
         /* File: update console selection (mutex-safe, UC4.3) */
-        if (ptView->bIsLineRunning)
-        {
-            line_set_selected(ptNode->szPath);
-            /* P11: record last-selected for secondary visual indicator */
-            strncpy(ptView->szLastSelected, ptNode->szPath,
-                    ST_MAX_PATH - 1);
-            ptView->szLastSelected[ST_MAX_PATH - 1] = '\0';
-            LOG_INFO("dir: selected '%s'", ptNode->szPath);
-        }
+        dir_commit_file_selection(ptView, ptNode);
     }
 }
 
@@ -1157,14 +1168,23 @@ static void dir_handle_key(dir_view_t  *ptView,
                     ptView->iMultiSelCount = 0;
                     LOG_INFO("dir: multi-sel cleared on single SPACE");
                 }
-                if (ptView->bIsLineRunning)
+
+                /* -- [DIR]32. dir_handle_key: SPACE on the already-selected entry toggles deselection (P70) -- */
+                /* P70: pressing SPACE again on the entry currently holding
+                 * the single (green) selection clears it instead of
+                 * re-committing the same path. */
+                if (ptView->szLastSelected[0] != '\0'
+                &&  strcmp(ptView->szLastSelected, ptNode->szPath) == 0)
                 {
-                    line_set_selected(ptNode->szPath);
-                    /* P11: record last-selected for secondary indicator */
-                    strncpy(ptView->szLastSelected, ptNode->szPath,
-                            ST_MAX_PATH - 1);
-                    ptView->szLastSelected[ST_MAX_PATH - 1] = '\0';
-                    LOG_INFO("dir: SPACE selected '%s'", ptNode->szPath);
+                    ptView->szLastSelected[0] = '\0';
+                    if (ptView->bIsLineRunning)
+                        line_set_selected("");
+                    LOG_INFO("dir: deselected '%s' (SPACE toggle)",
+                             ptNode->szPath);
+                }
+                else
+                {
+                    dir_commit_file_selection(ptView, ptNode);
                 }
                 /* BUG-08: refresh immediately so green highlight is visible */
                 bRedraw = ST_TRUE;
@@ -1380,6 +1400,7 @@ static void dir_event_callback(gui_window_t  hWnd,
     switch (ptEvent->eType)
     {
     case GUI_EVT_PAINT:
+        /* -- [DIR]28. Dir GUI react on GUI_EVT_PAINT, first event creates renderer -- */
         /* Create renderer on first paint (HWND live at this point) */
         if (ptView->hRenderer == NULL)
         {
@@ -1398,6 +1419,7 @@ static void dir_event_callback(gui_window_t  hWnd,
         break;
 
     case GUI_EVT_RESIZE:
+        /* -- [DIR]29. Dir GUI react on GUI_EVT_RESIZE -- */
         ptView->iWndWidth  = ptEvent->uData.tResize.iWidth;
         ptView->iWndHeight = ptEvent->uData.tResize.iHeight;
         if (ptView->hRenderer != NULL)
@@ -1409,6 +1431,7 @@ static void dir_event_callback(gui_window_t  hWnd,
         break;
 
     case GUI_EVT_KEY_DOWN:
+        /* -- [DIR]30. Dir GUI react on GUI_EVT_KEY_DOWN and dispatch -- */
         dir_handle_key(ptView, hWnd,
                        ptEvent->uData.tKey.eKey,
                        ptEvent->uData.tKey.uiMods);

@@ -1,0 +1,2 @@
+# UC4 Group 4 'dir' command for GUI handling 
+dir use_cases/UC04_1/testdata

@@ -377,7 +377,6 @@ const void *win_D2D_get_spy(int iIndex,
  */
 int win_D2D_spy_find_text(const char *szNeedle, win_d2d_ctx_t *ptCtx)
 {
-    int      i;
     wchar_t  wNeedle[WIN_D2D_SPY_TEXT_LEN];
     const win_D2D_spy_draw_text_t *ptSpy;
 
@@ -391,8 +390,8 @@ int win_D2D_spy_find_text(const char *szNeedle, win_d2d_ctx_t *ptCtx)
     mbstowcs(wNeedle, szNeedle, sizeof(wNeedle) / sizeof(wNeedle[0]) - 1);
     wNeedle[sizeof(wNeedle) / sizeof(wNeedle[0]) - 1] = L'\0';
 
-    /* -- [SPY]13. Scan the ring buffer for the first DrawText spy containing szNeedle -- */
-    for (i = 0; i < ptCtx->uiSpiesCount; i++)
+    /* -- [SPY]13. Scan the ring buffer for the last DrawText spy containing szNeedle -- */
+    for (int i = (ptCtx->uiSpiesCount - 1); i >= 0; i--)
     {
         ptSpy = (const win_D2D_spy_draw_text_t *)
                 win_D2D_get_spy(i, ptCtx, ST_WIN_D2D_SPY_DT);
@@ -414,7 +413,6 @@ st_bool_t win_D2D_spy_find_fill_rect_color(float           fR,
                                             float           fA,
                                             win_d2d_ctx_t  *ptCtx)
 {
-    int i;
     const win_D2D_spy_fill_rectangle_t *ptSpy;
 
     // No LOG_TRACE - R22: query function, called repeatedly by
@@ -424,8 +422,8 @@ st_bool_t win_D2D_spy_find_fill_rect_color(float           fR,
         return ST_FALSE;
     }
 
-    /* -- [SPY]14. Scan the ring buffer for a FillRectangle spy matching the exact color -- */
-    for (i = 0; i < ptCtx->uiSpiesCount; i++)
+    /* -- [SPY]14. Scan the ring buffer for the last FillRectangle spy matching the exact color -- */
+    for (int i = (ptCtx->uiSpiesCount - 1); i >= 0; i--)
     {
         ptSpy = (const win_D2D_spy_fill_rectangle_t *)
                 win_D2D_get_spy(i, ptCtx, ST_WIN_D2D_SPY_FR);

@@ -207,7 +207,7 @@ static const cmd_entry_t g_line_aCmds[] =
       "Close all views and exit ST4Ever" },
 
     { "dir",     "d", CMD_DIR,
-      "dir [-a] [path]",
+      "dir [-a] [--select <path>] [--unselect] [path]",
       "Open a directory tree view (defaults to cwd)" },
 
     { "load",    "l", CMD_LOAD,
@@ -1203,6 +1203,7 @@ static st_error_t line_cmd_dir(const parsed_cmd_t *ptParsed)
     const char *szPath;
     st_bool_t   bShowHidden;
     st_bool_t   bSelectOnly;
+    st_bool_t   bUnselectOnly;
     st_error_t  eResult;
     file_stat_t tStat;
     int         iArg;
@@ -1223,12 +1224,13 @@ static st_error_t line_cmd_dir(const parsed_cmd_t *ptParsed)
         return ST_ERROR;
     }
 
-    bShowHidden = ST_FALSE;
-    bSelectOnly = ST_FALSE;
-    szPath      = NULL;
-    szSelPath[0] = '\0';
+    bShowHidden   = ST_FALSE;
+    bSelectOnly   = ST_FALSE;
+    bUnselectOnly = ST_FALSE;
+    szPath        = NULL;
+    szSelPath[0]  = '\0';
 
-    /* -- [LINE]17. Check 'dir' options (-a/--select) and set path -- */
+    /* -- [LINE]17. Check 'dir' options (-a/--select/--unselect) and set path -- */
     for (iArg = 1; iArg < ptParsed->iArgc; iArg++)
     {
         if (strcmp(ptParsed->aszArgv[iArg], "-a") == 0)
@@ -1245,6 +1247,10 @@ static st_error_t line_cmd_dir(const parsed_cmd_t *ptParsed)
                 szSelPath[ST_MAX_PATH - 1] = '\0';
                 iArg++;
             }
+        }
+        else if (strcmp(ptParsed->aszArgv[iArg], "--unselect") == 0)
+        {
+            bUnselectOnly = ST_TRUE;
         }
         else if (szPath == NULL)
         {
@@ -1275,6 +1281,23 @@ static st_error_t line_cmd_dir(const parsed_cmd_t *ptParsed)
         }
         line_set_selected(szSelPath);
         line_print_msg("Selected: %s", szSelPath);
+        line_update_console_title();
+        return ST_NO_ERROR;
+    }
+
+    /* -- [LINE]22. 'dir --unselect' clears szSelected headlessly (P70) -- */
+    /* P70: third means of resetting a selection, usable from a script
+     * without opening a window.  Also clears the open dir view's green
+     * (P11) indicator so the GUI stays consistent with the console. */
+    if (bUnselectOnly)
+    {
+        line_set_selected("");
+        if (g_line_ptCtx.ptDirView != NULL)
+        {
+            g_line_ptCtx.ptDirView->szLastSelected[0] = '\0';
+            gui_invalidate(g_line_ptCtx.ptDirView->hWnd);
+        }
+        line_print_msg("Selection cleared.");
         line_update_console_title();
         return ST_NO_ERROR;
     }
