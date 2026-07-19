@@ -328,7 +328,8 @@ static st_error_t dir_node_load_children(dir_node_t *ptNode,
 /*
  * dir_node_reload_children() - Free and rescan a node's direct children.
  *
- * Used by P21 (hidden toggle) and P22 (F5 refresh).  The node is left
+ * Used by dir_refresh_tree() (P21 hidden toggle and P22 F5 refresh both
+ * go through it to preserve expansion state).  The node is left
  * expanded only if it was already expanded; children come back with
  * bExpanded=ST_FALSE so sub-trees collapse implicitly.
  */
@@ -1302,11 +1303,15 @@ static void dir_handle_key(dir_view_t  *ptView,
                     (ptView->bShowHidden == ST_TRUE)
                     ? ST_FALSE : ST_TRUE;
 
-                dir_node_reload_children(ptView->ptRoot,
-                                          ptView->bShowHidden);
+                /* P21/P22: reuse F5's expansion-preserving reload so
+                 * toggling hidden files does not collapse open dirs */
+                dir_refresh_tree(ptView);
                 dir_flat_rebuild(ptView);
                 ptView->iScrollOffset = 0;
-                ptView->iSelectedFlat = -2;
+                if (ptView->iSelectedFlat >= ptView->iFlatCount)
+                {
+                    ptView->iSelectedFlat = ptView->iFlatCount - 1;
+                }
                 bRedraw = ST_TRUE;
                 LOG_INFO("dir: hidden files %s",
                          ptView->bShowHidden ? "shown" : "hidden");

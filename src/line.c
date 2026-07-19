@@ -1334,7 +1334,15 @@ static st_error_t line_cmd_dir(const parsed_cmd_t *ptParsed)
     /* BUG-09: restore previous history and append the newly opened path.
      * dir_open() seeds aszNavHistory[0] with szRoot, head=0, count=1.
      * We insert [prev_history] before the new root, then add new root at
-     * iNewHead.  If history is full the oldest entry is silently dropped. */
+     * iNewHead.  If history is full the oldest entry is silently dropped.
+     *
+     * BUG fixed 2026-07-18: re-opening the SAME path as the current
+     * history head (e.g. 'dir -a <path>' issued right after
+     * 'dir <path>', or any repeated 'dir' with no actual navigation in
+     * between) used to push a duplicate entry every time, inflating
+     * iNavHistHead/iNavHistCount on every re-invocation even though the
+     * effective location never changed. Only append when szNewRoot
+     * differs from the restored head entry. */
     /* -- [LINE]21. Manage 'dir' navigation history -- */
     if (g_line_iDirNavHistHead >= 0)
     {
@@ -1346,21 +1354,40 @@ static st_error_t line_cmd_dir(const parsed_cmd_t *ptParsed)
                 ST_MAX_PATH - 1);
         szNewRoot[ST_MAX_PATH - 1] = '\0';
 
-        iNewHead = g_line_iDirNavHistHead + 1;
-        if (iNewHead >= DIR_NAV_HIST_MAX)
-            iNewHead = DIR_NAV_HIST_MAX - 1;
-
-        for (i = 0; i <= g_line_iDirNavHistHead && i < iNewHead; i++)
+        if (strcmp(szNewRoot, g_line_aDirNavHist[g_line_iDirNavHistHead])
+            == 0)
         {
-            strncpy(g_line_ptCtx.ptDirView->aszNavHistory[i],
-                    g_line_aDirNavHist[i], ST_MAX_PATH - 1);
-            g_line_ptCtx.ptDirView->aszNavHistory[i][ST_MAX_PATH - 1] = '\0';
+            for (i = 0; i <= g_line_iDirNavHistHead
+            &&   i < DIR_NAV_HIST_MAX; i++)
+            {
+                strncpy(g_line_ptCtx.ptDirView->aszNavHistory[i],
+                        g_line_aDirNavHist[i], ST_MAX_PATH - 1);
+                g_line_ptCtx.ptDirView->aszNavHistory[i][ST_MAX_PATH - 1] =
+                    '\0';
+            }
+            g_line_ptCtx.ptDirView->iNavHistHead  = g_line_iDirNavHistHead;
+            g_line_ptCtx.ptDirView->iNavHistCount = g_line_iDirNavHistCount;
         }
-        strncpy(g_line_ptCtx.ptDirView->aszNavHistory[iNewHead], szNewRoot,
-                ST_MAX_PATH - 1);
-        g_line_ptCtx.ptDirView->aszNavHistory[iNewHead][ST_MAX_PATH - 1] = '\0';
-        g_line_ptCtx.ptDirView->iNavHistHead  = iNewHead;
-        g_line_ptCtx.ptDirView->iNavHistCount = iNewHead + 1;
+        else
+        {
+            iNewHead = g_line_iDirNavHistHead + 1;
+            if (iNewHead >= DIR_NAV_HIST_MAX)
+                iNewHead = DIR_NAV_HIST_MAX - 1;
+
+            for (i = 0; i <= g_line_iDirNavHistHead && i < iNewHead; i++)
+            {
+                strncpy(g_line_ptCtx.ptDirView->aszNavHistory[i],
+                        g_line_aDirNavHist[i], ST_MAX_PATH - 1);
+                g_line_ptCtx.ptDirView->aszNavHistory[i][ST_MAX_PATH - 1] =
+                    '\0';
+            }
+            strncpy(g_line_ptCtx.ptDirView->aszNavHistory[iNewHead],
+                    szNewRoot, ST_MAX_PATH - 1);
+            g_line_ptCtx.ptDirView->aszNavHistory[iNewHead][ST_MAX_PATH - 1] =
+                '\0';
+            g_line_ptCtx.ptDirView->iNavHistHead  = iNewHead;
+            g_line_ptCtx.ptDirView->iNavHistCount = iNewHead + 1;
+        }
     }
 
 

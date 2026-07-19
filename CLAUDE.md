@@ -1851,6 +1851,76 @@ Avis Claude : **ACCEPTÉ — implémenté immédiatement** plutôt que différé
 
 ---
 
+**P71 — Rescan disque automatique à l'expansion d'un dossier collapsed (au lieu du cache `bChildrenLoaded` figé jusqu'à F5)** → **ACCEPTÉ DIFFÉRÉ — UC30H**
+
+Repéré par Tonton Marcel en relisant `use_case_04.c:843-855` (séquence TC-DIR-064..067) : `dir_node_load_children()` ne rescanne un nœud que la première fois qu'il est exploré (`bChildrenLoaded == ST_FALSE`, `dir.c:1257`) ; une fois chargé, ré-expandre un dossier précédemment collapsed réutilise le cache tel quel, même si son contenu réel a changé sur disque entretemps (ex. suppression d'un fichier pendant que le dossier était collapsed). Seul `F5` (`dir_refresh_tree()`) force un rescan — et uniquement sur les dossiers **actuellement expansés** (`dir_collect_expanded`/`dir_reexpand_path`, `dir.c:499-513`), pas sur un dossier collapsed qu'on va rouvrir. Il faut donc explicitement penser à F5 avant de rouvrir un dossier pour voir son contenu réel.
+
+Analyse Claude : confirmé, c'est bien le lazy-loading (P22/UC5) en cause, pas un bug — le test `use_case_04.c` documente déjà ce comportement exact (F5 sur collapsed → pas de changement visible ; F5 puis expand → contenu à jour). C'est le modèle standard des explorateurs de fichiers (cache + refresh explicite) plutôt qu'un rescan à chaque clic.
+
+Décision Tonton Marcel : le coût d'un rescan systématique à l'expand est acceptable dans le contexte ST4Ever (répertoires/images ATARI ST bornés par la capacité FAT12, donc peu de fichiers) — le seul cas potentiellement coûteux est un répertoire local contenant un grand nombre d'images `.st`/`.msa` à parcourir, cas où l'utilisateur a intérêt à garder ses répertoires `dir` restreints, éventuellement complété plus tard par une fonction de "pre-type" (filtrage par préfixe de nom) plutôt que par une renonciation au rescan auto. **Différé à UC30H** — ne pas interrompre la migration de tests en cours (R25) ; l'implémentation et son arbitrage définitif (rescan systématique à l'expand vs. autre mécanisme) seront traités avec les autres correctifs accumulés (P68, P69).
+
+| Proposition | Décision | UC cible |
+|-------------|----------|----------|
+| P71 (rescan auto à l'expand, au lieu du cache figé jusqu'à F5) | ACCEPTÉ DIFFÉRÉ | UC30H |
+
+---
+
+#### Bugs corrigés session use_case_04.c (2026-07-18)
+
+**BUG-11 — `'H'/'h'` (toggle hidden files) collapsait les dossiers ouverts et perdait le focus clavier** → **CORRIGÉ**
+
+Repéré par Tonton Marcel en relisant `use_case_04.c:843-855` (voir P71 ci-dessus pour
+le problème connexe de rescan). `dir_handle_key()` appelait directement
+`dir_node_reload_children(ptView->ptRoot, ...)` pour le toggle `H`/`h`, au lieu de
+`dir_refresh_tree()` (utilisé par F5/P22) qui seul préserve l'état d'expansion via
+`dir_collect_expanded()`/`dir_reexpand_path()`. Conséquence : basculer l'affichage
+des fichiers cachés refermait silencieusement tous les dossiers ouverts. De plus,
+`iSelectedFlat` était forcé à `-2` (sentinelle "rien sélectionné") au lieu d'être
+préservé/clampé comme le fait F5, obligeant l'utilisateur à appuyer deux fois sur
+flèche bas pour retrouver le focus (`use_case_04.c` contenait un commentaire de
+contournement explicite documentant ce symptôme).
+
+Fix (`src/dir.c`, case `'H'`/`'h'` de `dir_handle_key()`) : remplacé l'appel direct
+à `dir_node_reload_children()` par `dir_refresh_tree()` (même mécanisme que F5),
+et remplacé `iSelectedFlat = -2` par le même clamp que F5
+(`if (iSelectedFlat >= iFlatCount) iSelectedFlat = iFlatCount - 1`).
+`use_case_04.c` (groupe INT-DIR-022) réécrit pour dérouler le scénario réel :
+expand `visible_dir` → `H` → vérifie que `visible_dir` reste expansé (spy D2D
+`"[-] visible_dir"`) et que `iSelectedFlat` est inchangé → `h` → même vérification.
+Le contournement "deux DOWN" devenu inutile dans le groupe F5 qui suit a été retiré.
+
+**BUG-12 — `dir <path>` répété vers le même chemin empilait un doublon d'historique de navigation à chaque appel** → **CORRIGÉ**
+
+Découvert en creusant l'échec de `TC-DIR-073..075` (ALT+LEFT/RIGHT, groupe
+INT-DIR-024) après le fix BUG-11 — confirmé pré-existant sur `main` (reproduit en
+`git stash` avant tout changement de cette session). Le mécanisme BUG-09
+(`line_cmd_dir()`, `src/line.c` ~1306-1364, sauvegarde/restauration de
+`aszNavHistory` autour d'un `dir_close()`/`dir_open()`) ajoutait systématiquement
+une nouvelle entrée d'historique à `iNewHead = g_line_iDirNavHistHead + 1`, même
+quand le nouveau chemin ouvert est **identique** au dernier chemin de l'historique
+restauré (ex. `dir <path>` suivi de `dir -a <path>` sur le même dossier, ou toute
+réouverture consécutive sans navigation réelle entre les deux). Résultat :
+`iNavHistHead` grossissait à chaque commande `dir`/`dir -a` répétée, y compris
+avant que l'utilisateur n'ait pressé la moindre touche ALT+←/→ — dans
+`use_case_04.c`, les 3 appels `dir`/`dir -a` des groupes 3 et 4 laissaient
+`iNavHistHead == 2` dès l'ouverture du groupe 4, faussant les assertions
+`iNavHistHead == 1`/`== 0` des tests ALT+←/→.
+
+Fix (`src/line.c`, bloc `-- [LINE]21. Manage 'dir' navigation history --`) :
+avant d'empiler une nouvelle entrée, comparaison de `szNewRoot` (le chemin qu'on
+vient d'ouvrir) avec `g_line_aDirNavHist[g_line_iDirNavHistHead]` (la tête de
+l'historique restauré) — si identiques, l'historique restauré est simplement
+recopié tel quel (`iNavHistHead`/`iNavHistCount` inchangés) au lieu d'empiler un
+doublon. Aucun changement de comportement quand le chemin change réellement (le
+cas nominal ALT+←/→ testé depuis UC18.2/P10). `make tests` : 0 warning, 0 failure.
+
+| Bug | Décision | Statut |
+|-----|----------|--------|
+| BUG-11 (H/h collapse + focus loss) | CORRIGÉ | ✓ clos (UC4, session 2026-07-18) |
+| BUG-12 (dir doublon historique navigation) | CORRIGÉ | ✓ clos (UC4, session 2026-07-18) |
+
+---
+
 ## 8. NOTES à propos de l'extension : ST Revival sur Pi Zero Bare Metal
 
 ### 8.1 Vision et objectif
