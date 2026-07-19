@@ -1611,12 +1611,9 @@ static void etxt_event_callback(gui_window_t  hWnd,
         break;
 
     case GUI_EVT_RESIZE:
-        ptV->iWndWidth  = ptEvent->uData.tResize.iWidth;
-        ptV->iWndHeight = ptEvent->uData.tResize.iHeight;
-        if (ptV->hRenderer != NULL)
-            renderer_resize(ptV->hRenderer,
-                            ptV->iWndWidth, ptV->iWndHeight);
-        gui_invalidate(hWnd);
+        gui_handle_resize_event(hWnd, ptEvent,
+                                 &ptV->iWndWidth, &ptV->iWndHeight,
+                                 ptV->hRenderer);
         break;
 
     case GUI_EVT_KEY_DOWN:

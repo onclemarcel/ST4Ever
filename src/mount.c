@@ -863,12 +863,9 @@ static void mount_event_callback(gui_window_t  hWnd,
         break;
 
     case GUI_EVT_RESIZE:
-        ptView->iWndWidth  = ptEvent->uData.tResize.iWidth;
-        ptView->iWndHeight = ptEvent->uData.tResize.iHeight;
-        if (ptView->hRenderer != NULL)
-            renderer_resize(ptView->hRenderer,
-                            ptView->iWndWidth,
-                            ptView->iWndHeight);
+        gui_handle_resize_event(hWnd, ptEvent,
+                                 &ptView->iWndWidth, &ptView->iWndHeight,
+                                 ptView->hRenderer);
         break;
 
     case GUI_EVT_KEY_DOWN:

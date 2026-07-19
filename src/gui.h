@@ -240,6 +240,37 @@ st_error_t gui_close_window(gui_window_t hWnd);
 st_error_t gui_invalidate(gui_window_t hWnd);
 
 /*
+ * gui_handle_resize_event() - Generic GUI_EVT_RESIZE handling shared by
+ * every view (dir, mount, edit_hex, edit_txt, exec_*).
+ *
+ * Updates the caller's window size fields from ptEvent, resizes the
+ * renderer if one already exists, and invalidates the window so the
+ * new geometry is repainted.  Factored out because every view's
+ * GUI_EVT_RESIZE case performed these same three steps verbatim -
+ * a missing gui_invalidate() here in one view (dir.c) went unnoticed
+ * until a resize+pagination test caught it.
+ *
+ * Parameters:
+ *   hWnd       [in]  : Window that received the resize (for invalidate).
+ *   ptEvent    [in]  : The GUI_EVT_RESIZE event (uData.tResize used).
+ *   piWndWidth [out] : View's iWndWidth field to update.
+ *   piWndHeight[out] : View's iWndHeight field to update.
+ *   hRenderer  [in]  : View's renderer_t, or NULL if not created yet.
+ *                      Typed void* here to avoid a gui.h/renderer.h
+ *                      circular include (renderer.h already includes
+ *                      gui.h) - cast internally to renderer_t.
+ *
+ * Returns:
+ *   ST_NO_ERROR on success.
+ *   ST_ERROR    if hWnd, ptEvent, piWndWidth or piWndHeight is NULL.
+ */
+st_error_t gui_handle_resize_event(gui_window_t       hWnd,
+                                    const gui_event_t *ptEvent,
+                                    int               *piWndWidth,
+                                    int               *piWndHeight,
+                                    void              *hRenderer);
+
+/*
  * gui_get_size() - Query the current client area size.
  *
  * Parameters:

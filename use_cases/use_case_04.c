@@ -87,6 +87,8 @@ static ST4Ever_context_t *ptCtx;
 #define UC04_TESTDATA_SCROLL "./use_cases/UC04_1/testdata_scroll"
 #define UC04_SCROLL_FILE_COUNT 14
 
+#define WIN_REPAINT_DELAY_MS    20
+
 /* ------------------------------------------------------------------
  * Group 1: dir_open / dir_close lifecycle
  * ------------------------------------------------------------------ */
@@ -490,7 +492,7 @@ static void uc04_test_console_dispatch(void)
  *   -- [DIR]29. Dir GUI react on GUI_EVT_RESIZE --
  *   -- [DIR]30. Dir GUI react on GUI_EVT_KEY_DOWN and dispatch --
  *   -- [DIR]31. writes selected file path to the console selection --
- *   -- [DIR]32. dir_handle_key: SPACE on the already-selected entry toggles deselection (P70) --
+ *   -- [DIR]32. dir_handle_key: SPACE on a selected entry toggles deselection (P70) --
  *
  *   win_gui.c:
  *   -- [EVT]1. Inject a real WM_KEYDOWN and wait uiEventDelayMs --
@@ -546,12 +548,6 @@ static void uc04_test_window_interaction(void)
                       "use_cases/UC04/dir_group4.txt", pF);
     UC_SCRIPT_ADD_LINE(pF, "# UC4 Group 4 'dir' command for GUI handling \n");
     UC_SCRIPT_ADD_LINE(pF, "dir " UC04_TESTDATA "\n");
-    /* Lines 3-4 are only stepped into later, at INT-DIR-021: switch to
-     * the wider 'testdata_scroll' fixture for the resize+scroll
-     * pagination test, then switch back to 'testdata' for the rest of
-     * Group 4 - both via the real 'dir' console dispatch ([LINE]19
-     * closes the previous view before opening the new one), exactly
-     * like the first "dir <path>" line above. */
     UC_SCRIPT_ADD_LINE(pF, "dir " UC04_TESTDATA_SCROLL "\n");
     UC_SCRIPT_ADD_LINE(pF, "dir " UC04_TESTDATA "\n");
     UC_SCRIPT_CLOSE(pF);
@@ -573,14 +569,14 @@ static void uc04_test_window_interaction(void)
     line_run();
     ptView = ptLineCtx->ptDirView;
     UC_TEST("(INT-DIR-013) [Chk] line_run() [dir <path>] - "
-            "check for vaild GUI pointer", ptView != NULL);
+            "check for valid GUI pointer", ptView != NULL);
     if (ptView == NULL)
     {
         TEST_SKIP("[N] (TC-DIR-028...090) window interaction group "
                   "(dir_open failed)");
         return;
     }
-    platform_sleep_ms(100); /* let the first PAINT create the renderer */
+    platform_sleep_ms(WIN_REPAINT_DELAY_MS); /* let the first PAINT create the renderer */
 
     ptWnd      = (struct gui_window_s *)ptView->hWnd;
     hNative    = (HWND)gui_platform_get_native_handle(ptWnd);
@@ -751,7 +747,7 @@ static void uc04_test_window_interaction(void)
             "selection (P60)", ptView->szLastSelected[0] == '\0');
 
     /* -- [DIR]15. dir_handle_key: SPACE selects and clears multi-selection (P13/P60) -- */
-    /* -- [DIR]32. dir_handle_key: SPACE on the already-selected entry toggles deselection (P70) -- */
+    /* -- [DIR]32. dir_handle_key: SPACE on a selected entry toggles deselection (P70) -- */
     /* INTENT[INT-DIR-019 → TC-DIR-052...054 → REQ-xxx-yyy → UFR-xxx-yyy]:
      * a later plain SPACE clears the multi-selection set (P60
      * exclusivity, the other direction) pressing SPACE again on the same 
@@ -804,28 +800,10 @@ static void uc04_test_window_interaction(void)
     /* -- [EVT]7. Inject a real WM_SIZE and wait uiEventDelayMs -- */
     /* -- [LINE]19. 'dir' closes any previously open view before opening a new one -- */
     /* INTENT[INT-DIR-021 → TC-DIR-059...065 → REQ-xxx-yyy → UFR-xxx-yyy]:
-     * ADAPTED: session 2026-07-18 (Tonton Marcel review) - the shared
-     * 'testdata' fixture only has 2-4 rows, so a wheel scroll could
-     * only ever prove "offset stays clamped at 0" on both sides, never
-     * a real page/scroll. This group temporarily switches to a
-     * dedicated 'testdata_scroll' fixture (14 flat files) that still
-     * fits the default-size dir view untouched (no scroll needed,
-     * same small-fixture spirit as the rest of Group 4), but is too
-     * big to fit once the window is resized down to a handful of
-     * rows: the resize (R28 win_evt_send_resize) and the wheel scroll
-     * (R28 win_evt_send_wheel) are exercised together, and the D2D
-     * spy (R27) checks which filenames are actually rendered vs
-     * scrolled out of view at each step - a real pagination scenario
-     * instead of a clamp check on an empty scroll range.
-     * ADAPTED: switching fixtures goes back through the real R26
-     * script-debug step (line 3 of the group-4 script prepared at
-     * setup, "dir <testdata_scroll>") instead of calling dir_close()/
-     * dir_open() directly - this exercises the real [LINE]19 close-
-     * then-open console dispatch a second time, the same technique
-     * INT-DIR-013 already used to open 'testdata' in the first place. */
-    UC_INFO("(INT-DIR-021) Switching to a bigger fixture to exercise real resize+scroll pagination");
-    {
-        const int iVisRowsSmall = 6;  /* rows incl. ".." after resize  */
+     * Use 'testdata_scroll' folder (14 flat files) that still fits the
+     * default-size dir view untouched (no scroll needed), but is too
+     * big to fit once the window is resized down to a handful of rows*/
+        const int iVisRowsSmall = 6;  /* Set resize to 6 rows incl. ".."  */
         int       iResizeH;
 
         line_run();  /* script line 3: "dir <testdata_scroll>" */
@@ -839,7 +817,7 @@ static void uc04_test_window_interaction(void)
         }
         else
         {
-            platform_sleep_ms(100); /* let the first PAINT create the renderer */
+            platform_sleep_ms(WIN_REPAINT_DELAY_MS); /* let the first PAINT create the renderer */
 
             ptWnd      = (struct gui_window_s *)ptView->hWnd;
             hNative    = (HWND)gui_platform_get_native_handle(ptWnd);
@@ -848,27 +826,23 @@ static void uc04_test_window_interaction(void)
                        ? (win_d2d_ctx_t *)ptRenderer->pPlatform : NULL;
 
             UC_TEST("[N] (TC-DIR-059) default-size view shows the whole "
-                    "scroll fixture without scrolling (iScrollOffset==0, "
-                    "first and last files both rendered)",
+                    "scroll fixture without scrolling",
                     ptView->iFlatCount == UC04_SCROLL_FILE_COUNT
                     && ptView->iScrollOffset == 0
                     && win_D2D_spy_find_text("file01.txt", ptD2D) >= 0
                     && win_D2D_spy_find_text("file14.txt", ptD2D) >= 0);
 
-            /* Shrink the window so only iVisRowsSmall rows (incl. "..")
-             * fit at once - forces real pagination on the next steps. */
+            /* Shrink the window so only iVisRowsSmall rows fir at once */
             iResizeH = iVisRowsSmall * ptView->iCellH;
+            win_D2D_spy_reset(ptD2D);
             win_evt_send_resize(ptWnd, 300, iResizeH);
             UC_TEST("[N] (TC-DIR-060) resize down updates iWndWidth/"
                     "iWndHeight", ptView->iWndWidth == 300
                     && ptView->iWndHeight == iResizeH);
 
-            win_D2D_spy_reset(ptD2D);
-            gui_invalidate((gui_window_t)ptWnd);
-            platform_sleep_ms(100);
+            platform_sleep_ms(WIN_REPAINT_DELAY_MS);
             UC_TEST("[N] (TC-DIR-061) after resize, only the first page "
-                    "is rendered (file01..file05 shown, file06 and "
-                    "file14 scrolled out of view)",
+                    "is rendered (file01..file05 shown)",
                     win_D2D_spy_find_text("file01.txt", ptD2D) >= 0
                     && win_D2D_spy_find_text("file05.txt", ptD2D) >= 0
                     && win_D2D_spy_find_text("file06.txt", ptD2D) == -1
@@ -876,11 +850,9 @@ static void uc04_test_window_interaction(void)
 
             win_D2D_spy_reset(ptD2D);
             win_evt_send_wheel(ptWnd, -3);
-            gui_invalidate((gui_window_t)ptWnd);
-            platform_sleep_ms(100);
+            platform_sleep_ms(WIN_REPAINT_DELAY_MS);
             UC_TEST("[N] (TC-DIR-062) wheel scroll of -3 moves the "
-                    "window down 3 rows (file01/file02 scrolled off, "
-                    "file03..file08 shown, file09 still hidden)",
+                    "window down 3 rows (file03..file08 shown)",
                     ptView->iScrollOffset == 3
                     && win_D2D_spy_find_text("file01.txt", ptD2D) == -1
                     && win_D2D_spy_find_text("file02.txt", ptD2D) == -1
@@ -890,11 +862,9 @@ static void uc04_test_window_interaction(void)
 
             win_D2D_spy_reset(ptD2D);
             win_evt_send_wheel(ptWnd, -20); /* far past iMaxScroll */
-            gui_invalidate((gui_window_t)ptWnd);
-            platform_sleep_ms(100);
+            platform_sleep_ms(WIN_REPAINT_DELAY_MS);
             UC_TEST("[N] (TC-DIR-063) wheel scroll clamps at iMaxScroll "
-                    "(last page: file09..file14 all shown, '..' no "
-                    "longer rendered)",
+                    "(last page: file09..file14 all shown)",
                     ptView->iScrollOffset
                         == (UC04_SCROLL_FILE_COUNT + 1 - iVisRowsSmall)
                     && win_D2D_spy_find_text("file09.txt", ptD2D) >= 0
@@ -903,29 +873,21 @@ static void uc04_test_window_interaction(void)
 
             win_D2D_spy_reset(ptD2D);
             win_evt_send_wheel(ptWnd, 20); /* far past 0 */
-            gui_invalidate((gui_window_t)ptWnd);
-            platform_sleep_ms(100);
+            platform_sleep_ms(WIN_REPAINT_DELAY_MS);
             UC_TEST("[N] (TC-DIR-064) wheel scroll clamps back at 0 "
-                    "(first page restored: '..' and file01..file05 "
-                    "shown again)",
+                    "('..' and file01..file05 shown again)",
                     ptView->iScrollOffset == 0
                     && win_D2D_spy_find_text("..", ptD2D) >= 0
                     && win_D2D_spy_find_text("file01.txt", ptD2D) >= 0
                     && win_D2D_spy_find_text("file05.txt", ptD2D) >= 0);
 
-        }
 
         /* Restore the shared 'testdata' fixture for the remaining
-         * Group 4 tests (H/h, F5, history nav, D2D layer spies, final
-         * resize + ESC close): script line 4, "dir <testdata>" - the
-         * real [LINE]19 dispatch closes the scroll-fixture view (or
-         * whatever is left of it) before opening the new one, so no
-         * manual dir_close() is needed here. Re-fetch every handle
-         * since dir_open() always creates a brand new window/renderer. */
+         * Group 4 tests */
         line_run();  /* script line 4: "dir <testdata>" */
         ptView = ptLineCtx->ptDirView;
         UC_TEST("[N] (TC-DIR-065) 'testdata' fixture restored after "
-                "the scroll pagination excursion (iFlatCount == 2)",
+                "the scroll pagination excursion",
                 ptView != NULL && ptView->iFlatCount == 2);
         if (ptView == NULL)
         {
@@ -933,7 +895,7 @@ static void uc04_test_window_interaction(void)
                       "(dir_open on testdata restore failed)");
             return;
         }
-        platform_sleep_ms(100); /* let the first PAINT create the renderer */
+        platform_sleep_ms(WIN_REPAINT_DELAY_MS); /* let the first PAINT create the renderer */
 
         ptWnd      = (struct gui_window_s *)ptView->hWnd;
         hNative    = (HWND)gui_platform_get_native_handle(ptWnd);
@@ -943,10 +905,7 @@ static void uc04_test_window_interaction(void)
 
         /* A freshly dir_open()'d view always starts with the cursor on
          * ".." (iSelectedFlat == -1, dir.c [DIR]5). The rest of Group 4
-         * expects the cursor already sitting on visible_dir (flat idx
-         * 0), the state the pre-existing click test used to leave
-         * behind - without this DOWN, the next RETURN would call
-         * dir_navigate_up() instead of expanding visible_dir. */
+         * expects the cursor already sitting on visible_dir */
         win_evt_send_key(ptWnd, VK_DOWN);
     }
 
@@ -954,12 +913,7 @@ static void uc04_test_window_interaction(void)
     /* -- [EVT]2. Inject a real WM_CHAR and wait uiEventDelayMs -- */
     /* INTENT[INT-DIR-022 → TC-DIR-066...071 → REQ-xxx-yyy → UFR-xxx-yyy]:
      * 'H'/'h' toggle bShowHidden while preserving both the current
-     * expansion state and the cursor position, exactly like F5 (P22).
-     * BUG fixed 2026-07-18: dir_handle_key() used to call
-     * dir_node_reload_children() directly (collapsing every open dir)
-     * and force iSelectedFlat = -2 (losing keyboard focus) - it now
-     * reuses dir_refresh_tree(), the same expansion-preserving reload
-     * F5 already used, and clamps iSelectedFlat instead of resetting it */
+     * expansion state and the cursor position, exactly like F5 (P22). */
     UC_INFO("(INT-DIR-022) Expanding visible_dir before toggling hidden files");
 
     win_evt_send_key(ptWnd, VK_RETURN); /* expand visible_dir (flat idx 0) */
@@ -985,7 +939,7 @@ static void uc04_test_window_interaction(void)
     iFound    = win_D2D_spy_find_text("[-] visible_dir", ptD2D);
     iNewFound = win_D2D_spy_find_text(".secret", ptD2D);
     UC_TEST("[N] (TC-DIR-069) 'h' toggles bShowHidden back OFF while "
-            "visible_dir stays expanded (iFlatCount == 4)",
+            "visible_dir stays expanded",
             ptView->bShowHidden == ST_FALSE && ptView->iFlatCount == 4
             && iFound >= 0 && iNewFound == -1);
     UC_TEST("[N] (TC-DIR-070) 'h' preserves the cursor position too",
@@ -1006,9 +960,7 @@ static void uc04_test_window_interaction(void)
     win_evt_send_key(ptWnd, VK_F5);
 
     /* iSelectedFlat is already 0 (visible_dir) coming out of the H/h
-     * block above and F5 preserves it (P22) - a plain RETURN expands
-     * the directory directly, no DOWN/DOWN workaround needed anymore
-     * now that INT-DIR-022 no longer resets the cursor to -2 */
+     * block above and F5 preserves it (P22) */
     win_evt_send_key(ptWnd, VK_RETURN);
     UC_TEST("[N] (TC-DIR-072) RETURN expand the directory 'visible_dir'",
             ptView->aptFlat[0].ptNode->bExpanded == ST_TRUE && ptView->iFlatCount == 4);
@@ -1109,12 +1061,11 @@ static void uc04_test_window_interaction(void)
          * on ".."/ALT navigation sequence leaves the selection in an
          * unpredictable state - HOME then DOWN deterministically
          * selects flat index 0 (visible_dir). */
+        win_D2D_spy_reset(ptD2D);
         win_evt_send_key(ptWnd, VK_HOME);
         win_evt_send_key(ptWnd, VK_DOWN);   /* -> flat idx 0 (visible_dir) */
         win_evt_send_key(ptWnd, VK_SPACE);  /* commits green on visible_dir */
-        win_D2D_spy_reset(ptD2D);
-        gui_invalidate((gui_window_t)ptWnd);
-        platform_sleep_ms(100);
+        platform_sleep_ms(WIN_REPAINT_DELAY_MS);
 
         iTextDD   = win_D2D_spy_find_text("..", ptD2D);
         iTextDir  = win_D2D_spy_find_text("visible_dir", ptD2D);
@@ -1141,21 +1092,9 @@ static void uc04_test_window_interaction(void)
         UC_TEST("[N] (TC-DIR-084) file row text spied ('visible.txt')",
                 iTextFile >= 0);
 
-        /* ADAPTED: session 2026-07-18 (Tonton Marcel review) - the
-         * cursor and the just-committed P11 selection are both on
-         * visible_dir at this point: dir_render() draws green
-         * (Layer 1) then blue (Layer 3) at the *same* rectangle, so
-         * blue fully covers green on screen even though both
-         * fill_rect() calls were spied. win_D2D_spy_find_fill_rect_
-         * color() only checks colour, not position, so the previous
-         * pair of asserts ("green present" + "blue present") passed
-         * without ever proving the two layers are visually
-         * distinguishable - a manual/visual check would only ever
-         * see blue here too, so it would not have caught the gap
-         * either. TC-DIR-085 now asserts cursor-blue wins on a
-         * shared row; TC-DIR-086 moves the cursor away and asserts
-         * the green marker survives on its own row, distinct from
-         * the new cursor row. */
+        /* dir_render() draws green (Layer 1) then blue (Layer 3) at the
+         * same rectangle, so blue fully covers green on screen even though
+         * both fill_rect() calls were spied */
         UC_TEST("[N] (TC-DIR-085) blue cursor layer wins over green "
                 "when cursor and last-selection share the same row",
                 win_D2D_spy_find_fill_rect_color(0.20f, 0.30f, 0.65f,
@@ -1163,8 +1102,7 @@ static void uc04_test_window_interaction(void)
 
         win_evt_send_key(ptWnd, VK_DOWN); /* cursor -> flat idx 1 (visible.txt) */
         win_D2D_spy_reset(ptD2D);
-        gui_invalidate((gui_window_t)ptWnd);
-        platform_sleep_ms(100);
+        platform_sleep_ms(WIN_REPAINT_DELAY_MS);
 
         {
             float fGreenY = -1.0f;
@@ -1203,10 +1141,9 @@ static void uc04_test_window_interaction(void)
          * specifically. CTRL+SPACE only toggles multi-selection for
          * files (dir.c [DIR]16 guards on !bIsDir); the cursor is
          * already on visible.txt (flat idx 1) from the DOWN above. */
-        win_evt_send_ctrl_key(ptWnd, VK_SPACE);
         win_D2D_spy_reset(ptD2D);
-        gui_invalidate((gui_window_t)ptWnd);
-        platform_sleep_ms(100);
+        win_evt_send_ctrl_key(ptWnd, VK_SPACE);
+        platform_sleep_ms(WIN_REPAINT_DELAY_MS);
         UC_TEST("[N] (TC-DIR-087) purple background layer present "
                 "(P14 multi-selection)",
                 win_D2D_spy_find_fill_rect_color(0.28f, 0.15f, 0.55f,

@@ -1170,7 +1170,7 @@ static void dir_handle_key(dir_view_t  *ptView,
                     LOG_INFO("dir: multi-sel cleared on single SPACE");
                 }
 
-                /* -- [DIR]32. dir_handle_key: SPACE on the already-selected entry toggles deselection (P70) -- */
+                /* -- [DIR]32. dir_handle_key: SPACE on a selected entry toggles deselection (P70) -- */
                 /* P70: pressing SPACE again on the entry currently holding
                  * the single (green) selection clears it instead of
                  * re-committing the same path. */
@@ -1425,14 +1425,9 @@ static void dir_event_callback(gui_window_t  hWnd,
 
     case GUI_EVT_RESIZE:
         /* -- [DIR]29. Dir GUI react on GUI_EVT_RESIZE -- */
-        ptView->iWndWidth  = ptEvent->uData.tResize.iWidth;
-        ptView->iWndHeight = ptEvent->uData.tResize.iHeight;
-        if (ptView->hRenderer != NULL)
-        {
-            renderer_resize(ptView->hRenderer,
-                            ptView->iWndWidth,
-                            ptView->iWndHeight);
-        }
+        gui_handle_resize_event(hWnd, ptEvent,
+                                 &ptView->iWndWidth, &ptView->iWndHeight,
+                                 ptView->hRenderer);
         break;
 
     case GUI_EVT_KEY_DOWN:

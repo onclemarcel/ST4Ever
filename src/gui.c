@@ -329,6 +329,33 @@ st_error_t gui_invalidate(gui_window_t hWnd)
     return gui_platform_window_invalidate(ptWnd);
 }
 
+st_error_t gui_handle_resize_event(gui_window_t       hWnd,
+                                    const gui_event_t *ptEvent,
+                                    int               *piWndWidth,
+                                    int               *piWndHeight,
+                                    void              *hRenderer)
+{
+    if (hWnd == NULL || ptEvent == NULL
+    ||  piWndWidth == NULL || piWndHeight == NULL)
+    {
+        LOG_ERROR("NULL parameter: hWnd=%p ptEvent=%p piWndWidth=%p "
+                  "piWndHeight=%p", (void *)hWnd, (void *)ptEvent,
+                  (void *)piWndWidth, (void *)piWndHeight);
+        return ST_ERROR;
+    }
+
+    *piWndWidth  = ptEvent->uData.tResize.iWidth;
+    *piWndHeight = ptEvent->uData.tResize.iHeight;
+
+    if (hRenderer != NULL)
+    {
+        renderer_resize((renderer_t)hRenderer, *piWndWidth, *piWndHeight);
+    }
+
+    gui_invalidate(hWnd);
+    return ST_NO_ERROR;
+}
+
 st_error_t gui_get_size(gui_window_t  hWnd,
                          int          *piWidth,
                          int          *piHeight)
