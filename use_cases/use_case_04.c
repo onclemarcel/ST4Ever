@@ -33,7 +33,7 @@
  *     dir_open() already guarantees (P16: SetForegroundWindow/SetFocus).
  *
  * TEST MATRIX - UC4:
- *   [N] Nominal    : 82 tests - dir_open/dir_close lifecycle (incl. the
+ *   [N] Nominal    : 85 tests - dir_open/dir_close lifecycle (incl. the
  *                    szPath="" -> cwd resolution), bShowHidden filter,
  *                    real console dispatch (dir/-a/--select/--unselect),
  *                    real keyboard/mouse navigation and selection
@@ -41,7 +41,8 @@
  *                    + cursor persistence (P22-style, fixed 2026-07-18),
  *                    D2D spy verification of rendered rows and selection
  *                    layers, real resize+scroll pagination against a
- *                    dedicated 14-file fixture (testdata_scroll)
+ *                    dedicated 14-file fixture (testdata_scroll),
+ *                    multi-selection removal via a repeated CTRL+SPACE
  *   [R] Robustness :  8 tests - NULL pptView, bIsLineRunning==ST_FALSE,
  *                    dir_close idempotency, non-existent path (empty
  *                    tree)
@@ -494,6 +495,12 @@ static void uc04_test_console_dispatch(void)
  *   -- [DIR]32. dir_handle_key: SPACE on a selected entry toggles deselection (P70) --
  *   -- [DIR]33. Dir GUI react on GUI_EVT_MOUSE_DOWN and dispatch --
  *   -- [DIR]34. Dir GUI react on GUI_EVT_SCROLL and dispatch --
+ *   -- [DIR]35. dir_node_load_children: Windows two-pass scan lists all directories before any files --
+ *   -- [DIR]36. dir_flat_rebuild: rebuilds the flat render list from the currently expanded tree, skipping collapsed subtrees --
+ *   -- [DIR]37. dir_refresh_tree: reloads the root's children while preserving previously expanded subtree paths (3-phase: collect / reload / re-expand) --
+ *   -- [DIR]38. dir_navigate_to: swaps the tree root to a new path, freeing the old tree only after the new one is loaded --
+ *   -- [DIR]39. dir_nav_history_push: appends a new path to the navigation history, truncating any forward entries --
+ *   -- [DIR]40. dir_toggle_multi_sel: adds a path to the multi-selection set, or removes it if already present --
  *
  *   win_gui.c:
  *   -- [EVT]1. Inject a real WM_KEYDOWN and wait uiEventDelayMs --
@@ -574,7 +581,7 @@ static void uc04_test_window_interaction(void)
             "check for valid GUI pointer", ptView != NULL);
     if (ptView == NULL)
     {
-        TEST_SKIP("[N] (TC-DIR-028...090) window interaction group "
+        TEST_SKIP("[N] (TC-DIR-028...092) window interaction group "
                   "(dir_open failed)");
         return;
     }
@@ -590,7 +597,7 @@ static void uc04_test_window_interaction(void)
                 hNative != NULL && ptD2D != NULL);
     if (hNative == NULL || ptD2D == NULL)
     {
-        TEST_SKIP("[N] (TC-DIR-029...090) window interaction group "
+        TEST_SKIP("[N] (TC-DIR-029...092) window interaction group "
                   "(no native HWND or no available renderer)");
         dir_close(&ptView);
         return;
@@ -599,11 +606,15 @@ static void uc04_test_window_interaction(void)
     /* -- [EVT]1. Inject a real WM_KEYDOWN and wait uiEventDelayMs -- */
     /* -- [DIR]30. Dir GUI react on GUI_EVT_KEY_DOWN and dispatch -- */
     /* -- [DIR]13. dir_handle_key: UP/DOWN move the cursor selection -- */
+    /* -- [DIR]35. dir_node_load_children: Windows two-pass scan lists all directories before any files -- */
     /* -- [SPY]13. Scan the ring buffer for the last DrawText spy containing szNeedle -- */
     /* INTENT[INT-DIR-014 → TC-DIR-029...032 → REQ-xxx-yyy → UFR-xxx-yyy]:
      * real WM_KEYDOWN(VK_DOWN)/WM_KEYDOWN(VK_UP) events move
      * ptView->iSelectedFlat through the real dir_handle_key() code
-     * path (default selection is -1, the ".." row) */
+     * path (default selection is -1, the ".." row); flat index 0
+     * landing on 'visible_dir' (a directory) before 'visible.txt'
+     * (a file) also exercises the two-pass dirs-before-files scan
+     * order (P15/dir_node_load_children) */
     UC_INFO("(INT-DIR-014) Injecting KEYDOWN events for UP/DOWN moves");
     win_D2D_spy_reset(ptD2D);
     
@@ -626,9 +637,11 @@ static void uc04_test_window_interaction(void)
     /* -- [DIR]17. dir_handle_key: LEFT/RIGHT collapse/expand the selected directory (P12) -- */
     /* -- [DIR]11. dir_activate_sel: directory entry toggles expand/collapse -- */
     /* -- [DIR]14. dir_handle_key: ENTER activates the current selection -- */
+    /* -- [DIR]36. dir_flat_rebuild: rebuilds the flat render list from the currently expanded tree, skipping collapsed subtrees -- */
     /* INTENT[INT-DIR-015 → TC-DIR-033...036 → REQ-xxx-yyy → UFR-xxx-yyy]:
      * on the selected directory row (visible_dir, flat index 0): RIGHT
-     * expands, LEFT collapses, ENTER toggles again via dir_activate_sel */
+     * expands, LEFT collapses, ENTER toggles again via dir_activate_sel;
+     * each transition rebuilds the flat render list (iFlatCount 2<->4) */
     UC_INFO("(INT-DIR-015) Injecting KEYDOWN events on folders"
             " for LEFT/RIGHT/ENTER for expand/collapse");
     win_D2D_spy_reset(ptD2D);
@@ -670,7 +683,7 @@ static void uc04_test_window_interaction(void)
     /* -- [DIR]14. dir_handle_key: ENTER activates the current selection -- */
     /* -- [DIR]30. Dir GUI react on GUI_EVT_KEY_DOWN and dispatch -- */
     /* -- [DIR]31. writes selected file path to the console selection -- */
-    /* -- [DIR]32. dir_handle_key: SPACE on the already-selected entry toggles deselection (P70) -- */
+    /* -- [DIR]32. dir_handle_key: SPACE on a selected entry toggles deselection (P70) -- */
     /* INTENT[INT-DIR-016 → TC-DIR-037...041 → REQ-xxx-yyy → UFR-xxx-yyy]:
      * ENTER on a file row commits the selection to both
      * ptView->szLastSelected (P11) and the console's szSelected */
@@ -700,7 +713,7 @@ static void uc04_test_window_interaction(void)
     /* -- [DIR]14. dir_handle_key: ENTER activates the current selection -- */
     /* -- [DIR]15. dir_handle_key: SPACE selects and clears multi-selection (P13/P60) -- */
     /* -- [DIR]31. writes selected file path to the console selection -- */
-    /* -- [DIR]32. dir_handle_key: SPACE on the already-selected entry toggles deselection (P70) -- */
+    /* -- [DIR]32. dir_handle_key: SPACE on a selected entry toggles deselection (P70) -- */
     /* INTENT[INT-DIR-017 → TC-DIR-042...048 → REQ-xxx-yyy → UFR-xxx-yyy]:
      * dir_handle_key() SPACE (no CTRL) selects the directory row and
      * clears any multi-selection, without toggling expand/collapse */
@@ -731,6 +744,7 @@ static void uc04_test_window_interaction(void)
             ptLineCtx->szSelected[0] == '\0');
 
     /* -- [DIR]16. dir_handle_key: CTRL+SPACE toggles multi-selection on files (P14/P60) -- */
+    /* -- [DIR]40. dir_toggle_multi_sel: adds a path to the multi-selection set, or removes it if already present -- */
     /* -- [EVT]5. Inject a real CTRL+<key> chord via bracketing keybd_event() -- */
     /* INTENT[INT-DIR-018 → TC-DIR-049...051 → REQ-xxx-yyy → UFR-xxx-yyy]:
      * CTRL+SPACE on a file toggles multi-selection (P14) and clears
@@ -896,7 +910,7 @@ static void uc04_test_window_interaction(void)
                 ptView != NULL && ptView->iFlatCount == 2);
         if (ptView == NULL)
         {
-            TEST_SKIP("[N] (TC-DIR-066...090) window interaction group "
+            TEST_SKIP("[N] (TC-DIR-066...092) window interaction group "
                       "(dir_open on testdata restore failed)");
             return;
         }
@@ -915,6 +929,7 @@ static void uc04_test_window_interaction(void)
     }
 
     /* -- [DIR]21. dir_handle_key: 'H'/'h' toggles hidden-file visibility (P21) -- */
+    /* -- [DIR]37. dir_refresh_tree: reloads the root's children while preserving previously expanded subtree paths (3-phase: collect / reload / re-expand) -- */
     /* -- [EVT]2. Inject a real WM_CHAR and wait uiEventDelayMs -- */
     /* INTENT[INT-DIR-022 → TC-DIR-066...071 → REQ-xxx-yyy → UFR-xxx-yyy]:
      * 'H'/'h' toggle bShowHidden while preserving both the current
@@ -957,6 +972,7 @@ static void uc04_test_window_interaction(void)
             && ptView->iFlatCount == 2);
 
     /* -- [DIR]20. dir_handle_key: F5 refreshes the tree preserving expansion (P22) -- */
+    /* -- [DIR]37. dir_refresh_tree: reloads the root's children while preserving previously expanded subtree paths (3-phase: collect / reload / re-expand) -- */
     /* INTENT[INT-DIR-023 → TC-DIR-072...076 → REQ-xxx-yyy → UFR-xxx-yyy]:
      * F5 reloads the tree from disk and keep the current visible expansion.
      * The entry count is unchanged since nothing changed on disk */
@@ -1005,11 +1021,14 @@ static void uc04_test_window_interaction(void)
 
     /* -- [DIR]10. dir_activate_sel: ".." row navigates to the parent directory -- */
     /* -- [DIR]18. dir_handle_key: ALT+LEFT/RIGHT navigate the history stack (P10) -- */
+    /* -- [DIR]38. dir_navigate_to: swaps the tree root to a new path, freeing the old tree only after the new one is loaded -- */
+    /* -- [DIR]39. dir_nav_history_push: appends a new path to the navigation history, truncating any forward entries -- */
     /* -- [EVT]6. Inject a real ALT+<key> chord via bracketing keybd_event() -- */
     /* INTENT[INT-DIR-024 → TC-DIR-077...080 → REQ-xxx-yyy → UFR-xxx-yyy]:
      * ENTER on the ".." row navigates up (dir_navigate_up), pushing a
-     * new history entry; ALT+LEFT then goes back to the original
-     * root, ALT+RIGHT goes forward to the parent again */
+     * new history entry (dir_nav_history_push); ALT+LEFT then goes
+     * back to the original root, ALT+RIGHT goes forward to the parent
+     * again, each swap performed by dir_navigate_to */
     UC_INFO("(INT-DIR-024) Using HOME to set selection on '..' and navigate in other folder");
     win_evt_send_key(ptWnd, VK_HOME); /* -> select '..' row */
     UC_TEST("[N] (TC-DIR-077) HOME selects '..' (iSelectedFlat==-1)",
@@ -1172,10 +1191,51 @@ static void uc04_test_window_interaction(void)
                   "(no D2D context found)");
     }
 
+    /* -- [DIR]40. dir_toggle_multi_sel: adds a path to the multi-selection set, or removes it if already present -- */
+    /* INTENT[INT-DIR-027 → TC-DIR-088...090 → REQ-xxx-yyy → UFR-xxx-yyy]:
+     * pressing CTRL+SPACE again on a file already present in the
+     * multi-selection set (INT-DIR-018 above only exercised the
+     * add path) removes it instead of adding a duplicate; the purple
+     * D2D layer follows the updated set on the next repaint */
+    if (ptD2D != NULL)
+    {
+        UC_INFO("(INT-DIR-027) Toggling an already multi-selected file back off");
+
+        /* cursor is on visible_dir (flat idx 1) coming out of INT-DIR-025;
+         * DOWN lands on '.hidden_file' (flat idx 2), one of the two files
+         * multi-selected above (aszMultiSel[1], added second). The spy
+         * ring buffer is reset *after* the DOWN repaint so only the
+         * CTRL+SPACE toggle's own repaint is captured below - otherwise
+         * the stale (still-2) purple rects from the DOWN repaint would
+         * also be counted (win_D2D_spy_count_fill_rect_color scans the
+         * whole ring buffer since the last reset, not just the latest
+         * paint). */
+        win_evt_send_key(ptWnd, VK_DOWN);
+        win_D2D_spy_reset(ptD2D);
+        win_evt_send_ctrl_key(ptWnd, VK_SPACE);
+        platform_sleep_ms(WIN_REPAINT_DELAY_MS);
+
+        UC_TEST("[N] (TC-DIR-088) CTRL+SPACE on an already multi-selected "
+                "file removes it (iMultiSelCount == 1)",
+                ptView->iMultiSelCount == 1);
+        UC_TEST("[N] (TC-DIR-089) remaining multi-selection has "
+                "'visible.txt', not '.hidden_file'",
+                ptView->iMultiSelCount > 0
+                && strstr(ptView->aszMultiSel[0], "visible.txt") != NULL);
+        UC_TEST("[N] (TC-DIR-090) purple background count drops to 1",
+                win_D2D_spy_count_fill_rect_color(0.28f, 0.15f, 0.55f,
+                                                  1.0f, ptD2D) == 1);
+    }
+    else
+    {
+        TEST_SKIP("[N] (TC-DIR-088...090) multi-selection removal "
+                  "(no D2D context found)");
+    }
+
     /* -- [DIR]19. dir_handle_key: ESCAPE requests a non-blocking window close (P9) -- */
     /* -- [GUI]12. gui_is_window_open: expose bOpen for owner-side self-close detection -- */
     /* -- [LINE]24. Reap any view whose window self-closed since the last command -- */
-    /* INTENT[INT-DIR-026 → TC-DIR-088,089 → REQ-xxx-yyy → UFR-xxx-yyy]:
+    /* INTENT[INT-DIR-026 → TC-DIR-091,092 → REQ-xxx-yyy → UFR-xxx-yyy]:
      * ESCAPE requests a non-blocking close (P9): the native window and
      * its D2D renderer are destroyed right away, but ptLineCtx->ptDirView
      * itself stays a valid (non-NULL) pointer until the console notices
@@ -1188,13 +1248,13 @@ static void uc04_test_window_interaction(void)
 
     bWndStillOpen = ST_TRUE;
     gui_is_window_open(ptView->hWnd, &bWndStillOpen);
-    UC_TEST("[N] (TC-DIR-088) ESC destroys the native window right away "
+    UC_TEST("[N] (TC-DIR-091) ESC destroys the native window right away "
             "(gui_is_window_open == FALSE)", bWndStillOpen == ST_FALSE);
 
     /* script line 5: "where" - any command ticks line_dispatch(), which
      * reaps the self-closed view before doing anything else. */
     line_run();
-    UC_TEST("[N] (TC-DIR-089) the next console command reaps the view: "
+    UC_TEST("[N] (TC-DIR-092) the next console command reaps the view: "
             "ptLineCtx->ptDirView is now NULL",
             ptLineCtx->ptDirView == NULL);
 
@@ -1216,7 +1276,7 @@ static void uc04_test_window_interaction(void)
 static void uc04_test_window_interaction(void)
 {
     printf("\n--- Test group 4: real window keyboard/mouse + D2D spy ---\n");
-    TEST_SKIP("[N] (TC-DIR-033...090) window interaction group "
+    TEST_SKIP("[N] (TC-DIR-033...092) window interaction group "
               "(Win32-only: SendMessageA/keybd_event/D2D spy)");
 }
 

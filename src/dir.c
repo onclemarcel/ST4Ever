@@ -201,6 +201,7 @@ static st_error_t dir_node_load_children(dir_node_t *ptNode,
 
         snprintf(szPat, sizeof(szPat), "%s\\*", ptNode->szPath);
 
+        /* -- [DIR]35. dir_node_load_children: Windows two-pass scan lists all directories before any files -- */
         /* Two passes: 0 = dirs, 1 = files */
         for (iPass = 0; iPass < 2; iPass++)
         {
@@ -486,6 +487,7 @@ static void dir_reexpand_path(dir_node_t *ptRoot,
  */
 #define DIR_REFRESH_MAX_EXP  256  /* max expanded dirs to remember     */
 
+/* -- [DIR]37. dir_refresh_tree: reloads the root's children while preserving previously expanded subtree paths (3-phase: collect / reload / re-expand) -- */
 static void dir_refresh_tree(dir_view_t *ptView)
 {
     static char aaszExpanded[DIR_REFRESH_MAX_EXP][ST_MAX_PATH];
@@ -518,6 +520,7 @@ static void dir_refresh_tree(dir_view_t *ptView)
  * Flat list
  * ================================================================== */
 
+/* -- [DIR]36. dir_flat_rebuild: rebuilds the flat render list from the currently expanded tree, skipping collapsed subtrees -- */
 static void dir_flat_rebuild(dir_view_t *ptView)
 {
     if (ptView == NULL || ptView->aptFlat == NULL) return;
@@ -728,6 +731,7 @@ static void dir_scroll_to_sel(dir_view_t *ptView)
         ptView->iScrollOffset = 0;
 }
 
+/* -- [DIR]39. dir_nav_history_push: appends a new path to the navigation history, truncating any forward entries -- */
 /* P10: push szNewPath onto the navigation history, truncating forward
  * entries.  If the history is full, the oldest entry is evicted. */
 static void dir_nav_history_push(dir_view_t *ptView, const char *szNewPath)
@@ -756,6 +760,7 @@ static void dir_nav_history_push(dir_view_t *ptView, const char *szNewPath)
     ptView->iNavHistCount = iNewHead + 1;
 }
 
+/* -- [DIR]38. dir_navigate_to: swaps the tree root to a new path, freeing the old tree only after the new one is loaded -- */
 /* P10: navigate the view to szNewPath, rebuilding the tree.  Does NOT
  * update navigation history — callers are responsible for that. */
 static void dir_navigate_to(dir_view_t  *ptView,
@@ -822,6 +827,7 @@ static st_bool_t dir_is_multi_sel(const dir_view_t *ptView, const char *szPath)
     return ST_FALSE;
 }
 
+/* -- [DIR]40. dir_toggle_multi_sel: adds a path to the multi-selection set, or removes it if already present -- */
 /* P14: toggle szPath in/out of the multi-selection set */
 static void dir_toggle_multi_sel(dir_view_t *ptView, const char *szPath)
 {
