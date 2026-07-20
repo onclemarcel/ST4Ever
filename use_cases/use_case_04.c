@@ -7,8 +7,7 @@
  *
  * Migration note (2026-07-17): replaces use_case_03_3.c (UC3.3 dir_open/
  * dir_close lifecycle) and use_case_04_1.c (UC4.1 bShowHidden + UX dir
- * improvements), both pre-R23 and already excluded from `make tests`
- * (see Makefile UC_FILES). Everything previously marked [S]/TEST_MANUAL
+ * improvements). Everything previously marked [S]/TEST_MANUAL
  * in those two files (ASCII tree rendering, selection highlight,
  * keyboard navigation, ESC/LEFT/RIGHT/SPACE/ENTER, window focus) is
  * migrated here to real, automated [N]/[R] coverage:
@@ -493,6 +492,8 @@ static void uc04_test_console_dispatch(void)
  *   -- [DIR]30. Dir GUI react on GUI_EVT_KEY_DOWN and dispatch --
  *   -- [DIR]31. writes selected file path to the console selection --
  *   -- [DIR]32. dir_handle_key: SPACE on a selected entry toggles deselection (P70) --
+ *   -- [DIR]33. Dir GUI react on GUI_EVT_MOUSE_DOWN and dispatch --
+ *   -- [DIR]34. Dir GUI react on GUI_EVT_SCROLL and dispatch --
  *
  *   win_gui.c:
  *   -- [EVT]1. Inject a real WM_KEYDOWN and wait uiEventDelayMs --
@@ -505,6 +506,8 @@ static void uc04_test_console_dispatch(void)
  *
  *   win_D2D.c:
  *   -- [SPY]13. Scan the ring buffer for the last DrawText spy containing szNeedle --
+ *   -- [SPY]14. Scan the ring buffer for the last FillRectangle spy matching the exact color --
+ *   -- [SPY]15. Count the number of spies matching FillRectangle exact color --
  * 
  * Parameters:
  *   None
@@ -520,9 +523,6 @@ static void uc04_test_window_interaction(void)
     dir_view_t          *ptView;
     struct gui_window_s *ptWnd;
 
-    // Function return variable
-    st_error_t       eResult;
-    
     // Debug script variables
     static char      szPath[ST_MAX_PATH];
     FILE            *pF;
@@ -534,6 +534,7 @@ static void uc04_test_window_interaction(void)
     win_d2d_ctx_t   *ptD2D;
     int              iFound;    // Index of found D2D Spy (text, fill, ...)
     int              iNewFound; // Index of another D2D Spy of the same category
+    st_bool_t        bWndStillOpen; // gui_is_window_open() result (ESC teardown)
 
     ptGUICtx->bActiveSpies = ST_TRUE;
 
@@ -550,6 +551,7 @@ static void uc04_test_window_interaction(void)
     UC_SCRIPT_ADD_LINE(pF, "dir " UC04_TESTDATA "\n");
     UC_SCRIPT_ADD_LINE(pF, "dir " UC04_TESTDATA_SCROLL "\n");
     UC_SCRIPT_ADD_LINE(pF, "dir " UC04_TESTDATA "\n");
+    UC_SCRIPT_ADD_LINE(pF, "where\n");
     UC_SCRIPT_CLOSE(pF);
 
     strncpy(ptLineCtx->szScriptFile, szPath, ST_MAX_PATH - 1);
@@ -768,6 +770,7 @@ static void uc04_test_window_interaction(void)
             ptView->szLastSelected[0] == '\0');
 
     /* -- [DIR]22. dir_handle_click: left-click selects a row and expands directories -- */
+    /* -- [DIR]33. Dir GUI react on GUI_EVT_MOUSE_DOWN and dispatch -- */
     /* -- [EVT]3. Inject a real WM_LBUTTONDOWN and wait uiEventDelayMs -- */
     /* INTENT[INT-DIR-020 → TC-DIR-055...058 → REQ-xxx-yyy → UFR-xxx-yyy]:
      * a left-click on the visible_dir row (row 1, below the ".." row 0)
@@ -796,6 +799,8 @@ static void uc04_test_window_interaction(void)
             && iFound >= 0 && iNewFound == -1);
     
     /* -- [DIR]23. dir_handle_scroll: mouse wheel adjusts iScrollOffset within bounds -- */
+    /* -- [DIR]29. Dir GUI react on GUI_EVT_RESIZE -- */
+    /* -- [DIR]34. Dir GUI react on GUI_EVT_SCROLL and dispatch -- */
     /* -- [EVT]4. Inject a real WM_MOUSEWHEEL and wait uiEventDelayMs -- */
     /* -- [EVT]7. Inject a real WM_SIZE and wait uiEventDelayMs -- */
     /* -- [LINE]19. 'dir' closes any previously open view before opening a new one -- */
@@ -1046,6 +1051,8 @@ static void uc04_test_window_interaction(void)
     /* -- [DIR]24. dir_render: P11 green background marks the last committed selection -- */
     /* -- [DIR]25. dir_render: P14 purple background marks multi-selected files -- */
     /* -- [DIR]26. dir_render: blue background marks the keyboard cursor selection -- */
+    /* -- [SPY]14. Scan the ring buffer for the last FillRectangle spy matching the exact color -- */
+    /* -- [SPY]15. Count the number of spies matching FillRectangle exact color -- */
     /* INTENT[INT-DIR-025 → TC-DIR-081...087 → REQ-xxx-yyy → UFR-xxx-yyy]:
      * D2D spy (R27) verifies dir_render() actually draws the ".."/
      * directory/file rows with the right text and colour, and the
@@ -1095,59 +1102,69 @@ static void uc04_test_window_interaction(void)
         /* dir_render() draws green (Layer 1) then blue (Layer 3) at the
          * same rectangle, so blue fully covers green on screen even though
          * both fill_rect() calls were spied */
-        UC_TEST("[N] (TC-DIR-085) blue cursor layer wins over green "
-                "when cursor and last-selection share the same row",
-                win_D2D_spy_find_fill_rect_color(0.20f, 0.30f, 0.65f,
-                                          1.0f, ptD2D) == ST_TRUE);
+        int iBlueRect = win_D2D_spy_find_fill_rect_color(0.20f, 0.30f, 0.65f,
+                                                         1.0f, ptD2D);
+        int iGreenRect = win_D2D_spy_find_fill_rect_color(0.04f, 0.28f, 0.10f,
+                                                         1.0f, ptD2D);
+        const win_D2D_spy_fill_rectangle_t *ptBlueFR =
+                              (const win_D2D_spy_fill_rectangle_t *)
+                        win_D2D_get_spy(iBlueRect, ptD2D, ST_WIN_D2D_SPY_FR);
+        const win_D2D_spy_fill_rectangle_t *ptGreenFR =
+                              (const win_D2D_spy_fill_rectangle_t *)
+                        win_D2D_get_spy(iGreenRect, ptD2D, ST_WIN_D2D_SPY_FR);
+        
+        st_bool_t bIsSameRectangle = (ptBlueFR->tRect.fX == ptGreenFR->tRect.fX) &&
+                                     (ptBlueFR->tRect.fY == ptGreenFR->tRect.fY) &&
+                                     (ptBlueFR->tRect.fW == ptGreenFR->tRect.fW) &&
+                                     (ptBlueFR->tRect.fH == ptGreenFR->tRect.fH);
 
-        win_evt_send_key(ptWnd, VK_DOWN); /* cursor -> flat idx 1 (visible.txt) */
-        win_D2D_spy_reset(ptD2D);
+        UC_TEST("[N] (TC-DIR-085) blue cursor layer wins over green "
+                "when cursor & selection share the same row",
+                iBlueRect >= 0 && iGreenRect >= 0 && iBlueRect > iGreenRect &&
+                bIsSameRectangle);
+
+        /* One key up allows the visibility of both green and blue lines. 
+         * In that case, both lines have different renderer_rect_t values and
+         * blue line is know renderer before the green one */
+        win_evt_send_key(ptWnd, VK_UP); /* cursor -> flat idx -1 (..) */
         platform_sleep_ms(WIN_REPAINT_DELAY_MS);
 
-        {
-            float fGreenY = -1.0f;
-            float fBlueY  = -1.0f;
-            int   i;
+        iBlueRect = win_D2D_spy_find_fill_rect_color(0.20f, 0.30f, 0.65f,
+                                                         1.0f, ptD2D);
+        iGreenRect = win_D2D_spy_find_fill_rect_color(0.04f, 0.28f, 0.10f,
+                                                         1.0f, ptD2D);
+        ptBlueFR = (const win_D2D_spy_fill_rectangle_t *)
+                        win_D2D_get_spy(iBlueRect, ptD2D, ST_WIN_D2D_SPY_FR);
+        ptGreenFR = (const win_D2D_spy_fill_rectangle_t *)
+                        win_D2D_get_spy(iGreenRect, ptD2D, ST_WIN_D2D_SPY_FR);
+        
+        bIsSameRectangle = (ptBlueFR->tRect.fX == ptGreenFR->tRect.fX) &&
+                                     (ptBlueFR->tRect.fY == ptGreenFR->tRect.fY) &&
+                                     (ptBlueFR->tRect.fW == ptGreenFR->tRect.fW) &&
+                                     (ptBlueFR->tRect.fH == ptGreenFR->tRect.fH);
 
-            for (i = 0; i < ptD2D->uiSpiesCount; i++)
-            {
-                const win_D2D_spy_fill_rectangle_t *ptFR =
-                    (const win_D2D_spy_fill_rectangle_t *)
-                    win_D2D_get_spy(i, ptD2D, ST_WIN_D2D_SPY_FR);
-                if (ptFR == NULL) continue;
-                if (ptFR->tColor.r == 0.04f && ptFR->tColor.g == 0.28f
-                &&  ptFR->tColor.b == 0.10f && ptFR->tColor.a == 1.0f)
-                {
-                    fGreenY = ptFR->tRect.fY;
-                }
-                else if (ptFR->tColor.r == 0.20f
-                     &&  ptFR->tColor.g == 0.30f
-                     &&  ptFR->tColor.b == 0.65f
-                     &&  ptFR->tColor.a == 1.0f)
-                {
-                    fBlueY = ptFR->tRect.fY;
-                }
-            }
-
-            UC_TEST("[N] (TC-DIR-086) after moving the cursor away, "
-                    "green (P11 last-selection, visible_dir) and "
-                    "blue (cursor, visible.txt) mark two distinct "
-                    "rows",
-                    fGreenY >= 0.0f && fBlueY >= 0.0f
-                    && fGreenY != fBlueY);
-        }
+        UC_TEST("[N] (TC-DIR-086) after moving the cursor away, "
+                "green and blue mark two distinct rows",
+                iBlueRect >= 0 && iGreenRect >= 0 && iBlueRect < iGreenRect &&
+                !bIsSameRectangle);
 
         /* Multi-select visible.txt (purple), then re-spy this layer
          * specifically. CTRL+SPACE only toggles multi-selection for
          * files (dir.c [DIR]16 guards on !bIsDir); the cursor is
          * already on visible.txt (flat idx 1) from the DOWN above. */
+        win_evt_send_char(ptWnd, 'H');   /* show hidden files */
+        win_evt_send_key(ptWnd, VK_END); /* cursor -> end of list (2nd file) */
+        win_evt_send_ctrl_key(ptWnd, VK_SPACE);  /* Multi-select 2nd text file */
+        win_evt_send_key(ptWnd, VK_UP); /* cursor up */
+        win_evt_send_ctrl_key(ptWnd, VK_SPACE);  /* Multi-select 1st text file */
+        
         win_D2D_spy_reset(ptD2D);
-        win_evt_send_ctrl_key(ptWnd, VK_SPACE);
+        win_evt_send_key(ptWnd, VK_UP); /* cursor up */
+        
         platform_sleep_ms(WIN_REPAINT_DELAY_MS);
         UC_TEST("[N] (TC-DIR-087) purple background layer present "
-                "(P14 multi-selection)",
-                win_D2D_spy_find_fill_rect_color(0.28f, 0.15f, 0.55f,
-                                          1.0f, ptD2D) == ST_TRUE);
+                "(P14 multi-selection)", 
+                 win_D2D_spy_count_fill_rect_color(0.28f, 0.15f, 0.55f, 1.0f, ptD2D) == 2);
     }
     else
     {
@@ -1155,63 +1172,42 @@ static void uc04_test_window_interaction(void)
                   "(no D2D context found)");
     }
 
-    /* -- [DIR]29. Dir GUI react on GUI_EVT_RESIZE -- */
-    /* -- [EVT]7. Inject a real WM_SIZE and wait uiEventDelayMs -- */
-    /* INTENT[INT-DIR-026 → TC-DIR-088...089 → REQ-xxx-yyy → UFR-xxx-yyy]:
-     * a real WM_SIZE makes the Dir GUI react on GUI_EVT_RESIZE and
-     * keep rendering correctly afterwards */
-    UC_INFO("(INT-DIR-026) Spying dir_render() output via D2D spies");
-    win_evt_send_resize(ptWnd, 640, 480);
-    UC_TEST("[N] (TC-DIR-088) WM_SIZE(640,480): iWndWidth/iWndHeight "
-            "updated", ptView->iWndWidth == 640
-            && ptView->iWndHeight == 480);
-
-    if (ptD2D != NULL)
-    {
-        win_D2D_spy_reset(ptD2D);
-        gui_invalidate((gui_window_t)ptWnd);
-        platform_sleep_ms(150);
-        iFound = win_D2D_spy_find_text("visible_dir", ptD2D);
-        UC_TEST("[N] (TC-DIR-089) rendering still works after resize "
-                "(dir_render() draws 'visible_dir')", iFound >= 0);
-    }
-    else
-    {
-        TEST_SKIP("[N] (TC-DIR-089) post-resize render check "
-                  "(no D2D context found)");
-    }
-
     /* -- [DIR]19. dir_handle_key: ESCAPE requests a non-blocking window close (P9) -- */
-    /* INTENT[INT-DIR-027 → TC-DIR-090 → REQ-xxx-yyy → UFR-xxx-yyy]:
-     * ESCAPE requests a non-blocking close (P9); dir_close() afterwards
-     * is a safe no-op join, as documented in dir.h */
+    /* -- [GUI]12. gui_is_window_open: expose bOpen for owner-side self-close detection -- */
+    /* -- [LINE]24. Reap any view whose window self-closed since the last command -- */
+    /* INTENT[INT-DIR-026 → TC-DIR-088,089 → REQ-xxx-yyy → UFR-xxx-yyy]:
+     * ESCAPE requests a non-blocking close (P9): the native window and
+     * its D2D renderer are destroyed right away, but ptLineCtx->ptDirView
+     * itself stays a valid (non-NULL) pointer until the console notices
+     * the self-close and finishes the teardown - line_reap_closed_views()
+     * runs at the top of every dispatched command, so the very next
+     * console command reaps it. */
+    UC_INFO("(INT-DIR-026) ESCAPE closes the window");
     win_evt_send_key(ptWnd, VK_ESCAPE);
-    platform_sleep_ms(200);
-    
+    platform_sleep_ms(100);
+
+    bWndStillOpen = ST_TRUE;
+    gui_is_window_open(ptView->hWnd, &bWndStillOpen);
+    UC_TEST("[N] (TC-DIR-088) ESC destroys the native window right away "
+            "(gui_is_window_open == FALSE)", bWndStillOpen == ST_FALSE);
+
+    /* script line 5: "where" - any command ticks line_dispatch(), which
+     * reaps the self-closed view before doing anything else. */
+    line_run();
+    UC_TEST("[N] (TC-DIR-089) the next console command reaps the view: "
+            "ptLineCtx->ptDirView is now NULL",
+            ptLineCtx->ptDirView == NULL);
+
     /*************************************************************************/
     // Epilogue of test script run
     // R26: one more line_run() call past the last physical line closes
     // the script file and resets bDebugSteps automatically.
     line_run();   // Silently run to complete the debugging steps
-
-    /* Check that a subsequent call to dir_close() after ESC does not harm */
-    if (ptView != NULL)
-    {
-        eResult = dir_close(&ptView);
-        /* dir_close() only nulls the local copy of the pointer passed to
-         * it - ptLineCtx->ptDirView (== g_line_ptCtx.ptDirView) still
-         * points at the freed view otherwise, and line_shutdown() would
-         * later dir_close() it a second time (use-after-free). */
-        ptLineCtx->ptDirView = NULL;
-    }
     ptLineCtx->bQuiet = ST_FALSE;   // Reset on-line info messages
     //
     // Epilogue of test script run
     /*************************************************************************/
-    UC_TEST("[N] (TC-DIR-090) dir_close() after ESC is safe "
-            "(ST_NO_ERROR, *pptView == NULL)",
-            eResult == ST_NO_ERROR && ptView == NULL);
-
+    
     ptGUICtx->bActiveSpies = ST_FALSE;
 }
 

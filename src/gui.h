@@ -226,6 +226,30 @@ st_error_t gui_open_window(const gui_wnd_desc_t *ptDesc,
 st_error_t gui_close_window(gui_window_t hWnd);
 
 /*
+ * gui_is_window_open() - Query whether a window is still open.
+ *
+ * A window can close itself asynchronously (ESC / native close button
+ * -> gui_request_close() -> WM_CLOSE/WM_DESTROY) without the owner
+ * ever calling gui_close_window(). This accessor lets a view's owner
+ * (line.c, exec.c, trace.c...) detect that self-close and finish the
+ * teardown its own <module>_close() normally performs (freeing the
+ * view struct, nulling the owner's pointer) - see dir_close(),
+ * mount_view_close(), edit_txt_close(), edit_hex_close(),
+ * exec_close(), trace_gui_close(). Same factoring precedent as
+ * gui_handle_resize_event(): one shared check instead of six
+ * near-identical copies.
+ *
+ * Parameters:
+ *   hWnd   [in]  : Window to query.
+ *   pbOpen [out] : ST_TRUE if still open, ST_FALSE if self-closed.
+ *
+ * Returns:
+ *   ST_NO_ERROR on success.
+ *   ST_ERROR    if hWnd or pbOpen is NULL.
+ */
+st_error_t gui_is_window_open(gui_window_t hWnd, st_bool_t *pbOpen);
+
+/*
  * gui_invalidate() - Request a repaint of the window.
  *
  * Posts a GUI_EVT_PAINT to the window's event loop.

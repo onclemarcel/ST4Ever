@@ -912,7 +912,27 @@ log_level_t trace_get_view_level(void)
 st_bool_t trace_is_open(void)
 {
     LOG_TRACE("Get Request for bOpen=%d", g_trace_ptCtx.bOpen);
-    
+
     return g_trace_ptCtx.bOpen;
+}
+
+/* -- [TRACE]54. trace_reap_if_closed: detect a self-closed trace window and finish teardown -- */
+st_error_t trace_reap_if_closed(void)
+{
+    st_bool_t bWndOpen;
+
+    if (g_trace_ptCtx.bOpen == ST_FALSE || g_trace_ptCtx.ptView == NULL)
+    {
+        return ST_NO_ERROR;
+    }
+
+    bWndOpen = ST_TRUE;
+    gui_is_window_open(g_trace_ptCtx.ptView->hWnd, &bWndOpen);
+    if (bWndOpen == ST_FALSE)
+    {
+        trace_gui_close();
+    }
+
+    return ST_NO_ERROR;
 }
 

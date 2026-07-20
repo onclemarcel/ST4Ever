@@ -257,6 +257,23 @@ st_error_t gui_close_window(gui_window_t hWnd)
     return ST_NO_ERROR;
 }
 
+/* -- [GUI]12. gui_is_window_open: expose bOpen for owner-side self-close detection -- */
+st_error_t gui_is_window_open(gui_window_t hWnd, st_bool_t *pbOpen)
+{
+    struct gui_window_s *ptWnd;
+
+    if (hWnd == NULL || pbOpen == NULL)
+    {
+        LOG_ERROR("NULL parameter: hWnd=%p pbOpen=%p",
+                  (void *)hWnd, (void *)pbOpen);
+        return ST_ERROR;
+    }
+
+    ptWnd   = (struct gui_window_s *)hWnd;
+    *pbOpen = ptWnd->bOpen;
+    return ST_NO_ERROR;
+}
+
 st_error_t gui_request_close(gui_window_t hWnd)
 {
     struct gui_window_s *ptWnd;

@@ -202,14 +202,32 @@ const void* win_D2D_get_spy(int iIndex,
  *   ptCtx       [in] : D2D context holding the spy ring buffer.
  *
  * Returns:
- *   ST_TRUE if a fill_rectangle() spy with this exact colour was
- *   captured since the last win_D2D_spy_reset(), ST_FALSE otherwise.
+ *   the index of the last spy structure matching with the needle, -1 otherwise
  */
-st_bool_t win_D2D_spy_find_fill_rect_color(float           fR,
-                                            float           fG,
-                                            float           fB,
-                                            float           fA,
-                                            win_d2d_ctx_t  *ptCtx);
+int win_D2D_spy_find_fill_rect_color(float           fR,
+                                     float           fG,
+                                     float           fB,
+                                     float           fA,
+                                     win_d2d_ctx_t  *ptCtx);
+
+                                     /*
+ * win_D2D_spy_count_fill_rect_color() - Retrieve the number of captured
+ * fill_rectangle() call matches the given colour exactly.
+ *
+ * Parameters:
+ *   fR/fG/fB/fA [in] : colour components to match exactly (colours are
+ *                      static float literals in the .c under test, so
+ *                      exact comparison is reliable).
+ *   ptCtx       [in] : D2D context holding the spy ring buffer.
+ *
+ * Returns:
+ *   the number of spies elements matching with the needle, -1 otherwise
+ */
+int win_D2D_spy_count_fill_rect_color(float           fR,
+                                     float           fG,
+                                     float           fB,
+                                     float           fA,
+                                     win_d2d_ctx_t  *ptCtx);
 
 /* ------------------------------------------------------------------
  * Test-only UI event injection API

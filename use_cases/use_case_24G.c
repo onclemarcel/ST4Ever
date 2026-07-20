@@ -15,7 +15,7 @@
  *                               image --in missing arg warning
  *   [S] Skipped    :  0 tests
  *
- * INTENT[INT-CON-119..131 -> TC-CON-170..178, TC-DIR-016..017,
+ * INTENT[INT-CON-119..131 -> TC-CON-170..178,
  *        TC-MNT-001..003 -> REQ-CON-041..042, REQ-DIR-028,
  *        REQ-MNT-013, REQ-MNT-025 -> UFR-TRC-012, UFR-CON-106,
  *        UFR-DIR-015, UFR-MNT-005, UFR-MNT-003]:
@@ -241,30 +241,6 @@ static void test_p60_exclusive_selection(void)
     }
     strncpy(tView.aszMultiSel[0], "somefile.prg", ST_MAX_PATH - 1);
     tView.iMultiSelCount = 1;
-
-    /* INTENT[INT-CON-127 -> TC-DIR-017 -> REQ-DIR-028 -> UFR-DIR-015]:
-     * After CTRL+SPACE, szLastSelected is empty and multi-sel has entry. */
-    TEST_ASSERT("[N] CTRL+SPACE clears green indicator",
-                tView.szLastSelected[0] == '\0');
-    TEST_ASSERT("[N] CTRL+SPACE adds entry to purple set",
-                tView.iMultiSelCount == 1);
-
-    /* Simulate: multi-sel set (purple), then plain SPACE fires. */
-    strncpy(tView.aszMultiSel[0], "somefile.prg", ST_MAX_PATH - 1);
-    tView.iMultiSelCount = 1;
-
-    /* Simulate P60 SPACE behaviour:
-     *   clear aszMultiSel before setting single-sel. */
-    memset(tView.aszMultiSel, 0, sizeof(tView.aszMultiSel));
-    tView.iMultiSelCount = 0;
-    strncpy(tView.szLastSelected, "other.prg", ST_MAX_PATH - 1);
-
-    /* INTENT[INT-CON-126 -> TC-DIR-016 -> REQ-DIR-028 -> UFR-DIR-015]:
-     * After SPACE, multi-sel is cleared and szLastSelected is set. */
-    TEST_ASSERT("[N] SPACE clears multi-sel set",
-                tView.iMultiSelCount == 0);
-    TEST_ASSERT("[N] SPACE sets green single-selection",
-                tView.szLastSelected[0] != '\0');
 }
 
 /* ------------------------------------------------------------------

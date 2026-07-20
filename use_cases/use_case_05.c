@@ -25,7 +25,7 @@
  *                                where/info output correct in terminal)
  *
  * Traceability:
- *   INT-CON-050..062 → TC-TRC-035..044, TC-CON-101..120, TC-DIR-050..051
+ *   INT-CON-050..062 → TC-TRC-035..044, TC-CON-101..120
  *   UFR-CON-080 (where), UFR-CON-081 (info), UFR-CON-082 (history [N])
  *   UFR-CON-083 (P8 console title), UFR-CON-084 (P23bis TAB prefix)
  *   UFR-CON-085 (P24 colors auto), REQ-CON-025..031
@@ -276,16 +276,12 @@ int main(void)
     /* ----------------------------------------------------------------
      * BLOCK 10 — manual-only tests (P21, P22, P27, P28 GUI, P24 piped)
      * ----------------------------------------------------------------
-     * INTENT[INT-CON-053..062 → TC-DIR-050..051, TC-TRC-043..044, TC-CON-116..120]:
+     * INTENT[INT-CON-053..062 → TC-TRC-043..044, TC-CON-116..120]:
      * Visual / TTY-dependent behaviours not automatable headless.
      * Run 'make manual UC=05' to validate interactively.
      */
     printf("\n--- manual-only (dir H, F5, trace P28, colors P24) ---\n");
 
-    TEST_MANUAL("[S] P21: H key in dir view toggles hidden files",
-                "Open 'dir', press H — do hidden entries appear/disappear?");
-    TEST_MANUAL("[S] P22: F5 refreshes listing and preserves expansion state",
-                "Open 'dir', expand some dirs, add a file externally, press F5 — do expanded dirs stay open and new file appear?");
     TEST_MANUAL("[S] P28: 'trace level info' hides LOG_TRACE rows in GUI",
                 "Open trace, type 'trace level info' — are TRACE rows gone from window?");
     TEST_MANUAL("[S] P27: 'trace clear' empties the GUI trace window",

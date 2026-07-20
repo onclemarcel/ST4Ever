@@ -516,6 +516,26 @@ st_bool_t exec_is_open(void)
     return g_exec_ptCtx.bOpen;
 }
 
+/* -- [EXEC]4. exec_reap_if_closed: detect a self-closed monitor window and finish teardown -- */
+st_error_t exec_reap_if_closed(void)
+{
+    st_bool_t bMonOpen;
+
+    if (g_exec_ptCtx.bOpen == ST_FALSE)
+    {
+        return ST_NO_ERROR;
+    }
+
+    bMonOpen = ST_TRUE;
+    gui_is_window_open(g_exec_ptCtx.tState.hMonWnd, &bMonOpen);
+    if (bMonOpen == ST_FALSE)
+    {
+        exec_close();
+    }
+
+    return ST_NO_ERROR;
+}
+
 exec_state_t *exec_get_state(void)
 {
     if (!g_exec_ptCtx.bOpen)

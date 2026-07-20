@@ -24,7 +24,7 @@
  *
  * Traceability:
  *   INT-LOD-001..008 → TC-LOD-001..017 → REQ-LOD-001..014 → UFR-LOD-001..005
- *   INT-DIR-011 → TC-DIR-031..034 → REQ-DIR-023 → UFR-DIR-013 (P11)
+ *   
  */
 
 #include "use_cases.h"
@@ -230,36 +230,6 @@ int main(void)
      * After final shutdown, get_state() never returns NULL — the pointer
      * to the internal static state is permanently valid. */
     
-    /* ================================================================
-     * BLOCK 11 — [S] P11 visual indicator (manual only)
-     * ================================================================
-     * INTENT[INT-DIR-011 → TC-DIR-031..034 → REQ-DIR-023 → UFR-DIR-013]:
-     * When ENTER or SPACE commits a file selection in the dir view,
-     * dir_view_t.szLastSelected is updated and dir_render() draws a dark
-     * green background (g_dir_clrLastSel) on that row, visually distinct
-     * from the navigation cursor highlight (blue).  Moving the cursor
-     * away does not remove the green; a new commit moves it. */
-
-    TEST_MANUAL(
-        "[S] P11: ENTER on file → green secondary background",
-        "Open 'dir', press ENTER on a file. Does it show a dark green "
-        "background on that row (distinct from the nav-cursor blue) ?");
-
-    TEST_MANUAL(
-        "[S] P11: cursor away keeps green on committed row",
-        "After ENTER on a file, move cursor with arrows. Does the "
-        "previously selected file keep its green tint ?");
-
-    TEST_MANUAL(
-        "[S] P11: SPACE also marks secondary selection",
-        "Navigate to a file, press SPACE. Does that file get the "
-        "dark green secondary background ?");
-
-    TEST_MANUAL(
-        "[S] P11: new ENTER moves green indicator",
-        "With a green-highlighted row, press ENTER on a different file. "
-        "Does the green move to the new selection ?");
-
     /* ================================================================
      * Results
      * ================================================================ */

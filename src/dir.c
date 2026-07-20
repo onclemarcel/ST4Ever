@@ -1438,6 +1438,7 @@ static void dir_event_callback(gui_window_t  hWnd,
         break;
 
     case GUI_EVT_MOUSE_DOWN:
+        /* -- [DIR]33. Dir GUI react on GUI_EVT_MOUSE_DOWN and dispatch -- */
         if (ptEvent->uData.tMouse.eBtn == GUI_MOUSE_LEFT)
         {
             dir_handle_click(ptView, hWnd,
@@ -1447,6 +1448,7 @@ static void dir_event_callback(gui_window_t  hWnd,
         break;
 
     case GUI_EVT_SCROLL:
+        /* -- [DIR]34. Dir GUI react on GUI_EVT_SCROLL and dispatch -- */
         dir_handle_scroll(ptView, hWnd, ptEvent->uData.tScroll.iDelta);
         break;
 

@@ -407,11 +407,11 @@ int win_D2D_spy_find_text(const char *szNeedle, win_d2d_ctx_t *ptCtx)
  *                                       the given colour exactly
  *                                       (see win.h).
  */
-st_bool_t win_D2D_spy_find_fill_rect_color(float           fR,
-                                            float           fG,
-                                            float           fB,
-                                            float           fA,
-                                            win_d2d_ctx_t  *ptCtx)
+int    win_D2D_spy_find_fill_rect_color(float           fR,
+                                        float           fG,
+                                        float           fB,
+                                        float           fA,
+                                        win_d2d_ctx_t  *ptCtx)
 {
     const win_D2D_spy_fill_rectangle_t *ptSpy;
 
@@ -419,7 +419,7 @@ st_bool_t win_D2D_spy_find_fill_rect_color(float           fR,
     // use_case_*.c assertions.
     if (ptCtx == NULL)
     {
-        return ST_FALSE;
+        return -1;
     }
 
     /* -- [SPY]14. Scan the ring buffer for the last FillRectangle spy matching the exact color -- */
@@ -431,10 +431,49 @@ st_bool_t win_D2D_spy_find_fill_rect_color(float           fR,
         if (ptSpy->tColor.r == fR && ptSpy->tColor.g == fG
         &&  ptSpy->tColor.b == fB && ptSpy->tColor.a == fA)
         {
-            return ST_TRUE;
+            return i;
         }
     }
-    return ST_FALSE;
+    return -1;
+}
+
+/*
+ * win_D2D_spy_count_fill_rect_color() - Retrieve the number of captured
+ *                                       fill_rectangle() call matches
+ *                                       the given colour exactly
+ *                                       (see win.h).
+ */
+int    win_D2D_spy_count_fill_rect_color(float           fR,
+                                        float           fG,
+                                        float           fB,
+                                        float           fA,
+                                        win_d2d_ctx_t  *ptCtx)
+{
+    const win_D2D_spy_fill_rectangle_t *ptSpy;
+    int iCount = 0;
+
+    // No LOG_TRACE - R22: query function, called repeatedly by
+    // use_case_*.c assertions.
+    if (ptCtx == NULL)
+    {
+        return iCount;
+    }
+
+    /* -- [SPY]15. Count the number of spies matching FillRectangle exact color -- */
+    for (int i = 0; i < ptCtx->uiSpiesCount; i++)
+    {
+        ptSpy = (const win_D2D_spy_fill_rectangle_t *)
+                win_D2D_get_spy(i, ptCtx, ST_WIN_D2D_SPY_FR);
+        if (ptSpy != NULL)
+        {
+            if (ptSpy->tColor.r == fR && ptSpy->tColor.g == fG
+            &&  ptSpy->tColor.b == fB && ptSpy->tColor.a == fA)
+            {
+                iCount++;
+            }
+        }
+    }
+    return iCount;
 }
 
 /* ------------------------------------------------------------------

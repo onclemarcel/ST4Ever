@@ -172,6 +172,22 @@ st_error_t trace_gui_close(void);
 st_bool_t trace_is_open(void);
 
 /*
+ * trace_reap_if_closed() - Finish teardown if the trace window
+ * self-closed (ESC / native close button) without going through
+ * trace_gui_close().
+ *
+ * The window can close itself asynchronously (gui_request_close() is
+ * fire-and-forget); this leaves g_trace_ptCtx.bOpen and ptView->hWnd
+ * stale until something calls trace_gui_close(). Called once per
+ * console tick from line.c so trace_is_open() reflects reality on
+ * the next 'trace' command.
+ *
+ * Returns:
+ *   ST_NO_ERROR always.
+ */
+st_error_t trace_reap_if_closed(void);
+
+/*
  * trace_log() - Emit one log entry.  Use the LOG_* macros instead.
  *
  * Parameters:

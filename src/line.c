@@ -2891,6 +2891,55 @@ static const cmd_handler_fn g_line_aHandlers[CMD_COUNT] =
     /* CMD_SCRIPT     */ line_cmd_script,
 };
 
+/* -- [LINE]23. line_reap_closed_views: detect self-closed view windows and finish their teardown -- */
+static void line_reap_closed_views(void)
+{
+    st_bool_t bOpen;
+
+    if (g_line_ptCtx.ptDirView != NULL)
+    {
+        bOpen = ST_TRUE;
+        gui_is_window_open(g_line_ptCtx.ptDirView->hWnd, &bOpen);
+        if (bOpen == ST_FALSE)
+        {
+            dir_close(&g_line_ptCtx.ptDirView);
+        }
+    }
+
+    if (g_line_ptCtx.ptEditTxtView != NULL)
+    {
+        bOpen = ST_TRUE;
+        gui_is_window_open(g_line_ptCtx.ptEditTxtView->hWnd, &bOpen);
+        if (bOpen == ST_FALSE)
+        {
+            edit_txt_close(&g_line_ptCtx.ptEditTxtView);
+        }
+    }
+
+    if (g_line_ptCtx.ptEditHexView != NULL)
+    {
+        bOpen = ST_TRUE;
+        gui_is_window_open(g_line_ptCtx.ptEditHexView->hWnd, &bOpen);
+        if (bOpen == ST_FALSE)
+        {
+            edit_hex_close(&g_line_ptCtx.ptEditHexView);
+        }
+    }
+
+    if (g_line_ptCtx.ptMountView != NULL)
+    {
+        bOpen = ST_TRUE;
+        gui_is_window_open(g_line_ptCtx.ptMountView->hWnd, &bOpen);
+        if (bOpen == ST_FALSE)
+        {
+            mount_view_close(&g_line_ptCtx.ptMountView);
+        }
+    }
+
+    trace_reap_if_closed();
+    exec_reap_if_closed();
+}
+
 static st_error_t line_dispatch(const parsed_cmd_t *ptParsed)
 {
     cmd_handler_fn pfnHandler;
@@ -2910,6 +2959,9 @@ static st_error_t line_dispatch(const parsed_cmd_t *ptParsed)
         LOG_ERROR("Use line_init() before use of any line_*() function");
         return ST_ERROR;
     }
+
+    /* -- [LINE]24. Reap any view whose window self-closed since the last command -- */
+    line_reap_closed_views();
 
     if (ptParsed->eCmd == CMD_NONE)
     {

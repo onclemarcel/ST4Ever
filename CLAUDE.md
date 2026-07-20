@@ -598,6 +598,24 @@ ptWnd->uiEventDelayMs = 2;   /* accélère une longue séquence de touches */
 
 **Règle d'application pour les `use_case_NN.c` futurs** : ne jamais recréer un helper `static uc0N_send_xxx()` local pour injecter un événement Win32 déjà couvert par `win_evt_send_*()` — l'appeler directement. Si un nouveau type d'événement est nécessaire, l'ajouter à `win_gui.c` (avec son tag `[EVT]N` et sa doc dans `win.h`) plutôt que de le dupliquer dans le fichier de test. R23 à R28 forment ensemble la stratégie de test complète du projet (script debug pas-à-pas, tagging incrémental, D2D spy, injection d'événements) — s'y référer comme un tout lors de la reprise d'un nouveau contexte de conversation.
 
+**R29 — Auto-fermeture d'une vue GUI (ESC/croix) : `gui_is_window_open()` + réconciliation par module, jamais par free() croisé entre threads** *(établie 2026-07-20, corrige BUG-13 — dir/mount/edit_txt/edit_hex/exec/trace)*
+
+Contexte : `gui_request_close()` (P9, non-bloquant) ne fait que poster `WM_CLOSE` ; le thread fenêtre traite `WM_DESTROY` → `bOpen = ST_FALSE` → `GUI_EVT_CLOSE` (qui ne détruit que le renderer) → le thread se termine. Rien ne rappelle jamais le `<module>_close()` complet (celui qui libère l'arbre/les buffers, appelle `gui_close_window()` et met à `NULL` le pointeur possédé par la console) — ce dernier n'est déclenché que par une fermeture explicite côté console (relance de la commande, ou `shutdown`). Résultat avant correctif : `g_line_ptCtx.ptDirView` (et l'équivalent pour mount/edit_txt/edit_hex/trace/exec) reste un pointeur valide vers une structure orpheline après un ESC dans la fenêtre elle-même — fuite mémoire et état console incohérent (ex: `trace_is_open()` répond encore `ST_TRUE`).
+
+**Mécanisme retenu** (poll plutôt que callback traversant les threads — `gui_close_window()` étant déjà idempotent sur une fenêtre déjà auto-fermée, aucun `free()` n'a besoin de migrer vers le thread fenêtre) :
+
+1. **`gui_is_window_open(hWnd, pbOpen)`** (`gui.h`/`gui.c`, tag `[GUI]12`) — accesseur exposant `struct gui_window_s.bOpen`, jusque-là privé à `gui_backend.h`. Même esprit de factorisation que `gui_handle_resize_event()` (R_ resize) : un point de vérité partagé plutôt que six copies de la même relecture de champ.
+2. **`line_reap_closed_views()`** (`line.c`, tags `[LINE]23`/`[LINE]24`, statique) — appelée en tête de `line_dispatch()` (donc à chaque commande console, y compris en mode script/debug-step R26) : vérifie `gui_is_window_open()` sur `ptDirView`/`ptEditTxtView`/`ptEditHexView`/`ptMountView` et appelle `dir_close()`/`edit_txt_close()`/`edit_hex_close()`/`mount_view_close()` si la fenêtre s'est auto-fermée, puis délègue à `trace_reap_if_closed()` et `exec_reap_if_closed()` pour les deux modules à état privé (singleton) qui ne passent pas par un pointeur de `line_context_t`.
+3. **`trace_reap_if_closed()`** (`trace.c`/`trace.h`) et **`exec_reap_if_closed()`** (`exec.c`/`exec.h`) — chaque module vérifie sa propre fenêtre "maître" (`g_trace_ptCtx.ptView->hWnd`, `g_exec_ptCtx.tState.hMonWnd`) et appelle son propre `_close()` complet (`trace_gui_close()`, `exec_close()`) si elle s'est auto-fermée. `exec_close()` referme déjà les 5 fenêtres de la session (Mon/Cpu/Mem/Asm/Scr) et joint le thread CPU — la réconciliation ne fait que fournir le déclencheur manquant.
+
+**Pourquoi un poll côté console et pas un callback dans le thread fenêtre** : tous les `free()`/`gui_close_window()` du projet s'exécutent aujourd'hui sur le thread console (R4 : chaque vue tourne dans son propre thread, la console pilote via des commandes). Faire le `free()` complet directement dans `GUI_EVT_CLOSE` (thread fenêtre) aurait fonctionné mais aurait introduit une première libération cross-thread dans tout le projet, sans bénéfice réel puisque `gui_close_window()` gère déjà proprement le cas "déjà fermé" (vérifie `bOpen` avant de re-poster `WM_CLOSE`, joint un thread déjà terminé sans blocage). Le poll garde 100 % des `free()` sur le thread console, comme partout ailleurs.
+
+**Limite connue, non couverte par ce correctif** : `mount_view_close()` referme déjà en cascade ses vues hex enfants (`ptBootHexView`/`ptFileHexView`, P38/P41) — mais seulement quand `mount_view_close()` est appelée. Si l'utilisateur ESC uniquement la vue hex enfant en laissant `mount` ouverte, la même classe de fuite existe *au niveau de `mount.c` lui-même* (pas au niveau console). Non traité ici — `mount.c` a son propre thread fenêtre avec un tick de paint régulier qui pourrait porter la même réconciliation en interne si le besoin se confirme.
+
+**Rollout** : appliqué immédiatement aux 6 modules identifiés (dir, mount, edit_txt, edit_hex, exec, trace) même si seul `use_case_04.c` est migré vers R23-R28 à ce jour (2026-07-20) — les `use_case_NN.c` de mount/edit_txt/edit_hex/exec/trace (UC8, UC9, UC18.1, UC25A/25B) n'ont pas encore de test dédié à cette réconciliation ; toute régression sera visible lors de leur migration ultérieure (cf. R25).
+
+**Règle d'application pour les futurs modules de vue GUI** : tout nouveau module qui possède un pointeur de vue (dans `line_context_t` ou en singleton propre) doit exposer un chemin de réconciliation symétrique — soit via `line_reap_closed_views()` s'il est possédé par la console, soit via son propre `<module>_reap_if_closed()` s'il gère un état privé (singleton) — jamais un nouveau poll ad hoc dupliquant `gui_is_window_open()`.
+
 ## 6. Use Cases
 
 Les étapes de développement fonctionnelles sont formalisées en Use Cases, permettant de développer et valider chaque cas d'usage de l'application et d'enrichir le projet avec de plus amples détails, dont les recommendations Claude AI de la section 4, et planifier le reste des Use Cases en TODO/stubs dans le projet. La liste actuelle des Use Cases est:
@@ -1914,10 +1932,40 @@ recopié tel quel (`iNavHistHead`/`iNavHistCount` inchangés) au lieu d'empiler 
 doublon. Aucun changement de comportement quand le chemin change réellement (le
 cas nominal ALT+←/→ testé depuis UC18.2/P10). `make tests` : 0 warning, 0 failure.
 
+**BUG-13 — ESC dans une vue GUI (dir/mount/edit_txt/edit_hex/exec/trace) ne termine jamais la fermeture côté console : pointeur orphelin + fuite mémoire** → **CORRIGÉ**
+
+Repéré par Tonton Marcel en relisant `use_case_04.c:1187-1193` (avant fix) : après
+`win_evt_send_key(ptWnd, VK_ESCAPE)` + un `platform_sleep_ms(100)`, les printf de
+debug montraient `ptView`/`ptWnd`/`hNative`/`ptRenderer`/`ptD2D` tous encore non-NULL
+— alors que le commentaire du test affirmait "ESC kills the dir GUI window". Analyse :
+`gui_request_close()` (P9) ne fait que poster `WM_CLOSE` ; `WM_DESTROY` détruit le
+HWND natif et positionne `ptWnd->bOpen = ST_FALSE`, `GUI_EVT_CLOSE` ne détruit que le
+renderer D2D — rien n'appelle jamais `dir_close()` (qui seul libère l'arbre, l'array
+plat, et met `g_line_ptCtx.ptDirView` à `NULL`). Ce `dir_close()` n'était déclenché
+que par la console elle-même (relance de `dir`, ou shutdown). Audit étendu : la même
+faille existe à l'identique dans `mount.c`, `edit_txt.c`, `edit_hex.c`, `exec_mon.c`/
+`exec_cpu.c`/`exec_mem.c`/`exec_asm.c`/`exec_screen.c`, et `trace.c` — les 6 vues GUI
+du projet partagent le même défaut structurel : `GUI_EVT_CLOSE` ne détruit que le
+renderer, jamais la structure de vue ni le pointeur propriétaire côté console.
+
+Fix — nouveau mécanisme générique de réconciliation (détail architecture : R29) :
+`gui_is_window_open()` (nouvel accesseur `gui.h`/`gui.c`) expose `bOpen` ; `line.c`
+ajoute `line_reap_closed_views()` (appelée en tête de `line_dispatch()`, donc à
+chaque commande console) qui referme proprement `ptDirView`/`ptEditTxtView`/
+`ptEditHexView`/`ptMountView` dès qu'elle détecte leur fenêtre auto-fermée ; `trace.c`
+et `exec.c` (modules à état singleton, pas de pointeur dans `line_context_t`) exposent
+chacun leur propre `<module>_reap_if_closed()` appelée depuis la même réconciliation
+centrale. `use_case_04.c` (TC-DIR-088/089) vérifie désormais les deux étapes
+séparément : `gui_is_window_open() == FALSE` juste après ESC (fenêtre native détruite
+tout de suite), puis `ptLineCtx->ptDirView == NULL` après la commande console
+suivante (réconciliation effective). `make tests` : 0 warning, 0 failure (UC00-UC04,
+seule plage actuellement migrée — cf. garde temporaire du Makefile §UC_FILES).
+
 | Bug | Décision | Statut |
 |-----|----------|--------|
 | BUG-11 (H/h collapse + focus loss) | CORRIGÉ | ✓ clos (UC4, session 2026-07-18) |
 | BUG-12 (dir doublon historique navigation) | CORRIGÉ | ✓ clos (UC4, session 2026-07-18) |
+| BUG-13 (ESC ne termine jamais la fermeture console-side, 6 vues GUI) | CORRIGÉ | ✓ clos (UC4, session 2026-07-20, cf. R29) |
 
 ---
 

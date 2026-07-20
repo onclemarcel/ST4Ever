@@ -178,6 +178,22 @@ st_error_t exec_close(void);
 st_bool_t exec_is_open(void);
 
 /*
+ * exec_reap_if_closed() - Finish teardown if the monitor window
+ * self-closed (ESC / native close button) without going through
+ * exec_close().
+ *
+ * ESC in exec_mon.c only requests the monitor + CPU windows to close
+ * and stops the CPU thread (exec_quit_request()); it never calls
+ * exec_close(), so g_exec_ptCtx.bOpen stays ST_TRUE and the mem/asm/
+ * screen windows are left dangling. Called once per console tick
+ * from line.c so exec_is_open() reflects reality on the next command.
+ *
+ * Returns:
+ *   ST_NO_ERROR always.
+ */
+st_error_t exec_reap_if_closed(void);
+
+/*
  * exec_get_state() - Return pointer to the shared execution state.
  *
  * Valid between exec_open() and exec_close().
