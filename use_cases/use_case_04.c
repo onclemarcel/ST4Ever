@@ -33,7 +33,7 @@
  *     dir_open() already guarantees (P16: SetForegroundWindow/SetFocus).
  *
  * TEST MATRIX - UC4:
- *   [N] Nominal    : 85 tests - dir_open/dir_close lifecycle (incl. the
+ *   [N] Nominal    : 94 tests - dir_open/dir_close lifecycle (incl. the
  *                    szPath="" -> cwd resolution), bShowHidden filter,
  *                    real console dispatch (dir/-a/--select/--unselect),
  *                    real keyboard/mouse navigation and selection
@@ -42,7 +42,9 @@
  *                    D2D spy verification of rendered rows and selection
  *                    layers, real resize+scroll pagination against a
  *                    dedicated 14-file fixture (testdata_scroll),
- *                    multi-selection removal via a repeated CTRL+SPACE
+ *                    multi-selection removal via a repeated CTRL+SPACE,
+ *                    ASCII prefix connectors, window title (R18),
+ *                    keyboard scroll-follow + PAGE_UP/PAGE_DOWN
  *   [R] Robustness :  8 tests - NULL pptView, bIsLineRunning==ST_FALSE,
  *                    dir_close idempotency, non-existent path (empty
  *                    tree)
@@ -106,6 +108,11 @@ static ST4Ever_context_t *ptCtx;
  *   -- [DIR]6. dir_close rejects NULL pptView --
  *   -- [DIR]7. dir_close is idempotent when *pptView is already NULL --
  *   -- [DIR]8. dir_close releases the window, tree and flat list --
+ *   -- [DIR]42. dir_open allocates & populates the GUI dir_view_t structure --
+ *   -- [DIR]43. dir_open allocates & populates a flat list of entries --
+ *   -- [DIR]44. dir_open allocates and populates the root node --
+ *   -- [DIR]45. Free allocated dir_node_t structure --
+ *   -- [DIR]49. Access denied or empty entries leaves the GUI empty --
  *
  * Parameters:
  *   None
@@ -125,9 +132,14 @@ static void uc04_test_lifecycle(void)
 
     /* -- [DIR]4. dir_open loads the root's children honoring bShowHidden -- */
     /* -- [DIR]5. dir_open opens the GUI window and returns the populated view -- */
+    /* -- [DIR]42. dir_open allocates & populates the GUI dir_view_t structure -- */
+    /* -- [DIR]43. dir_open allocates & populates a flat list of entries -- */
+    /* -- [DIR]44. dir_open allocates and populates the root node -- */
     /* INTENT[INT-DIR-001 → TC-DIR-001...004 → REQ-xxx-yyy → UFR-xxx-yyy]:
      * dir_open() on a valid path opens a real GUI window, loads the
-     * root's children and returns a populated, non-NULL view */
+     * root's children and returns a populated, non-NULL view - which
+     * requires the dir_view_t, flat list and root node allocations to
+     * all have succeeded */
     UC_INFO("(INT-DIR-001) Opening the 'dir' GUI on UC04_1 folder,"
             "with hidden files visible");
     ptView = NULL;
@@ -146,8 +158,10 @@ static void uc04_test_lifecycle(void)
                 ptView->iFlatCount == 4);
 
         /* -- [DIR]8. dir_close releases the window, tree and flat list -- */
+        /* -- [DIR]45. Free allocated dir_node_t structure -- */
         /* INTENT[INT-DIR-002 → TC-DIR-005 → REQ-xxx-yyy → UFR-xxx-yyy]:
-         * dir_close() releases the window and sets the pointer to NULL */
+         * dir_close() releases the window and sets the pointer to NULL,
+         * recursively freeing every dir_node_t in the tree along the way */
         UC_INFO("(INT-DIR-002) Closing the previously open 'dir' GUI");
         eResult = dir_close(&ptView);
         UC_TEST("[N] (TC-DIR-005) dir_close(valid view) -> ST_NO_ERROR "
@@ -217,9 +231,11 @@ static void uc04_test_lifecycle(void)
             eResult == ST_NO_ERROR);
 
     /* -- [DIR]4. dir_open loads the root's children honoring bShowHidden -- */
+    /* -- [DIR]49. Access denied or empty entries leaves the GUI empty -- */
     /* INTENT[INT-DIR-006 → TC-DIR-013...014 → REQ-xxx-yyy → UFR-xxx-yyy]:
      * loading the root's children for a non-existent path yields an
-     * empty tree (non-fatal scan failure), not an error */
+     * empty tree (non-fatal scan failure), not an error - FindFirstFileA
+     * returns INVALID_HANDLE_VALUE and the scan loop breaks immediately */
     UC_INFO("(INT-DIR-006) Robustness tests on dir_open() with non-existent path");
     ptView = NULL;
     eResult = dir_open("nonexistent_path_xyz_st4ever", ptLineCtx->bRunning,
@@ -495,12 +511,33 @@ static void uc04_test_console_dispatch(void)
  *   -- [DIR]32. dir_handle_key: SPACE on a selected entry toggles deselection (P70) --
  *   -- [DIR]33. Dir GUI react on GUI_EVT_MOUSE_DOWN and dispatch --
  *   -- [DIR]34. Dir GUI react on GUI_EVT_SCROLL and dispatch --
- *   -- [DIR]35. dir_node_load_children: Windows two-pass scan lists all directories before any files --
+ *   -- [DIR]35. Windows two-pass scan lists directories before files --
  *   -- [DIR]36. dir_flat_rebuild: rebuilds the flat render list from the currently expanded tree, skipping collapsed subtrees --
  *   -- [DIR]37. dir_refresh_tree: reloads the root's children while preserving previously expanded subtree paths (3-phase: collect / reload / re-expand) --
- *   -- [DIR]38. dir_navigate_to: swaps the tree root to a new path, freeing the old tree only after the new one is loaded --
+ *   -- [DIR]38. Navigates the tree root to a new path and free the old tree --
  *   -- [DIR]39. dir_nav_history_push: appends a new path to the navigation history, truncating any forward entries --
  *   -- [DIR]40. dir_toggle_multi_sel: adds a path to the multi-selection set, or removes it if already present --
+ *   -- [DIR]41. Allocate a new empty dir_node_t structure --
+ *   -- [DIR]47. A reload frees all existing nodes and rescan the children --
+ *   -- [DIR]52. Collect the already expanded directories --
+ *   -- [DIR]54. Reexpand the previously saved nodes --
+ *   -- [DIR]55. dir_flat_rebuild_rec recursively walks the expanded tree in depth-first order, skipping collapsed subtrees, and records ASCII prefix bookkeeping per visible entry --
+ *   -- [DIR]56. dir_build_prefix builds the ASCII tree connector prefix (vertical continuation bars + branch connector) for one flat entry --
+ *   -- [DIR]57. dir_get_parent_path strips the trailing separator and truncates at the last path separator to compute the parent directory --
+ *   -- [DIR]59. dir_update_title sets the window title to 'ST4Ever - Dir: <root path>' (R18) --
+ *   -- [DIR]61. dir_scroll_to_sel scrolls iScrollOffset up or down just enough to keep the selected row visible --
+ *   -- [DIR]62. dir_navigate_up computes the parent path and navigates the tree to it, unless already at the filesystem root --
+ *   -- [DIR]63. dir_is_multi_sel reports whether szPath is currently present in the multi-selection set --
+ *   -- [DIR]69. dir_handle_key: PAGE_UP scrolls iScrollOffset up by one page --
+ *   -- [DIR]70. dir_handle_key: PAGE_DOWN scrolls iScrollOffset down by one page, clamped to iMaxScroll --
+ *   -- [DIR]71. dir_handle_key: HOME resets the scroll offset and selects the '..' row --
+ *   -- [DIR]72. dir_handle_key: END scrolls to the last page and selects the last flat entry --
+ *   -- [DIR]76. Dir GUI react on GUI_EVT_CLOSE and release the renderer --
+ *
+ *   Tags [DIR]46,48,50,51,53,58,60,64,65,66,67,68,73,74,75,77 are analyzed
+ *   but never referenced below - see the "Untestable tag rationale" block
+ *   near the end of this file (R24.2) for why each one cannot be reached
+ *   from any use_case_*.c test.
  *
  *   win_gui.c:
  *   -- [EVT]1. Inject a real WM_KEYDOWN and wait uiEventDelayMs --
@@ -581,7 +618,7 @@ static void uc04_test_window_interaction(void)
             "check for valid GUI pointer", ptView != NULL);
     if (ptView == NULL)
     {
-        TEST_SKIP("[N] (TC-DIR-028...092) window interaction group "
+        TEST_SKIP("[N] (TC-DIR-028...101) window interaction group "
                   "(dir_open failed)");
         return;
     }
@@ -597,7 +634,7 @@ static void uc04_test_window_interaction(void)
                 hNative != NULL && ptD2D != NULL);
     if (hNative == NULL || ptD2D == NULL)
     {
-        TEST_SKIP("[N] (TC-DIR-029...092) window interaction group "
+        TEST_SKIP("[N] (TC-DIR-029...101) window interaction group "
                   "(no native HWND or no available renderer)");
         dir_close(&ptView);
         return;
@@ -606,7 +643,8 @@ static void uc04_test_window_interaction(void)
     /* -- [EVT]1. Inject a real WM_KEYDOWN and wait uiEventDelayMs -- */
     /* -- [DIR]30. Dir GUI react on GUI_EVT_KEY_DOWN and dispatch -- */
     /* -- [DIR]13. dir_handle_key: UP/DOWN move the cursor selection -- */
-    /* -- [DIR]35. dir_node_load_children: Windows two-pass scan lists all directories before any files -- */
+    /* -- [DIR]35. Windows two-pass scan lists directories before files -- */
+    /* -- [DIR]41. Allocate a new empty dir_node_t structure -- */
     /* -- [SPY]13. Scan the ring buffer for the last DrawText spy containing szNeedle -- */
     /* INTENT[INT-DIR-014 → TC-DIR-029...032 → REQ-xxx-yyy → UFR-xxx-yyy]:
      * real WM_KEYDOWN(VK_DOWN)/WM_KEYDOWN(VK_UP) events move
@@ -638,6 +676,7 @@ static void uc04_test_window_interaction(void)
     /* -- [DIR]11. dir_activate_sel: directory entry toggles expand/collapse -- */
     /* -- [DIR]14. dir_handle_key: ENTER activates the current selection -- */
     /* -- [DIR]36. dir_flat_rebuild: rebuilds the flat render list from the currently expanded tree, skipping collapsed subtrees -- */
+    /* -- [DIR]55. dir_flat_rebuild_rec recursively walks the expanded tree in depth-first order, skipping collapsed subtrees, and records ASCII prefix bookkeeping per visible entry -- */
     /* INTENT[INT-DIR-015 → TC-DIR-033...036 → REQ-xxx-yyy → UFR-xxx-yyy]:
      * on the selected directory row (visible_dir, flat index 0): RIGHT
      * expands, LEFT collapses, ENTER toggles again via dir_activate_sel;
@@ -678,6 +717,25 @@ static void uc04_test_window_interaction(void)
     UC_TEST("[N] (TC-DIR-036) ENTER toggles visible_dir back to collapsed",
             ptView->aptFlat[0].ptNode->bExpanded == ST_FALSE &&
             ptView->iFlatCount == 2 && iFound >= 0 && iNewFound == -1);
+
+    /* -- [DIR]56. dir_build_prefix builds the ASCII tree connector prefix (vertical continuation bars + branch connector) for one flat entry -- */
+    /* INTENT[INT-DIR-028 → TC-DIR-093,094 → REQ-xxx-yyy → UFR-xxx-yyy]:
+     * expanding visible_dir (2 children: file001 not-last, file002 last)
+     * draws each depth-1 child with the correct ASCII connector - a
+     * "|   " continuation bar (visible_dir itself is not the last root
+     * sibling) followed by "+-- " for the non-last child, "\-- " for
+     * the last one */
+    UC_INFO("(INT-DIR-028) Checking dir_build_prefix ASCII connectors on visible_dir's children");
+    win_D2D_spy_reset(ptD2D);
+    win_evt_send_key(ptWnd, VK_RIGHT); /* re-expand visible_dir */
+    UC_TEST("[N] (TC-DIR-093) file001 (not-last child) drawn with "
+            "'|   +-- ' prefix",
+            win_D2D_spy_find_text("|   +-- file001", ptD2D) >= 0);
+    UC_TEST("[N] (TC-DIR-094) file002 (last child) drawn with "
+            "'|   \\-- ' prefix",
+            win_D2D_spy_find_text("|   \\-- file002", ptD2D) >= 0);
+    win_evt_send_key(ptWnd, VK_LEFT); /* re-collapse: restores the
+                                        * baseline INT-DIR-016 expects */
 
     /* -- [DIR]12. dir_activate_sel: file entry commits selection (P11) -- */
     /* -- [DIR]14. dir_handle_key: ENTER activates the current selection -- */
@@ -900,6 +958,69 @@ static void uc04_test_window_interaction(void)
                     && win_D2D_spy_find_text("file01.txt", ptD2D) >= 0
                     && win_D2D_spy_find_text("file05.txt", ptD2D) >= 0);
 
+            /* -- [DIR]61. dir_scroll_to_sel scrolls iScrollOffset up or down just enough to keep the selected row visible -- */
+            /* -- [DIR]69. dir_handle_key: PAGE_UP scrolls iScrollOffset up by one page -- */
+            /* -- [DIR]70. dir_handle_key: PAGE_DOWN scrolls iScrollOffset down by one page, clamped to iMaxScroll -- */
+            /* INTENT[INT-DIR-030 → TC-DIR-096...100 → REQ-xxx-yyy → UFR-xxx-yyy]:
+             * with the window still shrunk to iVisRowsSmall (6) rows:
+             * moving the keyboard cursor DOWN past the visible window
+             * makes dir_scroll_to_sel() auto-scroll to keep it visible
+             * (distinct from the wheel-driven dir_handle_scroll above);
+             * PAGE_DOWN/PAGE_UP then scroll by a full page, clamped at
+             * iMaxScroll/0 */
+            UC_INFO("(INT-DIR-030) DOWN past the visible window auto-scrolls; PAGE_DOWN/PAGE_UP move by a page");
+
+            /* iSelectedFlat==-1, iScrollOffset==0 here (TC-DIR-064).
+             * 6 DOWNs: -1->0->1->2->3->4->5 - flat idx 5 is row 6,
+             * one past the 6 visible rows [0..5], forcing a scroll. */
+            win_evt_send_key(ptWnd, VK_DOWN);
+            win_evt_send_key(ptWnd, VK_DOWN);
+            win_evt_send_key(ptWnd, VK_DOWN);
+            win_evt_send_key(ptWnd, VK_DOWN);
+            win_evt_send_key(ptWnd, VK_DOWN);
+            win_D2D_spy_reset(ptD2D);
+            win_evt_send_key(ptWnd, VK_DOWN);
+            UC_TEST("[N] (TC-DIR-096) DOWN onto flat idx 5 auto-scrolls "
+                    "(iScrollOffset==1, '..' scrolled off, file06 visible)",
+                    ptView->iSelectedFlat == 5 && ptView->iScrollOffset == 1
+                    && win_D2D_spy_find_text("..", ptD2D) == -1
+                    && win_D2D_spy_find_text("file06.txt", ptD2D) >= 0
+                    && win_D2D_spy_find_text("file07.txt", ptD2D) == -1);
+
+            win_D2D_spy_reset(ptD2D);
+            win_evt_send_key(ptWnd, VK_PRIOR); /* PAGE_UP */
+            UC_TEST("[N] (TC-DIR-097) PAGE_UP scrolls up by one page "
+                    "(iScrollOffset==0, unclamped: 1-6 would be negative)",
+                    ptView->iScrollOffset == 0
+                    && win_D2D_spy_find_text("..", ptD2D) >= 0
+                    && win_D2D_spy_find_text("file05.txt", ptD2D) >= 0);
+
+            win_D2D_spy_reset(ptD2D);
+            win_evt_send_key(ptWnd, VK_NEXT); /* PAGE_DOWN */
+            UC_TEST("[N] (TC-DIR-098) PAGE_DOWN scrolls down by one page "
+                    "(iScrollOffset==6, file06..file11 shown)",
+                    ptView->iScrollOffset == 6
+                    && win_D2D_spy_find_text("file06.txt", ptD2D) >= 0
+                    && win_D2D_spy_find_text("file11.txt", ptD2D) >= 0
+                    && win_D2D_spy_find_text("file01.txt", ptD2D) == -1
+                    && win_D2D_spy_find_text("file12.txt", ptD2D) == -1);
+
+            win_D2D_spy_reset(ptD2D);
+            win_evt_send_key(ptWnd, VK_NEXT); /* PAGE_DOWN again: clamps */
+            UC_TEST("[N] (TC-DIR-099) PAGE_DOWN clamps at iMaxScroll "
+                    "(iScrollOffset==9, last page file09..file14)",
+                    ptView->iScrollOffset == 9
+                    && win_D2D_spy_find_text("file09.txt", ptD2D) >= 0
+                    && win_D2D_spy_find_text("file14.txt", ptD2D) >= 0);
+
+            win_D2D_spy_reset(ptD2D);
+            win_evt_send_key(ptWnd, VK_PRIOR); /* PAGE_UP */
+            win_evt_send_key(ptWnd, VK_PRIOR); /* PAGE_UP again: clamps at 0 */
+            UC_TEST("[N] (TC-DIR-100) two PAGE_UPs clamp back at 0 "
+                    "('..' and file01..file05 shown again)",
+                    ptView->iScrollOffset == 0
+                    && win_D2D_spy_find_text("..", ptD2D) >= 0
+                    && win_D2D_spy_find_text("file01.txt", ptD2D) >= 0);
 
         /* Restore the shared 'testdata' fixture for the remaining
          * Group 4 tests */
@@ -910,7 +1031,7 @@ static void uc04_test_window_interaction(void)
                 ptView != NULL && ptView->iFlatCount == 2);
         if (ptView == NULL)
         {
-            TEST_SKIP("[N] (TC-DIR-066...092) window interaction group "
+            TEST_SKIP("[N] (TC-DIR-066...101) window interaction group "
                       "(dir_open on testdata restore failed)");
             return;
         }
@@ -930,10 +1051,15 @@ static void uc04_test_window_interaction(void)
 
     /* -- [DIR]21. dir_handle_key: 'H'/'h' toggles hidden-file visibility (P21) -- */
     /* -- [DIR]37. dir_refresh_tree: reloads the root's children while preserving previously expanded subtree paths (3-phase: collect / reload / re-expand) -- */
+    /* -- [DIR]47. A reload frees all existing nodes and rescan the children -- */
+    /* -- [DIR]52. Collect the already expanded directories -- */
+    /* -- [DIR]54. Reexpand the previously saved nodes -- */
     /* -- [EVT]2. Inject a real WM_CHAR and wait uiEventDelayMs -- */
     /* INTENT[INT-DIR-022 → TC-DIR-066...071 → REQ-xxx-yyy → UFR-xxx-yyy]:
      * 'H'/'h' toggle bShowHidden while preserving both the current
-     * expansion state and the cursor position, exactly like F5 (P22). */
+     * expansion state and the cursor position, exactly like F5 (P22) -
+     * the 3-phase collect/reload/re-expand of dir_refresh_tree is what
+     * makes that persistence possible */
     UC_INFO("(INT-DIR-022) Expanding visible_dir before toggling hidden files");
 
     win_evt_send_key(ptWnd, VK_RETURN); /* expand visible_dir (flat idx 0) */
@@ -1021,18 +1147,23 @@ static void uc04_test_window_interaction(void)
 
     /* -- [DIR]10. dir_activate_sel: ".." row navigates to the parent directory -- */
     /* -- [DIR]18. dir_handle_key: ALT+LEFT/RIGHT navigate the history stack (P10) -- */
-    /* -- [DIR]38. dir_navigate_to: swaps the tree root to a new path, freeing the old tree only after the new one is loaded -- */
+    /* -- [DIR]38. Navigates the tree root to a new path and free the old tree -- */
     /* -- [DIR]39. dir_nav_history_push: appends a new path to the navigation history, truncating any forward entries -- */
+    /* -- [DIR]57. dir_get_parent_path strips the trailing separator and truncates at the last path separator to compute the parent directory -- */
+    /* -- [DIR]62. dir_navigate_up computes the parent path and navigates the tree to it, unless already at the filesystem root -- */
     /* -- [EVT]6. Inject a real ALT+<key> chord via bracketing keybd_event() -- */
     /* INTENT[INT-DIR-024 → TC-DIR-077...080 → REQ-xxx-yyy → UFR-xxx-yyy]:
-     * ENTER on the ".." row navigates up (dir_navigate_up), pushing a
-     * new history entry (dir_nav_history_push); ALT+LEFT then goes
-     * back to the original root, ALT+RIGHT goes forward to the parent
-     * again, each swap performed by dir_navigate_to */
+     * ENTER on the ".." row navigates up (dir_navigate_up, which calls
+     * dir_get_parent_path), pushing a new history entry
+     * (dir_nav_history_push); ALT+LEFT then goes back to the original
+     * root, ALT+RIGHT goes forward to the parent again, each swap
+     * performed by dir_navigate_to */
+    /* -- [DIR]71. dir_handle_key: HOME resets the scroll offset and selects the '..' row -- */
     UC_INFO("(INT-DIR-024) Using HOME to set selection on '..' and navigate in other folder");
     win_evt_send_key(ptWnd, VK_HOME); /* -> select '..' row */
-    UC_TEST("[N] (TC-DIR-077) HOME selects '..' (iSelectedFlat==-1)",
-            ptView->iSelectedFlat == -1);
+    UC_TEST("[N] (TC-DIR-077) HOME selects '..' and resets the scroll "
+            "offset (iSelectedFlat==-1, iScrollOffset==0)",
+            ptView->iSelectedFlat == -1 && ptView->iScrollOffset == 0);
     {
         /* ADAPTED: session 2026-07-18 (Tonton Marcel review) - INT-
          * DIR-021 now switches fixtures via two extra real 'dir'
@@ -1066,10 +1197,26 @@ static void uc04_test_window_interaction(void)
      * predictable testdata/ fixture again. */
     win_evt_send_alt_key(ptWnd, VK_LEFT);
 
+    /* -- [DIR]59. dir_update_title sets the window title to 'ST4Ever - Dir: <root path>' (R18) -- */
+    /* INTENT[INT-DIR-029 → TC-DIR-095 → REQ-xxx-yyy → UFR-xxx-yyy]:
+     * every dir_navigate_to() call (here, the ALT+LEFT above) updates
+     * the real Win32 window title via gui_set_title()/dir_update_title -
+     * read it back with GetWindowTextA() to confirm it reflects the
+     * root path just navigated back to (R18) */
+    {
+        char szWinTitle[ST_MAX_PATH + 32];
+        GetWindowTextA(hNative, szWinTitle, sizeof(szWinTitle));
+        UC_TEST("[N] (TC-DIR-095) window title reflects the current "
+                "root path after ALT+LEFT ('ST4Ever - Dir: ...testdata')",
+                strstr(szWinTitle, "ST4Ever - Dir:") != NULL
+                && strstr(szWinTitle, "testdata") != NULL);
+    }
+
     /* -- [DIR]27. dir_render: rows are drawn as ".." / "[+/-] dir/" / file name -- */
     /* -- [DIR]24. dir_render: P11 green background marks the last committed selection -- */
     /* -- [DIR]25. dir_render: P14 purple background marks multi-selected files -- */
     /* -- [DIR]26. dir_render: blue background marks the keyboard cursor selection -- */
+    /* -- [DIR]63. dir_is_multi_sel reports whether szPath is currently present in the multi-selection set -- */
     /* -- [SPY]14. Scan the ring buffer for the last FillRectangle spy matching the exact color -- */
     /* -- [SPY]15. Count the number of spies matching FillRectangle exact color -- */
     /* INTENT[INT-DIR-025 → TC-DIR-081...087 → REQ-xxx-yyy → UFR-xxx-yyy]:
@@ -1172,7 +1319,11 @@ static void uc04_test_window_interaction(void)
          * files (dir.c [DIR]16 guards on !bIsDir); the cursor is
          * already on visible.txt (flat idx 1) from the DOWN above. */
         win_evt_send_char(ptWnd, 'H');   /* show hidden files */
+        /* -- [DIR]72. dir_handle_key: END scrolls to the last page and selects the last flat entry -- */
         win_evt_send_key(ptWnd, VK_END); /* cursor -> end of list (2nd file) */
+        UC_TEST("[N] (TC-DIR-101) END selects the last flat entry "
+                "(iSelectedFlat == iFlatCount-1)",
+                ptView->iSelectedFlat == ptView->iFlatCount - 1);
         win_evt_send_ctrl_key(ptWnd, VK_SPACE);  /* Multi-select 2nd text file */
         win_evt_send_key(ptWnd, VK_UP); /* cursor up */
         win_evt_send_ctrl_key(ptWnd, VK_SPACE);  /* Multi-select 1st text file */
@@ -1233,11 +1384,13 @@ static void uc04_test_window_interaction(void)
     }
 
     /* -- [DIR]19. dir_handle_key: ESCAPE requests a non-blocking window close (P9) -- */
+    /* -- [DIR]76. Dir GUI react on GUI_EVT_CLOSE and release the renderer -- */
     /* -- [GUI]12. gui_is_window_open: expose bOpen for owner-side self-close detection -- */
     /* -- [LINE]24. Reap any view whose window self-closed since the last command -- */
     /* INTENT[INT-DIR-026 → TC-DIR-091,092 → REQ-xxx-yyy → UFR-xxx-yyy]:
-     * ESCAPE requests a non-blocking close (P9): the native window and
-     * its D2D renderer are destroyed right away, but ptLineCtx->ptDirView
+     * ESCAPE requests a non-blocking close (P9): WM_CLOSE/WM_DESTROY
+     * drive GUI_EVT_CLOSE, which destroys the D2D renderer right away
+     * (dir_event_callback), but ptLineCtx->ptDirView
      * itself stays a valid (non-NULL) pointer until the console notices
      * the self-close and finishes the teardown - line_reap_closed_views()
      * runs at the top of every dispatched command, so the very next
@@ -1276,11 +1429,102 @@ static void uc04_test_window_interaction(void)
 static void uc04_test_window_interaction(void)
 {
     printf("\n--- Test group 4: real window keyboard/mouse + D2D spy ---\n");
-    TEST_SKIP("[N] (TC-DIR-033...092) window interaction group "
+    TEST_SKIP("[N] (TC-DIR-033...101) window interaction group "
               "(Win32-only: SendMessageA/keybd_event/D2D spy)");
 }
 
 #endif /* ST_PLATFORM_WINDOWS */
+
+/* ------------------------------------------------------------------
+ * Untestable tag rationale (R24.2, CLAUDE.md §5 R24)
+ *
+ * Every [DIR]N tag in src/dir.c is either (a) recopied inline above,
+ * upstream of the INTENT[...] block whose test exercises it, or (b)
+ * listed here with the reason no use_case_*.c test can reach it. This
+ * keeps dir.c's tag coverage complete (100% analyzed) even though it
+ * is not 100% test-reachable - some blocks are unreachable by design
+ * (defensive guards on internal-only call paths, OS-boundary edge
+ * cases, or fault-injection paths this project's test techniques
+ * (R23-R28) have no way to trigger).
+ *
+ * Group A - "always-valid caller" guards: every one of these NULL/
+ * bounds checks protects against an argument no call site in dir.c
+ * can ever pass, because the sole caller(s) already guarantee the
+ * value is valid before calling. Forcing the bad value in a test
+ * would require the R24 "white-box field injection" technique on a
+ * *pointer parameter of a static function* - not possible from a
+ * separate test binary that only links against dir.o's public API
+ * (dir_open/dir_close). Verified by inspection of every call site:
+ *   [DIR]46 (dir_node_load_children: path-too-long skip) - no test
+ *     fixture path comes close to ST_MAX_PATH; would require an
+ *     artificially deep directory tree with no functional value.
+ *   [DIR]48 (dir_node_load_children: NULL ptNode guard) - every call
+ *     site (dir_open, dir_navigate_to, dir_activate_sel,
+ *     dir_handle_key RIGHT, dir_reexpand_path) checks its node is
+ *     non-NULL immediately before calling.
+ *   [DIR]50 (dir_node_reload_children: NULL ptNode guard) - the only
+ *     caller (dir_refresh_tree) passes ptView->ptRoot, already
+ *     confirmed non-NULL by dir_refresh_tree's own top guard.
+ *   [DIR]51 (dir_collect_expanded: NULL/bounds guard) - the only
+ *     caller (dir_refresh_tree) passes ptView->ptRoot (guarded),
+ *     the static aaszExpanded[] array, &iExpCount and the compile-time
+ *     constant DIR_REFRESH_MAX_EXP (256); the recursive self-call
+ *     only ever passes an already-non-NULL ptChild from a checked
+ *     loop.
+ *   [DIR]53 (dir_reexpand_path: NULL ptRoot/szPath guard) - the only
+ *     caller (dir_refresh_tree, Phase 3) passes ptView->ptRoot
+ *     (guarded) and aaszExpanded[iIdx] (a valid string written by
+ *     dir_collect_expanded in Phase 1).
+ *
+ * Group B - the dead "iSelectedFlat == -2" sentinel: dir_open()
+ * always initializes iSelectedFlat to -1 (".." selected by default,
+ * dir.c ~line 1624), and no code path anywhere in dir.c ever assigns
+ * -2 to it. The three defensive branches that check for it are
+ * unreachable in the current implementation:
+ *   [DIR]64 (dir_activate_sel: -2 -> no-op)
+ *   [DIR]67 (dir_handle_key UP: -2 -> jump to last entry)
+ *   [DIR]68 (dir_handle_key DOWN: -2 -> jump to "..")
+ * (-2 appears to be a reserved "nothing selected yet" state from an
+ * earlier design where the initial selection could be unset; P59's
+ * future context-menu work may reintroduce a real path to -2, at
+ * which point these three tags become testable and should move out
+ * of this section.)
+ *
+ * Group C - the "iCellH <= 0" defensive guards: iCellH is initialized
+ * to 20 by dir_open() (before any window is even shown) and is only
+ * ever overwritten by real, positive font metrics on the first
+ * GUI_EVT_PAINT (renderer_get_font_metrics always returns a positive
+ * cell height for a live D2D text format). No test path leaves
+ * iCellH <= 0 while any of these functions can be invoked:
+ *   [DIR]60 (dir_scroll_to_sel)
+ *   [DIR]66 (dir_handle_key)
+ *   [DIR]73 (dir_handle_click)
+ *   [DIR]74 (dir_handle_scroll)
+ *
+ * Group D - fault-injection / OS-boundary paths, each requiring
+ * infrastructure this test binary does not have:
+ *   [DIR]58 (dir_get_parent_path: drive-root "C:\" / Unix-root "/"
+ *     special cases) - only reachable by navigating all the way up
+ *     to the real filesystem root. UC04's fixtures live several
+ *     levels under the project root; deliberately walking ".." until
+ *     C:\ is reached would touch real drive boundaries outside the
+ *     repo and adds no coverage value proportional to the risk.
+ *   [DIR]65 (dir_render: hRenderer == NULL) - only reachable if
+ *     renderer_create() fails (Direct2D device creation failure).
+ *     This project has no D2D fault-injection hook (see R27's scope
+ *     note: the D2D spy captures successful calls, it does not fake
+ *     failures), so this path cannot be forced from a test.
+ *   [DIR]75 (dir_event_callback: NULL ptEvent/pUserCtx guard) - this
+ *     callback is only ever invoked by win_gui.c's real WndProc with
+ *     a fully populated gui_event_t and the pUserCtx set at
+ *     gui_open_window() time; there is no public way to invoke it
+ *     with a NULL argument.
+ *   [DIR]77 (dir_event_callback: default/unhandled event type) - the
+ *     GUI backend only ever emits the event types already handled
+ *     explicitly (PAINT/RESIZE/KEY_DOWN/MOUSE_DOWN/SCROLL/CLOSE); no
+ *     test can synthesize an out-of-range gui_evt_t value without
+ *     bypassing the public event queue entirely.
+ * ------------------------------------------------------------------ */
 
 /* ------------------------------------------------------------------
  * main
