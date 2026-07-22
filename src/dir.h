@@ -69,6 +69,9 @@
 
 typedef struct dir_node_s
 {
+    st_u32_t    ulMagic;                /* Magic ST4Ever OO-like tag */
+    st_object_t eObject;                /* Object type for tests     */
+
     char               szName[ST_MAX_PATH]; /* Entry name (not path)  */
     char               szPath[ST_MAX_PATH]; /* Full absolute path      */
     st_bool_t          bIsDir;              /* ST_TRUE if directory    */
@@ -135,7 +138,22 @@ typedef struct dir_view_s
     /* P14: multi-file selection (CTRL+SPACE) ----------------------------*/
     char              aszMultiSel[DIR_MULTI_SEL_MAX][ST_MAX_PATH];
     int               iMultiSelCount;   /* number of multi-selected files   */
+    
 } dir_view_t;
+
+/* ------------------------------------------------------------------
+ * DIR module Context
+ * ------------------------------------------------------------------ */
+typedef struct dir_context_s
+{
+    st_u32_t    ulMagic;                /* Magic ST4Ever OO-like tag */
+    st_object_t eObject;                /* Object type for tests     */
+
+    st_u32_t    uiAllocObjs[ST_OBJ_TYPES];  /* Track of allocated objects */
+    st_u32_t    uiFreeObjs[ST_OBJ_TYPES];   /* Track of freed objects     */
+    st_u32_t    uiNbViewOpen;     /* Tracks number of open dir views */
+
+} dir_context_t;
 
 /* ------------------------------------------------------------------
  * Public API
@@ -156,10 +174,10 @@ typedef struct dir_view_s
  *   pptView     [out] : Receives the allocated view context.
  *
  * Returns:
- *   ST_NO_ERROR on success.
- *   ST_ERROR    if ptLineCtx or pptView is NULL, or window fails.
+ *   Value of the global dir_context_t structure pointer on success.
+ *   ST_ERROR on error
  */
-st_error_t dir_open(const char     *szPath,
+st_u64_t dir_open(const char     *szPath,
                      st_bool_t      bIsLineRunning,
                      st_bool_t      bShowHidden,
                      dir_view_t   **pptView);
@@ -174,9 +192,9 @@ st_error_t dir_open(const char     *szPath,
  *   pptView [in/out] : View to close; set to NULL on return.
  *
  * Returns:
- *   ST_NO_ERROR on success.
- *   ST_ERROR    if pptView is NULL.
+ *   Value of the global dir_context_t structure pointer on success.
+ *   ST_ERROR on error
  */
-st_error_t dir_close(dir_view_t **pptView);
+st_u64_t dir_close(dir_view_t **pptView);
 
 #endif /* DIR_H */

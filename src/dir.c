@@ -58,10 +58,16 @@ static const renderer_color_t g_dir_clrFile     = {0.80f, 0.80f, 0.80f, 1.0f};
 static const renderer_color_t g_dir_clrDD       = {0.95f, 0.90f, 0.10f, 1.0f};
 
 /* ------------------------------------------------------------------
+ * Global CPU Context - there is only one CPU in the ATARI ST
+ * ------------------------------------------------------------------ */
+
+ static dir_context_t g_dir_ptCtx = {.ulMagic = 0xCAFEDECA,
+                                     .eObject = ST_DIR_CTX};
+
+/* ------------------------------------------------------------------
  * Forward declarations (internal helpers)
  * ------------------------------------------------------------------ */
 
-static dir_node_t *dir_node_create(void);
 static void        dir_node_free_tree(dir_node_t *ptNode);
 static st_error_t  dir_node_load_children(dir_node_t *ptNode,
                                            st_bool_t   bShowHidden);
@@ -133,35 +139,6 @@ static void dir_event_callback(gui_window_t  hWnd,
 /* ==================================================================
  * Tree node helpers
  * ================================================================== */
-/*
- * dir_node_create() - creates an empty dir_node_t structure
- *
- * Parameters:
- *   None
- *
- * Returns:
- *   A pointer to a newly allocated dir_node_t structure
- */
-static dir_node_t *dir_node_create(void)
-{
-    dir_node_t *ptNode;
-
-    // No LOG_TRACE - R22: called on every new node creation in GUI
-
-    /* -- [DIR]41. Allocate a new empty dir_node_t structure -- */
-    /* This helper is currently called by:
-     *  - dir_node_load_children() - tested when loading a tree
-     *  - dir_navigate_to() - tested when navigating to new root
-     *  - dir_open() - tested when opening a new 'dir' GUI window */
-    ptNode = (dir_node_t *)malloc(sizeof(dir_node_t));
-    if (ptNode == NULL)
-    {
-        LOG_ERROR("malloc failed for dir_node_t");
-        return NULL;
-    }
-    memset(ptNode, 0, sizeof(dir_node_t));
-    return ptNode;
-}
 
 /*
  * dir_node_free_tree() - free allocated memory of dir_node_t structure,
@@ -172,6 +149,13 @@ static dir_node_t *dir_node_create(void)
  *
  * Returns:
  *   Void - None
+ *
+ * This helper is currently called by:
+ * - dir_node_load_children() - run when loading a tree
+ * - dir_node_reload_children() - run when F5 or 'H' refresh the view
+ * - dir_navigate_to() - run when navigating to new root
+ * - dir_open() - run when opening a new 'dir' GUI window
+ * - dir_close() - run when closing the view 
  */
 static void dir_node_free_tree(dir_node_t *ptNode)
 {
@@ -185,13 +169,7 @@ static void dir_node_free_tree(dir_node_t *ptNode)
         return;
     }
 
-    /* -- [DIR]45. Free allocated dir_node_t structure -- */
-    /* This helper is currently called by:
-     * - dir_node_load_children() - tested when loading a tree
-     * - dir_node_reload_children() - tested when F5 or 'H' refresh the view
-     * - dir_navigate_to() - tested when navigating to new root
-     * - dir_open() - tested when opening a new 'dir' GUI window
-     * - dir_close() - tested when closing the view */
+    /* -- [DIR]45. Free a node tree, including its children recursively -- */
     ptChild = ptNode->ptFirstChild;
     while (ptChild != NULL)
     {
@@ -199,7 +177,7 @@ static void dir_node_free_tree(dir_node_t *ptNode)
         dir_node_free_tree(ptChild);
         ptChild = ptNext;
     }
-    free(ptNode);
+    mem_free(ptNode, &g_dir_ptCtx.uiFreeObjs[ST_DIR_NODE_T]);
 }
 
 /*
@@ -220,7 +198,7 @@ static void dir_node_free_tree(dir_node_t *ptNode)
  * is marked loaded with zero children and ST_NO_ERROR is returned.
  */
 static st_error_t dir_node_load_children(dir_node_t *ptNode,
-                                           st_bool_t   bShowHidden)
+                                          st_bool_t   bShowHidden)
 {
     dir_node_t *ptLast;
     dir_node_t *ptChild;
@@ -272,7 +250,8 @@ static st_error_t dir_node_load_children(dir_node_t *ptNode,
                 if (iPass == 0 && !bIsDir) continue;
                 if (iPass == 1 &&  bIsDir) continue;
 
-                ptChild = dir_node_create();
+                ptChild = (dir_node_t*)mem_alloc(ST_DIR_NODE_T, 
+                                           &g_dir_ptCtx.uiAllocObjs[ST_DIR_NODE_T]);
                 if (ptChild == NULL)
                 {
                     FindClose(hFind);
@@ -305,66 +284,6 @@ static st_error_t dir_node_load_children(dir_node_t *ptNode,
             while (FindNextFileA(hFind, &tFd));
 
             FindClose(hFind);
-        }
-    }
-#else
-    /* Linux: opendir / readdir — two-pass dirs-first */
-    {
-        DIR           *pDir;
-        struct dirent *ptEnt;
-        struct stat    tSt;
-        st_bool_t      bIsDir;
-        int            iPass;
-        char           szFull[ST_MAX_PATH];
-
-        for (iPass = 0; iPass < 2; iPass++)
-        {
-            pDir = opendir(ptNode->szPath);
-            if (pDir == NULL)
-            {
-                break;
-            }
-
-            while ((ptEnt = readdir(pDir)) != NULL)
-            {
-                if (strcmp(ptEnt->d_name, ".")  == 0) continue;
-                if (strcmp(ptEnt->d_name, "..") == 0) continue;
-                /* P15: filter '.*' entries unless -a requested */
-                if (bShowHidden == ST_FALSE
-                &&  ptEnt->d_name[0] == '.') continue;
-
-                snprintf(szFull, sizeof(szFull), "%s/%s",
-                         ptNode->szPath, ptEnt->d_name);
-                if (stat(szFull, &tSt) != 0) continue;
-
-                bIsDir = (st_bool_t)S_ISDIR(tSt.st_mode);
-
-                if (iPass == 0 && !bIsDir) continue;
-                if (iPass == 1 &&  bIsDir) continue;
-
-                ptChild = dir_node_create();
-                if (ptChild == NULL)
-                {
-                    closedir(pDir);
-                    ptNode->bChildrenLoaded = ST_TRUE;
-                    return ST_ERROR;
-                }
-
-                strncpy(ptChild->szName, ptEnt->d_name,
-                        ST_MAX_PATH - 1);
-                snprintf(ptChild->szPath, ST_MAX_PATH, "%s/%s",
-                         ptNode->szPath, ptEnt->d_name);
-                ptChild->bIsDir   = bIsDir;
-                ptChild->ptParent = ptNode;
-                ptChild->iDepth   = ptNode->iDepth + 1;
-
-                if (ptNode->ptFirstChild == NULL)
-                    ptNode->ptFirstChild = ptChild;
-                else
-                    ptLast->ptNextSibling = ptChild;
-                ptLast = ptChild;
-            }
-            closedir(pDir);
         }
     }
 #endif
@@ -928,10 +847,11 @@ static void dir_navigate_to(dir_view_t  *ptView,
     dir_node_t *ptNewRoot;
 
     /* -- [DIR]38. Navigates the tree root to a new path and free the old tree -- */
-    ptNewRoot = dir_node_create();
+    ptNewRoot = (dir_node_t*)mem_alloc(ST_DIR_NODE_T, 
+                                        &g_dir_ptCtx.uiAllocObjs[ST_DIR_NODE_T]);
     if (ptNewRoot == NULL)
     {
-        LOG_ERROR("dir_navigate_to: dir_node_create failed");
+        // LOG_ERROR managed by mem_alloc()
         return;
     }
 
@@ -1676,7 +1596,7 @@ static void dir_event_callback(gui_window_t  hWnd,
  * Public API
  * ================================================================== */
 
-st_error_t dir_open(const char     *szPath,
+st_u64_t dir_open(const char     *szPath,
                      st_bool_t      bIsLineRunning,
                      st_bool_t      bShowHidden,
                      dir_view_t   **pptView)
@@ -1707,7 +1627,6 @@ st_error_t dir_open(const char     *szPath,
         LOG_ERROR("Line context not initialized - call line_init() first");
         return ST_ERROR;
     }
-
 
     /* -- [DIR]3. dir_open resolves the root path to cwd when szPath is empty -- */
     /* Resolve root path */
@@ -1761,7 +1680,8 @@ st_error_t dir_open(const char     *szPath,
 
     /* -- [DIR]44. dir_open allocates and populates the root node -- */
     /* Create and populate root node */
-    ptView->ptRoot = dir_node_create();
+    ptView->ptRoot = (dir_node_t*)mem_alloc(ST_DIR_NODE_T, 
+                                           &g_dir_ptCtx.uiAllocObjs[ST_DIR_NODE_T]);   
     if (ptView->ptRoot == NULL)
     {
         free(ptView->aptFlat);
@@ -1807,12 +1727,13 @@ st_error_t dir_open(const char     *szPath,
     }
 
     *pptView = ptView;
+    g_dir_ptCtx.uiNbViewOpen = g_dir_ptCtx.uiNbViewOpen + 1;
     LOG_INFO("dir view opened: '%s' (%d flat entries)",
              szRoot, ptView->iFlatCount);
-    return ST_NO_ERROR;
+    return (st_u64_t)&g_dir_ptCtx;
 }
 
-st_error_t dir_close(dir_view_t **pptView)
+st_u64_t dir_close(dir_view_t **pptView)
 {
     dir_view_t *ptView;
 
@@ -1831,7 +1752,7 @@ st_error_t dir_close(dir_view_t **pptView)
     /* -- [DIR]7. dir_close is idempotent when *pptView is already NULL -- */
     if (ptView == NULL)
     {
-        return ST_NO_ERROR; /* idempotent */
+        return (st_u64_t)&g_dir_ptCtx; /* idempotent */
     }
 
     /* -- [DIR]8. dir_close releases the window, tree and flat list -- */
@@ -1858,6 +1779,7 @@ st_error_t dir_close(dir_view_t **pptView)
     }
 
     free(ptView);
+    g_dir_ptCtx.uiNbViewOpen = g_dir_ptCtx.uiNbViewOpen - 1;
     LOG_INFO("dir view closed");
-    return ST_NO_ERROR;
+    return (st_u64_t)&g_dir_ptCtx;
 }

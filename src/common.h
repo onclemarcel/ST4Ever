@@ -59,6 +59,7 @@ typedef enum st_bool_s
 /* ------------------------------------------------------------------
  * ST4Ever Objects - used to retrieve static structures in tests
  * ------------------------------------------------------------------ */
+#define ST_OBJ_TYPES    256
 
  typedef enum st_object_s
  {
@@ -68,6 +69,8 @@ typedef enum st_bool_s
     ST_LINE_CTX        = 0x10u,
     ST_GUI_CTX         = 0x20u,
     ST_GUI_PTF_CTX     = 0x21u,
+    ST_DIR_CTX         = 0x30u,
+    ST_DIR_NODE_T      = 0x31u,
     ST_MACHINE_CTX     = 0x50u,
     ST_CPU_CTX         = 0x51u,
     ST_LOAD_CTX        = 0x55u,
@@ -97,6 +100,20 @@ typedef struct st_obj_generic_s
         if ((st_u64_t)pt < 0xFFFFFFFFu) bOK = ST_FALSE;     \
         else if (obj->ulMagic != 0xCAFEDECA) bOK = ST_FALSE;\
         else if (obj->eObject != type) bOK = ST_FALSE;      \
+    } while(0)
+
+/* Check if the type of object is registered */
+#define IS_OBJ(type, bOK) \
+    do { \
+        switch(type)                \
+        {                           \
+            case ST_DIR_NODE_T:     \
+                bOK = ST_TRUE;      \
+                break;              \
+            default:                \
+                bOK = ST_FALSE;     \
+                break;              \
+        }                           \
     } while(0)
 
 /* ------------------------------------------------------------------
@@ -275,5 +292,30 @@ st_error_t platform_thread_destroy(st_thread_t **pptThread);
  *   uiMs [in] : Duration in milliseconds.
  */
 void platform_sleep_ms(unsigned int uiMs);
+
+/*
+ * mem_alloc() - creates an empty structure of size given in parameter
+ *
+ * Parameters:
+ *   size   [IN] : size in bytes of the memory to allocate
+ *   sum    [IN/OUT] : pointer to incremented value tracking allocated bytes
+ *
+ * Returns:
+ *   void* : A pointer to a newly allocated memory
+ */
+void* mem_alloc(st_object_t type, st_u32_t *sum);
+
+/*
+ * mem_free() - free given pointer and keep track of number of freed bytes
+ *
+ * Parameters:
+ *   p      [IN] : pointer to memory to be freed
+ *   size   [IN] : size in bytes of the memory to free
+ *   sum    [IN/OUT] : pointer to incremented value tracking freed bytes
+ *
+ * Returns:
+ *   void - None
+ */
+void mem_free(void* p, st_u32_t *sum);
 
 #endif /* COMMON_H */

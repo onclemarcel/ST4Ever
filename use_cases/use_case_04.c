@@ -111,7 +111,7 @@ static ST4Ever_context_t *ptCtx;
  *   -- [DIR]42. dir_open allocates & populates the GUI dir_view_t structure --
  *   -- [DIR]43. dir_open allocates & populates a flat list of entries --
  *   -- [DIR]44. dir_open allocates and populates the root node --
- *   -- [DIR]45. Free allocated dir_node_t structure --
+ *   -- [DIR]45. Free a node tree, including its children recursively --
  *   -- [DIR]49. Access denied or empty entries leaves the GUI empty --
  *
  * Parameters:
@@ -126,7 +126,8 @@ static void uc04_test_lifecycle(void)
     dir_view_t     *ptNull;
     line_context_t *ptLineCtx = (line_context_t *)ptCtx->ptConsoleCtx;
     st_error_t      eResult;
-    char           szCwd[ST_MAX_PATH];
+    char            szCwd[ST_MAX_PATH];
+    dir_context_t  *ptCtx;
 
     printf("\n--- Test group 1: dir_open / dir_close lifecycle ---\n");
 
@@ -135,17 +136,23 @@ static void uc04_test_lifecycle(void)
     /* -- [DIR]42. dir_open allocates & populates the GUI dir_view_t structure -- */
     /* -- [DIR]43. dir_open allocates & populates a flat list of entries -- */
     /* -- [DIR]44. dir_open allocates and populates the root node -- */
-    /* INTENT[INT-DIR-001 → TC-DIR-001...004 → REQ-xxx-yyy → UFR-xxx-yyy]:
+    /* INTENT[INT-DIR-001 → TC-DIR-001...004/TC-DIR-102 → REQ-xxx-yyy → UFR-xxx-yyy]:
      * dir_open() on a valid path opens a real GUI window, loads the
      * root's children and returns a populated, non-NULL view - which
      * requires the dir_view_t, flat list and root node allocations to
      * all have succeeded */
-    UC_INFO("(INT-DIR-001) Opening the 'dir' GUI on UC04_1 folder,"
-            "with hidden files visible");
     ptView = NULL;
-    eResult = dir_open(UC04_TESTDATA, ptLineCtx->bRunning, ST_TRUE, &ptView);
-    UC_TEST("[N] (TC-DIR-001) dir_open(valid path) -> ST_NO_ERROR",
-            eResult == ST_NO_ERROR);
+    ptCtx  = (dir_context_t*)dir_open(UC04_TESTDATA, ptLineCtx->bRunning, 
+                                                            ST_TRUE, &ptView);
+    UC_CHECK("(INT-DIR-001) [Chk] Opening the 'dir' GUI on UC04_1 folder,"
+            "with hidden files visible", (st_u64_t)ptCtx);
+    UC_CHECK_OBJ(ptCtx, ST_DIR_CTX);
+    if (gIsObject) 
+    {
+        UC_TEST("[N] (TC-DIR-001) dir_open(valid path) -> 1 open view", 
+                (ptCtx->uiNbViewOpen == 1)); 
+    } else printf("  [SKIP] (TC-DIR-001) ST_DIR_CTX Object Check failed\n\n");
+    
     UC_TEST("[N] (TC-DIR-002) dir_open: *pptView != NULL", ptView != NULL);
 
     if (ptView != NULL)
@@ -156,17 +163,27 @@ static void uc04_test_lifecycle(void)
         UC_TEST("[N] (TC-DIR-004) dir_open: iFlatCount == 4 "
                 "(visible & hidden folders and files)",
                 ptView->iFlatCount == 4);
+        UC_TEST("[N] (TC-DIR-102) Check memory bytes allocated by the nodes",
+                ptCtx->uiAllocObjs[ST_DIR_NODE_T] == (sizeof(dir_node_t) * 5));
 
         /* -- [DIR]8. dir_close releases the window, tree and flat list -- */
-        /* -- [DIR]45. Free allocated dir_node_t structure -- */
-        /* INTENT[INT-DIR-002 → TC-DIR-005 → REQ-xxx-yyy → UFR-xxx-yyy]:
+        /* -- [DIR]45. Free a node tree, including its children recursively -- */
+        /* INTENT[INT-DIR-002 → TC-DIR-005/103 → REQ-xxx-yyy → UFR-xxx-yyy]:
          * dir_close() releases the window and sets the pointer to NULL,
          * recursively freeing every dir_node_t in the tree along the way */
-        UC_INFO("(INT-DIR-002) Closing the previously open 'dir' GUI");
-        eResult = dir_close(&ptView);
-        UC_TEST("[N] (TC-DIR-005) dir_close(valid view) -> ST_NO_ERROR "
-                "and *pptView == NULL",
-                eResult == ST_NO_ERROR && ptView == NULL);
+        ptCtx  = (dir_context_t*)dir_close(&ptView);
+        UC_CHECK("(INT-DIR-002) [Chk] Closing the previously open 'dir' GUI", 
+                                                                (st_u64_t)ptCtx);
+        UC_CHECK_OBJ(ptCtx, ST_DIR_CTX);
+        if (gIsObject) 
+        {
+                UC_TEST("[N] (TC-DIR-005) dir_close(valid path) -> 0 open view", 
+                (ptCtx->uiNbViewOpen == 0) && ptView == NULL);
+                UC_TEST("[N] (TC-DIR-103) Check memory bytes freed when closing",
+                ptCtx->uiFreeObjs[ST_DIR_NODE_T] == (sizeof(dir_node_t) * 5));
+                
+        } else printf("  [SKIP] (TC-DIR-005) ST_DIR_CTX Object Check failed\n\n");
+    
     }
     else
     {
@@ -178,11 +195,18 @@ static void uc04_test_lifecycle(void)
     /* INTENT[INT-DIR-003 → TC-DIR-006 → REQ-xxx-yyy → UFR-xxx-yyy]:
      * dir_open opens the GUI window again on the same path after a
      * prior close */
-    UC_INFO("(INT-DIR-003) Opening the 'dir' GUI on UC04_1 folder again, but hiding files");
     ptView = NULL;
-    eResult = dir_open(UC04_TESTDATA, ptLineCtx->bRunning, ST_TRUE, &ptView);
-    UC_TEST("[N] (TC-DIR-006) dir_open second time -> ST_NO_ERROR",
-            eResult == ST_NO_ERROR);
+    ptCtx  = (dir_context_t*)dir_open(UC04_TESTDATA, ptLineCtx->bRunning, 
+                                                            ST_TRUE, &ptView);
+    UC_CHECK("(INT-DIR-003) [Chk] Opening the 'dir' GUI on UC04_1 folder again,"
+             " but hiding files", (st_u64_t)ptCtx);
+    UC_CHECK_OBJ(ptCtx, ST_DIR_CTX);
+    if (gIsObject) 
+    {
+        UC_TEST("[N] (TC-DIR-006) dir_open second time -> 1 open view", 
+                (ptCtx->uiNbViewOpen == 1)); 
+    } else printf("  [SKIP] (TC-DIR-006) ST_DIR_CTX Object Check failed\n\n");
+    
     if (ptView != NULL) dir_close(&ptView);
 
     /* -- [DIR]3. dir_open resolves the root path to cwd when szPath is empty -- */
@@ -190,13 +214,19 @@ static void uc04_test_lifecycle(void)
      * dir_open(szPath="") resolves the root to the current working
      * directory instead of failing */
     ptView = NULL;
-    UC_INFO("(INT-DIR-004) Opening the 'dir' GUI with no given path");
     _getcwd(szCwd, sizeof(szCwd));
-    eResult = dir_open("", ptLineCtx->bRunning, ST_FALSE, &ptView);
-    UC_TEST("[N] (TC-DIR-007) dir_open(szPath=\"\") -> ST_NO_ERROR, "
-            "szRootPath resolved to cwd",
-            eResult == ST_NO_ERROR && ptView != NULL
-            && !strncmp(ptView->szRootPath, szCwd, sizeof(szCwd)));
+    ptCtx  = (dir_context_t*)dir_open(NULL, ptLineCtx->bRunning, ST_TRUE, &ptView);
+    UC_CHECK("(INT-DIR-004) [Chk] Opening the 'dir' GUI with no given path", 
+                                                             (st_u64_t)ptCtx);
+    UC_CHECK_OBJ(ptCtx, ST_DIR_CTX);
+    if (gIsObject) 
+    {
+        UC_TEST("[N] (TC-DIR-007) dir_open(szPath=\"\") -> 1 open view, "
+                "szRootPath resolved to cwd", 
+                (ptCtx->uiNbViewOpen == 1) && ptView != NULL
+                 && !strncmp(ptView->szRootPath, szCwd, sizeof(szCwd))); 
+
+    } else printf("  [SKIP] (TC-DIR-007) ST_DIR_CTX Object Check failed\n\n");
     
     if (ptView != NULL) dir_close(&ptView);
 
@@ -226,9 +256,15 @@ static void uc04_test_lifecycle(void)
             eResult == ST_ERROR);
 
     ptNull  = NULL;
-    eResult = dir_close(&ptNull);
-    UC_TEST("[R] (TC-DIR-012) dir_close(&NULL) -> ST_NO_ERROR (idempotent)",
-            eResult == ST_NO_ERROR);
+    ptCtx  = (dir_context_t*)dir_close(&ptNull);
+    UC_CHECK("(INT-DIR-005) [Chk] dir_close(&NULL) is idempotent", 
+                                                        (st_u64_t)ptCtx);
+    UC_CHECK_OBJ(ptCtx, ST_DIR_CTX);
+    if (gIsObject) 
+    {
+        UC_TEST("[N] (TC-DIR-012) dir_close(&NULL) -> 0 open view", 
+        (ptCtx->uiNbViewOpen == 0)); 
+    } else printf("  [SKIP] (TC-DIR-012) ST_DIR_CTX Object Check failed\n\n");
 
     /* -- [DIR]4. dir_open loads the root's children honoring bShowHidden -- */
     /* -- [DIR]49. Access denied or empty entries leaves the GUI empty -- */
@@ -236,12 +272,19 @@ static void uc04_test_lifecycle(void)
      * loading the root's children for a non-existent path yields an
      * empty tree (non-fatal scan failure), not an error - FindFirstFileA
      * returns INVALID_HANDLE_VALUE and the scan loop breaks immediately */
-    UC_INFO("(INT-DIR-006) Robustness tests on dir_open() with non-existent path");
     ptView = NULL;
-    eResult = dir_open("nonexistent_path_xyz_st4ever", ptLineCtx->bRunning,
-                       ST_FALSE, &ptView);
-    UC_TEST("[R] (TC-DIR-013) dir_open(non-existent path) -> ST_NO_ERROR",
-            eResult == ST_NO_ERROR);
+    ptCtx  = (dir_context_t*)dir_open("nonexistent_path_xyz_st4ever", 
+                                      ptLineCtx->bRunning, ST_FALSE, &ptView);
+    UC_CHECK("(INT-DIR-006) [Chk] Robustness tests on dir_open()"
+                                  " with non-existent path", (st_u64_t)ptCtx);
+    UC_CHECK_OBJ(ptCtx, ST_DIR_CTX);
+    if (gIsObject) 
+    {
+        UC_TEST("[N] (TC-DIR-013) dir_open(non-existent path) -> 1 open view",
+                (ptCtx->uiNbViewOpen == 1)); 
+
+    } else printf("  [SKIP] (TC-DIR-013) ST_DIR_CTX Object Check failed\n\n");
+    
     if (ptView != NULL)
     {
         UC_TEST("[R] (TC-DIR-014) dir_open(non-existent): iFlatCount == 0",
@@ -274,11 +317,12 @@ static void uc04_test_lifecycle(void)
  */
 static void uc04_test_hidden_filter(void)
 {
-    line_context_t *ptLineCtx = (line_context_t *)ptCtx->ptConsoleCtx;
+    line_context_t  *ptLineCtx = (line_context_t *)ptCtx->ptConsoleCtx;
     dir_view_t      *ptView;
     st_error_t       eResult;
     int              iFlatVisible;
     int              iFlatHidden;
+    dir_context_t   *ptDirCtx;
 
     printf("\n--- Test group 2: bShowHidden filter ---\n");
 
@@ -290,9 +334,9 @@ static void uc04_test_hidden_filter(void)
     UC_INFO("(INT-DIR-007) Toggling the 'dir' GUI on UC04_1 folder,"
             "with hidden files masked/visible");
     ptView = NULL;
-    eResult = dir_open(UC04_TESTDATA, ptLineCtx->bRunning, ST_FALSE, &ptView);
+    ptDirCtx = (dir_context_t*)dir_open(UC04_TESTDATA, ptLineCtx->bRunning, ST_FALSE, &ptView);
     UC_TEST("[N] (TC-DIR-015) dir_open(bShowHidden=F) -> ST_NO_ERROR",
-            eResult == ST_NO_ERROR);
+            (st_u64_t)ptDirCtx != ST_ERROR);
     iFlatVisible = 0;
     if (ptView != NULL)
     {
@@ -307,9 +351,9 @@ static void uc04_test_hidden_filter(void)
     }
 
     ptView = NULL;
-    eResult = dir_open(UC04_TESTDATA, ptLineCtx->bRunning, ST_TRUE, &ptView);
+    ptDirCtx = (dir_context_t*)dir_open(UC04_TESTDATA, ptLineCtx->bRunning, ST_TRUE, &ptView);
     UC_TEST("[N] (TC-DIR-017) dir_open(bShowHidden=T) -> ST_NO_ERROR",
-            eResult == ST_NO_ERROR);
+            (st_u64_t)ptDirCtx != ST_ERROR);
     iFlatHidden = 0;
     if (ptView != NULL)
     {
@@ -1217,9 +1261,10 @@ static void uc04_test_window_interaction(void)
     /* -- [DIR]25. dir_render: P14 purple background marks multi-selected files -- */
     /* -- [DIR]26. dir_render: blue background marks the keyboard cursor selection -- */
     /* -- [DIR]63. dir_is_multi_sel reports whether szPath is currently present in the multi-selection set -- */
+    /* -- [DIR]72. dir_handle_key: END scrolls to the last page and selects the last flat entry -- */
     /* -- [SPY]14. Scan the ring buffer for the last FillRectangle spy matching the exact color -- */
     /* -- [SPY]15. Count the number of spies matching FillRectangle exact color -- */
-    /* INTENT[INT-DIR-025 → TC-DIR-081...087 → REQ-xxx-yyy → UFR-xxx-yyy]:
+    /* INTENT[INT-DIR-025 → TC-DIR-081...087/101 → REQ-xxx-yyy → UFR-xxx-yyy]:
      * D2D spy (R27) verifies dir_render() actually draws the ".."/
      * directory/file rows with the right text and colour, and the
      * three selection background layers with the right colours */
@@ -1319,12 +1364,13 @@ static void uc04_test_window_interaction(void)
          * files (dir.c [DIR]16 guards on !bIsDir); the cursor is
          * already on visible.txt (flat idx 1) from the DOWN above. */
         win_evt_send_char(ptWnd, 'H');   /* show hidden files */
-        /* -- [DIR]72. dir_handle_key: END scrolls to the last page and selects the last flat entry -- */
         win_evt_send_key(ptWnd, VK_END); /* cursor -> end of list (2nd file) */
+        
         UC_TEST("[N] (TC-DIR-101) END selects the last flat entry "
                 "(iSelectedFlat == iFlatCount-1)",
                 ptView->iSelectedFlat == ptView->iFlatCount - 1);
-        win_evt_send_ctrl_key(ptWnd, VK_SPACE);  /* Multi-select 2nd text file */
+        
+                win_evt_send_ctrl_key(ptWnd, VK_SPACE);  /* Multi-select 2nd text file */
         win_evt_send_key(ptWnd, VK_UP); /* cursor up */
         win_evt_send_ctrl_key(ptWnd, VK_SPACE);  /* Multi-select 1st text file */
         
@@ -1553,6 +1599,19 @@ int main(void)
     {
         printf("  [SKIP] (UC4) ST_MAIN_CTX Object Check failed\n\n");
     }
+
+    line_context_t* ptLine = (line_context_t*)ptCtx->ptConsoleCtx;
+    UC_CHECK_OBJ(ptLine, ST_LINE_CTX);
+    if (gIsObject)
+    {
+        dir_context_t*  ptDir  = (dir_context_t*) ptLine->ptDirCtx;
+        UC_CHECK_OBJ(ptDir, ST_DIR_CTX);
+        if (gIsObject)
+        {
+            printf("\n--> Mem Bytes allocated = %d\n", ptDir->uiAllocObjs[ST_DIR_NODE_T]);
+            printf("\n--> Mem Bytes freed = %d\n", ptDir->uiFreeObjs[ST_DIR_NODE_T]);
+        } else printf("\n[ERROR] PtDir is not a correct object (%p)\n", (void*)ptDir); 
+    } else printf("\n[ERROR] PtLine is not a correct object (%p)\n", (void*)ptLine);
 
     printf("\n--- Shutdown ---\n");
     ST4Ever_shutdown();

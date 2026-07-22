@@ -91,7 +91,7 @@ typedef enum cpu_state_e
 } cpu_state_t;
 
 /* ------------------------------------------------------------------
- * Register file
+ * CPU Context
  * ------------------------------------------------------------------ */
 
 typedef struct cpu_context_s

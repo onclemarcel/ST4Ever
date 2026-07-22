@@ -97,10 +97,11 @@ typedef struct line_context_s
     st_bool_t   bColors;                   /* Console shows ANSI colors */
     st_bool_t   bRunning;                  /* ST_FALSE = shutdown       */
 
-    dir_view_t      *ptDirView;     /* Pointer to the dir view   */
-    edit_txt_view_t *ptEditTxtView; /* Pointer to the text view  */
-    edit_hex_view_t *ptEditHexView; /* Pointer to the hex view   */
-    mount_view_t    *ptMountView;   /* Pointer to the monut view */
+    dir_view_t      *ptDirView;           /* Pointer to the dir view    */
+    dir_context_t   *ptDirCtx;            /* Pointer to the dir context */
+    edit_txt_view_t *ptEditTxtView;       /* Pointer to the text view   */
+    edit_hex_view_t *ptEditHexView;       /* Pointer to the hex view    */
+    mount_view_t    *ptMountView;         /* Pointer to the monut view  */
 
     char aHistory[LINE_HISTORY_MAX][ST_MAX_CMD];
     int  iHistCount;   /* valid entries, 0..LINE_HISTORY_MAX */

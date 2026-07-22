@@ -1205,6 +1205,7 @@ static st_error_t line_cmd_dir(const parsed_cmd_t *ptParsed)
     st_bool_t   bSelectOnly;
     st_bool_t   bUnselectOnly;
     st_error_t  eResult;
+    st_u64_t    ptCtx;
     file_stat_t tStat;
     int         iArg;
 
@@ -1314,22 +1315,24 @@ static st_error_t line_cmd_dir(const parsed_cmd_t *ptParsed)
         g_line_iDirNavHistHead  = g_line_ptCtx.ptDirView->iNavHistHead;
         g_line_iDirNavHistCount = g_line_ptCtx.ptDirView->iNavHistCount;
 
-        eResult = dir_close(&g_line_ptCtx.ptDirView);
-        if (eResult != ST_NO_ERROR)
+        ptCtx = dir_close(&g_line_ptCtx.ptDirView);
+        if (ptCtx == ST_ERROR)
         {
-            line_print_warning("dir: could not close previous view");
+            LOG_ERROR("dir: could not close previous view");
         }
         g_line_ptCtx.ptDirView = NULL;
+        g_line_ptCtx.ptDirCtx = (dir_context_t*)ptCtx;
     }
 
     /* -- [LINE]20. 'dir -a' opens the view with hidden files shown -- */
-    eResult = dir_open(szPath, (st_u64_t)&g_line_ptCtx, bShowHidden, &g_line_ptCtx.ptDirView);
-    if (eResult != ST_NO_ERROR)
+    ptCtx = dir_open(szPath, (st_u64_t)&g_line_ptCtx, bShowHidden, &g_line_ptCtx.ptDirView);
+    if (ptCtx == ST_ERROR)
     {
         line_print_error("dir: failed to open view for '%s'",
                          szPath ? szPath : "(cwd)");
         return ST_ERROR;
     }
+    g_line_ptCtx.ptDirCtx = (dir_context_t*)ptCtx;
 
     /* BUG-09: restore previous history and append the newly opened path.
      * dir_open() seeds aszNavHistory[0] with szRoot, head=0, count=1.
@@ -2902,7 +2905,13 @@ static void line_reap_closed_views(void)
         gui_is_window_open(g_line_ptCtx.ptDirView->hWnd, &bOpen);
         if (bOpen == ST_FALSE)
         {
-            dir_close(&g_line_ptCtx.ptDirView);
+            st_u64_t eResult = dir_close(&g_line_ptCtx.ptDirView);
+            if (eResult == ST_ERROR)
+            {
+                line_print_warning("dir: could not close previous view");
+            }
+            g_line_ptCtx.ptDirView = NULL;
+            g_line_ptCtx.ptDirCtx = (dir_context_t*)eResult;
         }
     }
 
@@ -4008,8 +4017,13 @@ st_error_t line_shutdown()
     /* Close any open dir view */
     if (g_line_ptCtx.ptDirView != NULL)
     {
-        dir_close(&g_line_ptCtx.ptDirView);
+        st_u64_t eResult = dir_close(&g_line_ptCtx.ptDirView);
+        if (eResult == ST_ERROR)
+        {
+            LOG_ERROR("dir: could not close previous view");
+        }
         g_line_ptCtx.ptDirView = NULL;
+        g_line_ptCtx.ptDirCtx = (dir_context_t*)eResult;
     }
 
     /* Close any open text edit view */
