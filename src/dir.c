@@ -68,27 +68,6 @@ static const renderer_color_t g_dir_clrDD       = {0.95f, 0.90f, 0.10f, 1.0f};
  * Forward declarations (internal helpers)
  * ------------------------------------------------------------------ */
 
-static void        dir_node_free_tree(dir_node_t *ptNode);
-static st_error_t  dir_node_load_children(dir_node_t *ptNode,
-                                           st_bool_t   bShowHidden);
-static void        dir_node_reload_children(dir_node_t *ptNode,
-                                             st_bool_t   bShowHidden);
-static void        dir_collect_expanded(dir_node_t *ptNode,
-                                         char       (*aaszPaths)[ST_MAX_PATH],
-                                         int        *piCount,
-                                         int         iMaxPaths);
-static void        dir_reexpand_path(dir_node_t *ptRoot,
-                                      const char *szPath,
-                                      st_bool_t   bShowHidden);
-static void        dir_refresh_tree(dir_view_t *ptView);
-
-static void dir_flat_rebuild(dir_view_t *ptView);
-static void dir_flat_rebuild_rec(dir_view_t *ptView,
-                                  dir_node_t *ptNode,
-                                  int         iDepth,
-                                  st_bool_t   bLastSibling,
-                                  st_u32_t    uiLastMask);
-
 static void dir_build_prefix(const dir_flat_entry_t *ptEntry,
                                char                   *szBuf,
                                size_t                  uiMax);
@@ -146,18 +125,21 @@ static void dir_event_callback(gui_window_t  hWnd,
  *
  * Parameters:
  *   ptNode [IN] : the node and subsequent children to free
+ *   bKeepNode [IN] : keep memory allocation for the first node ?
  *
  * Returns:
  *   Void - None
  *
  * This helper is currently called by:
  * - dir_node_load_children() - run when loading a tree
- * - dir_node_reload_children() - run when F5 or 'H' refresh the view
+ * - dir_refresh_tree() - run when F5 or 'H' refresh the view (Phase 2)
  * - dir_navigate_to() - run when navigating to new root
  * - dir_open() - run when opening a new 'dir' GUI window
  * - dir_close() - run when closing the view 
+ * - itself : this a recursive function
+ * 
  */
-static void dir_node_free_tree(dir_node_t *ptNode)
+static void dir_node_free_tree(dir_node_t *ptNode, st_bool_t bKeepNode)
 {
     dir_node_t *ptChild;
     dir_node_t *ptNext;
@@ -174,10 +156,10 @@ static void dir_node_free_tree(dir_node_t *ptNode)
     while (ptChild != NULL)
     {
         ptNext = ptChild->ptNextSibling;
-        dir_node_free_tree(ptChild);
+        dir_node_free_tree(ptChild, FALSE);
         ptChild = ptNext;
     }
-    mem_free(ptNode, &g_dir_ptCtx.uiFreeObjs[ST_DIR_NODE_T]);
+    if (!bKeepNode) mem_free(ptNode, &g_dir_ptCtx.uiFreeObjs[ST_DIR_NODE_T]);
 }
 
 /*
@@ -196,6 +178,12 @@ static void dir_node_free_tree(dir_node_t *ptNode)
  *
  * A scan error (access denied, path not found) is non-fatal: the node
  * is marked loaded with zero children and ST_NO_ERROR is returned.
+ *
+ * This helper is currently called by:
+ * - dir_refresh_tree() - run when F5 or 'H' refresh the view (phase 3)
+ * - dir_handle_key() - run when expanding a node with RIGHT key
+ * - dir_open() - run when opening the root children
+ *
  */
 static st_error_t dir_node_load_children(dir_node_t *ptNode,
                                           st_bool_t   bShowHidden)
@@ -268,7 +256,7 @@ static st_error_t dir_node_load_children(dir_node_t *ptNode,
                 if (iPathLen < 0 || iPathLen >= (int)ST_MAX_PATH)
                 {
                     /* Resulting path too long: skip this entry */
-                    dir_node_free_tree(ptChild);
+                    dir_node_free_tree(ptChild, ST_FALSE);
                     continue;
                 }
                 ptChild->bIsDir   = (st_bool_t)bIsDir;
@@ -293,54 +281,6 @@ static st_error_t dir_node_load_children(dir_node_t *ptNode,
 }
 
 /*
- * dir_node_reload_children() - Free and rescan a node's direct children.
- *
- * Used by dir_refresh_tree() (P21 hidden toggle and P22 F5 refresh both
- * go through it to preserve expansion state).  The node is left
- * expanded only if it was already expanded; children come back with
- * bExpanded=ST_FALSE so sub-trees collapse implicitly.
- *
- * Parameters:
- *   ptNode [IN]      : pointer to the node to load
- *   bShowHidden [IN] : optionally show/hide files/dirs beginning with '.'
- *
- * Returns:
- *  void - None
- *
- */
-static void dir_node_reload_children(dir_node_t *ptNode,
-                                      st_bool_t   bShowHidden)
-{
-    dir_node_t *ptChild;
-    dir_node_t *ptNext;
-
-    /* -- [DIR]50. Do nothing if the input node is NULL -- */
-    if (ptNode == NULL)
-    {
-        return;
-    }
-
-    /* -- [DIR]47. A reload frees all existing nodes and rescan the children -- */
-    /* This helper is currently called by:
-     * - dir_refresh_tree() - tested when F5 or 'H' refreshes the children
-     */
-    
-     /* Free all existing children (recursively) */
-    ptChild = ptNode->ptFirstChild;
-    while (ptChild != NULL)
-    {
-        ptNext = ptChild->ptNextSibling;
-        dir_node_free_tree(ptChild);
-        ptChild = ptNext;
-    }
-    ptNode->ptFirstChild    = NULL;
-    ptNode->bChildrenLoaded = ST_FALSE;
-
-    /* Rescan */
-    dir_node_load_children(ptNode, bShowHidden);
-}
-
-/*
  * dir_collect_expanded() - DFS walk: collect szPath of every expanded dir.
  *
  * Called before reloading the tree so we can restore expansion state.
@@ -355,6 +295,9 @@ static void dir_node_reload_children(dir_node_t *ptNode,
  * Returns:
  *  void - None
  *
+ * This helper is currently called by:
+ * - dir_refresh_tree() - run when F5 or 'H' refreshes the children (Phase 1)
+ * - itself : this a recursive function
  */
 static void dir_collect_expanded(dir_node_t *ptNode,
                                    char       (*aaszPaths)[ST_MAX_PATH],
@@ -371,9 +314,6 @@ static void dir_collect_expanded(dir_node_t *ptNode,
     }
 
     /* -- [DIR]52. Collect the already expanded directories -- */
-    /* This helper is currently called by:
-     * - dir_refresh_tree() - tested when F5 or 'H' refreshes the children
-     */
     for (ptChild = ptNode->ptFirstChild;
          ptChild != NULL;
          ptChild = ptChild->ptNextSibling)
@@ -412,6 +352,10 @@ static void dir_collect_expanded(dir_node_t *ptNode,
  *
  * Returns:
  *   Void - None
+ * 
+ * This helper is currently called by:
+ * - dir_refresh_tree() - run when F5 or 'H' refreshes the children (Phase 4)
+ *
  */
 static void dir_reexpand_path(dir_node_t *ptRoot,
                                 const char *szPath,
@@ -438,11 +382,6 @@ static void dir_reexpand_path(dir_node_t *ptRoot,
     pStart = pRel;
 
     /* -- [DIR]54. Reexpand the previously saved nodes -- */
-    /* This helper is currently called by:
-     *  - dir_refresh_tree() (Phase 3, [DIR]37) - tested when F5 or 'H'
-     *    refreshes the view while visible_dir stays expanded
-     *    (TC-DIR-067..076) */
-
     while (*pStart != '\0')
     {
         /* Advance to next path separator or end */
@@ -491,56 +430,62 @@ static void dir_reexpand_path(dir_node_t *ptRoot,
  *
  * Phase 1: collect all currently expanded paths (DFS).
  * Phase 2: reload root's direct children (frees old tree).
- * Phase 3: re-expand each saved path by navigating the new tree.
+ * phase 3: rescan the node from disk
+ * Phase 4: re-expand each saved path by navigating the new tree.
  *
  * Expanded dirs that no longer exist after the reload are silently
  * ignored (dir_reexpand_path is a no-op when a component is missing).
+ * 
+ * Parameters:
+ *   ptView [IN] : the GUI view on which the tree should be refreshed
+ *
+ * Returns:
+ *   Void - None
+ *
+ * This helper is currently called by:
+ * - dir_handle_key() - run when F5 or 'H'/'h' is pressed
+ *
  */
-
-
-/* -- [DIR]37. dir_refresh_tree: reloads the root's children while preserving previously expanded subtree paths (3-phase: collect / reload / re-expand) -- */
 static void dir_refresh_tree(dir_view_t *ptView)
 {
     static char aaszExpanded[DIR_REFRESH_MAX_EXP][ST_MAX_PATH];
     int         iExpCount;
     int         iIdx;
+    dir_node_t *ptNode;
 
     if (ptView == NULL || ptView->ptRoot == NULL)
     {
         return;
     }
 
+    ptNode = ptView->ptRoot;
+
+    /* -- [DIR]37. Apply a 4-steps: collect / free / reload / re-expand strategy -- */
     /* Phase 1: save expanded paths */
     iExpCount = 0;
-    dir_collect_expanded(ptView->ptRoot, aaszExpanded,
-                          &iExpCount, DIR_REFRESH_MAX_EXP);
+    dir_collect_expanded(ptNode, aaszExpanded, &iExpCount, DIR_REFRESH_MAX_EXP);
 
-    /* Phase 2: reload root's direct children */
-    dir_node_reload_children(ptView->ptRoot, ptView->bShowHidden);
+    /* Phase 2: Free Node tree et reset ptNode for a new scan*/
+    dir_node_free_tree(ptNode, ST_TRUE);
+    ptNode->ptFirstChild    = NULL;
+    ptNode->bChildrenLoaded = ST_FALSE;
 
-    /* Phase 3: re-expand previously expanded dirs */
+    /* Phase 3: Rescan the node */
+    dir_node_load_children(ptNode, ptView->bShowHidden);
+
+    /* Phase 4: re-expand previously expanded dirs */
     for (iIdx = 0; iIdx < iExpCount; iIdx++)
     {
-        dir_reexpand_path(ptView->ptRoot,
-                           aaszExpanded[iIdx],
-                           ptView->bShowHidden);
+        dir_reexpand_path(ptNode, aaszExpanded[iIdx], ptView->bShowHidden);
     }
 }
 
 /* ==================================================================
  * Flat list
  * ================================================================== */
-
-/* -- [DIR]36. dir_flat_rebuild: rebuilds the flat render list from the currently expanded tree, skipping collapsed subtrees -- */
-static void dir_flat_rebuild(dir_view_t *ptView)
-{
-    if (ptView == NULL || ptView->aptFlat == NULL) return;
-    ptView->iFlatCount = 0;
-    dir_flat_rebuild_rec(ptView, ptView->ptRoot, -1, ST_FALSE, 0u);
-}
-
 /*
- * dir_flat_rebuild_rec() - Depth-first recursion for dir_flat_rebuild().
+ * dir_flat_rebuild() - Rebuilds the flat render list with depth-first 
+ *                      recursion ().
  *
  * Parameters:
  *   ptView       [IN/OUT] : view whose aptFlat[]/iFlatCount is appended to
@@ -553,24 +498,30 @@ static void dir_flat_rebuild(dir_view_t *ptView)
  *
  * Returns:
  *   Void - None
+ *
+ * This helper is currently called by:
+ *  - dir_open() - run GUI is open on root node
+ *  - dir_navigate_to() - run when navigating to new root
+ *  - dir_activate_sel() - run when a folder is selected
+ *  - dir_handle_key() - run when F5 or 'H'/'h' or LEFT/RIGHT is pressed
+ *      
  */
-/* -- [DIR]55. dir_flat_rebuild_rec recursively walks the expanded tree in depth-first order, skipping collapsed subtrees, and records ASCII prefix bookkeeping per visible entry -- */
-/* This helper is currently called by:
- *  - dir_flat_rebuild() ([DIR]36) - tested whenever iFlatCount changes
- *    across an expand/collapse/refresh (TC-DIR-033..036, 067..076) */
-static void dir_flat_rebuild_rec(dir_view_t *ptView,
-                                  dir_node_t *ptNode,
-                                  int         iDepth,
-                                  st_bool_t   bLastSibling,
-                                  st_u32_t    uiLastMask)
+static void dir_flat_rebuild(dir_view_t *ptView,
+                             dir_node_t *ptNode,
+                             int         iDepth,
+                             st_bool_t   bLastSibling,
+                             st_u32_t    uiLastMask)
 {
     dir_node_t       *ptChild;
     dir_node_t       *ptLastChild;
     dir_flat_entry_t *ptEntry;
     st_u32_t          uiChildMask;
 
+    if (ptView == NULL || ptView->aptFlat == NULL) return;
+    
     if (ptView->iFlatCount >= DIR_FLAT_MAX) return;
 
+    /* -- [DIR]55. recursively walks the expanded tree in depth-first order -- */
     /* Add to flat list — skip root node itself (depth == -1) */
     if (iDepth >= 0)
     {
@@ -616,13 +567,14 @@ static void dir_flat_rebuild_rec(dir_view_t *ptView,
     for (ptChild = ptNode->ptFirstChild; ptChild != NULL;
          ptChild = ptChild->ptNextSibling)
     {
-        dir_flat_rebuild_rec(ptView,
+        dir_flat_rebuild(ptView,
                              ptChild,
                              iDepth + 1,
                              (st_bool_t)(ptChild == ptLastChild),
                              uiChildMask);
     }
 }
+
 
 /* ==================================================================
  * ASCII prefix generation
@@ -865,7 +817,7 @@ static void dir_navigate_to(dir_view_t  *ptView,
     dir_node_load_children(ptNewRoot, ptView->bShowHidden);
 
     /* Free old tree only after new one is ready */
-    dir_node_free_tree(ptView->ptRoot);
+    dir_node_free_tree(ptView->ptRoot, ST_FALSE);
     ptView->ptRoot = ptNewRoot;
 
     strncpy(ptView->szRootPath, szNewPath, ST_MAX_PATH - 1);
@@ -874,7 +826,7 @@ static void dir_navigate_to(dir_view_t  *ptView,
     ptView->iFlatCount    = 0;
     ptView->iScrollOffset = 0;
     ptView->iSelectedFlat = -1;
-    dir_flat_rebuild(ptView);
+    dir_flat_rebuild(ptView, ptView->ptRoot, -1, ST_FALSE, 0u);
 
     dir_update_title(ptView, hWnd);
 }
@@ -1015,7 +967,7 @@ static void dir_activate_sel(dir_view_t *ptView, gui_window_t hWnd)
             ptNode->bExpanded = ST_TRUE;
         }
         ptView->iFlatCount = 0;
-        dir_flat_rebuild(ptView);
+        dir_flat_rebuild(ptView, ptView->ptRoot, -1, ST_FALSE, 0u);
         dir_scroll_to_sel(ptView);
     }
     else
@@ -1319,7 +1271,7 @@ static void dir_handle_key(dir_view_t  *ptView,
     case GUI_KEY_LEFT:
         if (uiMods & GUI_MOD_ALT)
         {
-            /* -- [DIR]18. dir_handle_key: ALT+LEFT/RIGHT navigate the history stack (P10) -- */
+            /* -- [DIR]18. dir_handle_key: ALT+LEFT navigate the history stack (P10) -- */
             /* P10: ALT+← = navigate history back */
             if (ptView->iNavHistHead > 0)
             {
@@ -1334,7 +1286,7 @@ static void dir_handle_key(dir_view_t  *ptView,
         }
         else
         {
-            /* -- [DIR]17. dir_handle_key: LEFT/RIGHT collapse/expand the selected directory (P12) -- */
+            /* -- [DIR]17. dir_handle_key: LEFT collapse/expand the selected directory (P12) -- */
             /* P12: collapse expanded directory */
             if (ptView->iSelectedFlat >= 0)
             {
@@ -1345,7 +1297,7 @@ static void dir_handle_key(dir_view_t  *ptView,
                 {
                     ptNode->bExpanded  = ST_FALSE;
                     ptView->iFlatCount = 0;
-                    dir_flat_rebuild(ptView);
+                    dir_flat_rebuild(ptView, ptView->ptRoot, -1, ST_FALSE, 0u);
                     dir_scroll_to_sel(ptView);
                     bRedraw = ST_TRUE;
                 }
@@ -1356,7 +1308,7 @@ static void dir_handle_key(dir_view_t  *ptView,
     case GUI_KEY_RIGHT:
         if (uiMods & GUI_MOD_ALT)
         {
-            /* P10: ALT+→ = navigate history forward */
+            /* -- [DIR]41. dir_handle_key: ALT+RIGHT navigate the history stack (P10) -- */
             if (ptView->iNavHistHead < ptView->iNavHistCount - 1)
             {
                 ptView->iNavHistHead++;
@@ -1370,7 +1322,7 @@ static void dir_handle_key(dir_view_t  *ptView,
         }
         else
         {
-            /* P12: expand collapsed directory (lazy-load children if needed) */
+            /* -- [DIR]78. dir_handle_key: RIGHT collapse/expand the selected directory (P12) -- */
             if (ptView->iSelectedFlat >= 0)
             {
                 dir_node_t *ptNode;
@@ -1384,7 +1336,7 @@ static void dir_handle_key(dir_view_t  *ptView,
                     }
                     ptNode->bExpanded  = ST_TRUE;
                     ptView->iFlatCount = 0;
-                    dir_flat_rebuild(ptView);
+                    dir_flat_rebuild(ptView, ptView->ptRoot, -1, ST_FALSE, 0u);
                     dir_scroll_to_sel(ptView);
                     bRedraw = ST_TRUE;
                 }
@@ -1392,17 +1344,17 @@ static void dir_handle_key(dir_view_t  *ptView,
         }
         break;
 
-    /* -- [DIR]19. dir_handle_key: ESCAPE requests a non-blocking window close (P9) -- */
+    
     case GUI_KEY_ESCAPE:
-        /* P9: ESC closes the view non-blocking from the window thread */
+        /* -- [DIR]19. ESCAPE requests a non-blocking window close (P9) -- */
         gui_request_close(hWnd);
         break;
 
-    /* -- [DIR]20. dir_handle_key: F5 refreshes the tree preserving expansion (P22) -- */
     case GUI_KEY_F5:
-        /* P22: F5 = refresh while preserving current expansion state */
+        /* -- [DIR]20. F5 refreshes the tree preserving expansion (P22) -- */
         dir_refresh_tree(ptView);
-        dir_flat_rebuild(ptView);
+        ptView->iFlatCount = 0;
+        dir_flat_rebuild(ptView, ptView->ptRoot, -1, ST_FALSE, 0u);
         ptView->iScrollOffset = 0;
         if (ptView->iSelectedFlat >= ptView->iFlatCount)
         {
@@ -1429,7 +1381,8 @@ static void dir_handle_key(dir_view_t  *ptView,
                 /* P21/P22: reuse F5's expansion-preserving reload so
                  * toggling hidden files does not collapse open dirs */
                 dir_refresh_tree(ptView);
-                dir_flat_rebuild(ptView);
+                ptView->iFlatCount = 0;
+                dir_flat_rebuild(ptView, ptView->ptRoot, -1, ST_FALSE, 0u);
                 ptView->iScrollOffset = 0;
                 if (ptView->iSelectedFlat >= ptView->iFlatCount)
                 {
@@ -1699,13 +1652,14 @@ st_u64_t dir_open(const char     *szPath,
     eResult = dir_node_load_children(ptView->ptRoot, ptView->bShowHidden);
     if (eResult != ST_NO_ERROR)
     {
-        dir_node_free_tree(ptView->ptRoot);
+        dir_node_free_tree(ptView->ptRoot, ST_FALSE);
         free(ptView->aptFlat);
         free(ptView);
         return ST_ERROR;
     }
 
-    dir_flat_rebuild(ptView);
+    ptView->iFlatCount = 0;
+    dir_flat_rebuild(ptView, ptView->ptRoot, -1, ST_FALSE, 0u);
 
     /* -- [DIR]5. dir_open opens the GUI window and returns the populated view -- */
     /* Open window (blocks until HWND is live, per UC3.1 contract) */
@@ -1720,7 +1674,7 @@ st_u64_t dir_open(const char     *szPath,
     eResult = gui_open_window(&tDesc, &ptView->hWnd);
     if (eResult != ST_NO_ERROR)
     {
-        dir_node_free_tree(ptView->ptRoot);
+        dir_node_free_tree(ptView->ptRoot, ST_FALSE);
         free(ptView->aptFlat);
         free(ptView);
         return ST_ERROR;
@@ -1768,7 +1722,7 @@ st_u64_t dir_close(dir_view_t **pptView)
     /* Renderer already destroyed in GUI_EVT_CLOSE callback */
     if (ptView->ptRoot != NULL)
     {
-        dir_node_free_tree(ptView->ptRoot);
+        dir_node_free_tree(ptView->ptRoot, ST_FALSE);
         ptView->ptRoot = NULL;
     }
 

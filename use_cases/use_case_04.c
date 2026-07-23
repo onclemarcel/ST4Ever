@@ -537,10 +537,10 @@ static void uc04_test_console_dispatch(void)
  *   -- [DIR]14. dir_handle_key: ENTER activates the current selection --
  *   -- [DIR]15. dir_handle_key: SPACE selects and clears multi-selection (P13/P60) --
  *   -- [DIR]16. dir_handle_key: CTRL+SPACE toggles multi-selection on files (P14/P60) --
- *   -- [DIR]17. dir_handle_key: LEFT/RIGHT collapse/expand the selected directory (P12) --
- *   -- [DIR]18. dir_handle_key: ALT+LEFT/RIGHT navigate the history stack (P10) --
- *   -- [DIR]19. dir_handle_key: ESCAPE requests a non-blocking window close (P9) --
- *   -- [DIR]20. dir_handle_key: F5 refreshes the tree preserving expansion (P22) --
+ *   -- [DIR]17. dir_handle_key: LEFT collapse/expand the selected directory (P12) --
+ *   -- [DIR]18. dir_handle_key: ALT+LEFT navigate the history stack (P10) --
+ *   -- [DIR]19. ESCAPE requests a non-blocking window close (P9) --
+ *   -- [DIR]20. F5 refreshes the tree preserving expansion (P22) --
  *   -- [DIR]21. dir_handle_key: 'H'/'h' toggles hidden-file visibility (P21) --
  *   -- [DIR]22. dir_handle_click: left-click selects a row and expands directories --
  *   -- [DIR]23. dir_handle_scroll: mouse wheel adjusts iScrollOffset within bounds --
@@ -557,12 +557,11 @@ static void uc04_test_console_dispatch(void)
  *   -- [DIR]34. Dir GUI react on GUI_EVT_SCROLL and dispatch --
  *   -- [DIR]35. Windows two-pass scan lists directories before files --
  *   -- [DIR]36. dir_flat_rebuild: rebuilds the flat render list from the currently expanded tree, skipping collapsed subtrees --
- *   -- [DIR]37. dir_refresh_tree: reloads the root's children while preserving previously expanded subtree paths (3-phase: collect / reload / re-expand) --
+ *   -- [DIR]37. Apply a 4-steps: collect / free / reload / re-expand strategy --
  *   -- [DIR]38. Navigates the tree root to a new path and free the old tree --
  *   -- [DIR]39. dir_nav_history_push: appends a new path to the navigation history, truncating any forward entries --
  *   -- [DIR]40. dir_toggle_multi_sel: adds a path to the multi-selection set, or removes it if already present --
- *   -- [DIR]41. Allocate a new empty dir_node_t structure --
- *   -- [DIR]47. A reload frees all existing nodes and rescan the children --
+ *   -- [DIR]41. dir_handle_key: ALT+RIGHT navigate the history stack (P10) --
  *   -- [DIR]52. Collect the already expanded directories --
  *   -- [DIR]54. Reexpand the previously saved nodes --
  *   -- [DIR]55. dir_flat_rebuild_rec recursively walks the expanded tree in depth-first order, skipping collapsed subtrees, and records ASCII prefix bookkeeping per visible entry --
@@ -577,8 +576,9 @@ static void uc04_test_console_dispatch(void)
  *   -- [DIR]71. dir_handle_key: HOME resets the scroll offset and selects the '..' row --
  *   -- [DIR]72. dir_handle_key: END scrolls to the last page and selects the last flat entry --
  *   -- [DIR]76. Dir GUI react on GUI_EVT_CLOSE and release the renderer --
+ *   -- [DIR]78. dir_handle_key: RIGHT collapse/expand the selected directory (P12) --
  *
- *   Tags [DIR]46,48,50,51,53,58,60,64,65,66,67,68,73,74,75,77 are analyzed
+ *   Tags [DIR]46,48,51,53,58,60,64,65,66,67,68,73,74,75,77 are analyzed
  *   but never referenced below - see the "Untestable tag rationale" block
  *   near the end of this file (R24.2) for why each one cannot be reached
  *   from any use_case_*.c test.
@@ -716,11 +716,12 @@ static void uc04_test_window_interaction(void)
             ptView->iSelectedFlat == 0 && iNewFound >= 0 && iFound != iNewFound);
 
     /* -- [DIR]30. Dir GUI react on GUI_EVT_KEY_DOWN and dispatch -- */
-    /* -- [DIR]17. dir_handle_key: LEFT/RIGHT collapse/expand the selected directory (P12) -- */
+    /* -- [DIR]17. dir_handle_key: LEFT collapse/expand the selected directory (P12) -- */
     /* -- [DIR]11. dir_activate_sel: directory entry toggles expand/collapse -- */
     /* -- [DIR]14. dir_handle_key: ENTER activates the current selection -- */
     /* -- [DIR]36. dir_flat_rebuild: rebuilds the flat render list from the currently expanded tree, skipping collapsed subtrees -- */
     /* -- [DIR]55. dir_flat_rebuild_rec recursively walks the expanded tree in depth-first order, skipping collapsed subtrees, and records ASCII prefix bookkeeping per visible entry -- */
+    /* -- [DIR]78. dir_handle_key: RIGHT collapse/expand the selected directory (P12) -- */
     /* INTENT[INT-DIR-015 → TC-DIR-033...036 → REQ-xxx-yyy → UFR-xxx-yyy]:
      * on the selected directory row (visible_dir, flat index 0): RIGHT
      * expands, LEFT collapses, ENTER toggles again via dir_activate_sel;
@@ -1094,8 +1095,7 @@ static void uc04_test_window_interaction(void)
     }
 
     /* -- [DIR]21. dir_handle_key: 'H'/'h' toggles hidden-file visibility (P21) -- */
-    /* -- [DIR]37. dir_refresh_tree: reloads the root's children while preserving previously expanded subtree paths (3-phase: collect / reload / re-expand) -- */
-    /* -- [DIR]47. A reload frees all existing nodes and rescan the children -- */
+    /* -- [DIR]37. Apply a 4-steps: collect / free / reload / re-expand strategy -- */
     /* -- [DIR]52. Collect the already expanded directories -- */
     /* -- [DIR]54. Reexpand the previously saved nodes -- */
     /* -- [EVT]2. Inject a real WM_CHAR and wait uiEventDelayMs -- */
@@ -1141,8 +1141,8 @@ static void uc04_test_window_interaction(void)
             ptView->aptFlat[0].ptNode->bExpanded == ST_FALSE
             && ptView->iFlatCount == 2);
 
-    /* -- [DIR]20. dir_handle_key: F5 refreshes the tree preserving expansion (P22) -- */
-    /* -- [DIR]37. dir_refresh_tree: reloads the root's children while preserving previously expanded subtree paths (3-phase: collect / reload / re-expand) -- */
+    /* -- [DIR]20. F5 refreshes the tree preserving expansion (P22) -- */
+    /* -- [DIR]37. Apply a 4-steps: collect / free / reload / re-expand strategy -- */
     /* INTENT[INT-DIR-023 → TC-DIR-072...076 → REQ-xxx-yyy → UFR-xxx-yyy]:
      * F5 reloads the tree from disk and keep the current visible expansion.
      * The entry count is unchanged since nothing changed on disk */
@@ -1190,7 +1190,8 @@ static void uc04_test_window_interaction(void)
             && iFound >= 0 && iNewFound == -1);
 
     /* -- [DIR]10. dir_activate_sel: ".." row navigates to the parent directory -- */
-    /* -- [DIR]18. dir_handle_key: ALT+LEFT/RIGHT navigate the history stack (P10) -- */
+    /* -- [DIR]18. dir_handle_key: ALT+LEFT navigate the history stack (P10) -- */
+    /* -- [DIR]41. dir_handle_key: ALT+RIGHT navigate the history stack (P10) -- */
     /* -- [DIR]38. Navigates the tree root to a new path and free the old tree -- */
     /* -- [DIR]39. dir_nav_history_push: appends a new path to the navigation history, truncating any forward entries -- */
     /* -- [DIR]57. dir_get_parent_path strips the trailing separator and truncates at the last path separator to compute the parent directory -- */
@@ -1429,7 +1430,7 @@ static void uc04_test_window_interaction(void)
                   "(no D2D context found)");
     }
 
-    /* -- [DIR]19. dir_handle_key: ESCAPE requests a non-blocking window close (P9) -- */
+    /* -- [DIR]19. ESCAPE requests a non-blocking window close (P9) -- */
     /* -- [DIR]76. Dir GUI react on GUI_EVT_CLOSE and release the renderer -- */
     /* -- [GUI]12. gui_is_window_open: expose bOpen for owner-side self-close detection -- */
     /* -- [LINE]24. Reap any view whose window self-closed since the last command -- */
@@ -1508,9 +1509,6 @@ static void uc04_test_window_interaction(void)
  *     site (dir_open, dir_navigate_to, dir_activate_sel,
  *     dir_handle_key RIGHT, dir_reexpand_path) checks its node is
  *     non-NULL immediately before calling.
- *   [DIR]50 (dir_node_reload_children: NULL ptNode guard) - the only
- *     caller (dir_refresh_tree) passes ptView->ptRoot, already
- *     confirmed non-NULL by dir_refresh_tree's own top guard.
  *   [DIR]51 (dir_collect_expanded: NULL/bounds guard) - the only
  *     caller (dir_refresh_tree) passes ptView->ptRoot (guarded),
  *     the static aaszExpanded[] array, &iExpCount and the compile-time
