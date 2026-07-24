@@ -54,6 +54,8 @@
  * ------------------------------------------------------------------ */
 
 #define DIR_FLAT_MAX        4096  /* max visible (expanded) tree entries   */
+#define DIR_FLAT_NOT_SELECTED 		-2
+#define DIR_FLAT_PARENT_SELECTED 	-1
 
 /* ------------------------------------------------------------------
  * P10: navigation history depth (ALT+←/→)
@@ -62,6 +64,17 @@
 
 #define DIR_NAV_HIST_MAX    16    /* max entries in ALT+←/→ history        */
 #define DIR_MULTI_SEL_MAX   16    /* max simultaneously multi-selected files*/
+
+/* ------------------------------------------------------------------
+ * Enumerate for managing selection activation
+ * ------------------------------------------------------------------ */
+
+typedef enum 
+{
+	DIR_SELECT_TOGGLE = 0,
+	DIR_SELECT_EXPAND = 1,
+	DIR_SELECT_COLLAPSE = 2
+} dir_selection_type_t;
 
 /* ------------------------------------------------------------------
  * Tree node
@@ -99,11 +112,14 @@ typedef struct dir_node_s
 
 typedef struct dir_flat_entry_s
 {
+    st_u32_t    ulMagic;                /* Magic ST4Ever OO-like tag */
+    st_object_t eObject;                /* Object type for tests     */
+
     dir_node_t *ptNode;
     int         iDepth;        /* 0 = direct child of root             */
     st_bool_t   bLastSibling;  /* last child of its parent             */
     st_u32_t    uiLastMask;    /* bit i = 1 → ancestor at depth i was  */
-                               /* the last sibling (max depth 31)       */
+                               /* the last sibling (max depth 31)      */
 } dir_flat_entry_t;
 
 /* ------------------------------------------------------------------

@@ -17,7 +17,7 @@ same tag text in two places:
   2. Inline, immediately upstream of an "INTENT[...]" block, inside
      the test function's body.
 
-This script performs 9 checks (see CLAUDE.md R24):
+This script performs 10 checks (see CLAUDE.md R24):
 
   [0] Every "/* -- [MODULE]N. ... -- */" tag is well-formed (closing
       '--' present) - a malformed one silently swallows source code
@@ -28,7 +28,11 @@ This script performs 9 checks (see CLAUDE.md R24):
       as an inline UC_TEST/UC_CHECK label at most once.
   [2] Every tag defined in the source tree appears verbatim in at
       least one use_case_*.c file (informational: R24 is applied
-      progressively, one tag at a time).
+      progressively, one tag at a time). A tag not referenced is
+      reported as RATIONALE (documented as unreachable in an
+      "Untestable tag rationale" comment block, CLAUDE.md R24.2) or
+      MISSING (a true, un-analyzed gap) - see check [6] for the
+      per-module tested/rationale/missing split.
   [3] For every test function with a "Code Coverage:" header, each
       listed tag is (a) recopied inline in the function body and
       (b) upstream of at least one INTENT[...] block in that body.
@@ -38,22 +42,46 @@ This script performs 9 checks (see CLAUDE.md R24):
   [5] Heuristic ALERT (not a hard failure) when an INTENT's
       description shares little vocabulary with the tag(s) it
       follows - flagged for manual review.
-  [6] Coverage report per module and per use_case file. Only
-      use_case_00.c, use_case_01.c, use_case_02.c, use_case_03.c and
-      use_case_04.c currently apply the full R24 strategy (Code
-      Coverage header + inline tag + INTENT linking); other
-      use_case_*.c files are reported informationally.
+  [6] Coverage report per module and per use_case file, splitting
+      each module's source tags into TESTED / RATIONALE / MISSING
+      (TESTED + RATIONALE is expected to reach 100% - CLAUDE.md
+      R24.2). Only use_case_00.c, use_case_01.c, use_case_02.c,
+      use_case_03.c and use_case_04.c currently apply the full R24
+      strategy (Code Coverage header + inline tag + INTENT linking);
+      other use_case_*.c files are reported informationally.
   [7] Informational: static functions in src/win/linux with no
       preceding docstring comment (CLAUDE.md 4.6/4.7 expects one).
   [8] Informational: functions (static or public) whose body has
       neither a LOG_TRACE(...) call nor a "// No LOG_TRACE - <reason>"
       justification comment (see src/trace.c for the convention, and
       CLAUDE.md R22 for when omitting LOG_TRACE is legitimate).
+  [9] Informational: for every static function whose preceding
+      docstring was found by check [7], verify the docstring *fields*
+      are actually correct (CLAUDE.md 4.6 + R24.2), not just present:
+        - the first non-blank line reads "name() - <description>";
+        - every "Parameters:" bullet name matches an actual signature
+          parameter, and every signature parameter is documented;
+        - a "Returns:" section is present and is not an obvious
+          void/non-void mismatch (e.g. "Void - None" on a function
+          that returns st_error_t);
+        - if present, "This helper is currently called by:" lists
+          exactly the callers found by scanning the same file for
+          real call sites (a stale name, or a real caller missing
+          from the list, is flagged).
+  [10] Tag length: the "[MODULE]N. <text>" content of every source tag
+       must not exceed --tag-max-len characters (default 90). A tag is
+       a pointer to a chunk of code, not a summary of it - the function
+       name does not need to be repeated in the text (the tag's own
+       location already pins it down).
+  [11] Tag placement: a tag must sit strictly inside a function's { }
+       body (marking a chunk of code), never in the comment chain that
+       precedes a function signature (its "header"/docstring) and never
+       free-floating between two functions.
 
 Usage:
     python tools/check_tags.py [--src DIR [DIR ...]] [--uc DIR]
                                 [--module MODULE] [--alert-threshold F]
-                                [--strict] [-v]
+                                [--tag-max-len N] [--strict] [-v]
 
 Exit code: 0 always, unless --strict is given and at least one
 ERROR-level finding was reported (ALERTs and informational coverage
@@ -113,6 +141,20 @@ INLINE_TC_RE = re.compile(
 CODE_COVERAGE_RE = re.compile(
     r'Code Coverage:(?P<body>.*?)(?:\*\s*Parameters:|\Z)',
     re.DOTALL)
+
+# The R24.2 "Untestable tag rationale" convention header (CLAUDE.md §5 R24)
+# marking a comment block that documents, per-tag, why a source tag cannot
+# be reached by any test in this binary (Category 3). Matched case-
+# insensitively since it is prose, not a machine-format identifier.
+RATIONALE_HEADER_RE = re.compile(r'untestable tag rationale', re.IGNORECASE)
+
+# A bare "[MODULE]N" reference inside a rationale comment block - unlike
+# TAG_RE, this is *not* the "-- ... --" tag-definition syntax, just a
+# pointer to it in prose (e.g. "[DIR]46 (dir_node_load_children: ...)").
+RATIONALE_TAG_REF_RE = re.compile(
+    r'\[(?P<module>[A-Za-z_][A-Za-z0-9_]*)\](?P<num>\d+)\b')
+
+DEFAULT_TAG_MAX_LEN = 90
 
 STOPWORDS = {
     'the', 'a', 'an', 'is', 'are', 'to', 'of', 'if', 'and', 'or', 'in',
@@ -386,6 +428,87 @@ def find_function_defs(text):
     return results
 
 
+def find_function_body_ranges(text):
+    """Returns a list of (body_open, body_end) pairs, one per top-level
+    function definition in text (via find_function_defs) - body_open is
+    the index of the opening '{', body_end the index just past the
+    matching '}'. Used to tell whether a tag comment sits strictly
+    inside a function's body (the only place check [11] allows one) as
+    opposed to its header/docstring comment chain or a free-floating
+    spot between two functions."""
+    ranges = []
+    for fdef in find_function_defs(text):
+        body_end = find_matching_brace(text, fdef['body_open'])
+        ranges.append((fdef['body_open'], body_end))
+    return ranges
+
+
+def pos_in_any_range(pos, ranges):
+    for start, end in ranges:
+        if start <= pos < end:
+            return True
+    return False
+
+
+def _is_ident_char_at(s, idx):
+    if idx < 0 or idx >= len(s):
+        return False
+    c = s[idx]
+    return c.isalnum() or c == '_'
+
+
+def find_switch_pre_case_zones(text):
+    """For every 'switch (...) { ... }' compound statement in text,
+    returns the (zone_start, zone_end) span running from the body's
+    opening '{' up to its first 'case'/'default' label (at the switch's
+    own brace depth - a label inside a nested block/switch doesn't
+    count). A tag placed in that zone documents code that runs before
+    any branch is selected - almost certainly meant for the case it
+    actually precedes, and should be moved inside that case's block
+    instead (check [11])."""
+    masked = mask_comments_and_strings(text)
+    n = len(masked)
+    zones = []
+    for m in re.finditer(r'\bswitch\s*\(', masked):
+        depth = 1
+        j = m.end()
+        while j < n and depth > 0:
+            if masked[j] == '(':
+                depth += 1
+            elif masked[j] == ')':
+                depth -= 1
+            j += 1
+        k = j
+        while k < n and masked[k] in ' \t\r\n':
+            k += 1
+        if k >= n or masked[k] != '{':
+            continue  # single-statement switch body (no braces) - skip
+        body_open = k
+        body_end = find_matching_brace(text, body_open)
+        depth = 0
+        first_label = None
+        p = body_open + 1
+        while p < body_end:
+            c = masked[p]
+            if c == '{':
+                depth += 1
+            elif c == '}':
+                depth -= 1
+            elif depth == 0 and (
+                    (masked.startswith('case', p)
+                     and not _is_ident_char_at(masked, p - 1)
+                     and not _is_ident_char_at(masked, p + 4))
+                    or (masked.startswith('default', p)
+                        and not _is_ident_char_at(masked, p - 1)
+                        and not _is_ident_char_at(masked, p + 7))):
+                first_label = p
+                break
+            p += 1
+        if first_label is not None and first_label > body_open + 1:
+            zones.append((body_open + 1, first_label))
+    return zones
+
+
 # ---------------------------------------------------------------------------
 # Source-side scan: every /* -- [MODULE]N. text -- */ in src/win/linux
 # ---------------------------------------------------------------------------
@@ -402,26 +525,60 @@ def gather_source_files(dirs):
     return sorted(files)
 
 
-def scan_source_tags(files):
-    """Returns (tags, malformed):
+def scan_source_tags(files, tag_max_len=DEFAULT_TAG_MAX_LEN):
+    """Returns (tags, malformed, too_long, misplaced):
       tags      dict {(module, num): [ {file, line, text}, ... ] }
       malformed list of {file, module, num, line, snippet}
+      too_long  list of {file, module, num, line, content, length} -
+                the "[MODULE]N. text" content exceeds tag_max_len chars
+      misplaced list of {file, module, num, line, content, reason} -
+                the tag does not sit strictly inside a function body
+                (reason='outside_function'), or sits inside a switch's
+                body before its first case/default label
+                (reason='switch_pre_case') - check [11]
     """
     tags = defaultdict(list)
     malformed = []
+    too_long = []
+    misplaced = []
     for path in files:
         text = read_file(path)
+        body_ranges = find_function_body_ranges(text)
+        switch_zones = find_switch_pre_case_zones(text)
         for m in TAG_RE.finditer(text):
-            key = (m.group('module'), int(m.group('num')))
+            module = m.group('module')
+            num = int(m.group('num'))
+            key = (module, num)
+            norm_text = normalize(m.group('text'))
+            line = line_of(text, m.start())
             tags[key].append({
                 'file': path,
-                'line': line_of(text, m.start()),
-                'text': normalize(m.group('text')),
+                'line': line,
+                'text': norm_text,
             })
+            content = '[%s]%d. %s' % (module, num, norm_text)
+            if len(content) > tag_max_len:
+                too_long.append({
+                    'file': path, 'module': module, 'num': num,
+                    'line': line, 'content': content,
+                    'length': len(content),
+                })
+            if not pos_in_any_range(m.start(), body_ranges):
+                misplaced.append({
+                    'file': path, 'module': module, 'num': num,
+                    'line': line, 'content': content,
+                    'reason': 'outside_function',
+                })
+            elif pos_in_any_range(m.start(), switch_zones):
+                misplaced.append({
+                    'file': path, 'module': module, 'num': num,
+                    'line': line, 'content': content,
+                    'reason': 'switch_pre_case',
+                })
         for bad in find_malformed_tags(text):
             bad['file'] = path
             malformed.append(bad)
-    return tags, malformed
+    return tags, malformed, too_long, misplaced
 
 
 # ---------------------------------------------------------------------------
@@ -446,6 +603,218 @@ class SourceFunction:
         self.has_log_trace = False
         self.has_justification = False
 
+        # -- docstring field consistency (CLAUDE.md 4.6 / R24.2, check [9]) --
+        self.doc_raw = None            # concatenated raw preceding comment(s)
+        self.sig_params = []           # parameter names from the real signature
+        self.return_type = ''          # normalized return type (e.g. "st_error_t")
+        self.is_void = False
+        self.doc_name_ok = False       # "name() - description" first line found
+        self.doc_params_missing = []   # sig params not documented
+        self.doc_params_extra = []     # documented params not in the signature
+        self.doc_returns = None        # raw "Returns:" text, or None if absent
+        self.doc_returns_mismatch = False
+        self.doc_calledby = None       # list of names, or None if section absent
+        self.doc_calledby_stale = []   # listed but never found calling
+        self.doc_calledby_missing = [] # real callers not listed
+        self.actual_callers = set()    # names of functions that really call it
+        self.self_recursive = False
+
+
+def gather_preceding_comments(text, comments, sig_start):
+    """comments: list of (start, end) tuples for every /* ... */ block in
+    `text`. Returns the concatenated raw text (in source order) of every
+    comment block that immediately precedes sig_start - chained backwards
+    through as many comments as are separated only by whitespace (this is
+    what lets a docstring split across a main comment + a "-- [MOD]N. --"
+    tag comment + a trailing "This helper is currently called by:"
+    comment, as seen in dir.c, still be read as one unit). Returns None
+    if no comment immediately precedes sig_start."""
+    candidates = [c for c in comments if c[1] <= sig_start]
+    if not candidates:
+        return None
+    candidates.sort(key=lambda c: c[1])
+    chain = []
+    cursor = sig_start
+    for start, end in reversed(candidates):
+        if end > cursor:
+            continue
+        if text[end:cursor].strip() != '':
+            break
+        chain.append((start, end))
+        cursor = start
+    if not chain:
+        return None
+    chain.reverse()
+    return ''.join(text[s:e] for s, e in chain)
+
+
+def split_top_level(s, sep=','):
+    """Split s on `sep`, ignoring occurrences nested inside ()/[] (needed
+    for parameter lists containing function-pointer or array-of-array
+    declarators, e.g. "char (*aaszPaths)[ST_MAX_PATH]")."""
+    parts = []
+    depth = 0
+    cur = []
+    for ch in s:
+        if ch in '([':
+            depth += 1
+        elif ch in ')]':
+            depth -= 1
+        if ch == sep and depth == 0:
+            parts.append(''.join(cur))
+            cur = []
+        else:
+            cur.append(ch)
+    parts.append(''.join(cur))
+    return parts
+
+
+def extract_param_name(chunk):
+    """Best-effort extraction of the declared identifier out of a single
+    parameter declaration chunk (e.g. "const char *szPath" -> "szPath",
+    "char (*aaszPaths)[ST_MAX_PATH]" -> "aaszPaths"). Returns None for an
+    empty chunk or a lone "void"."""
+    chunk = chunk.strip()
+    if chunk in ('', 'void'):
+        return None
+    m = re.search(r'\(\s*\*+\s*([A-Za-z_]\w*)\s*\)', chunk)
+    if m:
+        return m.group(1)
+    chunk = re.sub(r'\[[^\]]*\]\s*$', '', chunk).strip()
+    m = re.search(r'([A-Za-z_]\w*)\s*$', chunk)
+    return m.group(1) if m else None
+
+
+def parse_param_names(params_str):
+    params_str = params_str.strip()
+    if params_str == '' or params_str == 'void':
+        return []
+    names = []
+    for chunk in split_top_level(params_str, ','):
+        name = extract_param_name(chunk)
+        if name:
+            names.append(name)
+    return names
+
+
+def extract_signature_info(sig_text, name):
+    """Returns (params_str, return_prefix) for a function named `name`
+    whose full declarator text (return type + qualifiers + name +
+    parameter list) is sig_text. Returns (None, None) if `name(` can't
+    be located or its parameter list is unbalanced."""
+    m = re.search(r'\b' + re.escape(name) + r'\s*\(', sig_text)
+    if not m:
+        return None, None
+    paren_start = m.end() - 1
+    depth = 0
+    end = None
+    for i in range(paren_start, len(sig_text)):
+        c = sig_text[i]
+        if c == '(':
+            depth += 1
+        elif c == ')':
+            depth -= 1
+            if depth == 0:
+                end = i
+                break
+    if end is None:
+        return None, None
+    return sig_text[paren_start + 1:end], sig_text[:m.start()]
+
+
+def normalize_return_type(prefix):
+    p = re.sub(r'\bstatic\b', '', prefix)
+    return re.sub(r'\s+', ' ', p).strip()
+
+
+def parse_doc_sections(doc_raw, name):
+    """Parses a (possibly multi-comment-block) docstring into its
+    conventional fields (CLAUDE.md 4.6 / R24.2):
+      name_ok   : True if some line reads "name() - description" (searched
+                  across every gathered comment block, not just the very
+                  first line - gather_preceding_comments() may have chained
+                  in a leading "/* ==== Section banner ==== */" comment
+                  ahead of the real docstring, which must not be mistaken
+                  for a missing description line)
+      params    : dict {param_name: raw bullet line} found under
+                  "Parameters:"
+      returns   : raw text collected under "Returns:", or None if that
+                  section is absent
+      calledby  : list of names (or the literal 'itself') found under
+                  "This helper is currently called by:", or None if
+                  that section is absent entirely
+    """
+    lines = []
+    for chunk in re.findall(r'/\*(.*?)\*/', doc_raw, re.DOTALL):
+        for raw_line in chunk.split('\n'):
+            s = raw_line.strip()
+            if s.startswith('*'):
+                s = s[1:].strip()
+            lines.append(s)
+        lines.append('')
+
+    name_re = re.compile(r'^' + re.escape(name) + r'\s*\(\)\s*-')
+    name_ok = any(name_re.match(s) for s in lines if s)
+
+    def find_section(pred):
+        for idx, s in enumerate(lines):
+            if pred(s.strip().lower()):
+                return idx
+        return None
+
+    params = {}
+    idx_params = find_section(lambda s: s == 'parameters:')
+    if idx_params is not None:
+        for s in lines[idx_params + 1:]:
+            ls = s.strip()
+            if ls == '':
+                continue
+            low = ls.lower()
+            if low == 'returns:' or low.startswith(
+                    'this helper is currently called by'):
+                break
+            m = re.match(r'^([A-Za-z_][A-Za-z0-9_]*)\s*\[', ls)
+            if m:
+                params[m.group(1)] = ls
+            elif re.match(r'^[A-Za-z_ ]+:$', ls):
+                break
+
+    returns_text = None
+    idx_returns = find_section(lambda s: s == 'returns:')
+    if idx_returns is not None:
+        collected = []
+        for s in lines[idx_returns + 1:]:
+            ls = s.strip()
+            low = ls.lower()
+            if low.startswith('this helper is currently called by'):
+                break
+            if re.match(r'^[A-Za-z_ ]+:$', ls):
+                break
+            collected.append(ls)
+        returns_text = ' '.join(c for c in collected if c).strip()
+
+    calledby = None
+    idx_cb = find_section(
+        lambda s: s.startswith('this helper is currently called by'))
+    if idx_cb is not None:
+        calledby = []
+        for s in lines[idx_cb + 1:]:
+            ls = s.strip()
+            if ls == '':
+                continue
+            m = re.match(r'^-+\s*([A-Za-z_][A-Za-z0-9_]*)\s*\(\)', ls)
+            if m:
+                calledby.append(m.group(1))
+            elif re.match(r'^-+\s*itself\b', ls, re.IGNORECASE):
+                calledby.append('itself')
+
+    return {
+        'name_ok': name_ok,
+        'params': params,
+        'returns': returns_text,
+        'calledby': calledby,
+    }
+
 
 def scan_source_functions(files):
     """Returns a list of SourceFunction, one per top-level function
@@ -457,13 +826,23 @@ def scan_source_functions(files):
       - has_log_trace     : its body contains a literal 'LOG_TRACE(' call
       - has_justification : its body contains a '// No LOG_TRACE - ...'
                              comment (see trace.c for the convention)
+    Additionally populates the check-[9] docstring-field-consistency
+    attributes documented on SourceFunction (doc_name_ok,
+    doc_params_missing/extra, doc_returns/_mismatch, doc_calledby and
+    its stale/missing diffs against actual_callers).
     """
     functions = []
     for path in files:
         text = read_file(path)
-        comment_by_end = {m.end(): m
-                           for m in re.finditer(r'/\*.*?\*/', text, re.DOTALL)}
-        for fdef in find_function_defs(text):
+        comments = [(m.start(), m.end())
+                    for m in re.finditer(r'/\*.*?\*/', text, re.DOTALL)]
+        comment_by_end = {end: (start, end) for start, end in comments}
+        masked = mask_comments_and_strings(text)
+        fdefs = find_function_defs(text)
+
+        file_functions = []
+        bodies = []  # aligned with file_functions: masked body text
+        for fdef in fdefs:
             sig_text = text[fdef['sig_start']:fdef['body_open']]
             sf = SourceFunction(fdef['name'], path,
                                  line_of(text, fdef['sig_start']),
@@ -474,8 +853,58 @@ def scan_source_functions(files):
             body_text = text[fdef['body_open']:body_end]
             sf.has_log_trace = 'LOG_TRACE(' in body_text
             sf.has_justification = bool(NO_LOG_TRACE_RE.search(body_text))
+            bodies.append(masked[fdef['body_open']:body_end])
 
-            functions.append(sf)
+            params_str, return_prefix = extract_signature_info(
+                sig_text, fdef['name'])
+            sf.sig_params = parse_param_names(params_str or '')
+            sf.return_type = normalize_return_type(return_prefix or '')
+            sf.is_void = (sf.return_type == 'void')
+
+            doc_raw = gather_preceding_comments(text, comments,
+                                                 fdef['sig_start'])
+            sf.doc_raw = doc_raw
+            if doc_raw:
+                sec = parse_doc_sections(doc_raw, sf.name)
+                sf.doc_name_ok = sec['name_ok']
+
+                doc_param_names = set(sec['params'].keys())
+                sig_param_set = set(sf.sig_params)
+                sf.doc_params_missing = [p for p in sf.sig_params
+                                          if p not in doc_param_names]
+                sf.doc_params_extra = sorted(doc_param_names - sig_param_set)
+
+                sf.doc_returns = sec['returns']
+                if sf.doc_returns:
+                    rt_lower = sf.doc_returns.lower().strip()
+                    if sf.is_void:
+                        sf.doc_returns_mismatch = (
+                            'void' not in rt_lower and 'none' not in rt_lower)
+                    else:
+                        sf.doc_returns_mismatch = rt_lower in (
+                            'void - none', 'void', 'none', '-')
+
+                sf.doc_calledby = sec['calledby']
+
+            file_functions.append(sf)
+
+        for idx, sf in enumerate(file_functions):
+            call_re = re.compile(
+                r'(?<![A-Za-z0-9_])' + re.escape(sf.name) + r'\s*\(')
+            for j, other in enumerate(file_functions):
+                if not call_re.search(bodies[j]):
+                    continue
+                if j == idx:
+                    sf.self_recursive = True
+                else:
+                    sf.actual_callers.add(other.name)
+
+            if sf.doc_calledby is not None:
+                named = {n for n in sf.doc_calledby if n.lower() != 'itself'}
+                sf.doc_calledby_stale = sorted(named - sf.actual_callers)
+                sf.doc_calledby_missing = sorted(sf.actual_callers - named)
+
+        functions.extend(file_functions)
     return functions
 
 
@@ -485,6 +914,28 @@ def scan_source_functions(files):
 
 def gather_usecase_files(uc_dir):
     return sorted(glob.glob(os.path.join(uc_dir, 'use_case_*.c')))
+
+
+def find_rationale_tags(path, text):
+    """Scan every /* ... */ comment block in a use_case_*.c file whose
+    text contains the R24.2 "Untestable tag rationale" header for bare
+    "[MODULE]N" references (RATIONALE_TAG_REF_RE) - tags documented as
+    analyzed-but-unreachable (Category 3) rather than exercised by any
+    test. Returns dict {(module, num): {'file', 'line'}} (first
+    occurrence wins if a tag is somehow listed twice)."""
+    result = {}
+    for cm in re.finditer(r'/\*.*?\*/', text, re.DOTALL):
+        block = cm.group(0)
+        if not RATIONALE_HEADER_RE.search(block):
+            continue
+        for rm in RATIONALE_TAG_REF_RE.finditer(block):
+            key = (rm.group('module'), int(rm.group('num')))
+            if key not in result:
+                result[key] = {
+                    'file': path,
+                    'line': line_of(text, cm.start() + rm.start()),
+                }
+    return result
 
 
 class TestFunction:
@@ -627,6 +1078,63 @@ def check0_malformed_tags(malformed, out):
     return malformed
 
 
+def check10_tag_length(too_long, out, tag_max_len):
+    out.append('')
+    out.append('=' * 78)
+    out.append('[10] Tag length (<= %d chars between the "--" markers)' %
+                tag_max_len)
+    out.append('=' * 78)
+    if not too_long:
+        out.append('')
+        out.append('  None found.')
+        return []
+    out.append('')
+    out.append('  A tag is a pointer, not a summary - no need to repeat the')
+    out.append('  function name (the tag\'s location already pins it down),')
+    out.append('  just enough text to recognize the code at a glance.')
+    for v in too_long:
+        out.append('')
+        out.append('  ERROR   [%s]%-3d %s:%-4d  %d chars (max %d)' %
+                    (v['module'], v['num'], rel(v['file']), v['line'],
+                     v['length'], tag_max_len))
+        out.append('          "%s"' % v['content'])
+    return too_long
+
+
+_PLACEMENT_HINTS = {
+    'outside_function': 'not strictly inside a function body (header/'
+                         'docstring comment chain, or free-floating'
+                         ' between two functions)',
+    'switch_pre_case': 'inside a switch body but before its first'
+                        ' case/default label - move it inside the'
+                        ' case: block it documents',
+}
+
+
+def check11_tag_placement(misplaced, out):
+    out.append('')
+    out.append('=' * 78)
+    out.append('[11] Tag placement (must be strictly inside a function body,'
+                ' and inside a case: when the enclosing block is a switch)')
+    out.append('=' * 78)
+    if not misplaced:
+        out.append('')
+        out.append('  None found.')
+        return []
+    out.append('')
+    out.append('  A tag marks a chunk of code, not a whole function or a')
+    out.append('  whole switch - move it inside the { } body (or inside')
+    out.append('  the specific case: it documents), immediately above the')
+    out.append('  code it marks.')
+    for v in misplaced:
+        out.append('')
+        out.append('  ERROR   [%s]%-3d %s:%-4d  %s' %
+                    (v['module'], v['num'], rel(v['file']), v['line'],
+                     _PLACEMENT_HINTS.get(v['reason'], '')))
+        out.append('          "%s"' % v['content'])
+    return misplaced
+
+
 def check1_id_uniqueness(functions_by_file, out, verbose):
     """INT-xxx-yyy and TC-xxx-yyy are meant to be unique identifiers,
     assigned once and never reused - across *all* use_case_*.c files,
@@ -732,13 +1240,19 @@ def check1_id_uniqueness(functions_by_file, out, verbose):
     return errors
 
 
-def check2_source_coverage(source_tags, uc_tag_index, out, verbose):
+def check2_source_coverage(source_tags, uc_tag_index, rationale_tags,
+                            out, verbose):
     out.append('')
     out.append('=' * 78)
     out.append('[2] Source tags not yet referenced in any use_case_*.c'
                 ' (informational, R24 is applied progressively)')
     out.append('=' * 78)
+    out.append('')
+    out.append('  Tags already documented as unreachable (RATIONALE) are')
+    out.append('  counted below but not listed - see check [6] for the')
+    out.append('  tested/rationale/missing split, or -v to list them here.')
     missing = []
+    rationale = []
     present = 0
     for key in sorted(source_tags, key=lambda k: (k[0], k[1])):
         occs = source_tags[key]
@@ -746,13 +1260,22 @@ def check2_source_coverage(source_tags, uc_tag_index, out, verbose):
         if key in uc_tag_index:
             present += 1
             if verbose:
-                out.append('  OK      [%s]%-3d  %s:%d' %
+                out.append('  OK        [%s]%-3d  %s:%d' %
                             (key[0], key[1], rel(loc['file']), loc['line']))
+        elif key in rationale_tags:
+            rationale.append((key, loc))
         else:
             missing.append((key, loc))
 
+    if verbose:
+        for key, loc in rationale:
+            rloc = rationale_tags[key]
+            out.append('  RATIONALE [%s]%-3d  %s:%-4d  "%s"  (documented %s:%d)' %
+                        (key[0], key[1], rel(loc['file']), loc['line'],
+                         loc['text'], rel(rloc['file']), rloc['line']))
+
     for key, loc in missing:
-        out.append('  MISSING [%s]%-3d  %s:%-4d  "%s"' %
+        out.append('  MISSING   [%s]%-3d  %s:%-4d  "%s"' %
                     (key[0], key[1], rel(loc['file']), loc['line'],
                      loc['text']))
 
@@ -760,7 +1283,8 @@ def check2_source_coverage(source_tags, uc_tag_index, out, verbose):
     pct = (100.0 * present / total) if total else 0.0
     out.append('')
     out.append('  Total: %d/%d source tags referenced in use_case_*.c'
-                ' (%.0f%%)' % (present, total, pct))
+                ' (%.0f%%), %d documented as rationale, %d truly missing' %
+                (present, total, pct, len(rationale), len(missing)))
     return missing
 
 
@@ -982,29 +1506,114 @@ def check8_log_trace_hygiene(source_functions, out, verbose):
     return missing
 
 
-def check6_coverage_report(source_tags, uc_tag_index, functions_by_file,
-                            uc_files, strategy_files, out):
+def check9_docstring_fields(source_functions, out, verbose):
+    out.append('')
+    out.append('=' * 78)
+    out.append('[9] static function docstring field consistency: name /'
+                ' Parameters / Returns / "called by" (informational)')
+    out.append('=' * 78)
+    out.append('')
+    out.append('  Convention (CLAUDE.md 4.6 / R24.2): a static function\'s')
+    out.append('  docstring starts with "name() - description", documents')
+    out.append('  every signature parameter under "Parameters:", documents')
+    out.append('  "Returns:", and (R24.2) names its real callers under')
+    out.append('  "This helper is currently called by:". Only functions')
+    out.append('  already found to have a docstring by check [7] are')
+    out.append('  examined here.')
+
+    statics = [sf for sf in source_functions if sf.is_static and sf.doc_raw]
+    n_clean = 0
+    for sf in sorted(statics, key=lambda s: (s.path, s.line)):
+        problems = []
+
+        if not sf.doc_name_ok:
+            problems.append(
+                'first line does not read "%s() - <description>"' % sf.name)
+
+        if sf.doc_params_missing:
+            problems.append(
+                'Parameters: missing %s' % ', '.join(sf.doc_params_missing))
+        if sf.doc_params_extra:
+            problems.append(
+                'Parameters: documents unknown/stale param(s) %s' %
+                ', '.join(sf.doc_params_extra))
+
+        if sf.doc_returns is None:
+            problems.append('Returns: section absent')
+        elif sf.doc_returns_mismatch:
+            problems.append(
+                'Returns: text looks inconsistent with the actual return'
+                ' type (%s)' % ('void' if sf.is_void else sf.return_type))
+
+        if sf.doc_calledby is None:
+            n_callers = len(sf.actual_callers) + (1 if sf.self_recursive
+                                                    else 0)
+            if n_callers:
+                problems.append(
+                    '"This helper is currently called by:" section absent'
+                    ' although %d call site(s) found' % n_callers)
+        else:
+            if sf.doc_calledby_stale:
+                problems.append(
+                    '"called by" lists %s - not found calling this'
+                    ' function' % ', '.join(sf.doc_calledby_stale))
+            if sf.doc_calledby_missing:
+                problems.append(
+                    '"called by" is missing real caller(s) %s' %
+                    ', '.join(sf.doc_calledby_missing))
+
+        if problems:
+            out.append('')
+            out.append('  %s:%d  static %s()' %
+                        (rel(sf.path), sf.line, sf.name))
+            for p in problems:
+                out.append('      WARN    %s' % p)
+        else:
+            n_clean += 1
+            if verbose:
+                out.append('  OK      %s:%-4d  %s()' %
+                            (rel(sf.path), sf.line, sf.name))
+
+    out.append('')
+    out.append('  %d/%d documented static function(s) fully consistent' %
+                (n_clean, len(statics)))
+    return statics
+
+
+def check6_coverage_report(source_tags, uc_tag_index, rationale_tags,
+                            functions_by_file, uc_files, strategy_files, out):
     out.append('')
     out.append('=' * 78)
     out.append('[6] Coverage report')
     out.append('=' * 78)
 
     by_module_total = defaultdict(int)
-    by_module_covered = defaultdict(int)
+    by_module_tested = defaultdict(int)
+    by_module_rationale = defaultdict(int)
     for key in source_tags:
         by_module_total[key[0]] += 1
         if key in uc_tag_index:
-            by_module_covered[key[0]] += 1
+            by_module_tested[key[0]] += 1
+        elif key in rationale_tags:
+            by_module_rationale[key[0]] += 1
 
     out.append('')
-    out.append('  %-14s %10s %12s %8s' %
-                ('MODULE', 'SRC TAGS', 'REFERENCED', 'COV %'))
+    out.append('  %-14s %9s %8s %10s %9s %8s' %
+                ('MODULE', 'SRC TAGS', 'TESTED', 'RATIONALE', 'MISSING',
+                 'COV %'))
     for module in sorted(by_module_total):
         total = by_module_total[module]
-        covered = by_module_covered[module]
-        pct = 100.0 * covered / total if total else 0.0
-        out.append('  %-14s %10d %12d %7.0f%%' %
-                    (module, total, covered, pct))
+        tested = by_module_tested[module]
+        rationale = by_module_rationale[module]
+        missing = total - tested - rationale
+        pct = 100.0 * (tested + rationale) / total if total else 0.0
+        out.append('  %-14s %9d %8d %10d %9d %7.0f%%' %
+                    (module, total, tested, rationale, missing, pct))
+    out.append('')
+    out.append('  COV % = (TESTED + RATIONALE) / SRC TAGS - expected to')
+    out.append('  reach 100% once every tag is either exercised by a test')
+    out.append('  or documented as unreachable (CLAUDE.md R24.2); MISSING')
+    out.append('  is the true, un-analyzed gap.')
 
     out.append('')
     out.append('  %-32s %10s %8s' % ('USE_CASE FILE', 'FUNCTIONS', 'STRATEGY'))
@@ -1055,6 +1664,11 @@ def main():
                          help='Vocabulary-overlap ratio below which an'
                               ' INTENT is flagged for manual review'
                               ' (default: 0.15)')
+    parser.add_argument('--tag-max-len', type=int,
+                         default=DEFAULT_TAG_MAX_LEN,
+                         help='Max length (chars) of a tag\'s'
+                              ' "[MODULE]N. <text>" content (default: %d)'
+                              % DEFAULT_TAG_MAX_LEN)
     parser.add_argument('--strict', action='store_true',
                          help='Exit with status 1 if any ERROR was found')
     parser.add_argument('-v', '--verbose', action='store_true',
@@ -1081,14 +1695,17 @@ def main():
               file=sys.stderr)
         return 2
 
-    source_tags, malformed_src = scan_source_tags(src_files)
+    source_tags, malformed_src, too_long, misplaced = scan_source_tags(
+        src_files, args.tag_max_len)
 
     functions_by_file = {}
     malformed_uc = []
+    rationale_tags = {}
     for path in uc_files:
         functions, bad = parse_usecase_file(path)
         functions_by_file[path] = functions
         malformed_uc.extend(bad)
+        rationale_tags.update(find_rationale_tags(path, read_file(path)))
 
     if args.module:
         source_tags = {k: v for k, v in source_tags.items()
@@ -1097,6 +1714,10 @@ def main():
                           if b['module'] == args.module]
         malformed_uc = [b for b in malformed_uc
                          if b['module'] == args.module]
+        too_long = [v for v in too_long if v['module'] == args.module]
+        misplaced = [v for v in misplaced if v['module'] == args.module]
+        rationale_tags = {k: v for k, v in rationale_tags.items()
+                           if k[0] == args.module}
         for path, functions in functions_by_file.items():
             for tf in functions:
                 tf.doc_tags = {k: v for k, v in tf.doc_tags.items()
@@ -1125,16 +1746,20 @@ def main():
         out.append('  module filter: %s' % args.module)
 
     errors0 = check0_malformed_tags(malformed_src + malformed_uc, out)
+    errors10 = check10_tag_length(too_long, out, args.tag_max_len)
+    errors11 = check11_tag_placement(misplaced, out)
     errors1 = check1_id_uniqueness(functions_by_file, out, args.verbose)
-    check2_source_coverage(source_tags, uc_tag_index, out, args.verbose)
+    missing_tags = check2_source_coverage(source_tags, uc_tag_index,
+                                           rationale_tags, out, args.verbose)
     errors2 = check3_function_consistency(functions_by_file, out,
                                            args.verbose)
     errors3 = check4_usecase_to_source(source_tags, uc_tag_occurrences, out,
                                         args.verbose)
     alerts4 = check5_heuristic_alerts(functions_by_file, source_tags, out,
                                        args.alert_threshold)
-    check6_coverage_report(source_tags, uc_tag_index, functions_by_file,
-                            uc_files, set(args.strategy_files), out)
+    check6_coverage_report(source_tags, uc_tag_index, rationale_tags,
+                            functions_by_file, uc_files,
+                            set(args.strategy_files), out)
 
     source_functions = scan_source_functions(src_files)
     if args.module:
@@ -1143,13 +1768,18 @@ def main():
             if os.path.splitext(os.path.basename(sf.path))[0].upper()
             == args.module.upper()]
     check7_static_docstrings(source_functions, out, args.verbose)
-    check8_log_trace_hygiene(source_functions, out, args.verbose)
+    missing_trace = check8_log_trace_hygiene(source_functions, out,
+                                              args.verbose)
+    check9_docstring_fields(source_functions, out, args.verbose)
 
-    n_errors = len(errors0) + len(errors1) + len(errors2) + len(errors3)
+    n_errors = (len(errors0) + len(errors1) + len(errors2) + len(errors3)
+                + len(errors10) + len(errors11))
     out.append('')
     out.append('=' * 78)
-    out.append('SUMMARY: %d error(s), %d alert(s) for manual review' %
-                (n_errors, len(alerts4)))
+    out.append('SUMMARY: %d error(s), %d alert(s) for manual review,'
+                ' %d missing tag(s) [2], %d missing LOG_TRACE [8]' %
+                (n_errors, len(alerts4), len(missing_tags),
+                 len(missing_trace)))
     out.append('=' * 78)
 
     print('\n'.join(out))

@@ -15,6 +15,9 @@
             case ST_DIR_NODE_T:     \
                 size = sizeof(dir_node_t);          \
                 break;              \
+            case ST_DIR_FLAT_T:     \
+                size = sizeof(dir_flat_entry_t);    \
+                break;              \
             default:                \
                 size = 0;           \
                 break;              \
@@ -26,7 +29,7 @@
  * Memory helpers - tracks allocated memory
  * ================================================================== */
 
-void* mem_alloc(st_object_t type, st_u32_t *sum)
+void* mem_alloc(st_object_t type, st_u32_t count, st_u32_t *sum)
 {
     void *p;
     st_bool_t   isRegistered;
@@ -50,7 +53,7 @@ void* mem_alloc(st_object_t type, st_u32_t *sum)
         return NULL;
     }
 
-    p = malloc(uiSize);
+    p = malloc(uiSize * count);
     if (p == NULL)
     {
         LOG_ERROR("malloc failed");

@@ -71,6 +71,8 @@ typedef enum st_bool_s
     ST_GUI_PTF_CTX     = 0x21u,
     ST_DIR_CTX         = 0x30u,
     ST_DIR_NODE_T      = 0x31u,
+	ST_DIR_FLAT_T	   = 0x32u,
+	ST_DIR_VIEW_T      = 0x33u,
     ST_MACHINE_CTX     = 0x50u,
     ST_CPU_CTX         = 0x51u,
     ST_LOAD_CTX        = 0x55u,
@@ -108,6 +110,7 @@ typedef struct st_obj_generic_s
         switch(type)                \
         {                           \
             case ST_DIR_NODE_T:     \
+			case ST_DIR_FLAT_T:		\
                 bOK = ST_TRUE;      \
                 break;              \
             default:                \
@@ -303,7 +306,7 @@ void platform_sleep_ms(unsigned int uiMs);
  * Returns:
  *   void* : A pointer to a newly allocated memory
  */
-void* mem_alloc(st_object_t type, st_u32_t *sum);
+void* mem_alloc(st_object_t type, st_u32_t count, st_u32_t *sum);
 
 /*
  * mem_free() - free given pointer and keep track of number of freed bytes

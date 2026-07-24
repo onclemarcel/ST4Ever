@@ -65,56 +65,11 @@ static const renderer_color_t g_dir_clrDD       = {0.95f, 0.90f, 0.10f, 1.0f};
                                      .eObject = ST_DIR_CTX};
 
 /* ------------------------------------------------------------------
- * Forward declarations (internal helpers)
+ * Local Defines
  * ------------------------------------------------------------------ */
 
-static void dir_build_prefix(const dir_flat_entry_t *ptEntry,
-                               char                   *szBuf,
-                               size_t                  uiMax);
-
-static void dir_get_parent_path(const char *szPath,
-                                  char       *szOut,
-                                  size_t      uiMax);
-
-static void dir_update_title(dir_view_t *ptView, gui_window_t hWnd);
-
-static void dir_scroll_to_sel(dir_view_t *ptView);
-static void dir_activate_sel(dir_view_t *ptView, gui_window_t hWnd);
-static void dir_navigate_up(dir_view_t *ptView, gui_window_t hWnd);
-
-/* P11: commit a file selection to the console + last-selected indicator
- * (shared by dir_activate_sel's ENTER path and dir_handle_key's SPACE) */
-static void dir_commit_file_selection(dir_view_t       *ptView,
-                                        const dir_node_t *ptNode);
-
-/* P10: nav history helpers */
-static void dir_nav_history_push(dir_view_t *ptView, const char *szNewPath);
-static void dir_navigate_to(dir_view_t  *ptView, const char *szNewPath,
-                              gui_window_t hWnd);
-
-/* P14: multi-selection helpers */
-static st_bool_t dir_is_multi_sel(const dir_view_t *ptView, const char *szPath);
-static void      dir_toggle_multi_sel(dir_view_t *ptView, const char *szPath);
-
-static void dir_render(dir_view_t *ptView);
-static void dir_handle_key(dir_view_t  *ptView,
-                             gui_window_t hWnd,
-                             gui_key_t    eKey,
-                             st_u8_t      uiMods);
-static void dir_handle_click(dir_view_t  *ptView,
-                               gui_window_t hWnd,
-                               int          iX,
-                               int          iY);
-static void dir_handle_scroll(dir_view_t  *ptView,
-                                gui_window_t hWnd,
-                                int          iDelta);
-
-static void dir_event_callback(gui_window_t  hWnd,
-                                 gui_event_t  *ptEvent,
-                                 void         *pUserCtx);
-
 #define DIR_REFRESH_MAX_EXP  256  /* max expanded dirs to remember     */
-
+#define SZ_DIR_VIEW_TITLE    "ST4Ever - Dir: %s"
 /* ==================================================================
  * Tree node helpers
  * ================================================================== */
@@ -146,6 +101,7 @@ static void dir_node_free_tree(dir_node_t *ptNode, st_bool_t bKeepNode)
 
     // No LOG_TRACE - R22: called recursively for each node suppression
 
+    /* silent return when sending an already NULL node here */
     if (ptNode == NULL)
     {
         return;
@@ -181,7 +137,9 @@ static void dir_node_free_tree(dir_node_t *ptNode, st_bool_t bKeepNode)
  *
  * This helper is currently called by:
  * - dir_refresh_tree() - run when F5 or 'H' refresh the view (phase 3)
- * - dir_handle_key() - run when expanding a node with RIGHT key
+ * - dir_reexpand_path() - run while re-expanding a path after refresh
+ * - dir_navigate_to()  - run when navigating to a new root folder
+ * - dir_activate_sel() - run when expanding a node
  * - dir_open() - run when opening the root children
  *
  */
@@ -191,6 +149,8 @@ static st_error_t dir_node_load_children(dir_node_t *ptNode,
     dir_node_t *ptLast;
     dir_node_t *ptChild;
 
+    LOG_TRACE("ptNode=%p - bShowHidden=%d", (void*)ptNode, bShowHidden);
+    
     /* -- [DIR]48. A NULL node returns an error -- */
     if (ptNode == NULL)
     {
@@ -238,7 +198,7 @@ static st_error_t dir_node_load_children(dir_node_t *ptNode,
                 if (iPass == 0 && !bIsDir) continue;
                 if (iPass == 1 &&  bIsDir) continue;
 
-                ptChild = (dir_node_t*)mem_alloc(ST_DIR_NODE_T, 
+                ptChild = (dir_node_t*)mem_alloc(ST_DIR_NODE_T, 1,
                                            &g_dir_ptCtx.uiAllocObjs[ST_DIR_NODE_T]);
                 if (ptChild == NULL)
                 {
@@ -306,6 +266,8 @@ static void dir_collect_expanded(dir_node_t *ptNode,
 {
     dir_node_t *ptChild;
 
+    // No LOG_TRACE - R22: recursive function
+
     /* -- [DIR]51. Do nothing in case of NULL parameter or negative iMaxPaths -- */
     if (ptNode == NULL || aaszPaths == NULL
     ||  piCount == NULL || iMaxPaths <= 0)
@@ -368,6 +330,8 @@ static void dir_reexpand_path(dir_node_t *ptRoot,
     size_t      uiLen;
     dir_node_t *ptNode;
     dir_node_t *ptChild;
+
+    // No LOG_TRACE - R22 : only called by one caller, already tracing the path
 
     /* -- [DIR]53. dir_reexpand_path rejects a NULL ptRoot or szPath -- */
     if (ptRoot == NULL || szPath == NULL) return;
@@ -453,6 +417,8 @@ static void dir_refresh_tree(dir_view_t *ptView)
     int         iIdx;
     dir_node_t *ptNode;
 
+    LOG_TRACE("ptView=%p", (void*)ptView);
+    
     if (ptView == NULL || ptView->ptRoot == NULL)
     {
         return;
@@ -502,8 +468,8 @@ static void dir_refresh_tree(dir_view_t *ptView)
  * This helper is currently called by:
  *  - dir_open() - run GUI is open on root node
  *  - dir_navigate_to() - run when navigating to new root
- *  - dir_activate_sel() - run when a folder is selected
- *  - dir_handle_key() - run when F5 or 'H'/'h' or LEFT/RIGHT is pressed
+ *  - dir_activate_sel() - run when a folder is selected for expand/collapse
+ *  - dir_handle_key() - run when F5 or 'H'/'h' is pressed
  *      
  */
 static void dir_flat_rebuild(dir_view_t *ptView,
@@ -517,9 +483,22 @@ static void dir_flat_rebuild(dir_view_t *ptView,
     dir_flat_entry_t *ptEntry;
     st_u32_t          uiChildMask;
 
-    if (ptView == NULL || ptView->aptFlat == NULL) return;
+    LOG_TRACE("ptView=%p & ptNode=%p", (void*)ptView, (void*)ptNode);
     
-    if (ptView->iFlatCount >= DIR_FLAT_MAX) return;
+    /* -- [DIR]36. Log an error when parameter is NULL -- */
+	if (ptView == NULL || ptView->aptFlat == NULL || ptNode == NULL)
+	{
+		LOG_ERROR("NULL Parameter ptView=%p, ptNode=%p", (void*)ptView,
+														 (void*)ptNode);
+		return;
+	}
+
+    /* -- [DIR]47. Log an error when max size if reached in flat rendering array -- */
+	if (ptView->iFlatCount >= DIR_FLAT_MAX) 
+	{
+		LOG_ERROR("Max flat entries for rendering is reached");
+		return;
+	}
 
     /* -- [DIR]55. recursively walks the expanded tree in depth-first order -- */
     /* Add to flat list — skip root node itself (depth == -1) */
@@ -579,18 +558,13 @@ static void dir_flat_rebuild(dir_view_t *ptView,
 /* ==================================================================
  * ASCII prefix generation
  * ================================================================== */
-
 /*
  * dir_build_prefix() - Build the ASCII tree prefix for a flat entry.
  *
- * Result format example for depth 2, not-last, parent-0 was not-last,
- * parent-1 was last:
- *   "|       +-- "   (8 + 4 = 12 chars, but depth=2 → "|   " "    " "+-- ")
- *   Actually: depth=2 → loop i=0,1 then connector:
- *     i=0: bit0 of uiLastMask=0 → "|   "
- *     i=1: bit1 of uiLastMask=1 → "    "
- *     connector: "+-- "
- *   Result: "|       +-- "  (12 chars before name)
+ * Examples of ASCII Tree connector:
+ *   - for a file into a folder "|       +-- "  (8 + 4 = 12 chars)
+ *   - for the last file =>     "|       +-- "  (12 chars before name)
+ *   - for a root entry : 		"+-- "          (4 chars before name)
  *
  * Parameters:
  *   ptEntry [IN]  : flat entry (iDepth/bLastSibling/uiLastMask) to render
@@ -599,8 +573,11 @@ static void dir_flat_rebuild(dir_view_t *ptView,
  *
  * Returns:
  *   Void - None
+ *
+ * This helper is currently called by:
+ *  - dir_render() - run during the GUI rendering of the flat entries
+ *
  */
-/* -- [DIR]56. dir_build_prefix builds the ASCII tree connector prefix (vertical continuation bars + branch connector) for one flat entry -- */
 static void dir_build_prefix(const dir_flat_entry_t *ptEntry,
                                char                   *szBuf,
                                size_t                  uiMax)
@@ -609,7 +586,9 @@ static void dir_build_prefix(const dir_flat_entry_t *ptEntry,
 
     szBuf[0] = '\0';
 
-    /* Continuation lines for each ancestor level */
+    // No LOG_TRACE - R22: called by renderering function
+
+    /* -- [DIR]50. Add an ASCII continuous line for files in depths -- */
     for (i = 0; i < ptEntry->iDepth; i++)
     {
         if (ptEntry->uiLastMask & (1u << (unsigned)i))
@@ -618,7 +597,7 @@ static void dir_build_prefix(const dir_flat_entry_t *ptEntry,
             strncat(szBuf, "|   ", uiMax - strlen(szBuf) - 1);
     }
 
-    /* Connector to this entry */
+    /* -- [DIR]56. Add an ASCII tree connector prefix per flat entry -- */
     if (ptEntry->bLastSibling)
         strncat(szBuf, "\\-- ", uiMax - strlen(szBuf) - 1);
     else
@@ -628,7 +607,6 @@ static void dir_build_prefix(const dir_flat_entry_t *ptEntry,
 /* ==================================================================
  * Path helpers
  * ================================================================== */
-
 /*
  * dir_get_parent_path() - Compute the parent directory of szPath.
  *
@@ -638,15 +616,13 @@ static void dir_build_prefix(const dir_flat_entry_t *ptEntry,
  *   uiMax  [IN]  : size of szOut in bytes
  *
  * Returns:
- *   Void - None (szOut == szPath's trailing component stripped; szOut
- *   is left equal to szPath when szPath is already a filesystem root -
- *   callers such as dir_navigate_up() detect that by comparing the two)
+ *   Void - None
+ *
+ * This helper is currently called by:
+ *  - dir_navigate_up() - run when navigating to parent dir
+ *
  */
-/* -- [DIR]57. dir_get_parent_path strips the trailing separator and truncates at the last path separator to compute the parent directory -- */
-/* This helper is currently called by:
- *  - dir_navigate_up() ([DIR]62) - tested via ENTER on the ".." row
- *    (TC-DIR-077..080), which always goes from a directory nested
- *    several levels under the project root to its immediate parent */
+ 
 static void dir_get_parent_path(const char *szPath,
                                   char       *szOut,
                                   size_t      uiMax)
@@ -655,9 +631,12 @@ static void dir_get_parent_path(const char *szPath,
     char  *p;
     size_t uiLen;
 
+    // No LOG_TRACE - R22: only called once by its parent, tracing the call
+
     strncpy(szOut, szPath, uiMax - 1);
     szOut[uiMax - 1] = '\0';
 
+    /* -- [DIR]57. Compute the parent directory -- */
     /* Strip trailing separator */
     uiLen = strlen(szOut);
     while (uiLen > 1
@@ -675,7 +654,7 @@ static void dir_get_parent_path(const char *szPath,
 
     if (pLastSep == NULL) return; /* already at root */
 
-    /* -- [DIR]58. dir_get_parent_path: drive-root (C:\) and Unix-root (/) special cases stop the parent computation at the filesystem root -- */
+    /* -- [DIR]58. drive-root (C:\) and Unix-root (/) special cases -- */
 #ifdef ST_PLATFORM_WINDOWS
     /* "C:\folder" → "C:\" — keep trailing separator at drive root */
     if (pLastSep == szOut + 2 && szOut[1] == ':')
@@ -694,29 +673,111 @@ static void dir_get_parent_path(const char *szPath,
     *pLastSep = '\0';
 }
 
-/*
- * dir_update_title() - Refresh the window title from the current root (R18).
- *
- * Parameters:
- *   ptView [IN] : view whose szRootPath supplies the title text
- *   hWnd   [IN] : window whose title bar is updated
- *
- * Returns:
- *   Void - None
- */
-/* -- [DIR]59. dir_update_title sets the window title to 'ST4Ever - Dir: <root path>' (R18) -- */
-static void dir_update_title(dir_view_t *ptView, gui_window_t hWnd)
-{
-    char szTitle[ST_MAX_PATH + 32];
-
-    snprintf(szTitle, sizeof(szTitle),
-             "ST4Ever - Dir: %s", ptView->szRootPath);
-    gui_set_title(hWnd, szTitle);
-}
-
 /* ==================================================================
  * Navigation / selection helpers  (called from window thread)
  * ================================================================== */
+/*
+ * dir_compute_visible_rows() - Compute the number of visible rows
+ *
+ * Parameters:
+ *   ptView [IN/OUT] : The view from which visible rows are calculated
+ *
+ * Returns:
+ *   st_u32_t : the number of visible rows in current ptView
+ *
+ * This helper is currently called by:
+ *  - dir_compute_max_scrollable_rows() - run on computation of scrollable rows
+ *  - dir_scroll_to_sel() - run when navigating UP/DOWN
+ *  - dir_render() - run on each GUI view repaint
+ *  - dir_handle_key() - run on PAGE_UP/PAGE_DOWN key pressed
+ *
+ */
+static st_u32_t dir_compute_visible_rows(dir_view_t *ptView)
+{
+    int iVisRows;
+
+    // No LOG_TRACE - R22: called by renderering function
+
+    /* -- [DIR]79. Log an error in case of NULL Parameter -- */
+    if (ptView == NULL)
+    {
+        LOG_ERROR("NULL parameter");
+        return 0;
+    }
+
+    /* -- [DIR]80. Compute number of visible rows from view cells height -- */
+    iVisRows   = ptView->iWndHeight / ptView->iCellH;
+    if (iVisRows < 1) iVisRows = 1;
+    return iVisRows;
+}
+
+/*
+ * dir_compute_max_scrollable_rows() - Compute the maximum scrollable rows
+ *                                     from the currently visible rows and
+ *                                     the flat entries coount to be rendered
+ *
+ * Parameters:
+ *   ptView [IN/OUT] : The view from which visible rows are calculated
+ *
+ * Returns:
+ *   st_u32_t : the max number of reachable rows by scrolling
+ *
+ * This helper is currently called by:
+ *  - dir_scroll_clamp_min_max() - run when clamping the scroll offset
+ *  - dir_handle_key() - run on END key pressed
+ *
+ */
+static st_u32_t dir_compute_max_scrollable_rows(dir_view_t *ptView)
+{
+    int iMaxScroll;
+    
+    LOG_TRACE("ptView=%p", (void*)ptView);
+
+    /* -- [DIR]81. Log an error in case of NULL Parameter -- */
+    if (ptView == NULL)
+    {
+        LOG_ERROR("NULL parameter");
+        return 0;
+    }
+
+    /* -- [DIR]82. Compute the maximum scrollable rows from visible rows -- */
+    iMaxScroll = ptView->iFlatCount + 1 - dir_compute_visible_rows(ptView);
+    if (iMaxScroll < 0) iMaxScroll = 0;
+    return iMaxScroll;
+}
+
+/*
+ * dir_scroll_clamp_min_max() - Clamp min and max scroll value
+ *
+ * Parameters:
+ *   ptView [IN/OUT] : The view from which visible rows are calculated
+ *
+ * Returns:
+ *   void - None
+ *
+ * This helper is currently called by:
+ *  - dir_scroll_to_sel() - run when navigating UP/DOWN
+ *  - dir_handle_key() - run on PAGE_UP/PAGE_DOWN key pressed
+ *  - dir_handle_scroll() - run on mouse scrolls
+ *
+ */
+static void dir_scroll_clamp_min_max(dir_view_t *ptView)
+{
+    int iMaxScroll = dir_compute_max_scrollable_rows(ptView);
+    
+    LOG_TRACE("ptView=%p", (void*)ptView);
+
+    /* -- [DIR]83. Log an error in case of NULL Parameter -- */
+    if (ptView == NULL)
+    {
+        LOG_ERROR("NULL parameter");
+        return;
+    }
+
+    /* -- [DIR]84. Clamp min/max scroll offsets in ptView structure -- */
+    if (ptView->iScrollOffset > iMaxScroll) ptView->iScrollOffset = iMaxScroll;
+    if (ptView->iScrollOffset < 0)          ptView->iScrollOffset = 0;
+}
 
 /*
  * dir_scroll_to_sel() - Scroll just enough to keep iSelectedFlat visible.
@@ -726,28 +787,31 @@ static void dir_update_title(dir_view_t *ptView, gui_window_t hWnd)
  *
  * Returns:
  *   Void - None
+ *
+ * This helper is currently called by:
+ *  - dir_activate_sel() - run when expanding/collapsing the selected dir
+ *  - dir_handle_key() - run on UP/DOWN/PAGE_UP/PAGE_DOWN key pressed
+ *
  */
 static void dir_scroll_to_sel(dir_view_t *ptView)
 {
     int iSelRow;
-    int iVisRows;
-    int iMaxScroll;
-    int iTotalRows;
+    int iVisRows   = dir_compute_visible_rows(ptView);
 
-    /* -- [DIR]60. dir_scroll_to_sel: a non-positive iCellH (renderer not yet created) is a silent no-op -- */
-    if (ptView->iCellH <= 0) return;
+    LOG_TRACE("ptView=%p", (void*)ptView);
 
-    iTotalRows = ptView->iFlatCount + 1; /* +1 for ".." */
-    iVisRows   = ptView->iWndHeight / ptView->iCellH;
-    if (iVisRows < 1) iVisRows = 1;
-    iMaxScroll = iTotalRows - iVisRows;
-    if (iMaxScroll < 0) iMaxScroll = 0;
+    /* -- [DIR]60. Log an error on non-positive iCellH (renderer not yet created) -- */
+    if (ptView->iCellH <= 0) 
+	{
+		LOG_ERROR("non-positive iCellH - renderer not yet created ?");
+		return;
+	}
 
     /* Convert iSelectedFlat to row index */
-    iSelRow = (ptView->iSelectedFlat == -1) ? 0
-                                             : ptView->iSelectedFlat + 1;
+    iSelRow = (ptView->iSelectedFlat == DIR_FLAT_PARENT_SELECTED) ? 0
+                                          : ptView->iSelectedFlat + 1;
 
-    /* -- [DIR]61. dir_scroll_to_sel scrolls iScrollOffset up or down just enough to keep the selected row visible -- */
+    /* -- [DIR]61. iScrollOffset up or down just enough to keep the selected row visible -- */
     if (iSelRow < ptView->iScrollOffset)
     {
         ptView->iScrollOffset = iSelRow;
@@ -757,23 +821,42 @@ static void dir_scroll_to_sel(dir_view_t *ptView)
         ptView->iScrollOffset = iSelRow - iVisRows + 1;
     }
 
-    if (ptView->iScrollOffset > iMaxScroll)
-        ptView->iScrollOffset = iMaxScroll;
-    if (ptView->iScrollOffset < 0)
-        ptView->iScrollOffset = 0;
+    dir_scroll_clamp_min_max(ptView);
 }
 
-/* -- [DIR]39. dir_nav_history_push: appends a new path to the navigation history, truncating any forward entries -- */
-/* P10: push szNewPath onto the navigation history, truncating forward
- * entries.  If the history is full, the oldest entry is evicted. */
+/* ==================================================================
+ * Navigation History helpers
+ * ================================================================== */
+/*
+ * dir_nav_history_push() - Push szNewPath onto the navigation history
+ *                           (P10), truncating forward entries.
+ *
+ * If the history is full, the oldest entry is evicted (ring shifted
+ * left by one).
+ *
+ * Parameters:
+ *   ptView    [IN/OUT] : view whose aszNavHistory[]/iNavHistHead/
+ *                         iNavHistCount are updated in place
+ *   szNewPath [IN]     : path to push as the new history head
+ *
+ * Returns:
+ *   Void - None
+ *
+ * This helper is currently called by:
+ *  - dir_navigate_up() - run when navigating to the parent dir ("..")
+ *
+ */
 static void dir_nav_history_push(dir_view_t *ptView, const char *szNewPath)
 {
     int iNewHead;
     int i;
 
+    // No LOG_TRACE - R22: Called only once by parent, already tracing the call
+
     /* Truncate forward history beyond current head */
     iNewHead = ptView->iNavHistHead + 1;
 
+    /* -- [DIR]39. Appends a new path to the navigation history -- */
     if (iNewHead >= DIR_NAV_HIST_MAX)
     {
         /* Evict oldest entry (shift the ring left by one) */
@@ -792,14 +875,38 @@ static void dir_nav_history_push(dir_view_t *ptView, const char *szNewPath)
     ptView->iNavHistCount = iNewHead + 1;
 }
 
+/*
+ * dir_navigate_to() - Replace the view's tree root with szNewPath.
+ *
+ * Allocates a new root node and loads its children before freeing the
+ * old tree, so ptView->ptRoot stays valid throughout. Resets the flat
+ * render list, scroll and selection state, and updates the window
+ * title (R18).
+ *
+ * Parameters:
+ *   ptView    [IN/OUT] : view whose root/flat-list/selection are reset
+ *   szNewPath [IN]     : new root path to navigate to
+ *   hWnd      [IN]     : window handle, forwarded to gui_set_title()
+ *
+ * Returns:
+ *   Void - None
+ *
+ * This helper is currently called by:
+ *  - dir_navigate_up() - run when navigating to the parent dir ("..")
+ *  - dir_handle_key() - run on ALT+LEFT/RIGHT (P10 navigation history)
+ *
+ */
 static void dir_navigate_to(dir_view_t  *ptView,
                               const char  *szNewPath,
                               gui_window_t hWnd)
 {
     dir_node_t *ptNewRoot;
+	char        szTitle[ST_MAX_PATH + 32];
+
+    LOG_TRACE("ptView=%p to %s", (void*)ptView, szNewPath);
 
     /* -- [DIR]38. Navigates the tree root to a new path and free the old tree -- */
-    ptNewRoot = (dir_node_t*)mem_alloc(ST_DIR_NODE_T, 
+    ptNewRoot = (dir_node_t*)mem_alloc(ST_DIR_NODE_T, 1,
                                         &g_dir_ptCtx.uiAllocObjs[ST_DIR_NODE_T]);
     if (ptNewRoot == NULL)
     {
@@ -825,10 +932,12 @@ static void dir_navigate_to(dir_view_t  *ptView,
 
     ptView->iFlatCount    = 0;
     ptView->iScrollOffset = 0;
-    ptView->iSelectedFlat = -1;
+    ptView->iSelectedFlat = DIR_FLAT_PARENT_SELECTED;
     dir_flat_rebuild(ptView, ptView->ptRoot, -1, ST_FALSE, 0u);
 
-    dir_update_title(ptView, hWnd);
+   	/* -- [DIR]59. Sets the window title to 'ST4Ever - Dir: <root path>' (R18) -- */
+	snprintf(szTitle, sizeof(szTitle), SZ_DIR_VIEW_TITLE, ptView->szRootPath);
+    gui_set_title(hWnd, szTitle);
 }
 
 /*
@@ -840,15 +949,17 @@ static void dir_navigate_to(dir_view_t  *ptView,
  *
  * Returns:
  *   Void - None
+ *
+ * This helper is currently called by:
+ *  - dir_activate_sel() - run when ENTER Key on ".."
  */
-/* -- [DIR]62. dir_navigate_up computes the parent path and navigates the tree to it, unless already at the filesystem root -- */
-/* This helper is currently called by:
- *  - dir_activate_sel() ([DIR]10) - tested via ENTER on the ".." row
- *    (TC-DIR-077..080) */
 static void dir_navigate_up(dir_view_t *ptView, gui_window_t hWnd)
 {
     char szParent[ST_MAX_PATH];
 
+    LOG_TRACE("ptView=%p", (void*)ptView);
+
+    /* -- [DIR]62. Computes the parent path and navigates up, unless already at the root -- */
     dir_get_parent_path(ptView->szRootPath, szParent, sizeof(szParent));
     if (strcmp(szParent, ptView->szRootPath) == 0)
         return; /* already at filesystem root */
@@ -870,15 +981,17 @@ static void dir_navigate_up(dir_view_t *ptView, gui_window_t hWnd)
  * Returns:
  *   ST_TRUE  if szPath is currently multi-selected
  *   ST_FALSE otherwise
+ *
+ * This helper is currently called by:
+ *  - dir_render() - run on each rendering call (e.g. Repaint event)
  */
-/* -- [DIR]63. dir_is_multi_sel reports whether szPath is currently present in the multi-selection set -- */
-/* This helper is currently called by:
- *  - dir_render() ([DIR]25) - tested via the purple background layer
- *    assertions (TC-DIR-087, TC-DIR-090) */
-/* P14: check if szPath is in the multi-selection set */
 static st_bool_t dir_is_multi_sel(const dir_view_t *ptView, const char *szPath)
 {
     int i;
+
+    // No LOG_TRACE - R22: called by renderering function
+
+    /* -- [DIR]63. Reports whether szPath is currently in the multi-selection set -- */
     for (i = 0; i < ptView->iMultiSelCount; i++)
     {
         if (strcmp(ptView->aszMultiSel[i], szPath) == 0)
@@ -887,13 +1000,29 @@ static st_bool_t dir_is_multi_sel(const dir_view_t *ptView, const char *szPath)
     return ST_FALSE;
 }
 
-/* -- [DIR]40. dir_toggle_multi_sel: adds a path to the multi-selection set, or removes it if already present -- */
-/* P14: toggle szPath in/out of the multi-selection set */
+/*
+ * dir_toggle_multi_sel() - Add szPath to the multi-selection set (P14),
+ *                          or remove it if already present.
+ *
+ * Parameters:
+ *   ptView [IN/OUT] : view whose aszMultiSel[]/iMultiSelCount is updated
+ *   szPath [IN]     : path to add or remove
+ *
+ * Returns:
+ *   Void - None
+ *
+ * This helper is currently called by:
+ *  - dir_handle_key() - run on CTRL+SPACE (P14 multi-selection toggle)
+ *
+ */
 static void dir_toggle_multi_sel(dir_view_t *ptView, const char *szPath)
 {
     int i;
     int j;
 
+    LOG_TRACE("ptView=%p - Toggle on %s", (void*)ptView, szPath);
+
+    /* -- [DIR]40. Adds szPath to the multi-selection set, or removes it if already present -- */
     for (i = 0; i < ptView->iMultiSelCount; i++)
     {
         if (strcmp(ptView->aszMultiSel[i], szPath) == 0)
@@ -910,6 +1039,8 @@ static void dir_toggle_multi_sel(dir_view_t *ptView, const char *szPath)
         }
     }
 
+
+    /* -- [DIR]85. Multi-selection is limited to DIR_MULTI_SEL_MAX -- */
     if (ptView->iMultiSelCount < DIR_MULTI_SEL_MAX)
     {
         strncpy(ptView->aszMultiSel[ptView->iMultiSelCount],
@@ -919,30 +1050,82 @@ static void dir_toggle_multi_sel(dir_view_t *ptView, const char *szPath)
     }
 }
 
-/* -- [DIR]31. writes selected file path to the console selection -- */
-/* P11: commit a file selection to the console + last-selected indicator
- * (shared by dir_activate_sel's ENTER path and dir_handle_key's SPACE) */
+/*
+ * dir_commit_file_selection() - Commit a file selection to the console
+ *                                + last-selected indicator (P11).
+ *
+ * Shared by dir_activate_sel()'s ENTER path and dir_handle_key()'s
+ * SPACE path. A no-op if no 'dir' console command is currently running
+ * (bIsLineRunning == ST_FALSE, e.g. this view outlived its console
+ * command).
+ *
+ * Parameters:
+ *   ptView [IN/OUT] : view whose szLastSelected is updated
+ *   ptNode [IN]     : file node being selected
+ *
+ * Returns:
+ *   Void - None
+ *
+ * This helper is currently called by:
+ *  - dir_activate_sel() - run on ENTER over a file entry
+ *  - dir_handle_key() - run on SPACE over a file entry
+ *
+ */
 static void dir_commit_file_selection(dir_view_t       *ptView,
-                                        const dir_node_t *ptNode)
+                                      const dir_node_t *ptNode)
 {
     if (!ptView->bIsLineRunning) return;
 
+    LOG_TRACE("ptView=%p - ptNode=%p", (void*)ptView, (void*)ptNode);
+
+    /* -- [DIR]31. Writes the selected file path to the console selection -- */
     line_set_selected(ptNode->szPath);
     strncpy(ptView->szLastSelected, ptNode->szPath, ST_MAX_PATH - 1);
     ptView->szLastSelected[ST_MAX_PATH - 1] = '\0';
     LOG_INFO("dir: selected '%s'", ptNode->szPath);
 }
 
-static void dir_activate_sel(dir_view_t *ptView, gui_window_t hWnd)
+/*
+ * dir_activate_sel() - Activate the currently selected row.
+ *
+ * Dispatches on the kind of row currently selected (ptView->
+ * iSelectedFlat): the ".." row navigates to the parent dir, a
+ * directory entry expands/collapses (subject to eType forcing one
+ * direction only), a file entry commits the selection to the console
+ * (P11) unless eType requests a collapse/expand (LEFT/RIGHT on a
+ * file is a no-op). A no-op if nothing is selected.
+ *
+ * Parameters:
+ *   ptView [IN/OUT] : view acted upon
+ *   hWnd   [IN]     : window handle, forwarded to dir_navigate_up()
+ *   eType  [IN]     : DIR_SELECT_TOGGLE/COLLAPSE/EXPAND - requested
+ *                      direction for a directory entry
+ *
+ * Returns:
+ *   Void - None
+ *
+ * This helper is currently called by:
+ *  - dir_handle_click() - run on left-click over a directory entry
+ *  - dir_handle_key() - run on ENTER/LEFT/RIGHT
+ *
+ */
+static void dir_activate_sel(dir_view_t *ptView, gui_window_t hWnd,
+												dir_selection_type_t eType)
 {
     dir_flat_entry_t *ptEntry;
     dir_node_t       *ptNode;
 
-    /* -- [DIR]64. dir_activate_sel: iSelectedFlat == -2 ('nothing selected') is a silent no-op -- */
-    if (ptView->iSelectedFlat == -2) return; /* nothing selected */
+    LOG_TRACE("ptView=%p - eType=%d", (void*)ptView, eType);
 
-    /* -- [DIR]10. dir_activate_sel: ".." row navigates to the parent directory -- */
-    if (ptView->iSelectedFlat == -1)
+    /* -- [DIR]64. 'nothing selected' logs an error, should not happen -- */
+    if (ptView->iSelectedFlat == DIR_FLAT_NOT_SELECTED) 
+	{
+        LOG_ERROR("iSelectedFlat is 'Not Selected'");
+        return; /* nothing selected */
+	}
+
+    /* -- [DIR]10. ".." row navigates to the parent directory -- */
+    if (ptView->iSelectedFlat == DIR_FLAT_PARENT_SELECTED)
     {
         dir_navigate_up(ptView, hWnd);
         return;
@@ -951,20 +1134,24 @@ static void dir_activate_sel(dir_view_t *ptView, gui_window_t hWnd)
     ptEntry = &ptView->aptFlat[ptView->iSelectedFlat];
     ptNode  = ptEntry->ptNode;
 
-    /* -- [DIR]11. dir_activate_sel: directory entry toggles expand/collapse -- */
+    /* -- [DIR]11. directory entry toggles expand/collapse -- */
     if (ptNode->bIsDir)
     {
-        if (ptNode->bExpanded == ST_TRUE)
+        if (ptNode->bExpanded == ST_TRUE) 
         {
-            ptNode->bExpanded = ST_FALSE;
+            if (eType != DIR_SELECT_EXPAND) 
+				ptNode->bExpanded = ST_FALSE;
         }
         else
         {
-            if (ptNode->bChildrenLoaded == ST_FALSE)
-            {
-                dir_node_load_children(ptNode, ptView->bShowHidden);
-            }
-            ptNode->bExpanded = ST_TRUE;
+            if (eType != DIR_SELECT_COLLAPSE)
+			{
+				if (ptNode->bChildrenLoaded == ST_FALSE)
+				{
+					dir_node_load_children(ptNode, ptView->bShowHidden);
+				}
+				ptNode->bExpanded = ST_TRUE;
+			}
         }
         ptView->iFlatCount = 0;
         dir_flat_rebuild(ptView, ptView->ptRoot, -1, ST_FALSE, 0u);
@@ -972,23 +1159,46 @@ static void dir_activate_sel(dir_view_t *ptView, gui_window_t hWnd)
     }
     else
     {
-        /* -- [DIR]12. dir_activate_sel: file entry commits selection (P11) -- */
+        /* -- [DIR]12. file entry commits selection (P11) -- */
         /* File: update console selection (mutex-safe, UC4.3) */
-        dir_commit_file_selection(ptView, ptNode);
+        if (eType != DIR_SELECT_COLLAPSE 	// LEFT Key
+		    && eType != DIR_SELECT_EXPAND)  // RIGHT Key
+		{
+			dir_commit_file_selection(ptView, ptNode);
+		}
     }
 }
 
 /* ==================================================================
  * Rendering
  * ================================================================== */
-
+/*
+ * dir_render() - Redraw the whole dir view (D2D).
+ *
+ * Draws the visible window of the flat entry list (".." row first),
+ * one row per RENDERER_FONT_MONO cell height, layering three optional
+ * backgrounds per row (P11 last-committed selection in green, P14
+ * multi-selection in purple, keyboard cursor in blue) under the
+ * ASCII-tree-prefixed name. A no-op if the renderer isn't created yet
+ * or iCellH is non-positive.
+ *
+ * Parameters:
+ *   ptView [IN] : view to render
+ *
+ * Returns:
+ *   Void - None
+ *
+ * This helper is currently called by:
+ *  - dir_event_callback() - run on GUI_EVT_PAINT
+ *
+ */
 static void dir_render(dir_view_t *ptView)
 {
     renderer_rect_t   tRect;
     char              szLine[ST_MAX_PATH + 320]; /* prefix+deco+name */
     char              szPrefix[256];
     int               iRow;
-    int               iVisRows;
+    int               iVisRows = dir_compute_visible_rows(ptView);
     int               iTotalRows;
     int               iY;
     int               iEntryIdx;
@@ -996,14 +1206,16 @@ static void dir_render(dir_view_t *ptView)
     st_bool_t         bLastSel;
     dir_flat_entry_t *ptEntry;
 
-    /* -- [DIR]65. dir_render: a NULL hRenderer (D2D creation failure) or non-positive iCellH is a silent no-op -- */
+    // No LOG_TRACE - R22: The renderering function is called on every repaint
+
+    /* -- [DIR]65. A NULL hRenderer (D2D creation failure) or non-positive iCellH is a no-op -- */
     if (ptView->hRenderer == NULL || ptView->iCellH <= 0) return;
 
     renderer_begin_draw(ptView->hRenderer, &g_dir_clrBg);
 
     iTotalRows = ptView->iFlatCount + 1;
-    iVisRows   = ptView->iWndHeight / ptView->iCellH;
-
+    
+    /* -- [DIR]86. Send all the visible rows to the GUI renderer -- */
     for (iRow = ptView->iScrollOffset;
          iRow < iTotalRows
          && (iRow - ptView->iScrollOffset) < iVisRows;
@@ -1029,7 +1241,7 @@ static void dir_render(dir_view_t *ptView)
             }
         }
 
-        /* -- [DIR]24. dir_render: P11 green background marks the last committed selection -- */
+        /* -- [DIR]24. P11 green background marks the last committed selection -- */
         /* Layer 1 (bottom): P11 green — last committed selection */
         if (bLastSel == ST_TRUE)
         {
@@ -1041,7 +1253,7 @@ static void dir_render(dir_view_t *ptView)
                                &g_dir_clrLastSel);
         }
 
-        /* -- [DIR]25. dir_render: P14 purple background marks multi-selected files -- */
+        /* -- [DIR]25. P14 purple background marks multi-selected files -- */
         /* Layer 2 (middle): P14 purple — multi-selected files */
         if (iRow > 0)
         {
@@ -1074,7 +1286,7 @@ static void dir_render(dir_view_t *ptView)
         tRect.fW = (float)(ptView->iWndWidth - 4);
         tRect.fH = (float)ptView->iCellH;
 
-        /* -- [DIR]27. dir_render: rows are drawn as ".." / "[+/-] dir/" / file name -- */
+        /* -- [DIR]27. Rows are drawn as ".." / "[+/-] dir/" / file name -- */
         if (iRow == 0)
         {
             renderer_draw_text(ptView->hRenderer, "..", &tRect,
@@ -1114,57 +1326,58 @@ static void dir_render(dir_view_t *ptView)
 /* ==================================================================
  * Event handlers  (all run on the window thread)
  * ================================================================== */
-
+/*
+ * dir_handle_key() - Dispatch a keyboard event to the dir view.
+ *
+ * UP/DOWN move the cursor, PAGE_UP/PAGE_DOWN/HOME/END scroll, ENTER
+ * activates the selection, SPACE selects a file (CTRL+SPACE toggles
+ * multi-selection, P14/P60), LEFT/RIGHT collapse/expand a directory
+ * (ALT+LEFT/RIGHT instead walk the P10 navigation history), ESCAPE
+ * requests a non-blocking close (P9), F5 refreshes the tree (P22),
+ * 'H'/'h' toggles hidden-file visibility (P21). A no-op if iCellH is
+ * non-positive (renderer not yet created).
+ *
+ * Parameters:
+ *   ptView  [IN/OUT] : view acted upon
+ *   hWnd    [IN]     : window handle, forwarded to dir_navigate_to()/
+ *                       dir_navigate_up()/gui_request_close()
+ *   eKey    [IN]     : key that was pressed
+ *   uiMods  [IN]     : modifier bitmask (GUI_MOD_CTRL/GUI_MOD_ALT)
+ *
+ * Returns:
+ *   Void - None
+ *
+ * This helper is currently called by:
+ *  - dir_event_callback() - run on GUI_EVT_KEY_DOWN
+ *
+ */
 static void dir_handle_key(dir_view_t  *ptView,
                              gui_window_t hWnd,
                              gui_key_t    eKey,
                              st_u8_t      uiMods)
 {
-    int       iVisRows;
-    int       iTotalRows;
-    int       iMaxScroll;
-    int       iMaxSel;
+    int       iVisRows   = dir_compute_visible_rows(ptView);
     st_bool_t bRedraw;
 
-    /* -- [DIR]66. dir_handle_key: a non-positive iCellH (renderer not yet created) is a silent no-op -- */
+    LOG_TRACE("eKey=%d - uiMods=%d", eKey, uiMods);
+
+    /* -- [DIR]66. A non-positive iCellH (renderer not yet created) is a silent no-op -- */
     if (ptView->iCellH <= 0) return;
 
-    iTotalRows = ptView->iFlatCount + 1;
-    iVisRows   = ptView->iWndHeight / ptView->iCellH;
-    if (iVisRows < 1) iVisRows = 1;
-    iMaxScroll = iTotalRows - iVisRows;
-    if (iMaxScroll < 0) iMaxScroll = 0;
-    iMaxSel    = ptView->iFlatCount - 1; /* max flat index */
     bRedraw    = ST_FALSE;
 
     switch (eKey)
     {
-    /* -- [DIR]13. dir_handle_key: UP/DOWN move the cursor selection -- */
     case GUI_KEY_UP:
+        /* -- [DIR]13. UP moves the cursor selection -- */
         if (ptView->iSelectedFlat > -1)
         {
             ptView->iSelectedFlat--;
             dir_scroll_to_sel(ptView);
             bRedraw = ST_TRUE;
         }
-        /* -- [DIR]67. dir_handle_key: UP recovers from the dead iSelectedFlat == -2 sentinel by selecting the last entry -- */
-        else if (ptView->iSelectedFlat == -2 && iTotalRows > 0)
-        {
-            ptView->iSelectedFlat = iMaxSel;
-            dir_scroll_to_sel(ptView);
-            bRedraw = ST_TRUE;
-        }
-        break;
-
-    case GUI_KEY_DOWN:
-        if (ptView->iSelectedFlat < iMaxSel)
-        {
-            ptView->iSelectedFlat++;
-            dir_scroll_to_sel(ptView);
-            bRedraw = ST_TRUE;
-        }
-        /* -- [DIR]68. dir_handle_key: DOWN recovers from the dead iSelectedFlat == -2 sentinel by selecting the '..' row -- */
-        else if (ptView->iSelectedFlat == -2)
+        /* -- [DIR]67. UP recovers from the dead iSelectedFlat == -2 -- */
+        else if (ptView->iSelectedFlat == DIR_FLAT_NOT_SELECTED)
         {
             ptView->iSelectedFlat = -1; /* ".." */
             dir_scroll_to_sel(ptView);
@@ -1172,39 +1385,54 @@ static void dir_handle_key(dir_view_t  *ptView,
         }
         break;
 
-    /* -- [DIR]69. dir_handle_key: PAGE_UP scrolls iScrollOffset up by one page -- */
+    case GUI_KEY_DOWN:
+        /* -- [DIR]87. DOWN moves the cursor selection -- */
+        if (ptView->iSelectedFlat < (ptView->iFlatCount - 1))
+        {
+            ptView->iSelectedFlat++;
+            dir_scroll_to_sel(ptView);
+            bRedraw = ST_TRUE;
+        }
+        /* -- [DIR]68. DOWN recovers from the dead iSelectedFlat == -2 -- */
+        else if (ptView->iSelectedFlat == DIR_FLAT_NOT_SELECTED)
+        {
+            ptView->iSelectedFlat = -1; /* ".." */
+            dir_scroll_to_sel(ptView);
+            bRedraw = ST_TRUE;
+        }
+        break;
+
     case GUI_KEY_PAGE_UP:
+        /* -- [DIR]69. PAGE_UP scrolls iScrollOffset up by one page -- */
         ptView->iScrollOffset -= iVisRows;
         if (ptView->iScrollOffset < 0) ptView->iScrollOffset = 0;
         bRedraw = ST_TRUE;
         break;
 
-    /* -- [DIR]70. dir_handle_key: PAGE_DOWN scrolls iScrollOffset down by one page, clamped to iMaxScroll -- */
     case GUI_KEY_PAGE_DOWN:
+        /* -- [DIR]70. PAGE_DOWN scrolls iScrollOffset down by one page -- */
         ptView->iScrollOffset += iVisRows;
-        if (ptView->iScrollOffset > iMaxScroll)
-            ptView->iScrollOffset = iMaxScroll;
+        dir_scroll_clamp_min_max(ptView);
         bRedraw = ST_TRUE;
         break;
 
-    /* -- [DIR]71. dir_handle_key: HOME resets the scroll offset and selects the '..' row -- */
     case GUI_KEY_HOME:
+        /* -- [DIR]71. HOME resets the scroll offset and selects the '..' row -- */
         ptView->iScrollOffset = 0;
         ptView->iSelectedFlat = -1;
         bRedraw = ST_TRUE;
         break;
 
-    /* -- [DIR]72. dir_handle_key: END scrolls to the last page and selects the last flat entry -- */
     case GUI_KEY_END:
-        ptView->iScrollOffset = iMaxScroll;
-        ptView->iSelectedFlat = iMaxSel;
+        /* -- [DIR]72. END scrolls to the last page and selects the last flat entry -- */
+        ptView->iScrollOffset = dir_compute_max_scrollable_rows(ptView);
+        ptView->iSelectedFlat = ptView->iFlatCount - 1;
         bRedraw = ST_TRUE;
         break;
 
-    /* -- [DIR]14. dir_handle_key: ENTER activates the current selection -- */
     case GUI_KEY_ENTER:
-        /* P13: ENTER = action (expand/collapse dir, select file, nav up) */
-        dir_activate_sel(ptView, hWnd);
+        /* -- [DIR]14. ENTER activates the current selection (select/expand/collapse) -- */
+        dir_activate_sel(ptView, hWnd, DIR_SELECT_TOGGLE);
         bRedraw = ST_TRUE;
         break;
 
@@ -1215,7 +1443,7 @@ static void dir_handle_key(dir_view_t  *ptView,
             ptNode = ptView->aptFlat[ptView->iSelectedFlat].ptNode;
             if (uiMods & GUI_MOD_CTRL)
             {
-                /* -- [DIR]16. dir_handle_key: CTRL+SPACE toggles multi-selection on files (P14/P60) -- */
+                /* -- [DIR]16. CTRL+SPACE toggles multi-selection on files (P14/P60) -- */
                 /* P14: CTRL+SPACE = toggle multi-selection (files only).
                  * P60: starting multi-sel clears single selection first. */
                 if (!ptNode->bIsDir)
@@ -1234,7 +1462,7 @@ static void dir_handle_key(dir_view_t  *ptView,
             }
             else
             {
-                /* -- [DIR]15. dir_handle_key: SPACE selects and clears multi-selection (P13/P60) -- */
+                /* -- [DIR]15. SPACE selects and clears multi-selection (P13/P60) -- */
                 /* P13: SPACE = pure selection — update szSelected, no expand.
                  * P60: clear multi-selection before setting single select. */
                 if (ptView->iMultiSelCount > 0)
@@ -1245,7 +1473,7 @@ static void dir_handle_key(dir_view_t  *ptView,
                     LOG_INFO("dir: multi-sel cleared on single SPACE");
                 }
 
-                /* -- [DIR]32. dir_handle_key: SPACE on a selected entry toggles deselection (P70) -- */
+                /* -- [DIR]32. SPACE on a selected entry toggles deselection (P70) -- */
                 /* P70: pressing SPACE again on the entry currently holding
                  * the single (green) selection clears it instead of
                  * re-committing the same path. */
@@ -1271,7 +1499,7 @@ static void dir_handle_key(dir_view_t  *ptView,
     case GUI_KEY_LEFT:
         if (uiMods & GUI_MOD_ALT)
         {
-            /* -- [DIR]18. dir_handle_key: ALT+LEFT navigate the history stack (P10) -- */
+            /* -- [DIR]18. ALT+LEFT navigate the history stack (P10) -- */
             /* P10: ALT+← = navigate history back */
             if (ptView->iNavHistHead > 0)
             {
@@ -1286,29 +1514,16 @@ static void dir_handle_key(dir_view_t  *ptView,
         }
         else
         {
-            /* -- [DIR]17. dir_handle_key: LEFT collapse/expand the selected directory (P12) -- */
-            /* P12: collapse expanded directory */
-            if (ptView->iSelectedFlat >= 0)
-            {
-                dir_node_t *ptNode;
-                ptNode = ptView->aptFlat[ptView->iSelectedFlat].ptNode;
-                if (ptNode->bIsDir == ST_TRUE
-                &&  ptNode->bExpanded == ST_TRUE)
-                {
-                    ptNode->bExpanded  = ST_FALSE;
-                    ptView->iFlatCount = 0;
-                    dir_flat_rebuild(ptView, ptView->ptRoot, -1, ST_FALSE, 0u);
-                    dir_scroll_to_sel(ptView);
-                    bRedraw = ST_TRUE;
-                }
-            }
+            /* -- [DIR]17. LEFT collapse the selected directory (P12) -- */
+            dir_activate_sel(ptView, hWnd, DIR_SELECT_COLLAPSE);
+			bRedraw = ST_TRUE;
         }
         break;
 
     case GUI_KEY_RIGHT:
         if (uiMods & GUI_MOD_ALT)
         {
-            /* -- [DIR]41. dir_handle_key: ALT+RIGHT navigate the history stack (P10) -- */
+            /* -- [DIR]41. ALT+RIGHT navigate the history stack (P10) -- */
             if (ptView->iNavHistHead < ptView->iNavHistCount - 1)
             {
                 ptView->iNavHistHead++;
@@ -1322,25 +1537,9 @@ static void dir_handle_key(dir_view_t  *ptView,
         }
         else
         {
-            /* -- [DIR]78. dir_handle_key: RIGHT collapse/expand the selected directory (P12) -- */
-            if (ptView->iSelectedFlat >= 0)
-            {
-                dir_node_t *ptNode;
-                ptNode = ptView->aptFlat[ptView->iSelectedFlat].ptNode;
-                if (ptNode->bIsDir == ST_TRUE
-                &&  ptNode->bExpanded == ST_FALSE)
-                {
-                    if (ptNode->bChildrenLoaded == ST_FALSE)
-                    {
-                        dir_node_load_children(ptNode, ptView->bShowHidden);
-                    }
-                    ptNode->bExpanded  = ST_TRUE;
-                    ptView->iFlatCount = 0;
-                    dir_flat_rebuild(ptView, ptView->ptRoot, -1, ST_FALSE, 0u);
-                    dir_scroll_to_sel(ptView);
-                    bRedraw = ST_TRUE;
-                }
-            }
+            /* -- [DIR]78. RIGHT expand the selected directory (P12) -- */
+            dir_activate_sel(ptView, hWnd, DIR_SELECT_EXPAND);
+			bRedraw = ST_TRUE;
         }
         break;
 
@@ -1365,9 +1564,8 @@ static void dir_handle_key(dir_view_t  *ptView,
                  ptView->szRootPath, ptView->iFlatCount);
         break;
 
-    /* -- [DIR]21. dir_handle_key: 'H'/'h' toggles hidden-file visibility (P21) -- */
     default:
-        /* P21: 'H'/'h' toggles hidden file visibility */
+        /* -- [DIR]21. 'H'/'h' toggles hidden-file visibility (P21) -- */
         if (eKey >= GUI_KEY_PRINTABLE)
         {
             char cChar;
@@ -1402,6 +1600,28 @@ static void dir_handle_key(dir_view_t  *ptView,
     }
 }
 
+/*
+ * dir_handle_click() - Dispatch a left-click to the dir view.
+ *
+ * Converts iY to a flat row index (iX unused - full-width rows), then
+ * selects that row; a directory row also toggles expand/collapse. A
+ * no-op if the click falls below the rendered content or iCellH is
+ * non-positive (renderer not yet created).
+ *
+ * Parameters:
+ *   ptView [IN/OUT] : view acted upon
+ *   hWnd   [IN]     : window handle, forwarded to dir_activate_sel()/
+ *                      gui_invalidate()
+ *   iX     [IN]     : click X coordinate (unused, rows are full-width)
+ *   iY     [IN]     : click Y coordinate, converted to a flat row index
+ *
+ * Returns:
+ *   Void - None
+ *
+ * This helper is currently called by:
+ *  - dir_event_callback() - run on GUI_EVT_MOUSE_DOWN (left button)
+ *
+ */
 static void dir_handle_click(dir_view_t  *ptView,
                                gui_window_t hWnd,
                                int          iX,
@@ -1410,14 +1630,14 @@ static void dir_handle_click(dir_view_t  *ptView,
     int               iClickRow;
     dir_flat_entry_t *ptEntry;
 
-    /* -- [DIR]22. dir_handle_click: left-click selects a row and expands directories -- */
-    ST_UNUSED(iX);
+    LOG_TRACE("iX=%d - iY=%d", iX, iY);
 
-    /* -- [DIR]73. dir_handle_click: a non-positive iCellH (renderer not yet created) is a silent no-op -- */
+    /* -- [DIR]73. A non-positive iCellH (renderer not yet created) is a silent no-op -- */
     if (ptView->iCellH <= 0) return;
 
     iClickRow = iY / ptView->iCellH + ptView->iScrollOffset;
 
+    /* -- [DIR]22. left-click selects a row and expands directories -- */
     if (iClickRow == 0)
     {
         ptView->iSelectedFlat = -1;
@@ -1428,7 +1648,7 @@ static void dir_handle_click(dir_view_t  *ptView,
         ptEntry = &ptView->aptFlat[ptView->iSelectedFlat];
         if (ptEntry->ptNode->bIsDir)
         {
-            dir_activate_sel(ptView, hWnd);
+            dir_activate_sel(ptView, hWnd, DIR_SELECT_TOGGLE);
         }
     }
     else
@@ -1439,30 +1659,38 @@ static void dir_handle_click(dir_view_t  *ptView,
     gui_invalidate(hWnd);
 }
 
+/*
+ * dir_handle_scroll() - Dispatch a mouse-wheel event to the dir view.
+ *
+ * iDelta > 0 scrolls up (towards the beginning), < 0 scrolls down;
+ * the resulting iScrollOffset is clamped in bounds. A no-op if iCellH
+ * is non-positive (renderer not yet created).
+ *
+ * Parameters:
+ *   ptView [IN/OUT] : view whose iScrollOffset is adjusted
+ *   hWnd   [IN]     : window handle, forwarded to gui_invalidate()
+ *   iDelta [IN]     : wheel delta (positive = up, negative = down)
+ *
+ * Returns:
+ *   Void - None
+ *
+ * This helper is currently called by:
+ *  - dir_event_callback() - run on GUI_EVT_SCROLL
+ *
+ */
 static void dir_handle_scroll(dir_view_t  *ptView,
                                 gui_window_t hWnd,
                                 int          iDelta)
 {
-    int iVisRows;
-    int iMaxScroll;
-    int iTotalRows;
+    LOG_TRACE("iDelta=%d", iDelta);
 
-    /* -- [DIR]74. dir_handle_scroll: a non-positive iCellH (renderer not yet created) is a silent no-op -- */
+    /* -- [DIR]74. A non-positive iCellH (renderer not yet created) is a silent no-op -- */
     if (ptView->iCellH <= 0) return;
 
-    iVisRows   = ptView->iWndHeight / ptView->iCellH;
-    if (iVisRows < 1) iVisRows = 1;
-    iTotalRows = ptView->iFlatCount + 1;
-    iMaxScroll = iTotalRows - iVisRows;
-    if (iMaxScroll < 0) iMaxScroll = 0;
-
-    /* -- [DIR]23. dir_handle_scroll: mouse wheel adjusts iScrollOffset within bounds -- */
+    /* -- [DIR]23. mouse wheel adjusts iScrollOffset within bounds -- */
     /* iDelta > 0 = scroll up (towards beginning), < 0 = scroll down */
     ptView->iScrollOffset -= iDelta;
-
-    if (ptView->iScrollOffset < 0)          ptView->iScrollOffset = 0;
-    if (ptView->iScrollOffset > iMaxScroll) ptView->iScrollOffset = iMaxScroll;
-
+    dir_scroll_clamp_min_max(ptView);
     gui_invalidate(hWnd);
 }
 
@@ -1470,13 +1698,40 @@ static void dir_handle_scroll(dir_view_t  *ptView,
  * GUI event callback  (called from the window thread for all events)
  * ================================================================== */
 
+/*
+ * dir_event_callback() - GUI event dispatcher for the dir view.
+ *
+ * Registered as gui_window_desc_t.pfnEvent in dir_open() - invoked by
+ * the window thread for every GUI event: GUI_EVT_PAINT creates the
+ * renderer on first call then draws (dir_render()), GUI_EVT_RESIZE
+ * updates the tracked size, GUI_EVT_KEY_DOWN/MOUSE_DOWN/SCROLL
+ * dispatch to dir_handle_key()/dir_handle_click()/dir_handle_scroll(),
+ * GUI_EVT_CLOSE releases the renderer. A no-op if ptEvent or pUserCtx
+ * is NULL.
+ *
+ * Parameters:
+ *   hWnd     [IN] : window handle the event occurred on
+ *   ptEvent  [IN] : event descriptor (type + per-type union payload)
+ *   pUserCtx [IN] : the dir_view_t* passed to gui_open_window()
+ *
+ * Returns:
+ *   Void - None
+ *
+ * This helper is currently called by:
+ *  - not called directly by name: registered as gui_window_desc_t.
+ *    pfnEvent in dir_open() and invoked by the window thread for
+ *    every GUI event
+ *
+ */
 static void dir_event_callback(gui_window_t  hWnd,
                                  gui_event_t  *ptEvent,
                                  void         *pUserCtx)
 {
     dir_view_t *ptView;
 
-    /* -- [DIR]75. dir_event_callback: a NULL ptEvent or pUserCtx is a silent no-op -- */
+    // No LOG_TRACE - R22: called by ay received event on the GUI view
+
+    /* -- [DIR]75. a NULL ptEvent or pUserCtx is a silent no-op -- */
     if (ptEvent == NULL || pUserCtx == NULL) return;
 
     ptView = (dir_view_t *)pUserCtx;
@@ -1531,16 +1786,17 @@ static void dir_event_callback(gui_window_t  hWnd,
         dir_handle_scroll(ptView, hWnd, ptEvent->uData.tScroll.iDelta);
         break;
 
-    /* -- [DIR]76. Dir GUI react on GUI_EVT_CLOSE and release the renderer -- */
     case GUI_EVT_CLOSE:
+        /* -- [DIR]76. Dir GUI react on GUI_EVT_CLOSE and release the renderer -- */
         if (ptView->hRenderer != NULL)
         {
             renderer_destroy(&ptView->hRenderer);
         }
         break;
 
-    /* -- [DIR]77. Dir GUI: any other/unhandled gui_event_t type is silently ignored -- */
+    
     default:
+        /* -- [DIR]77. any other/unhandled gui_event_t type is silently ignored -- */
         break;
     }
 }
@@ -1608,8 +1864,8 @@ st_u64_t dir_open(const char     *szPath,
     memset(ptView, 0, sizeof(dir_view_t));
 
     /* -- [DIR]43. dir_open allocates & populates a flat list of entries -- */
-    ptView->aptFlat = (dir_flat_entry_t *)malloc(
-                          DIR_FLAT_MAX * sizeof(dir_flat_entry_t));
+    ptView->aptFlat = (dir_flat_entry_t *)mem_alloc(ST_DIR_FLAT_T, DIR_FLAT_MAX,
+                                        &g_dir_ptCtx.uiAllocObjs[ST_DIR_FLAT_T]);
     if (ptView->aptFlat == NULL)
     {
         LOG_ERROR("malloc failed for aptFlat (%d entries)", DIR_FLAT_MAX);
@@ -1633,7 +1889,7 @@ st_u64_t dir_open(const char     *szPath,
 
     /* -- [DIR]44. dir_open allocates and populates the root node -- */
     /* Create and populate root node */
-    ptView->ptRoot = (dir_node_t*)mem_alloc(ST_DIR_NODE_T, 
+    ptView->ptRoot = (dir_node_t*)mem_alloc(ST_DIR_NODE_T, 1,
                                            &g_dir_ptCtx.uiAllocObjs[ST_DIR_NODE_T]);   
     if (ptView->ptRoot == NULL)
     {
@@ -1663,8 +1919,7 @@ st_u64_t dir_open(const char     *szPath,
 
     /* -- [DIR]5. dir_open opens the GUI window and returns the populated view -- */
     /* Open window (blocks until HWND is live, per UC3.1 contract) */
-    snprintf(szTitle, sizeof(szTitle),
-             "ST4Ever - Dir: %s", szRoot);
+    snprintf(szTitle, sizeof(szTitle), SZ_DIR_VIEW_TITLE, szRoot);
     memset(&tDesc, 0, sizeof(tDesc));
     tDesc.szTitle  = szTitle;
     tDesc.eType    = GUI_WND_DIR;

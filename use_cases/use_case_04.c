@@ -329,8 +329,7 @@ static void uc04_test_hidden_filter(void)
     /* -- [DIR]9. P15: '.*' entries are skipped unless bShowHidden is set -- */
     /* INTENT[INT-DIR-007 → TC-DIR-015...019 → REQ-xxx-yyy → UFR-xxx-yyy]:
      * dir_open(bShowHidden=ST_FALSE) does not include '.*' entries 
-     * dir_open(bShowHidden=ST_TRUE) includes '.*' entries; the hidden
-     * count is strictly greater than the visible-only count */
+     * dir_open(bShowHidden=ST_TRUE) includes '.*' entries */
     UC_INFO("(INT-DIR-007) Toggling the 'dir' GUI on UC04_1 folder,"
             "with hidden files masked/visible");
     ptView = NULL;
@@ -530,58 +529,65 @@ static void uc04_test_console_dispatch(void)
  * 
  *   dir.c:
  *   -- [DIR]5. dir_open opens the GUI window and returns the populated view --
- *   -- [DIR]10. dir_activate_sel: ".." row navigates to the parent directory --
- *   -- [DIR]11. dir_activate_sel: directory entry toggles expand/collapse --
- *   -- [DIR]12. dir_activate_sel: file entry commits selection (P11) --
- *   -- [DIR]13. dir_handle_key: UP/DOWN move the cursor selection --
- *   -- [DIR]14. dir_handle_key: ENTER activates the current selection --
- *   -- [DIR]15. dir_handle_key: SPACE selects and clears multi-selection (P13/P60) --
- *   -- [DIR]16. dir_handle_key: CTRL+SPACE toggles multi-selection on files (P14/P60) --
- *   -- [DIR]17. dir_handle_key: LEFT collapse/expand the selected directory (P12) --
- *   -- [DIR]18. dir_handle_key: ALT+LEFT navigate the history stack (P10) --
+ *   -- [DIR]10. ".." row navigates to the parent directory --
+ *   -- [DIR]11. directory entry toggles expand/collapse --
+ *   -- [DIR]12. file entry commits selection (P11) --
+ *   -- [DIR]13. UP moves the cursor selection --
+ *   -- [DIR]87. DOWN moves the cursor selection --
+ *   -- [DIR]14. ENTER activates the current selection (select/expand/collapse) --
+ *   -- [DIR]15. SPACE selects and clears multi-selection (P13/P60) --
+ *   -- [DIR]16. CTRL+SPACE toggles multi-selection on files (P14/P60) --
+ *   -- [DIR]17. LEFT collapse the selected directory (P12) --
+ *   -- [DIR]18. ALT+LEFT navigate the history stack (P10) --
  *   -- [DIR]19. ESCAPE requests a non-blocking window close (P9) --
  *   -- [DIR]20. F5 refreshes the tree preserving expansion (P22) --
- *   -- [DIR]21. dir_handle_key: 'H'/'h' toggles hidden-file visibility (P21) --
- *   -- [DIR]22. dir_handle_click: left-click selects a row and expands directories --
- *   -- [DIR]23. dir_handle_scroll: mouse wheel adjusts iScrollOffset within bounds --
- *   -- [DIR]24. dir_render: P11 green background marks the last committed selection --
- *   -- [DIR]25. dir_render: P14 purple background marks multi-selected files --
+ *   -- [DIR]21. 'H'/'h' toggles hidden-file visibility (P21) --
+ *   -- [DIR]22. left-click selects a row and expands directories --
+ *   -- [DIR]23. mouse wheel adjusts iScrollOffset within bounds --
+ *   -- [DIR]24. P11 green background marks the last committed selection --
+ *   -- [DIR]25. P14 purple background marks multi-selected files --
  *   -- [DIR]26. dir_render: blue background marks the keyboard cursor selection --
- *   -- [DIR]27. dir_render: rows are drawn as ".." / "[+/-] dir/" / file name --
+ *   -- [DIR]27. Rows are drawn as ".." / "[+/-] dir/" / file name --
  *   -- [DIR]28. Dir GUI react on GUI_EVT_PAINT, first event creates renderer --
  *   -- [DIR]29. Dir GUI react on GUI_EVT_RESIZE --
  *   -- [DIR]30. Dir GUI react on GUI_EVT_KEY_DOWN and dispatch --
- *   -- [DIR]31. writes selected file path to the console selection --
- *   -- [DIR]32. dir_handle_key: SPACE on a selected entry toggles deselection (P70) --
+ *   -- [DIR]31. Writes the selected file path to the console selection --
+ *   -- [DIR]32. SPACE on a selected entry toggles deselection (P70) --
  *   -- [DIR]33. Dir GUI react on GUI_EVT_MOUSE_DOWN and dispatch --
  *   -- [DIR]34. Dir GUI react on GUI_EVT_SCROLL and dispatch --
  *   -- [DIR]35. Windows two-pass scan lists directories before files --
- *   -- [DIR]36. dir_flat_rebuild: rebuilds the flat render list from the currently expanded tree, skipping collapsed subtrees --
+ *   -- [DIR]36. Log an error when parameter is NULL --
  *   -- [DIR]37. Apply a 4-steps: collect / free / reload / re-expand strategy --
  *   -- [DIR]38. Navigates the tree root to a new path and free the old tree --
- *   -- [DIR]39. dir_nav_history_push: appends a new path to the navigation history, truncating any forward entries --
- *   -- [DIR]40. dir_toggle_multi_sel: adds a path to the multi-selection set, or removes it if already present --
- *   -- [DIR]41. dir_handle_key: ALT+RIGHT navigate the history stack (P10) --
+ *   -- [DIR]39. Appends a new path to the navigation history --
+ *   -- [DIR]40. Adds szPath to the multi-selection set, or removes it if already present --
+ *   -- [DIR]41. ALT+RIGHT navigate the history stack (P10) --
+ *   -- [DIR]50. Add an ASCII continuous line for files in depths --
  *   -- [DIR]52. Collect the already expanded directories --
  *   -- [DIR]54. Reexpand the previously saved nodes --
- *   -- [DIR]55. dir_flat_rebuild_rec recursively walks the expanded tree in depth-first order, skipping collapsed subtrees, and records ASCII prefix bookkeeping per visible entry --
- *   -- [DIR]56. dir_build_prefix builds the ASCII tree connector prefix (vertical continuation bars + branch connector) for one flat entry --
- *   -- [DIR]57. dir_get_parent_path strips the trailing separator and truncates at the last path separator to compute the parent directory --
- *   -- [DIR]59. dir_update_title sets the window title to 'ST4Ever - Dir: <root path>' (R18) --
- *   -- [DIR]61. dir_scroll_to_sel scrolls iScrollOffset up or down just enough to keep the selected row visible --
- *   -- [DIR]62. dir_navigate_up computes the parent path and navigates the tree to it, unless already at the filesystem root --
- *   -- [DIR]63. dir_is_multi_sel reports whether szPath is currently present in the multi-selection set --
- *   -- [DIR]69. dir_handle_key: PAGE_UP scrolls iScrollOffset up by one page --
- *   -- [DIR]70. dir_handle_key: PAGE_DOWN scrolls iScrollOffset down by one page, clamped to iMaxScroll --
- *   -- [DIR]71. dir_handle_key: HOME resets the scroll offset and selects the '..' row --
- *   -- [DIR]72. dir_handle_key: END scrolls to the last page and selects the last flat entry --
+ *   -- [DIR]55. recursively walks the expanded tree in depth-first order --
+ *   -- [DIR]56. Add an ASCII tree connector prefix per flat entry --
+ *   -- [DIR]57. Compute the parent directory --
+ *   -- [DIR]59. Sets the window title to 'ST4Ever - Dir: <root path>' (R18) --
+ *   -- [DIR]61. iScrollOffset up or down just enough to keep the selected row visible -- 
+ *   -- [DIR]62. Computes the parent path and navigates up, unless already at the root --
+ *   -- [DIR]63. Reports whether szPath is currently in the multi-selection set --
+ *   -- [DIR]69. PAGE_UP scrolls iScrollOffset up by one page --
+ *   -- [DIR]70. PAGE_DOWN scrolls iScrollOffset down by one page --
+ *   -- [DIR]71. HOME resets the scroll offset and selects the '..' row --
+ *   -- [DIR]72. END scrolls to the last page and selects the last flat entry --
  *   -- [DIR]76. Dir GUI react on GUI_EVT_CLOSE and release the renderer --
- *   -- [DIR]78. dir_handle_key: RIGHT collapse/expand the selected directory (P12) --
+ *   -- [DIR]78. RIGHT expand the selected directory (P12) --
+ *   -- [DIR]80. Compute number of visible rows from view cells height --
+ *   -- [DIR]82. Compute the maximum scrollable rows from visible rows --
+ *   -- [DIR]84. Clamp min/max scroll offsets in ptView structure --
+ *   -- [DIR]86. Send all the visible rows to the GUI renderer --
+ *   -- [DIR]87. DOWN moves the cursor selection --
  *
- *   Tags [DIR]46,48,51,53,58,60,64,65,66,67,68,73,74,75,77 are analyzed
- *   but never referenced below - see the "Untestable tag rationale" block
- *   near the end of this file (R24.2) for why each one cannot be reached
- *   from any use_case_*.c test.
+ *   Tags [DIR]46,47,48,51,53,58,60,64,65,66,67,68,73,74,75,77,79,81,83,85
+ *   are analyzed but never referenced below - see the "Untestable tag
+ *   rationale" block near the end of this file (R24.2) for why each one
+ *   cannot be reached from any use_case_*.c test.
  *
  *   win_gui.c:
  *   -- [EVT]1. Inject a real WM_KEYDOWN and wait uiEventDelayMs --
@@ -686,9 +692,9 @@ static void uc04_test_window_interaction(void)
 
     /* -- [EVT]1. Inject a real WM_KEYDOWN and wait uiEventDelayMs -- */
     /* -- [DIR]30. Dir GUI react on GUI_EVT_KEY_DOWN and dispatch -- */
-    /* -- [DIR]13. dir_handle_key: UP/DOWN move the cursor selection -- */
+    /* -- [DIR]13. UP moves the cursor selection -- */
+    /* -- [DIR]87. DOWN moves the cursor selection -- */
     /* -- [DIR]35. Windows two-pass scan lists directories before files -- */
-    /* -- [DIR]41. Allocate a new empty dir_node_t structure -- */
     /* -- [SPY]13. Scan the ring buffer for the last DrawText spy containing szNeedle -- */
     /* INTENT[INT-DIR-014 → TC-DIR-029...032 → REQ-xxx-yyy → UFR-xxx-yyy]:
      * real WM_KEYDOWN(VK_DOWN)/WM_KEYDOWN(VK_UP) events move
@@ -716,13 +722,13 @@ static void uc04_test_window_interaction(void)
             ptView->iSelectedFlat == 0 && iNewFound >= 0 && iFound != iNewFound);
 
     /* -- [DIR]30. Dir GUI react on GUI_EVT_KEY_DOWN and dispatch -- */
-    /* -- [DIR]17. dir_handle_key: LEFT collapse/expand the selected directory (P12) -- */
-    /* -- [DIR]11. dir_activate_sel: directory entry toggles expand/collapse -- */
-    /* -- [DIR]14. dir_handle_key: ENTER activates the current selection -- */
-    /* -- [DIR]36. dir_flat_rebuild: rebuilds the flat render list from the currently expanded tree, skipping collapsed subtrees -- */
-    /* -- [DIR]55. dir_flat_rebuild_rec recursively walks the expanded tree in depth-first order, skipping collapsed subtrees, and records ASCII prefix bookkeeping per visible entry -- */
-    /* -- [DIR]78. dir_handle_key: RIGHT collapse/expand the selected directory (P12) -- */
-    /* INTENT[INT-DIR-015 → TC-DIR-033...036 → REQ-xxx-yyy → UFR-xxx-yyy]:
+    /* -- [DIR]17. LEFT collapse the selected directory (P12) -- */
+    /* -- [DIR]11. directory entry toggles expand/collapse -- */
+    /* -- [DIR]14. ENTER activates the current selection (select/expand/collapse) -- */
+    /* -- [DIR]36. Log an error when parameter is NULL -- */
+    /* -- [DIR]55. recursively walks the expanded tree in depth-first order -- */
+    /* -- [DIR]78. RIGHT expand the selected directory (P12) -- */
+    /* INTENT[INT-DIR-015 → TC-DIR-033...036/104...105 → REQ-xxx-yyy → UFR-xxx-yyy]:
      * on the selected directory row (visible_dir, flat index 0): RIGHT
      * expands, LEFT collapses, ENTER toggles again via dir_activate_sel;
      * each transition rebuilds the flat render list (iFlatCount 2<->4) */
@@ -738,6 +744,13 @@ static void uc04_test_window_interaction(void)
             ptView->aptFlat[0].ptNode->bExpanded == ST_TRUE &&
             ptView->iFlatCount == 4 && iFound >= 0 && iNewFound >= 0);
 
+	win_evt_send_key(ptWnd, VK_RIGHT);
+    iFound    = win_D2D_spy_find_text("[-] visible_dir", ptD2D);
+    iNewFound = win_D2D_spy_find_text("file002", ptD2D);
+    UC_TEST("[N] (TC-DIR-104) A second RIGHT on expanded folder does not change anything",
+            ptView->aptFlat[0].ptNode->bExpanded == ST_TRUE &&
+            ptView->iFlatCount == 4 && iFound >= 0 && iNewFound >= 0);
+
     win_D2D_spy_reset(ptD2D);
     win_evt_send_key(ptWnd, VK_LEFT);
     iFound    = win_D2D_spy_find_text("[+] visible_dir", ptD2D);
@@ -746,6 +759,17 @@ static void uc04_test_window_interaction(void)
             " and [+] indicator is shown",
             ptView->aptFlat[0].ptNode->bExpanded == ST_FALSE &&
             ptView->iFlatCount == 2 && iFound >= 0 && iNewFound == -1);
+
+    win_D2D_spy_reset(ptD2D);
+    win_evt_send_key(ptWnd, VK_LEFT);
+    iFound    = win_D2D_spy_find_text("[+] visible_dir", ptD2D);
+    iNewFound = win_D2D_spy_find_text("file002", ptD2D);
+    UC_TEST("[N] (TC-DIR-105) A second LEFT on collapsed folder does not change anything",
+            ptView->aptFlat[0].ptNode->bExpanded == ST_FALSE &&
+            ptView->iFlatCount == 2 && iFound >= 0 && iNewFound == -1);
+			
+printf("--> iFlatcount = %d, iFound = %d, iNewFound = %d\n", ptView->iFlatCount,
+										iFound, iNewFound);
 
     win_D2D_spy_reset(ptD2D);
     win_evt_send_key(ptWnd, VK_RETURN);
@@ -763,13 +787,11 @@ static void uc04_test_window_interaction(void)
             ptView->aptFlat[0].ptNode->bExpanded == ST_FALSE &&
             ptView->iFlatCount == 2 && iFound >= 0 && iNewFound == -1);
 
-    /* -- [DIR]56. dir_build_prefix builds the ASCII tree connector prefix (vertical continuation bars + branch connector) for one flat entry -- */
+    /* -- [DIR]50. Add an ASCII continuous line for files in depths -- */
+    /* -- [DIR]56. Add an ASCII tree connector prefix per flat entry -- */
     /* INTENT[INT-DIR-028 → TC-DIR-093,094 → REQ-xxx-yyy → UFR-xxx-yyy]:
-     * expanding visible_dir (2 children: file001 not-last, file002 last)
-     * draws each depth-1 child with the correct ASCII connector - a
-     * "|   " continuation bar (visible_dir itself is not the last root
-     * sibling) followed by "+-- " for the non-last child, "\-- " for
-     * the last one */
+     * Expansion shows continuous line for files in depths  followed by 
+     * "+-- " for the non-last child, "\-- " for the last one */
     UC_INFO("(INT-DIR-028) Checking dir_build_prefix ASCII connectors on visible_dir's children");
     win_D2D_spy_reset(ptD2D);
     win_evt_send_key(ptWnd, VK_RIGHT); /* re-expand visible_dir */
@@ -782,11 +804,11 @@ static void uc04_test_window_interaction(void)
     win_evt_send_key(ptWnd, VK_LEFT); /* re-collapse: restores the
                                         * baseline INT-DIR-016 expects */
 
-    /* -- [DIR]12. dir_activate_sel: file entry commits selection (P11) -- */
-    /* -- [DIR]14. dir_handle_key: ENTER activates the current selection -- */
+    /* -- [DIR]12. file entry commits selection (P11) -- */
+    /* -- [DIR]14. ENTER activates the current selection (select/expand/collapse) -- */
     /* -- [DIR]30. Dir GUI react on GUI_EVT_KEY_DOWN and dispatch -- */
-    /* -- [DIR]31. writes selected file path to the console selection -- */
-    /* -- [DIR]32. dir_handle_key: SPACE on a selected entry toggles deselection (P70) -- */
+    /* -- [DIR]31. Writes the selected file path to the console selection -- */
+    /* -- [DIR]32. SPACE on a selected entry toggles deselection (P70) -- */
     /* INTENT[INT-DIR-016 → TC-DIR-037...041 → REQ-xxx-yyy → UFR-xxx-yyy]:
      * ENTER on a file row commits the selection to both
      * ptView->szLastSelected (P11) and the console's szSelected */
@@ -813,10 +835,10 @@ static void uc04_test_window_interaction(void)
     UC_TEST("[N] (TC-DIR-041) SPACE toggles console szSelected", 
                  ptLineCtx->szSelected[0] == '\0');
     
-    /* -- [DIR]14. dir_handle_key: ENTER activates the current selection -- */
-    /* -- [DIR]15. dir_handle_key: SPACE selects and clears multi-selection (P13/P60) -- */
-    /* -- [DIR]31. writes selected file path to the console selection -- */
-    /* -- [DIR]32. dir_handle_key: SPACE on a selected entry toggles deselection (P70) -- */
+    /* -- [DIR]14. ENTER activates the current selection (select/expand/collapse) -- */
+    /* -- [DIR]15. SPACE selects and clears multi-selection (P13/P60) -- */
+    /* -- [DIR]31. Writes the selected file path to the console selection -- */
+    /* -- [DIR]32. SPACE on a selected entry toggles deselection (P70) -- */
     /* INTENT[INT-DIR-017 → TC-DIR-042...048 → REQ-xxx-yyy → UFR-xxx-yyy]:
      * dir_handle_key() SPACE (no CTRL) selects the directory row and
      * clears any multi-selection, without toggling expand/collapse */
@@ -846,8 +868,8 @@ static void uc04_test_window_interaction(void)
     UC_TEST("[N] (TC-DIR-048) Selection is still empty",
             ptLineCtx->szSelected[0] == '\0');
 
-    /* -- [DIR]16. dir_handle_key: CTRL+SPACE toggles multi-selection on files (P14/P60) -- */
-    /* -- [DIR]40. dir_toggle_multi_sel: adds a path to the multi-selection set, or removes it if already present -- */
+    /* -- [DIR]16. CTRL+SPACE toggles multi-selection on files (P14/P60) -- */
+    /* -- [DIR]40. Adds szPath to the multi-selection set, or removes it if already present -- */
     /* -- [EVT]5. Inject a real CTRL+<key> chord via bracketing keybd_event() -- */
     /* INTENT[INT-DIR-018 → TC-DIR-049...051 → REQ-xxx-yyy → UFR-xxx-yyy]:
      * CTRL+SPACE on a file toggles multi-selection (P14) and clears
@@ -865,8 +887,8 @@ static void uc04_test_window_interaction(void)
     UC_TEST("[N] (TC-DIR-051) CTRL+SPACE clears the single "
             "selection (P60)", ptView->szLastSelected[0] == '\0');
 
-    /* -- [DIR]15. dir_handle_key: SPACE selects and clears multi-selection (P13/P60) -- */
-    /* -- [DIR]32. dir_handle_key: SPACE on a selected entry toggles deselection (P70) -- */
+    /* -- [DIR]15. SPACE selects and clears multi-selection (P13/P60) -- */
+    /* -- [DIR]32. SPACE on a selected entry toggles deselection (P70) -- */
     /* INTENT[INT-DIR-019 → TC-DIR-052...054 → REQ-xxx-yyy → UFR-xxx-yyy]:
      * a later plain SPACE clears the multi-selection set (P60
      * exclusivity, the other direction) pressing SPACE again on the same 
@@ -886,7 +908,7 @@ static void uc04_test_window_interaction(void)
             "visible_dir: szLastSelected is now empty",
             ptView->szLastSelected[0] == '\0');
 
-    /* -- [DIR]22. dir_handle_click: left-click selects a row and expands directories -- */
+    /* -- [DIR]22. left-click selects a row and expands directories -- */
     /* -- [DIR]33. Dir GUI react on GUI_EVT_MOUSE_DOWN and dispatch -- */
     /* -- [EVT]3. Inject a real WM_LBUTTONDOWN and wait uiEventDelayMs -- */
     /* INTENT[INT-DIR-020 → TC-DIR-055...058 → REQ-xxx-yyy → UFR-xxx-yyy]:
@@ -915,16 +937,15 @@ static void uc04_test_window_interaction(void)
             ptView->aptFlat[0].ptNode->bExpanded == ST_FALSE && ptView->iFlatCount == 2
             && iFound >= 0 && iNewFound == -1);
     
-    /* -- [DIR]23. dir_handle_scroll: mouse wheel adjusts iScrollOffset within bounds -- */
+    /* -- [DIR]23. mouse wheel adjusts iScrollOffset within bounds -- */
     /* -- [DIR]29. Dir GUI react on GUI_EVT_RESIZE -- */
     /* -- [DIR]34. Dir GUI react on GUI_EVT_SCROLL and dispatch -- */
     /* -- [EVT]4. Inject a real WM_MOUSEWHEEL and wait uiEventDelayMs -- */
     /* -- [EVT]7. Inject a real WM_SIZE and wait uiEventDelayMs -- */
     /* -- [LINE]19. 'dir' closes any previously open view before opening a new one -- */
     /* INTENT[INT-DIR-021 → TC-DIR-059...065 → REQ-xxx-yyy → UFR-xxx-yyy]:
-     * Use 'testdata_scroll' folder (14 flat files) that still fits the
-     * default-size dir view untouched (no scroll needed), but is too
-     * big to fit once the window is resized down to a handful of rows*/
+     * Use 'testdata_scroll' folder (14 flat files) and RESIZE event to test
+     * scrolling adjustment and mouse wheel events */
         const int iVisRowsSmall = 6;  /* Set resize to 6 rows incl. ".."  */
         int       iResizeH;
 
@@ -1003,9 +1024,12 @@ static void uc04_test_window_interaction(void)
                     && win_D2D_spy_find_text("file01.txt", ptD2D) >= 0
                     && win_D2D_spy_find_text("file05.txt", ptD2D) >= 0);
 
-            /* -- [DIR]61. dir_scroll_to_sel scrolls iScrollOffset up or down just enough to keep the selected row visible -- */
-            /* -- [DIR]69. dir_handle_key: PAGE_UP scrolls iScrollOffset up by one page -- */
-            /* -- [DIR]70. dir_handle_key: PAGE_DOWN scrolls iScrollOffset down by one page, clamped to iMaxScroll -- */
+            /* -- [DIR]61. iScrollOffset up or down just enough to keep the selected row visible -- */
+            /* -- [DIR]69. PAGE_UP scrolls iScrollOffset up by one page -- */
+            /* -- [DIR]70. PAGE_DOWN scrolls iScrollOffset down by one page -- */
+            /* -- [DIR]80. Compute number of visible rows from view cells height -- */
+            /* -- [DIR]82. Compute the maximum scrollable rows from visible rows -- */
+            /* -- [DIR]84. Clamp min/max scroll offsets in ptView structure -- */
             /* INTENT[INT-DIR-030 → TC-DIR-096...100 → REQ-xxx-yyy → UFR-xxx-yyy]:
              * with the window still shrunk to iVisRowsSmall (6) rows:
              * moving the keyboard cursor DOWN past the visible window
@@ -1094,7 +1118,7 @@ static void uc04_test_window_interaction(void)
         win_evt_send_key(ptWnd, VK_DOWN);
     }
 
-    /* -- [DIR]21. dir_handle_key: 'H'/'h' toggles hidden-file visibility (P21) -- */
+    /* -- [DIR]21. 'H'/'h' toggles hidden-file visibility (P21) -- */
     /* -- [DIR]37. Apply a 4-steps: collect / free / reload / re-expand strategy -- */
     /* -- [DIR]52. Collect the already expanded directories -- */
     /* -- [DIR]54. Reexpand the previously saved nodes -- */
@@ -1189,13 +1213,13 @@ static void uc04_test_window_interaction(void)
             ptView->aptFlat[0].ptNode->bExpanded == ST_TRUE && ptView->iFlatCount == 4
             && iFound >= 0 && iNewFound == -1);
 
-    /* -- [DIR]10. dir_activate_sel: ".." row navigates to the parent directory -- */
-    /* -- [DIR]18. dir_handle_key: ALT+LEFT navigate the history stack (P10) -- */
-    /* -- [DIR]41. dir_handle_key: ALT+RIGHT navigate the history stack (P10) -- */
+    /* -- [DIR]10. ".." row navigates to the parent directory -- */
+    /* -- [DIR]18. ALT+LEFT navigate the history stack (P10) -- */
+    /* -- [DIR]41. ALT+RIGHT navigate the history stack (P10) -- */
     /* -- [DIR]38. Navigates the tree root to a new path and free the old tree -- */
-    /* -- [DIR]39. dir_nav_history_push: appends a new path to the navigation history, truncating any forward entries -- */
-    /* -- [DIR]57. dir_get_parent_path strips the trailing separator and truncates at the last path separator to compute the parent directory -- */
-    /* -- [DIR]62. dir_navigate_up computes the parent path and navigates the tree to it, unless already at the filesystem root -- */
+    /* -- [DIR]39. Appends a new path to the navigation history -- */
+    /* -- [DIR]57. Compute the parent directory -- */
+    /* -- [DIR]62. Computes the parent path and navigates up, unless already at the root -- */
     /* -- [EVT]6. Inject a real ALT+<key> chord via bracketing keybd_event() -- */
     /* INTENT[INT-DIR-024 → TC-DIR-077...080 → REQ-xxx-yyy → UFR-xxx-yyy]:
      * ENTER on the ".." row navigates up (dir_navigate_up, which calls
@@ -1203,7 +1227,7 @@ static void uc04_test_window_interaction(void)
      * (dir_nav_history_push); ALT+LEFT then goes back to the original
      * root, ALT+RIGHT goes forward to the parent again, each swap
      * performed by dir_navigate_to */
-    /* -- [DIR]71. dir_handle_key: HOME resets the scroll offset and selects the '..' row -- */
+    /* -- [DIR]71. HOME resets the scroll offset and selects the '..' row -- */
     UC_INFO("(INT-DIR-024) Using HOME to set selection on '..' and navigate in other folder");
     win_evt_send_key(ptWnd, VK_HOME); /* -> select '..' row */
     UC_TEST("[N] (TC-DIR-077) HOME selects '..' and resets the scroll "
@@ -1242,7 +1266,7 @@ static void uc04_test_window_interaction(void)
      * predictable testdata/ fixture again. */
     win_evt_send_alt_key(ptWnd, VK_LEFT);
 
-    /* -- [DIR]59. dir_update_title sets the window title to 'ST4Ever - Dir: <root path>' (R18) -- */
+    /* -- [DIR]59. Sets the window title to 'ST4Ever - Dir: <root path>' (R18) -- */
     /* INTENT[INT-DIR-029 → TC-DIR-095 → REQ-xxx-yyy → UFR-xxx-yyy]:
      * every dir_navigate_to() call (here, the ALT+LEFT above) updates
      * the real Win32 window title via gui_set_title()/dir_update_title -
@@ -1257,12 +1281,13 @@ static void uc04_test_window_interaction(void)
                 && strstr(szWinTitle, "testdata") != NULL);
     }
 
-    /* -- [DIR]27. dir_render: rows are drawn as ".." / "[+/-] dir/" / file name -- */
-    /* -- [DIR]24. dir_render: P11 green background marks the last committed selection -- */
-    /* -- [DIR]25. dir_render: P14 purple background marks multi-selected files -- */
+    /* -- [DIR]27. Rows are drawn as ".." / "[+/-] dir/" / file name -- */
+    /* -- [DIR]24. P11 green background marks the last committed selection -- */
+    /* -- [DIR]25. P14 purple background marks multi-selected files -- */
     /* -- [DIR]26. dir_render: blue background marks the keyboard cursor selection -- */
-    /* -- [DIR]63. dir_is_multi_sel reports whether szPath is currently present in the multi-selection set -- */
-    /* -- [DIR]72. dir_handle_key: END scrolls to the last page and selects the last flat entry -- */
+    /* -- [DIR]86. Send all the visible rows to the GUI renderer -- */
+    /* -- [DIR]63. Reports whether szPath is currently in the multi-selection set -- */
+    /* -- [DIR]72. END scrolls to the last page and selects the last flat entry -- */
     /* -- [SPY]14. Scan the ring buffer for the last FillRectangle spy matching the exact color -- */
     /* -- [SPY]15. Count the number of spies matching FillRectangle exact color -- */
     /* INTENT[INT-DIR-025 → TC-DIR-081...087/101 → REQ-xxx-yyy → UFR-xxx-yyy]:
@@ -1389,7 +1414,7 @@ static void uc04_test_window_interaction(void)
                   "(no D2D context found)");
     }
 
-    /* -- [DIR]40. dir_toggle_multi_sel: adds a path to the multi-selection set, or removes it if already present -- */
+    /* -- [DIR]40. Adds szPath to the multi-selection set, or removes it if already present -- */
     /* INTENT[INT-DIR-027 → TC-DIR-088...090 → REQ-xxx-yyy → UFR-xxx-yyy]:
      * pressing CTRL+SPACE again on a file already present in the
      * multi-selection set (INT-DIR-018 above only exercised the
@@ -1505,6 +1530,14 @@ static void uc04_test_window_interaction(void)
  *   [DIR]46 (dir_node_load_children: path-too-long skip) - no test
  *     fixture path comes close to ST_MAX_PATH; would require an
  *     artificially deep directory tree with no functional value.
+ *   [DIR]47 (dir_flat_rebuild: DIR_FLAT_MAX bounds skip) - reaching
+ *     4096 flat entries would require an unrealistic test fixture,
+ *     same rationale as [DIR]46.
+ *   [DIR]85 (dir_toggle_multi_sel: DIR_MULTI_SEL_MAX bounds skip) -
+ *     reaching 16 simultaneously multi-selected files would need a
+ *     fixture larger than any existing one plus 16 CTRL+SPACE
+ *     injections just to exercise this one guard; same rationale as
+ *     [DIR]46/[DIR]47 (fixture cost disproportionate to the value).
  *   [DIR]48 (dir_node_load_children: NULL ptNode guard) - every call
  *     site (dir_open, dir_navigate_to, dir_activate_sel,
  *     dir_handle_key RIGHT, dir_reexpand_path) checks its node is
@@ -1519,6 +1552,18 @@ static void uc04_test_window_interaction(void)
  *     caller (dir_refresh_tree, Phase 3) passes ptView->ptRoot
  *     (guarded) and aaszExpanded[iIdx] (a valid string written by
  *     dir_collect_expanded in Phase 1).
+ *   [DIR]79 (dir_compute_visible_rows: NULL ptView guard) - every
+ *     call site (dir_compute_max_scrollable_rows, dir_scroll_to_sel,
+ *     dir_render, dir_handle_key) passes the view's own ptView,
+ *     already non-NULL for the lifetime of an open window.
+ *   [DIR]81 (dir_compute_max_scrollable_rows: NULL ptView guard) -
+ *     same reasoning as [DIR]79; its two callers
+ *     (dir_scroll_clamp_min_max, dir_handle_key END) both pass an
+ *     already-valid ptView.
+ *   [DIR]83 (dir_scroll_clamp_min_max: NULL ptView guard) - same
+ *     reasoning as [DIR]79; all three callers (dir_scroll_to_sel,
+ *     dir_handle_key PAGE_UP/PAGE_DOWN, dir_handle_scroll) pass an
+ *     already-valid ptView.
  *
  * Group B - the dead "iSelectedFlat == -2" sentinel: dir_open()
  * always initializes iSelectedFlat to -1 (".." selected by default,
